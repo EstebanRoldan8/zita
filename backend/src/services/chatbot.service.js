@@ -1,0 +1,693 @@
+const { sendMessage } = require('../config/whatsapp');
+const { supabaseAdmin } = require('../config/supabase');
+const { decrypt } = require('../utils/encrypt');
+const Anthropic = require('@anthropic-ai/sdk');
+const logger = require('../utils/logger');
+const { getAvailableEmployee, getNextAvailableSlots } = require('../utils/availability');
+
+async function getBusinessByPhoneNumberId(phoneNumberId) {
+  const { data } = await supabaseAdmin
+    .from('businesses')
+    .select('id, name, business_type, whatsapp_phone_number_id, whatsapp_access_token')
+    .eq('whatsapp_phone_number_id', phoneNumberId)
+    .single();
+  return data;
+}
+
+function getBusinessSystemPrompt(business, clientInfo = null) {
+  const now = new Date().toLocaleString('es-CO', { timeZone: 'America/Bogota' });
+  const hoyFecha = new Date().toLocaleDateString('en-CA', { timeZone: 'America/Bogota' });
+  const mañanaFecha = new Date(Date.now() + 86400000).toLocaleDateString('en-CA', { timeZone: 'America/Bogota' });
+  const tipo = (business.business_type || 'barberia').toLowerCase().replace(/[áàä]/g, 'a');
+
+  const clientGreeting = clientInfo?.name && clientInfo.name !== 'Cliente WhatsApp'
+    ? `El cliente se llama ${clientInfo.name}. Úsalo desde el primer mensaje.`
+    : '';
+
+  return `<identity>
+Eres el asistente virtual de ${business.name}.
+Atiendes clientes por WhatsApp. Nunca menciones ZITA.
+Fecha y hora actual en Colombia: ${now}
+Fecha de hoy en Colombia: ${hoyFecha}
+Fecha de mañana en Colombia: ${mañanaFecha}
+Cuando el cliente diga 'hoy' usa EXACTAMENTE ${hoyFecha}
+Cuando el cliente diga 'mañana' usa EXACTAMENTE ${mañanaFecha}
+${clientGreeting}
+Idioma: responde SIEMPRE en el mismo idioma que use el cliente.
+</identity>
+
+<personality>
+- Cálido, directo y humano — como un empleado real del negocio
+- Mensajes cortos: máximo 3-4 líneas por respuesta
+- Usa emojis con moderación (1-2 por mensaje máximo)
+- Nunca uses tablas con | — usa listas simples
+- No digas frases robóticas como "Entendido, procedo a..."
+- Habla como si fuera WhatsApp real entre personas
+</personality>
+
+<decision_tree>
+REGLA PRINCIPAL — sigue este árbol EXACTO antes de cada respuesta:
+
+PASO 1: Lee el historial completo. Extrae:
+  - servicio_pedido: ¿mencionó algún servicio? (corte, manicure, etc.)
+  - fecha_pedida: ¿mencionó cuándo? (hoy, mañana, lunes, una fecha)
+  - hora_pedida: ¿mencionó a qué hora? (3pm, a las 3, 15:00, etc.)
+  - nombre_cliente: ¿dijo su nombre en algún momento?
+
+PASO 2: Decide según lo que tienes:
+
+  SI tienes servicio + fecha + hora → EJECUTA agendar_cita INMEDIATAMENTE
+    → NO preguntes nada más
+    → NO pidas confirmación
+    → NO digas "¿confirmas?" ni "¿es correcto?"
+    → Agenda y confirma con precio incluido
+
+  SI tienes servicio + fecha pero NO hora:
+    → Ejecuta verificar_disponibilidad para esa fecha
+    → Muestra máximo 4 horarios disponibles como opciones
+    → Pregunta SOLO: "¿A qué hora te queda mejor?"
+
+  SI tienes servicio pero NO fecha/hora:
+    → Pregunta SOLO: "¿Para cuándo sería?"
+
+  SI NO tienes servicio pero SÍ tienes fecha + hora:
+    → Ejecuta ver_servicios
+    → Muestra los más relevantes (máximo 4)
+    → Pregunta SOLO: "¿Cuál te interesa?"
+
+  SI el cliente solo saluda o es muy vago:
+    → Respuesta cálida corta
+    → Pregunta: "¿Quieres agendar una cita o en qué te puedo ayudar?"
+    → NO muestres toda la lista de servicios sin que la pidan
+
+  SI el cliente pregunta disponibilidad/horarios:
+    → Ejecuta verificar_disponibilidad
+    → Muestra slots disponibles
+    → Pregunta si quiere agendar en alguno
+
+  SI el cliente pregunta precios o servicios:
+    → Ejecuta ver_servicios
+    → Muestra lista clara con precio
+    → Pregunta cuál le interesa
+</decision_tree>
+
+<booking_rules>
+- NUNCA pidas confirmación de datos que el cliente ya dio
+- NUNCA repitas información que el cliente ya mencionó
+- NUNCA preguntes más de UNA cosa por mensaje
+- Si el nombre es "Cliente WhatsApp" o null → agenda sin nombre, no lo pidas
+- Si el cliente da su nombre espontáneamente → úsalo en agendar_cita como client_name
+- Confirmación de cita SIEMPRE incluye precio: "Listo ✅ [servicio] el [fecha] a las [hora] - $[precio]"
+- Máximo 2 mensajes para completar un agendamiento
+- Si el horario está ocupado → propón alternativas, nunca digas "error" ni "el sistema"
+</booking_rules>
+
+<service_search>
+- Si el cliente dice algo genérico ("corte", "manicure", "limpieza"):
+  → Busca en ver_servicios y muestra solo los 2-3 más relevantes
+  → NO muestres toda la lista
+- Si dice "ver todo" o "qué servicios tienen":
+  → Muestra toda la lista
+- Busca por similitud, no exactitud:
+  "corte clasico" → "Corte Clásico" ✓
+  "manicure" → "Manicure completo" ✓
+  "limpieza" → "Limpieza facial" ✓
+</service_search>
+
+<schedule_validation>
+Cuando el cliente mencione día u hora, verifica PRIMERO con
+verificar_disponibilidad ANTES de pedir más datos.
+
+Si el día está cerrado → informa inmediatamente:
+  "Lo siento, los [día] estamos cerrados 😔 ¿Te queda bien otro día?"
+
+Si la hora está fuera de horario → informa:
+  "Cerramos a las [hora]. ¿Te agendo antes?"
+
+Si no hay disponibilidad → propón alternativas:
+  "Ese horario ya está lleno 😅 Tengo disponible: [lista]. ¿Cuál te queda bien?"
+</schedule_validation>
+
+<loyalty>
+Si el cliente pregunta por puntos, visitas o recompensa:
+→ Ejecuta ver_mi_fidelizacion
+→ Responde motivador: "¡Ya llevas X visitas! Te faltan Y para tu [recompensa] 🎉"
+→ Si ya cumplió: "¡Felicidades! Ya puedes canjear tu [recompensa] 🏆"
+</loyalty>
+
+<limits>
+- Máximo 3 citas por conversación
+- Máximo 5 iteraciones de tools por mensaje
+- Si algo falla técnicamente: "Tuve un problemita, ¿puedes intentarlo de nuevo?"
+</limits>`;
+}
+
+async function getOrCreateClient(businessId, phone, name = null) {
+  const { data: existing } = await supabaseAdmin
+    .from('clients')
+    .select('id, name')
+    .eq('business_id', businessId)
+    .eq('phone', phone)
+    .single();
+
+  if (existing) return existing;
+
+  const { data: newClient } = await supabaseAdmin
+    .from('clients')
+    .insert({
+      business_id: businessId,
+      phone: phone,
+      name: name || 'Cliente WhatsApp'
+    })
+    .select('id, name')
+    .single();
+
+  return newClient;
+}
+
+async function getConversationHistory(businessId, clientPhone) {
+  const { data, error } = await supabaseAdmin
+    .from('whatsapp_conversations')
+    .select('messages')
+    .eq('business_id', businessId)
+    .eq('client_phone', clientPhone)
+    .maybeSingle();
+
+  if (error) {
+    logger.error('Error recuperando historial:', error.message);
+    return [];
+  }
+
+  return data?.messages || [];
+}
+
+async function saveConversationHistory(businessId, clientPhone, messages) {
+  const mensajesLimpios = [];
+
+  for (const m of messages) {
+    if (typeof m.content === 'string' && m.content.trim()) {
+      mensajesLimpios.push({ role: m.role, content: m.content });
+    } else if (Array.isArray(m.content)) {
+      const textos = m.content
+        .filter(c => c.type === 'text' && c.text?.trim())
+        .map(c => c.text)
+        .join(' ');
+      if (textos) {
+        mensajesLimpios.push({ role: m.role, content: textos });
+      }
+    }
+  }
+
+  const { error } = await supabaseAdmin
+    .from('whatsapp_conversations')
+    .upsert({
+      business_id: businessId,
+      client_phone: clientPhone,
+      messages: mensajesLimpios.slice(-4)
+    }, { onConflict: 'business_id,client_phone' });
+
+  if (error) logger.error('Error guardando historial:', error.message);
+}
+
+async function processChatbotMessage(businessId, clientPhone, messageText, history, business, clientInfo = null) {
+  logger.info('Procesando mensaje del chatbot', { businessId, clientPhone, messageLength: messageText.length });
+
+  const anthropicClient = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
+  const systemPrompt = getBusinessSystemPrompt(business, clientInfo);
+
+  const tools = [
+    {
+      name: 'ver_servicios',
+      description: 'Ver todos los servicios disponibles con precios y duración',
+      input_schema: { type: 'object', properties: {} }
+    },
+    {
+      name: 'verificar_disponibilidad',
+      description: 'Verificar si hay disponibilidad en una fecha y hora',
+      input_schema: {
+        type: 'object',
+        properties: {
+          fecha: { type: 'string', description: 'Fecha YYYY-MM-DD' },
+          hora: { type: 'string', description: 'Hora HH:mm' }
+        },
+        required: ['fecha', 'hora']
+      }
+    },
+    {
+      name: 'agendar_cita',
+      description: 'Agendar una cita para el cliente',
+      input_schema: {
+        type: 'object',
+        properties: {
+          service_name: { type: 'string' },
+          fecha: { type: 'string', description: 'YYYY-MM-DD' },
+          hora: { type: 'string', description: 'HH:mm' },
+          client_name: { type: 'string', description: 'Nombre del cliente (opcional)' }
+        },
+        required: ['service_name', 'fecha', 'hora']
+      }
+    },
+    {
+      name: 'ver_mis_citas',
+      description: 'Ver las citas del cliente',
+      input_schema: { type: 'object', properties: {} }
+    },
+    {
+      name: 'cancelar_cita',
+      description: 'Cancelar una cita del cliente',
+      input_schema: {
+        type: 'object',
+        properties: {
+          appointment_id: { type: 'string' }
+        },
+        required: ['appointment_id']
+      }
+    },
+    {
+      name: 'ver_productos',
+      description: 'Ver productos disponibles en el negocio para venta',
+      input_schema: { type: 'object', properties: {} }
+    },
+    {
+      name: 'ver_mi_fidelizacion',
+      description: 'Ver visitas acumuladas y progreso hacia recompensa del cliente',
+      input_schema: { type: 'object', properties: {} }
+    }
+  ];
+
+  async function executeChatbotTool(toolName, toolInput) {
+    try {
+      switch(toolName) {
+        case 'ver_servicios': {
+          const { data } = await supabaseAdmin
+            .from('services')
+            .select('name, price, duration_minutes')
+            .eq('business_id', businessId)
+            .eq('active', true)
+            .order('name');
+
+          const unicos = [];
+          const nombres = new Set();
+          data?.forEach(s => {
+            if (!nombres.has(s.name)) {
+              nombres.add(s.name);
+              unicos.push(s);
+            }
+          });
+
+          return { servicios: unicos };
+        }
+
+        case 'verificar_disponibilidad': {
+          const { data } = await supabaseAdmin
+            .from('appointments')
+            .select('scheduled_at')
+            .eq('business_id', businessId)
+            .eq('status', 'confirmed')
+            .gte('scheduled_at', toolInput.fecha + 'T00:00:00-05:00')
+            .lte('scheduled_at', toolInput.fecha + 'T23:59:59-05:00');
+
+          const horasOcupadas = data?.map(a => a.scheduled_at.slice(11,16)) || [];
+          const disponible = !horasOcupadas.includes(toolInput.hora);
+          return { disponible, horasOcupadas, fecha: toolInput.fecha, hora: toolInput.hora };
+        }
+
+        case 'agendar_cita': {
+          const { data: servicios } = await supabaseAdmin
+            .from('services')
+            .select('id, name, price')
+            .eq('business_id', businessId)
+            .ilike('name', `%${toolInput.service_name}%`)
+            .eq('active', true)
+            .limit(1);
+
+          const servicio = servicios?.[0];
+          if (!servicio) return { success: false, error: 'Servicio no encontrado' };
+
+          const diaSemanaPasado = new Date(toolInput.fecha);
+          const colombiaStr = diaSemanaPasado.toLocaleString('en-CA', {
+            timeZone: 'America/Bogota',
+            hour12: false
+          });
+          const [datePart] = colombiaStr.split(', ');
+          const [year, month, day] = datePart.split('-').map(Number);
+          const tempDate = new Date(year, month - 1, day);
+          const diaDeLaSemana = tempDate.getDay();
+
+          const { data: horario } = await supabaseAdmin
+            .from('business_hours')
+            .select('open_time, close_time, is_open')
+            .eq('business_id', businessId)
+            .eq('day_of_week', diaDeLaSemana)
+            .maybeSingle();
+
+          if (!horario?.is_open) {
+            return { success: false, error: 'Ese día estamos cerrados.' };
+          }
+
+          const horaNum = parseInt(toolInput.hora.split(':')[0]);
+          const apertura = parseInt(horario.open_time?.split(':')[0] || '8');
+          const cierre = parseInt(horario.close_time?.split(':')[0] || '19');
+
+          if (horaNum < apertura || horaNum >= cierre) {
+            return {
+              success: false,
+              error: `Fuera de horario. Atendemos de ${horario.open_time} a ${horario.close_time}.`
+            };
+          }
+
+          const empleadoDisponible = await getAvailableEmployee(businessId, toolInput.fecha, toolInput.hora);
+          if (!empleadoDisponible) {
+            logger.error(`[agendar_cita] No available employee`, {
+              businessId,
+              fecha: toolInput.fecha,
+              hora: toolInput.hora,
+              detail: 'getAvailableEmployee returned null'
+            });
+            const slots = await getNextAvailableSlots(businessId, toolInput.fecha, toolInput.hora, 3);
+            if (slots.length === 0) {
+              return {
+                success: false,
+                error: 'Lo siento, no tenemos más disponibilidad hoy. ¿Te agendo para mañana? 📅',
+                available_slots: []
+              };
+            }
+            const slotsList = slots.map(s => `• ${s.fecha} a las ${s.hora}`).join('\n');
+            return {
+              success: false,
+              error: `Las ${toolInput.hora} ya están todas ocupadas 😅\n\nLos próximos horarios disponibles son:\n${slotsList}\n\n¿Cuál te queda bien?`,
+              available_slots: slots
+            };
+          }
+
+          let { data: clienteExistente } = await supabaseAdmin
+            .from('clients')
+            .select('id, name')
+            .eq('business_id', businessId)
+            .eq('phone', clientPhone)
+            .maybeSingle();
+
+          if (!clienteExistente && toolInput.client_name) {
+            const { data: porNombre } = await supabaseAdmin
+              .from('clients')
+              .select('id, name')
+              .eq('business_id', businessId)
+              .ilike('name', `%${toolInput.client_name}%`)
+              .limit(1);
+            clienteExistente = porNombre?.[0] || null;
+          }
+
+          if (!clienteExistente) {
+            const { data: nuevoCliente } = await supabaseAdmin
+              .from('clients')
+              .insert({
+                business_id: businessId,
+                name: toolInput.client_name || 'Cliente WhatsApp',
+                phone: clientPhone
+              })
+              .select('id, name')
+              .single();
+            clienteExistente = nuevoCliente;
+          } else if (toolInput.client_name && clienteExistente.name === 'Cliente WhatsApp') {
+            await supabaseAdmin
+              .from('clients')
+              .update({ name: toolInput.client_name })
+              .eq('id', clienteExistente.id);
+            clienteExistente.name = toolInput.client_name;
+          }
+
+          const scheduled_at = `${toolInput.fecha}T${toolInput.hora}:00-05:00`;
+
+          const { data, error } = await supabaseAdmin
+            .from('appointments')
+            .insert({
+              business_id: businessId,
+              client_id: clienteExistente?.id || null,
+              service_id: servicio.id,
+              scheduled_at,
+              status: 'confirmed',
+              source: 'whatsapp',
+              price: servicio.price,
+              employee_id: empleadoDisponible.id
+            })
+            .select('id, scheduled_at')
+            .single();
+
+          if (error) return { success: false, error: error.message };
+
+          if (data) {
+            try {
+              logger.info('Creando ingreso automático', { precio: servicio.price, fecha: toolInput.fecha });
+              await supabaseAdmin
+                .from('income')
+                .insert({
+                  business_id: businessId,
+                  amount: servicio.price,
+                  category: 'servicios',
+                  description: `${servicio.name} - agendado por WhatsApp`,
+                  source: 'appointment',
+                  appointment_id: data.id,
+                  date: toolInput.fecha
+                });
+            } catch (incomeErr) {
+              logger.error('Error creando ingreso automático:', incomeErr.message);
+            }
+
+            try {
+              await supabaseAdmin
+                .from('employees')
+                .update({ last_appointment_at: new Date().toISOString() })
+                .eq('id', empleadoDisponible.id);
+            } catch (empErr) {
+              logger.error('Error actualizando employee:', empErr.message);
+            }
+          }
+
+          return { success: true, servicio: servicio.name, precio: servicio.price, scheduled_at, empleado: empleadoDisponible.name };
+        }
+
+        case 'ver_mis_citas': {
+          const { data: clienteDB } = await supabaseAdmin
+            .from('clients')
+            .select('id')
+            .eq('business_id', businessId)
+            .eq('phone', clientPhone)
+            .single();
+
+          if (!clienteDB) return { citas: [], message: 'No tienes citas registradas' };
+
+          const hoy = new Date().toLocaleDateString('en-CA', {timeZone: 'America/Bogota'});
+          const { data } = await supabaseAdmin
+            .from('appointments')
+            .select('id, scheduled_at, status, services(name, price)')
+            .eq('business_id', businessId)
+            .eq('client_id', clienteDB.id)
+            .gte('scheduled_at', hoy + 'T00:00:00-05:00')
+            .order('scheduled_at');
+
+          return { citas: data || [] };
+        }
+
+        case 'cancelar_cita': {
+          const { error } = await supabaseAdmin
+            .from('appointments')
+            .update({ status: 'cancelled' })
+            .eq('id', toolInput.appointment_id)
+            .eq('business_id', businessId);
+
+          return { success: !error };
+        }
+
+        case 'ver_productos': {
+          const { data } = await supabaseAdmin
+            .from('products')
+            .select('name, price, stock')
+            .eq('business_id', businessId)
+            .eq('is_active', true)
+            .gt('stock', 0)
+            .order('name');
+
+          return { productos: data || [] };
+        }
+
+        case 'ver_mi_fidelizacion': {
+          const { data: clienteData } = await supabaseAdmin
+            .from('clients')
+            .select('id')
+            .eq('business_id', businessId)
+            .eq('phone', clientPhone)
+            .maybeSingle();
+
+          if (!clienteData) {
+            return { visitas_acumuladas: 0, visitas_faltantes: null, message: 'Aún no tienes visitas registradas con nosotros' };
+          }
+
+          const clienteId = clienteData.id;
+
+          const { data: loyalty } = await supabaseAdmin
+            .from('client_loyalty')
+            .select('loyalty_visits, total_visits')
+            .eq('business_id', businessId)
+            .eq('client_id', clienteId)
+            .maybeSingle();
+
+          const { data: config } = await supabaseAdmin
+            .from('loyalty_config')
+            .select('visits_for_reward, reward_service_id, services(name)')
+            .eq('business_id', businessId)
+            .maybeSingle();
+
+          const visitas = loyalty?.loyalty_visits || 0;
+          const meta = config?.visits_for_reward || 10;
+          const faltan = Math.max(0, meta - visitas);
+          const servicio_gratis = config?.services?.name || 'servicio gratis';
+
+          return {
+            visitas_acumuladas: visitas,
+            visitas_para_recompensa: meta,
+            visitas_faltantes: faltan,
+            recompensa: servicio_gratis,
+            listo_para_canjear: faltan === 0
+          };
+        }
+
+        default:
+          return { error: 'Función no disponible' };
+      }
+    } catch (error) {
+      logger.error(`Error en tool ${toolName}:`, error.message);
+      return { error: error.message };
+    }
+  }
+
+  let cleanHistory = [...history].filter((_, idx) => {
+    if (idx === 0) return history[0].role === 'user';
+    return true;
+  });
+
+  while (cleanHistory.length > 0 && cleanHistory[0].role === 'assistant') {
+    cleanHistory.shift();
+  }
+
+  cleanHistory = cleanHistory.slice(-4);
+
+  const messages = [...cleanHistory, { role: 'user', content: messageText }];
+
+  let response;
+  try {
+    response = await anthropicClient.messages.create({
+      model: 'claude-haiku-4-5-20251001',
+      max_tokens: 400,
+      system: systemPrompt,
+      tools,
+      messages
+    });
+  } catch (claudeError) {
+    logger.error('Error de Claude:', claudeError.message);
+    throw claudeError;
+  }
+
+  try {
+    const allMessages = [...messages];
+    let iterations = 0;
+    const MAX_ITERATIONS = 5;
+
+    while (response.stop_reason === 'tool_use' && iterations < MAX_ITERATIONS) {
+      iterations++;
+      const assistantContent = response.content;
+      allMessages.push({ role: 'assistant', content: assistantContent });
+
+      const toolResults = [];
+      for (const block of assistantContent) {
+        if (block.type === 'tool_use') {
+          const result = await executeChatbotTool(block.name, block.input);
+          toolResults.push({
+            type: 'tool_result',
+            tool_use_id: block.id,
+            content: JSON.stringify(result)
+          });
+        }
+      }
+
+      allMessages.push({ role: 'user', content: toolResults });
+      response = await anthropicClient.messages.create({
+        model: 'claude-haiku-4-5-20251001',
+        max_tokens: 400,
+        system: systemPrompt,
+        tools,
+        messages: allMessages
+      });
+    }
+
+    const finalText = response.content
+      .filter(b => b.type === 'text')
+      .map(b => b.text)
+      .join('');
+
+    allMessages.push({ role: 'assistant', content: response.content });
+
+    return {
+      response: finalText,
+      history: allMessages.slice(-10)
+    };
+  } catch (error) {
+    logger.error('Error procesando respuesta:', error.message);
+    throw error;
+  }
+}
+
+async function processWhatsAppMessage({ from, phoneNumberId, messageText }) {
+  logger.info('Mensaje WhatsApp recibido', { from, phoneNumberId });
+
+  try {
+    const business = await getBusinessByPhoneNumberId(phoneNumberId);
+
+    if (!business) {
+      logger.warn('Negocio no encontrado', { phoneNumberId });
+      return;
+    }
+
+    const businessToken = business.whatsapp_access_token
+      ? decrypt(business.whatsapp_access_token)
+      : null;
+
+    const [client_info, history] = await Promise.all([
+      getOrCreateClient(business.id, from),
+      getConversationHistory(business.id, from)
+    ]);
+
+    logger.info('Cliente e historial cargados', { clientId: client_info?.id, historyLength: history.length });
+
+    let result;
+    try {
+      result = await processChatbotMessage(business.id, from, messageText, history, business, client_info);
+      logger.info('Mensaje procesado exitosamente');
+    } catch(e) {
+      logger.error('Error procesando mensaje:', e.message);
+      await sendMessage(from, 'Lo siento, tuve un problema procesando tu mensaje.', businessToken, business.whatsapp_phone_number_id);
+      return;
+    }
+
+    try {
+      await saveConversationHistory(business.id, from, result.history);
+      logger.info('Historial guardado');
+    } catch(e) {
+      logger.error('Error guardando historial:', e.message);
+    }
+
+    try {
+      await sendMessage(from, result.response, businessToken, business.whatsapp_phone_number_id);
+      logger.info('Mensaje enviado al cliente');
+    } catch(e) {
+      logger.error('Error enviando mensaje:', e.message);
+    }
+
+  } catch (error) {
+    logger.error('Error general en processWhatsAppMessage:', error.message);
+    try {
+      await sendMessage(from, 'Lo siento, tuve un problema. Intenta de nuevo.');
+    } catch(e) {}
+  }
+}
+
+module.exports = { processWhatsAppMessage, processChatbotMessage, getBusinessSystemPrompt };

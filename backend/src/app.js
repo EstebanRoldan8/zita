@@ -1,0 +1,168 @@
+require('dotenv').config();
+
+process.on('uncaughtException', (err) => {
+  console.error('UNCAUGHT EXCEPTION:', err.message);
+  console.error(err.stack);
+});
+
+process.on('unhandledRejection', (reason) => {
+  console.error('UNHANDLED REJECTION:', reason);
+});
+
+const express = require('express');
+const helmet = require('helmet');
+const cors = require('cors');
+const rateLimit = require('express-rate-limit');
+const logger = require('./utils/logger');
+
+const authRoutes = require('./routes/auth.routes');
+const businessesRoutes = require('./routes/businesses.routes');
+const appointmentsRoutes = require('./routes/appointments.routes');
+const clientsRoutes = require('./routes/clients.routes');
+const servicesRoutes = require('./routes/services.routes');
+const metricsRoutes = require('./routes/metrics.routes');
+const { supportRouter } = require('./routes/support.routes');
+const employeesRoutes = require('./routes/employees.routes');
+const cashRoutes = require('./routes/cash.routes');
+const settingsRoutes = require('./routes/settings.routes');
+const alertsRoutes    = require('./routes/alerts.routes');
+const productsRoutes  = require('./routes/products.routes');
+const productVariantsRoutes = require('./routes/productVariants.routes');
+const ordersRoutes = require('./routes/orders.routes');
+const assistantRoutes = require('./routes/assistant.routes');
+const webhookRoutes = require('./routes/webhook.routes');
+const adminRoutes = require('./routes/admin.routes');
+const loyaltyRoutes = require('./routes/loyalty.routes');
+const subscriptionRoutes = require('./routes/subscription.routes');
+const contactRoutes = require('./routes/contact.routes');
+const { verifyToken } = require('./middlewares/auth');
+const { businessContext } = require('./middlewares/businessContext');
+const { initScheduler } = require('./services/scheduler.service');
+
+const app = express();
+
+app.set('trust proxy', 1);
+
+app.use(helmet());
+
+const corsOptions = {
+  origin: function(origin, callback) {
+    const allowedOrigins = [
+      process.env.FRONTEND_URL,
+      'https://zita-alpha.vercel.app',
+      'http://localhost:5173',
+      'http://localhost:3000'
+    ];
+    if (!origin || allowedOrigins.includes(origin)) {
+      callback(null, true);
+    } else {
+      callback(new Error('No permitido por CORS'));
+    }
+  },
+  credentials: true,
+  methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
+  allowedHeaders: ['Content-Type', 'Authorization']
+};
+
+app.use(cors(corsOptions));
+app.options('*', cors(corsOptions));
+
+const globalLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: 1000,
+  message: { success: false, error: 'Demasiadas solicitudes, intenta de nuevo en 15 minutos.' },
+  skip: (req) => process.env.NODE_ENV !== 'production',
+});
+app.use(globalLimiter);
+
+app.use(express.json({ limit: '100kb' }));
+app.use(express.urlencoded({ extended: true, limit: '100kb' }));
+
+app.get('/health', (req, res) => {
+  res.json({ success: true, service: 'ZITA API', status: 'online' });
+});
+
+app.get('/eliminar-datos', (req, res) => {
+  res.send(`
+    <!DOCTYPE html>
+    <html lang="es">
+    <head>
+      <meta charset="UTF-8">
+      <title>Eliminación de Datos - ZITA</title>
+      <style>
+        body { font-family: Arial, sans-serif; max-width: 600px;
+               margin: 50px auto; padding: 20px; color: #333; }
+        h1 { color: #7c3aed; }
+        a { color: #7c3aed; }
+      </style>
+    </head>
+    <body>
+      <h1>Solicitud de Eliminación de Datos</h1>
+      <p>Para solicitar la eliminación de tus datos personales
+         de la plataforma ZITA, envía un correo a:</p>
+      <p><strong><a href="mailto:esteban.zita.ia@gmail.com">
+         esteban.zita.ia@gmail.com</a></strong></p>
+      <p>Incluye tu nombre completo y número de teléfono registrado.
+         Procesaremos tu solicitud en un plazo máximo de 30 días.</p>
+      <p><small>ZITA - Automatización para negocios</small></p>
+    </body>
+    </html>
+  `);
+});
+
+app.post('/api/data-deletion', (req, res) => {
+  const signedRequest = req.body.signed_request;
+
+  res.json({
+    url: 'https://zita-production-1634.up.railway.app/eliminar-datos',
+    confirmation_code: 'zita_deletion_' + Date.now()
+  });
+});
+
+app.use('/api/auth', authRoutes);
+app.use('/api/businesses', businessesRoutes);
+app.use('/api/appointments', appointmentsRoutes);
+app.use('/api/clients', clientsRoutes);
+app.use('/api/services', servicesRoutes);
+app.use('/api/metrics', metricsRoutes);
+app.use('/api/support', supportRouter);
+app.use('/api/admin', adminRoutes);
+app.use('/api/employees', employeesRoutes);
+app.use('/api/cash', cashRoutes);
+app.use('/api/settings', settingsRoutes);
+app.use('/api/loyalty', loyaltyRoutes);
+app.use('/api/alerts',     alertsRoutes);
+app.use('/api/products', productVariantsRoutes);
+app.use('/api/products',   productsRoutes);
+app.use('/api/orders', ordersRoutes);
+app.use('/api/assistant',  assistantRoutes);
+app.use('/api/subscription', verifyToken, businessContext, subscriptionRoutes);
+app.use('/api/webhook', webhookRoutes);
+app.use('/api/contact', contactRoutes);
+app.use('/api/demo', contactRoutes);
+
+// Manejador global de errores
+app.use((err, req, res, next) => {
+  logger.error(`${err.status || 500} - ${err.message} - ${req.originalUrl} - ${req.method}`);
+  res.status(err.status || 500).json({
+    success: false,
+    error: err.message || 'Error interno del servidor.',
+  });
+});
+
+const PORT = process.env.PORT || 3000;
+const server = app.listen(PORT, () => {
+  logger.info(`ZITA API corriendo en puerto ${PORT} [${process.env.NODE_ENV}]`);
+  logger.info('Rutas registradas: /api/auth, /api/businesses, /api/appointments, /api/clients, /api/services, /api/metrics, /api/support, /api/admin, /api/employees, /api/webhook');
+  initScheduler();
+  console.log('\n✓ Scheduler verificado y activo\n');
+});
+
+server.on('error', (err) => {
+  if (err.code === 'EADDRINUSE') {
+    logger.error(`Puerto ${PORT} ocupado. Cerrando...`);
+    process.exit(1);
+  }
+});
+
+module.exports = app;

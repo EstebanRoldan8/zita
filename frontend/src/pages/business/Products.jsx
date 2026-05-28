@@ -642,32 +642,33 @@ function CatalogoTab({ products, clients, showInactive, onShowInactiveChange, so
                   )}
                 </div>
 
-                <div className="flex gap-2">
-                  <button onClick={() => setSellProduct(p)} disabled={displayStock === 0 || !p.is_active}
-                    className="w-full py-2 text-sm bg-violet-600 hover:bg-violet-500 text-white rounded-lg transition-colors flex items-center justify-center gap-2 mt-3 disabled:opacity-40">
-                    <ShoppingCart size={13} /> Vender
+                <button onClick={() => setSellProduct(p)} disabled={displayStock === 0 || !p.is_active}
+                  className="w-full py-2 text-sm bg-violet-600 hover:bg-violet-500 text-white rounded-lg transition-colors flex items-center justify-center gap-2 mt-3 disabled:opacity-40">
+                  <ShoppingCart size={13} /> Vender
+                </button>
+                <div className="flex gap-2 pt-2 mt-2 border-t border-white/10">
+                  <button onClick={() => setEditProduct(p)}
+                    className="flex-1 md:flex-none md:w-9 md:h-9 flex items-center justify-center bg-blue-600/20 hover:bg-blue-600/30 md:bg-slate-800 md:hover:bg-slate-700 text-blue-400 md:text-slate-400 md:hover:text-white rounded-lg transition py-1.5 text-xs md:text-xs">
+                    <Edit2 size={14} className="md:hidden flex-shrink-0" />
+                    <span className="md:hidden ml-1">Editar</span>
                   </button>
-                  <div className="ml-auto flex gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
-                    <button onClick={() => setEditProduct(p)}
-                      className="w-9 h-9 flex items-center justify-center bg-slate-800 hover:bg-slate-700 text-slate-400 hover:text-white rounded-lg transition">
-                      <Edit2 size={14} />
-                    </button>
-                    <button
-                      onClick={() => toggleMutation.mutate(p.id)}
-                      disabled={toggleMutation.isPending}
-                      className="w-9 h-9 flex items-center justify-center bg-slate-800 hover:bg-slate-700 text-slate-400 hover:text-white rounded-lg transition disabled:opacity-50"
-                      title={p.is_active ? 'Desactivar' : 'Reactivar'}
-                    >
-                      {p.is_active ? <ToggleRight size={14} /> : <ToggleLeft size={14} />}
-                    </button>
-                    <button
-                      onClick={() => setDeleteConfirm(p)}
-                      className="w-9 h-9 flex items-center justify-center bg-slate-800 hover:bg-red-500/20 text-slate-400 hover:text-red-400 rounded-lg transition"
-                      title="Eliminar"
-                    >
-                      <Trash2 size={14} />
-                    </button>
-                  </div>
+                  <button
+                    onClick={() => toggleMutation.mutate(p.id)}
+                    disabled={toggleMutation.isPending}
+                    className="flex-1 md:flex-none md:w-9 md:h-9 flex items-center justify-center bg-yellow-600/20 hover:bg-yellow-600/30 md:bg-slate-800 md:hover:bg-slate-700 text-yellow-400 md:text-slate-400 md:hover:text-white rounded-lg transition py-1.5 text-xs md:text-xs disabled:opacity-50"
+                    title={p.is_active ? 'Desactivar' : 'Reactivar'}
+                  >
+                    {p.is_active ? <ToggleRight size={14} className="md:hidden flex-shrink-0" /> : <ToggleLeft size={14} className="md:hidden flex-shrink-0" />}
+                    <span className="md:hidden ml-1">{p.is_active ? 'Desactivar' : 'Activar'}</span>
+                  </button>
+                  <button
+                    onClick={() => setDeleteConfirm(p)}
+                    className="flex-1 md:flex-none md:w-9 md:h-9 flex items-center justify-center bg-red-600/20 hover:bg-red-600/30 md:bg-slate-800 md:hover:bg-red-500/20 text-red-400 md:text-slate-400 md:hover:text-red-400 rounded-lg transition py-1.5 text-xs md:text-xs"
+                    title="Eliminar"
+                  >
+                    <Trash2 size={14} className="md:hidden flex-shrink-0" />
+                    <span className="md:hidden ml-1">Eliminar</span>
+                  </button>
                 </div>
               </div>
             </div>

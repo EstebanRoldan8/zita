@@ -313,8 +313,8 @@ export default function Clients() {
           {/* Side panel para fidelización */}
           {selectedFidelizationClientId && (
             <>
-              <div className="fixed inset-0 bg-black/40 z-40 md:hidden" onClick={() => setSelectedFidelizationClientId(null)} />
-              <div className="fixed inset-0 md:inset-auto md:relative md:w-[480px] md:flex-shrink-0 md:max-h-screen md:border-l z-50 bg-[#131929] md:border-slate-800 shadow-2xl shadow-black/50 transform transition-transform duration-300 overflow-y-auto custom-scroll">
+              <div className="fixed inset-0 bg-black/40 z-40" onClick={() => setSelectedFidelizationClientId(null)} />
+              <div className="fixed right-0 top-0 h-full w-[480px] z-50 bg-[#131929] border-l border-slate-800 shadow-2xl shadow-black/50 transform transition-transform duration-300 overflow-y-auto custom-scroll">
                 <div className="p-6 pb-8 sticky top-0 bg-gradient-to-br from-violet-600/20 to-indigo-600/5 border-b border-white/6">
                   <div className="flex items-start justify-between">
                     <div className="flex items-center gap-3">
@@ -412,88 +412,83 @@ export default function Clients() {
           )}
         </div>
       ) : (
-        <>
-          {/* Overlay for mobile */}
-          {selectedId && (
-            <div className="fixed inset-0 bg-black/40 z-40 md:hidden" onClick={() => setSelectedId(null)} />
-          )}
-          <div className="flex gap-6 min-h-0">
+        <div className="flex gap-6 min-h-0">
 
-            {/* Lista */}
-            <div className="flex-1 min-w-0">
-              <div className="flex gap-3 mb-5">
-                <div className="relative flex-1">
-                  <Search size={15} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-500" />
-                  <input type="text" value={search} onChange={(e) => setSearch(e.target.value)}
-                    placeholder="Buscar por nombre o teléfono..."
-                    className="w-full bg-[#131929] border border-white/10 text-white rounded-xl pl-10 pr-4 py-2.5 text-sm placeholder-slate-500 focus:outline-none focus-within:border-violet-500/50 transition-all duration-200" />
-                </div>
-                <button onClick={() => setShowCreate(true)}
-                  className="bg-violet-600 hover:bg-violet-500 text-white px-4 py-2.5 rounded-xl text-sm font-medium flex items-center gap-2 transition whitespace-nowrap">
-                  <Plus size={16} /> Nuevo cliente
-                </button>
+          {/* Lista */}
+          <div className="flex-1 min-w-0">
+            <div className="flex gap-3 mb-5">
+              <div className="relative flex-1">
+                <Search size={15} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-500" />
+                <input type="text" value={search} onChange={(e) => setSearch(e.target.value)}
+                  placeholder="Buscar por nombre o teléfono..."
+                  className="w-full bg-[#131929] border border-white/10 text-white rounded-xl pl-10 pr-4 py-2.5 text-sm placeholder-slate-500 focus:outline-none focus-within:border-violet-500/50 transition-all duration-200" />
               </div>
-
-              {isLoading ? (
-                <div className="space-y-3">{Array.from({ length: 5 }).map((_, i) => <div key={i} className="h-16 bg-[#131929] border border-slate-800 rounded-xl shadow-lg shadow-black/30 animate-pulse" />)}</div>
-              ) : filtered.length === 0 ? (
-                <div className="text-center py-20 text-slate-500">
-                  <Users size={40} className="mx-auto mb-3 opacity-30" />
-                  <p>{search ? 'Sin resultados para esa búsqueda' : 'Aún no tienes clientes'}</p>
-                </div>
-              ) : (
-                <div className="space-y-2">
-                  {filtered.map((c) => {
-                    const initial = c.name?.[0]?.toUpperCase() || '?';
-                    const avatarColors = {
-                      'A': 'bg-violet-600/30 text-violet-300',
-                      'C': 'bg-indigo-600/30 text-indigo-300',
-                      'M': 'bg-blue-600/30 text-blue-300',
-                      'J': 'bg-emerald-600/30 text-emerald-300',
-                      'S': 'bg-pink-600/30 text-pink-300',
-                    };
-                    const avatarClass = avatarColors[initial] || 'bg-slate-600/30 text-slate-300';
-                    return (
-                      <button key={c.id} onClick={() => setSelectedId(c.id === selectedId ? null : c.id)}
-                        className={`w-full text-left bg-[#131929] border border-violet-500/15 hover:border-violet-500/35 hover:bg-[#1a2235] transition-all duration-200 rounded-xl px-5 py-4 flex items-center justify-between ${c.id === selectedId ? 'border-violet-500/50 bg-violet-500/5' : ''}`}>
-                        <div className="flex items-center gap-3">
-                          <div className={`w-8 h-8 rounded-full border flex items-center justify-center text-xs font-semibold flex-shrink-0 ${avatarClass}`}>
-                            {initial}
-                          </div>
-                          <div>
-                            <p className="text-white font-medium">{c.name}</p>
-                            <p className="text-slate-500 text-sm">{c.phone}</p>
-                          </div>
-                        </div>
-                        <div className="flex items-center gap-3">
-                          <div className="text-right">
-                            <p className="text-sm text-white/60">{c.total_visits} visitas</p>
-                            <p className="text-xs text-white/40">{formatCOP(c.total_spent)}</p>
-                          </div>
-                          <button onClick={(e) => handleRecall(e, c.id)} disabled={recallStatus[c.id] === 'loading'}
-                            className={`flex-shrink-0 px-3 py-1.5 rounded-lg text-xs font-medium transition ${
-                              recallStatus[c.id] === 'loading' ? 'bg-slate-700 text-slate-400' :
-                              recallStatus[c.id] === 'sent' ? 'bg-emerald-600/30 text-emerald-300' :
-                              recallStatus[c.id] === 'error' ? 'bg-red-600/30 text-red-300' :
-                              'bg-violet-600 text-white hover:bg-violet-500'
-                            }`}>
-                            {recallStatus[c.id] === 'loading' ? 'Enviando...' :
-                             recallStatus[c.id] === 'sent' ? '✓ Enviado' :
-                             recallStatus[c.id] === 'error' ? 'Error' :
-                             'Recordar'}
-                          </button>
-                          <ChevronRight size={16} className={`text-slate-600 transition-transform ${c.id === selectedId ? 'rotate-90' : ''}`} />
-                        </div>
-                      </button>
-                    );
-                  })}
-                </div>
-              )}
+              <button onClick={() => setShowCreate(true)}
+                className="bg-violet-600 hover:bg-violet-500 text-white px-4 py-2.5 rounded-xl text-sm font-medium flex items-center gap-2 transition whitespace-nowrap">
+                <Plus size={16} /> Nuevo cliente
+              </button>
             </div>
 
-            {/* Panel de detalle */}
-            {selectedId && (
-              <div className="fixed inset-0 md:inset-auto md:relative md:w-[480px] md:flex-shrink-0 md:max-h-screen z-50 bg-[#131929] md:border-l md:border-slate-800 overflow-y-auto custom-scroll">
+            {isLoading ? (
+              <div className="space-y-3">{Array.from({ length: 5 }).map((_, i) => <div key={i} className="h-16 bg-[#131929] border border-slate-800 rounded-xl shadow-lg shadow-black/30 animate-pulse" />)}</div>
+            ) : filtered.length === 0 ? (
+              <div className="text-center py-20 text-slate-500">
+                <Users size={40} className="mx-auto mb-3 opacity-30" />
+                <p>{search ? 'Sin resultados para esa búsqueda' : 'Aún no tienes clientes'}</p>
+              </div>
+            ) : (
+              <div className="space-y-2">
+                {filtered.map((c) => {
+                  const initial = c.name?.[0]?.toUpperCase() || '?';
+                  const avatarColors = {
+                    'A': 'bg-violet-600/30 text-violet-300',
+                    'C': 'bg-indigo-600/30 text-indigo-300',
+                    'M': 'bg-blue-600/30 text-blue-300',
+                    'J': 'bg-emerald-600/30 text-emerald-300',
+                    'S': 'bg-pink-600/30 text-pink-300',
+                  };
+                  const avatarClass = avatarColors[initial] || 'bg-slate-600/30 text-slate-300';
+                  return (
+                    <button key={c.id} onClick={() => setSelectedId(c.id === selectedId ? null : c.id)}
+                      className={`w-full text-left bg-[#131929] border border-violet-500/15 hover:border-violet-500/35 hover:bg-[#1a2235] transition-all duration-200 rounded-xl px-5 py-4 flex items-center justify-between ${c.id === selectedId ? 'border-violet-500/50 bg-violet-500/5' : ''}`}>
+                      <div className="flex items-center gap-3">
+                        <div className={`w-8 h-8 rounded-full border flex items-center justify-center text-xs font-semibold flex-shrink-0 ${avatarClass}`}>
+                          {initial}
+                        </div>
+                        <div>
+                          <p className="text-white font-medium">{c.name}</p>
+                          <p className="text-slate-500 text-sm">{c.phone}</p>
+                        </div>
+                      </div>
+                      <div className="flex items-center gap-3">
+                        <div className="text-right">
+                          <p className="text-sm text-white/60">{c.total_visits} visitas</p>
+                          <p className="text-xs text-white/40">{formatCOP(c.total_spent)}</p>
+                        </div>
+                        <button onClick={(e) => handleRecall(e, c.id)} disabled={recallStatus[c.id] === 'loading'}
+                          className={`flex-shrink-0 px-3 py-1.5 rounded-lg text-xs font-medium transition ${
+                            recallStatus[c.id] === 'loading' ? 'bg-slate-700 text-slate-400' :
+                            recallStatus[c.id] === 'sent' ? 'bg-emerald-600/30 text-emerald-300' :
+                            recallStatus[c.id] === 'error' ? 'bg-red-600/30 text-red-300' :
+                            'bg-violet-600 text-white hover:bg-violet-500'
+                          }`}>
+                          {recallStatus[c.id] === 'loading' ? 'Enviando...' :
+                           recallStatus[c.id] === 'sent' ? '✓ Enviado' :
+                           recallStatus[c.id] === 'error' ? 'Error' :
+                           'Recordar'}
+                        </button>
+                        <ChevronRight size={16} className={`text-slate-600 transition-transform ${c.id === selectedId ? 'rotate-90' : ''}`} />
+                      </div>
+                    </button>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+
+          {/* Panel de detalle */}
+          {selectedId && (
+            <div className="w-[480px] flex-shrink-0 max-h-screen overflow-y-auto custom-scroll">
               <div className="bg-gradient-to-br from-violet-600/20 to-indigo-600/5 border-b border-white/6 p-6 pb-8">
                 {/* Header */}
                 <div className="flex items-start justify-between">
@@ -605,8 +600,7 @@ export default function Clients() {
               </div>
             </div>
           )}
-          </div>
-        </>
+        </div>
       )}
 
       {showEdit && selected && <EditModal client={selected} onClose={() => setShowEdit(false)} />}

@@ -194,28 +194,25 @@ export default function Services() {
                     </div>
                   </div>
 
-                  <div className="flex gap-2 md:opacity-0 md:group-hover:opacity-100 transition-opacity duration-150 pt-2 mt-2 border-t border-white/10">
+                  <div className="flex gap-2 opacity-0 group-hover:opacity-100 transition-opacity duration-150">
                     <button onClick={() => openEdit(svc)}
-                      className="flex-1 md:flex-none flex items-center justify-center gap-1.5 px-2 py-1.5 md:w-9 md:h-9 md:p-0 bg-blue-600/20 hover:bg-blue-600/30 text-blue-400 rounded-lg text-xs md:text-sm transition">
+                      className="w-9 h-9 flex items-center justify-center bg-slate-800 hover:bg-slate-700 text-slate-400 hover:text-white rounded-lg transition">
                       <Edit2 size={14} />
-                      <span className="md:hidden">Editar</span>
                     </button>
                     <button
                       onClick={() => toggleMutation.mutate(svc.id)}
                       disabled={toggleMutation.isPending}
-                      className="flex-1 md:flex-none flex items-center justify-center gap-1.5 px-2 py-1.5 md:w-9 md:h-9 md:p-0 bg-yellow-600/20 hover:bg-yellow-600/30 text-yellow-400 rounded-lg text-xs md:text-sm transition disabled:opacity-50"
+                      className="w-9 h-9 flex items-center justify-center bg-slate-800 hover:bg-slate-700 text-slate-400 hover:text-white rounded-lg transition disabled:opacity-50"
                       title={svc.active ? 'Desactivar' : 'Reactivar'}
                     >
                       {svc.active ? <ToggleRight size={14} /> : <ToggleLeft size={14} />}
-                      <span className="md:hidden">{svc.active ? 'Desactivar' : 'Activar'}</span>
                     </button>
                     <button
                       onClick={() => setDeleteConfirm(svc)}
-                      className="flex-1 md:flex-none flex items-center justify-center gap-1.5 px-2 py-1.5 md:w-9 md:h-9 md:p-0 bg-red-600/20 hover:bg-red-600/30 text-red-400 rounded-lg text-xs md:text-sm transition"
+                      className="w-9 h-9 flex items-center justify-center bg-slate-800 hover:bg-red-500/20 text-slate-400 hover:text-red-400 rounded-lg transition"
                       title="Eliminar"
                     >
                       <Trash2 size={14} />
-                      <span className="md:hidden">Eliminar</span>
                     </button>
                   </div>
                 </div>

@@ -130,26 +130,26 @@ function TeamTab({ triggerAdd, onTriggerReset, showInactive, onShowInactiveChang
             };
             const avatarClass = avatarColors[initial] || 'bg-slate-600/30 text-slate-300';
             return (
-              <div key={emp.id} className="bg-[#131929] border border-violet-500/15 hover:border-violet-500/35 hover:bg-[#1a2235] transition-all duration-200 rounded-xl p-4 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
-                <div className="flex items-center gap-3">
-                  <div className={`w-10 h-10 rounded-full flex items-center justify-center font-semibold flex-shrink-0 ${avatarClass}`}>
+              <div key={emp.id} className="bg-[#131929] border border-violet-500/15 hover:border-violet-500/35 hover:bg-[#1a2235] transition-all duration-200 rounded-xl p-4 flex items-center justify-between">
+                <div className="flex items-center gap-4">
+                  <div className={`w-10 h-10 rounded-full flex items-center justify-center font-semibold ${avatarClass}`}>
                     {initial}
                   </div>
-                  <div className="min-w-0 flex-1">
-                    <p className="text-white font-medium text-sm truncate">{emp.name}</p>
-                    <p className="text-slate-500 text-xs truncate max-w-[180px]">{emp.email || emp.phone || 'Sin contacto'}</p>
+                  <div>
+                    <p className="text-white font-medium">{emp.name}</p>
+                    <p className="text-slate-500 text-sm">{emp.email || emp.phone || 'Sin contacto'}</p>
                   </div>
                 </div>
-                <div className="flex items-center gap-2 sm:flex-shrink-0">
+                <div className="flex items-center gap-2">
                   {emp.commission_percent > 0 && (
-                    <span className="bg-violet-500/10 text-violet-400 border border-violet-500/20 text-xs px-2 py-0.5 rounded-full flex-shrink-0">
+                    <span className="bg-violet-500/10 text-violet-400 border border-violet-500/20 text-xs px-2 py-0.5 rounded-full">
                       {emp.commission_percent}% comisión
                     </span>
                   )}
-                  <button onClick={() => openEdit(emp)} className="text-slate-400 hover:text-white p-2 rounded-lg hover:bg-slate-700/50 transition flex-shrink-0">
+                  <button onClick={() => openEdit(emp)} className="text-slate-400 hover:text-white p-2 rounded-lg hover:bg-slate-700/50 transition">
                     <Pencil size={15} />
                   </button>
-                  <button onClick={() => deactivateMutation.mutate(emp.id)} className="text-slate-400 hover:text-red-400 p-2 rounded-lg hover:bg-red-500/10 transition flex-shrink-0">
+                  <button onClick={() => deactivateMutation.mutate(emp.id)} className="text-slate-400 hover:text-red-400 p-2 rounded-lg hover:bg-red-500/10 transition">
                     <UserX size={15} />
                   </button>
                 </div>

@@ -135,13 +135,27 @@ export default function Sidebar() {
 
   return (
     <>
-      {/* Botón hamburguesa - solo visible en móvil */}
-      <button
-        onClick={() => setIsOpen(true)}
-        className="md:hidden fixed top-4 left-4 z-50 w-10 h-10 bg-[#0f172a] border border-violet-500/20 rounded-xl flex items-center justify-center shadow-lg"
-      >
-        <Menu size={20} className="text-white/70" />
-      </button>
+      {/* Header móvil fijo */}
+      <div className="md:hidden fixed top-0 left-0 right-0 h-14 bg-[#0a0f1e] border-b border-white/5 z-40 flex items-center justify-between px-4">
+        {/* Hamburguesa izquierda */}
+        <button
+          onClick={() => setIsOpen(true)}
+          className="w-10 h-10 flex items-center justify-center"
+        >
+          <Menu size={20} className="text-white/70" />
+        </button>
+
+        {/* Logo centrado */}
+        <div className="absolute left-0 right-0 flex justify-center pointer-events-none">
+          <div className="flex items-center gap-2">
+            <img src="/logo.png" alt="ZITA" className="h-6 w-6 object-contain" />
+            <span className="text-white font-bold text-lg tracking-tight">ZITA</span>
+          </div>
+        </div>
+
+        {/* Campana derecha */}
+        <div className="w-10" />
+      </div>
 
       {/* Overlay - solo en móvil cuando está abierto */}
       {isOpen && (
@@ -234,7 +248,7 @@ export default function Sidebar() {
             setContactOpen(true);
             closeSidebar();
           }}
-          className="flex items-center gap-3 w-full px-3 py-2 rounded-lg text-sm text-white/50 hover:text-white hover:bg-white/5 transition-colors"
+          className="flex items-center gap-3 w-full px-3 py-2 rounded-xl bg-violet-600/10 border border-violet-500/30 text-violet-300 hover:bg-violet-600/20 transition-colors"
         >
           <HelpCircle size={17} />
           ¿Necesitas ayuda?

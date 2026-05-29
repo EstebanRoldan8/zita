@@ -36,7 +36,7 @@ export default function AlertsPanel() {
       {/* Bell button — fixed top-right */}
       <button
         onClick={() => setOpen((v) => !v)}
-        className="fixed top-3 right-3 z-30 w-10 h-10 flex items-center justify-center rounded-xl bg-slate-800 border border-slate-700 hover:border-slate-600 transition shadow-lg"
+        className="fixed top-4 right-4 md:top-3 md:right-3 z-30 w-10 h-10 flex items-center justify-center rounded-xl bg-slate-800 border border-slate-700 hover:border-slate-600 transition shadow-lg"
       >
         <Bell size={17} className={criticalCount > 0 ? 'text-red-400' : 'text-slate-400'} />
         {badgeCount > 0 && (
@@ -56,9 +56,9 @@ export default function AlertsPanel() {
           />
 
           {/* Panel */}
-          <div className="fixed top-0 right-0 z-50 h-full w-80 bg-slate-900 border-l border-slate-800 shadow-2xl flex flex-col">
+          <div className="fixed inset-x-4 top-16 md:top-0 md:right-0 md:inset-auto z-50 md:h-full w-auto md:w-80 bg-[#1e293b] border border-white/10 md:border-l md:border-t-0 md:border-r-0 md:border-b-0 rounded-2xl md:rounded-none shadow-2xl flex flex-col">
             {/* Header */}
-            <div className="flex items-center justify-between px-5 py-4 border-b border-slate-800">
+            <div className="flex items-center justify-between px-4 py-3 border-b border-white/10">
               <div>
                 <h2 className="text-white font-semibold text-sm">Alertas</h2>
                 {badgeCount > 0
@@ -112,8 +112,8 @@ export default function AlertsPanel() {
             </div>
 
             {/* Footer hint */}
-            <div className="px-5 py-3 border-t border-slate-800">
-              <p className="text-slate-700 text-xs text-center">Se actualiza cada 5 minutos</p>
+            <div className="px-4 py-2 border-t border-white/10">
+              <p className="text-white/40 text-xs text-center">Se actualiza cada 5 minutos</p>
             </div>
           </div>
         </>

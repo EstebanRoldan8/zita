@@ -135,13 +135,27 @@ export default function Sidebar() {
 
   return (
     <>
-      {/* Botón hamburguesa - solo visible en móvil */}
-      <button
-        onClick={() => setIsOpen(true)}
-        className="md:hidden fixed top-4 left-4 z-50 w-10 h-10 bg-[#0f172a] border border-violet-500/20 rounded-xl flex items-center justify-center shadow-lg"
-      >
-        <Menu size={20} className="text-white/70" />
-      </button>
+      {/* Header móvil fijo */}
+      <div className="md:hidden fixed top-0 left-0 right-0 h-14 bg-[#0a0f1e] border-b border-white/5 z-40 flex items-center justify-between px-4">
+        {/* Hamburguesa izquierda */}
+        <button
+          onClick={() => setIsOpen(true)}
+          className="w-10 h-10 flex items-center justify-center"
+        >
+          <Menu size={20} className="text-white/70" />
+        </button>
+
+        {/* Logo centrado */}
+        <div className="absolute left-0 right-0 flex justify-center pointer-events-none">
+          <div className="flex items-center gap-2">
+            <img src="/logo.png" alt="ZITA" className="h-6 w-6 object-contain" />
+            <span className="text-white font-bold text-lg tracking-tight">ZITA</span>
+          </div>
+        </div>
+
+        {/* Campana derecha */}
+        <div className="w-10" />
+      </div>
 
       {/* Overlay - solo en móvil cuando está abierto */}
       {isOpen && (
@@ -153,7 +167,8 @@ export default function Sidebar() {
 
       {/* Sidebar */}
       <aside className={`
-        fixed left-0 top-0 h-full w-[210px]
+        fixed left-0 md:top-0 w-[210px]
+        md:h-full md:top-0 h-[calc(100vh-56px)] top-14
         bg-[#0a0f1e] border-r border-white/5 z-40
         flex flex-col
         transform transition-transform duration-300
@@ -210,7 +225,7 @@ export default function Sidebar() {
       </nav>
 
       {/* Footer */}
-      <div className="px-3 py-3 border-t border-white/10 pt-3 mt-3 flex-shrink-0 space-y-2">
+      <div className="px-3 py-3 border-t border-white/10 pt-3 mt-auto flex-shrink-0 space-y-2">
         <div className="px-3 py-2">
           <p className="text-white text-sm font-medium truncate">Mi negocio</p>
           <p className="text-white/50 text-xs truncate">{user?.email}</p>
@@ -234,10 +249,10 @@ export default function Sidebar() {
             setContactOpen(true);
             closeSidebar();
           }}
-          className="flex items-center gap-3 w-full px-3 py-2 rounded-lg text-sm text-white/50 hover:text-white hover:bg-white/5 transition-colors"
+          className="flex items-center gap-2 w-full px-3 py-2 rounded-lg text-sm text-white/50 hover:text-white hover:bg-white/5 transition-colors"
         >
-          <HelpCircle size={17} />
-          ¿Necesitas ayuda?
+          <HelpCircle size={16} />
+          <span className="truncate">¿Necesitas ayuda?</span>
         </button>
         <button
           onClick={() => {

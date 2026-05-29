@@ -89,8 +89,8 @@ export default function Services() {
           <Plus size={40} className="mx-auto mb-3 text-slate-700" />
           <p className="text-slate-500">No hay servicios registrados</p>
           {newModal && (
-            <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50 px-4">
-              <div className="bg-[#131929] border border-slate-800 rounded-2xl w-full max-w-md p-6 shadow-xl border border-violet-500/25 shadow-2xl shadow-black/50">
+            <div className="fixed inset-0 bg-black/70 backdrop-blur-sm flex items-center justify-center z-50 px-4">
+              <div className="bg-[#1e293b] border border-white/15 rounded-2xl w-full max-w-md p-6 shadow-2xl">
                 <h3 className="text-white font-semibold text-lg mb-5">Nuevo servicio</h3>
                 <form onSubmit={handleSubmit} className="space-y-4">
                   {formError && <p className="text-red-400 text-sm bg-red-500/10 border border-red-500/20 px-3 py-2 rounded-lg">{formError}</p>}
@@ -194,25 +194,28 @@ export default function Services() {
                     </div>
                   </div>
 
-                  <div className="flex gap-2 opacity-0 group-hover:opacity-100 transition-opacity duration-150">
+                  <div className="flex gap-2 mt-2 pt-2 border-t border-white/10 sm:opacity-0 sm:group-hover:opacity-100 sm:transition-opacity sm:duration-150">
                     <button onClick={() => openEdit(svc)}
-                      className="w-9 h-9 flex items-center justify-center bg-slate-800 hover:bg-slate-700 text-slate-400 hover:text-white rounded-lg transition">
-                      <Edit2 size={14} />
+                      className="flex-1 sm:flex-none flex items-center justify-center gap-1 text-blue-400 text-xs px-2 py-1 rounded bg-blue-500/10 hover:bg-blue-500/20 transition">
+                      <Edit2 size={12} />
+                      <span className="sm:hidden">Editar</span>
                     </button>
                     <button
                       onClick={() => toggleMutation.mutate(svc.id)}
                       disabled={toggleMutation.isPending}
-                      className="w-9 h-9 flex items-center justify-center bg-slate-800 hover:bg-slate-700 text-slate-400 hover:text-white rounded-lg transition disabled:opacity-50"
+                      className="flex-1 sm:flex-none flex items-center justify-center gap-1 text-yellow-400 text-xs px-2 py-1 rounded bg-yellow-500/10 hover:bg-yellow-500/20 transition disabled:opacity-50"
                       title={svc.active ? 'Desactivar' : 'Reactivar'}
                     >
-                      {svc.active ? <ToggleRight size={14} /> : <ToggleLeft size={14} />}
+                      {svc.active ? <ToggleRight size={12} /> : <ToggleLeft size={12} />}
+                      <span className="sm:hidden">{svc.active ? 'Desactivar' : 'Activar'}</span>
                     </button>
                     <button
                       onClick={() => setDeleteConfirm(svc)}
-                      className="w-9 h-9 flex items-center justify-center bg-slate-800 hover:bg-red-500/20 text-slate-400 hover:text-red-400 rounded-lg transition"
+                      className="flex-1 sm:flex-none flex items-center justify-center gap-1 text-red-400 text-xs px-2 py-1 rounded bg-red-500/10 hover:bg-red-500/20 transition"
                       title="Eliminar"
                     >
-                      <Trash2 size={14} />
+                      <Trash2 size={12} />
+                      <span className="sm:hidden">Eliminar</span>
                     </button>
                   </div>
                 </div>
@@ -221,8 +224,8 @@ export default function Services() {
           </div>
 
           {newModal && (
-            <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50 px-4">
-              <div className="bg-[#131929] border border-slate-800 rounded-2xl w-full max-w-md p-6 shadow-xl border border-violet-500/25 shadow-2xl shadow-black/50">
+            <div className="fixed inset-0 bg-black/70 backdrop-blur-sm flex items-center justify-center z-50 px-4">
+              <div className="bg-[#1e293b] border border-white/15 rounded-2xl w-full max-w-md p-6 shadow-2xl">
                 <h3 className="text-white font-semibold text-lg mb-5">{editService ? 'Editar servicio' : 'Nuevo servicio'}</h3>
                 <form onSubmit={handleSubmit} className="space-y-4">
                   {formError && <p className="text-red-400 text-sm bg-red-500/10 border border-red-500/20 px-3 py-2 rounded-lg">{formError}</p>}
@@ -261,8 +264,8 @@ export default function Services() {
           )}
 
           {deleteConfirm && (
-            <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50 px-4">
-              <div className="bg-[#131929] border border-slate-800 rounded-2xl w-full max-w-md p-6 shadow-xl border border-violet-500/25 shadow-2xl shadow-black/50">
+            <div className="fixed inset-0 bg-black/70 backdrop-blur-sm flex items-center justify-center z-50 px-4">
+              <div className="bg-[#1e293b] border border-white/15 rounded-2xl w-full max-w-md p-6 shadow-2xl">
                 <h3 className="text-white font-semibold text-lg mb-4">Eliminar servicio</h3>
                 <p className="text-slate-300 text-sm mb-6">
                   ¿Estás seguro que deseas eliminar <span className="font-semibold">{deleteConfirm.name}</span>? Esta acción no se puede deshacer.

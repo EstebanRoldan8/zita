@@ -15,8 +15,8 @@ function formatCOP(v) {
 
 function Modal({ title, onClose, children }) {
   return (
-    <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50 px-4">
-      <div className="bg-[#131929] border border-slate-800 rounded-2xl w-full max-w-md p-6 shadow-xl border border-violet-500/25 shadow-2xl shadow-black/50">
+    <div className="fixed inset-0 bg-black/70 backdrop-blur-sm flex items-center justify-center z-50 px-4">
+      <div className="bg-[#1e293b] border border-white/15 rounded-2xl w-full max-w-md p-6 shadow-2xl">
         <h3 className="text-white font-semibold text-lg mb-5">{title}</h3>
         {children}
       </div>
@@ -130,27 +130,27 @@ function TeamTab({ triggerAdd, onTriggerReset, showInactive, onShowInactiveChang
             };
             const avatarClass = avatarColors[initial] || 'bg-slate-600/30 text-slate-300';
             return (
-              <div key={emp.id} className="bg-[#131929] border border-violet-500/15 hover:border-violet-500/35 hover:bg-[#1a2235] transition-all duration-200 rounded-xl p-4 flex items-center justify-between">
-                <div className="flex items-center gap-4">
-                  <div className={`w-10 h-10 rounded-full flex items-center justify-center font-semibold ${avatarClass}`}>
+              <div key={emp.id} className="bg-[#131929] border border-violet-500/15 hover:border-violet-500/35 hover:bg-[#1a2235] transition-all duration-200 rounded-xl p-4 flex flex-col gap-3">
+                <div className="flex items-center gap-3 flex-wrap">
+                  <div className={`w-10 h-10 rounded-full flex items-center justify-center font-semibold flex-shrink-0 ${avatarClass}`}>
                     {initial}
                   </div>
-                  <div>
+                  <div className="flex-1 min-w-0">
                     <p className="text-white font-medium">{emp.name}</p>
-                    <p className="text-slate-500 text-sm">{emp.email || emp.phone || 'Sin contacto'}</p>
                   </div>
-                </div>
-                <div className="flex items-center gap-2">
                   {emp.commission_percent > 0 && (
-                    <span className="bg-violet-500/10 text-violet-400 border border-violet-500/20 text-xs px-2 py-0.5 rounded-full">
+                    <span className="bg-violet-500/10 text-violet-400 border border-violet-500/20 text-xs px-2 py-0.5 rounded-full whitespace-nowrap flex-shrink-0">
                       {emp.commission_percent}% comisión
                     </span>
                   )}
-                  <button onClick={() => openEdit(emp)} className="text-slate-400 hover:text-white p-2 rounded-lg hover:bg-slate-700/50 transition">
-                    <Pencil size={15} />
+                </div>
+                <p className="text-slate-500 text-xs truncate max-w-full">{emp.email || emp.phone || 'Sin contacto'}</p>
+                <div className="flex gap-2 pt-2 border-t border-white/10">
+                  <button onClick={() => openEdit(emp)} className="flex-1 text-slate-400 hover:text-white p-1.5 rounded-lg hover:bg-slate-700/50 transition text-xs">
+                    Editar
                   </button>
-                  <button onClick={() => deactivateMutation.mutate(emp.id)} className="text-slate-400 hover:text-red-400 p-2 rounded-lg hover:bg-red-500/10 transition">
-                    <UserX size={15} />
+                  <button onClick={() => deactivateMutation.mutate(emp.id)} className="flex-1 text-slate-400 hover:text-red-400 p-1.5 rounded-lg hover:bg-red-500/10 transition text-xs">
+                    Desactivar
                   </button>
                 </div>
               </div>
@@ -265,8 +265,8 @@ function TeamTab({ triggerAdd, onTriggerReset, showInactive, onShowInactiveChang
       )}
 
       {limitError && (
-        <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50 px-4">
-          <div className="bg-[#131929] border border-slate-800 rounded-2xl w-full max-w-md p-6 shadow-xl">
+        <div className="fixed inset-0 bg-black/70 backdrop-blur-sm flex items-center justify-center z-50 px-4">
+          <div className="bg-[#1e293b] border border-white/15 rounded-2xl w-full max-w-md p-6 shadow-2xl">
             <h3 className="text-white font-semibold text-lg mb-3">Límite alcanzado</h3>
             <p className="text-slate-400 text-sm mb-6">{limitError}</p>
             <div className="flex gap-3">

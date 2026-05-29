@@ -71,7 +71,7 @@ function MetricCard({ icon: Icon, label, value, sub, color }) {
         </div>
       </div>
       <div>
-        <p className={`truncate ${isKpiCard ? 'text-3xl font-bold text-white' : 'text-white text-lg sm:text-2xl font-bold'}`}>{value}</p>
+        <p className={`${isKpiCard ? 'text-lg sm:text-2xl font-bold text-white' : 'text-white text-lg sm:text-2xl font-bold'}`}>{value}</p>
         {sub && <p className={`${isKpiCard ? 'text-xs text-white/40 mt-1' : 'text-slate-500 text-xs mt-0.5 sm:mt-1'}`}>{sub}</p>}
       </div>
     </div>
@@ -833,8 +833,8 @@ export default function Dashboard() {
 
       {/* Modal límite de citas - Standard/Pro */}
       {limitError && (
-        <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50 px-4">
-          <div className="bg-[#131929] border border-slate-800 rounded-2xl w-full max-w-md p-6 shadow-xl">
+        <div className="fixed inset-0 bg-black/70 backdrop-blur-sm flex items-center justify-center z-50 px-4">
+          <div className="bg-[#1e293b] border border-white/15 rounded-2xl w-full max-w-md p-6 shadow-2xl">
             <h3 className="text-white font-semibold text-lg mb-3">Límite alcanzado</h3>
             <p className="text-slate-400 text-sm mb-6">{limitError}</p>
             <div className="flex gap-3">

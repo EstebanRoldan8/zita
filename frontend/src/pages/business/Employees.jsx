@@ -291,7 +291,7 @@ function TeamTab({ triggerAdd, onTriggerReset, showInactive, onShowInactiveChang
 }
 
 // ─── PESTAÑA RENDIMIENTO ──────────────────────────────────────────────────────
-function PerformanceTab() {
+function PerformanceTab({ triggerAdd, onTriggerReset }) {
   const defaultMonth = new Date().toISOString().slice(0, 7);
   const defaultDate = new Date().toISOString().slice(0, 10);
   const [viewType, setViewType] = useState('day');
@@ -558,7 +558,7 @@ export default function Employees() {
       </div>
 
       {tab === 'team'        && <TeamTab triggerAdd={triggerAdd} onTriggerReset={() => setTriggerAdd(false)} showInactive={showInactive} onShowInactiveChange={setShowInactive} />}
-      {tab === 'performance' && <PerformanceTab />}
+      {tab === 'performance' && <PerformanceTab triggerAdd={triggerAdd} onTriggerReset={() => setTriggerAdd(false)} />}
     </div>
   );
 }

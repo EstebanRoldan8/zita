@@ -18,6 +18,7 @@ import {
   X,
   ShoppingBag,
   CreditCard,
+  Bell,
 } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
 import { useLockBodyScroll } from '../../hooks/useLockBodyScroll';
@@ -154,7 +155,12 @@ export default function Sidebar() {
         </div>
 
         {/* Campana derecha */}
-        <div className="w-10" />
+        <button
+          onClick={() => {}}
+          className="w-9 h-9 flex items-center justify-center rounded-lg hover:bg-white/5 transition"
+        >
+          <Bell size={18} className="text-white/70" />
+        </button>
       </div>
 
       {/* Overlay - solo en móvil cuando está abierto */}

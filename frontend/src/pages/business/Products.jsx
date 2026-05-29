@@ -732,7 +732,7 @@ function CatalogoTab({ products, clients, showInactive, onShowInactiveChange, so
 }
 
 // ── Inventario Tab ───────────────────────────────────────────────────────────
-function InventarioTab({ products, sales, sortBy, onSortChange }) {
+function InventarioTab({ products, sales, sortBy, onSortChange, newModal, setNewModal }) {
   const [selectedMonth, setSelectedMonth] = useState(new Date().toISOString().slice(0, 7));
   const [productSales, setProductSales] = useState([]);
   const [error, setError] = useState(null);
@@ -1075,7 +1075,7 @@ export default function Products() {
           {tab === 'catalogo' ? (
             <CatalogoTab products={products} clients={clients} showInactive={showInactive} onShowInactiveChange={setShowInactive} sortBy={sortBy} onSortChange={setSortBy} isTienda={isTienda} newModal={newModal} setNewModal={setNewModal} />
           ) : (
-            <InventarioTab products={products.filter((p) => p.is_active)} sales={sales} sortBy={sortBy} onSortChange={setSortBy} />
+            <InventarioTab products={products.filter((p) => p.is_active)} sales={sales} sortBy={sortBy} onSortChange={setSortBy} newModal={newModal} setNewModal={setNewModal} />
           )}
         </>
       )}

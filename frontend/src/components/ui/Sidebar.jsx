@@ -167,7 +167,8 @@ export default function Sidebar() {
 
       {/* Sidebar */}
       <aside className={`
-        fixed left-0 top-0 h-full w-[210px]
+        fixed left-0 md:top-0 w-[210px]
+        md:h-full md:top-0 h-[calc(100vh-56px)] top-14
         bg-[#0a0f1e] border-r border-white/5 z-40
         flex flex-col
         transform transition-transform duration-300
@@ -248,10 +249,10 @@ export default function Sidebar() {
             setContactOpen(true);
             closeSidebar();
           }}
-          className="flex items-center gap-3 w-full px-3 py-2 rounded-xl bg-violet-600/10 border border-violet-500/30 text-violet-300 hover:bg-violet-600/20 transition-colors"
+          className="flex items-center gap-2 w-full px-3 py-2 rounded-lg text-sm text-white/50 hover:text-white hover:bg-white/5 transition-colors"
         >
-          <HelpCircle size={17} />
-          ¿Necesitas ayuda?
+          <HelpCircle size={16} />
+          <span className="truncate">¿Necesitas ayuda?</span>
         </button>
         <button
           onClick={() => {

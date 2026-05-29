@@ -225,7 +225,7 @@ export default function Sidebar() {
       </nav>
 
       {/* Footer */}
-      <div className="px-3 py-3 border-t border-white/10 pt-3 mt-3 flex-shrink-0 space-y-2">
+      <div className="px-3 py-3 border-t border-white/10 pt-3 mt-auto flex-shrink-0 space-y-2">
         <div className="px-3 py-2">
           <p className="text-white text-sm font-medium truncate">Mi negocio</p>
           <p className="text-white/50 text-xs truncate">{user?.email}</p>

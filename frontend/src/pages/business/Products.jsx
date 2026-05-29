@@ -88,8 +88,8 @@ function SellModal({ product, clients, onClose, onSuccess }) {
   }, [loadingVariants, variants]);
 
   return (
-    <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50 px-4">
-      <div className="bg-[#131929] border border-slate-800 rounded-2xl w-full max-w-sm p-6 shadow-xl border border-violet-500/25 shadow-2xl shadow-black/50">
+    <div className="fixed inset-0 bg-black/70 backdrop-blur-sm flex items-center justify-center z-50 px-4">
+      <div className="bg-[#1e293b] border border-white/15 rounded-2xl w-full max-w-sm p-6 shadow-2xl">
         <div className="flex items-center justify-between mb-5">
           <h3 className="text-white font-semibold">Registrar venta</h3>
           <button onClick={onClose} className="text-slate-500 hover:text-white transition"><X size={18} /></button>
@@ -1037,37 +1037,35 @@ export default function Products() {
   ];
 
   return (
-    <div className="p-8">
+    <div className="px-4 sm:px-6 lg:px-8 py-6 sm:py-8">
       <div className="border-b border-white/6 pb-4 mb-6">
-        <div className="flex items-center justify-between">
-          <div>
-            <h1 className="text-2xl font-bold text-white">
-              Productos
-              <span className="text-sm font-normal text-white/40 ml-2">
-                {activeCount} activos
-              </span>
-            </h1>
-          </div>
-          <button onClick={() => setNewModal(true)} className="px-4 py-2 text-sm bg-violet-600 hover:bg-violet-500 text-white rounded-xl transition-colors flex items-center gap-2">
-            + Nuevo producto
-          </button>
-        </div>
+        <h1 className="text-xl sm:text-2xl font-bold text-white">
+          Productos
+          <span className="text-xs sm:text-sm font-normal text-white/40 ml-2">
+            {activeCount} activos
+          </span>
+        </h1>
       </div>
 
-      {/* Tabs */}
-      <div className="flex gap-1 bg-[#131929] border border-slate-800 rounded-xl shadow-lg shadow-black/30 p-1 w-fit mb-6">
-        {tabs.map((t) => (
-          <button key={t.id} onClick={() => setTab(t.id)}
-            className={`px-4 py-2 rounded-lg text-sm font-medium transition ${
-              tab === t.id ? 'bg-violet-600 text-white' : 'text-slate-400 hover:text-white'
-            }`}>
-            {t.label}
-          </button>
-        ))}
+      {/* Tabs + Botón */}
+      <div className="flex items-center justify-between mb-6 gap-4">
+        <div className="flex gap-1 bg-[#131929] border border-slate-800 rounded-xl p-1 w-fit">
+          {tabs.map((t) => (
+            <button key={t.id} onClick={() => setTab(t.id)}
+              className={`px-3 sm:px-4 py-2 rounded-lg text-xs sm:text-sm font-medium transition ${
+                tab === t.id ? 'bg-violet-600 text-white' : 'text-slate-400 hover:text-white'
+              }`}>
+              {t.label}
+            </button>
+          ))}
+        </div>
+        <button onClick={() => setNewModal(true)} className="flex-shrink-0 px-3 py-2 text-xs sm:text-sm bg-violet-600 hover:bg-violet-500 text-white rounded-xl transition-colors flex items-center gap-1 whitespace-nowrap">
+          <Plus size={14} /> Nuevo
+        </button>
       </div>
 
       {isLoading ? (
-        <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-4">
+        <div className="grid grid-cols-1 gap-4">
           {Array.from({ length: 6 }).map((_, i) => (
             <div key={i} className="h-40 bg-[#131929] border border-slate-800 rounded-xl shadow-lg shadow-black/30 animate-pulse" />
           ))}

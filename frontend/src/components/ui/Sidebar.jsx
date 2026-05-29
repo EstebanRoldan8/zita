@@ -160,32 +160,30 @@ export default function Sidebar() {
       {/* Overlay - solo en móvil cuando está abierto */}
       {isOpen && (
         <div
-          className="md:hidden fixed inset-0 bg-black/60 z-40"
+          className="md:hidden fixed inset-0 bg-black/50 z-40"
           onClick={closeSidebar}
         />
       )}
 
-      {/* Sidebar */}
+      {/* Sidebar Drawer */}
       <aside className={`
-        fixed left-0 md:top-0 w-[210px]
-        md:h-full md:top-0 h-[calc(100vh-56px)] top-14
-        bg-[#0a0f1e] border-r border-white/5 z-40
-        flex flex-col
-        transform transition-transform duration-300
-        ${isOpen ? 'translate-x-0' : '-translate-x-full md:translate-x-0'}
+        md:fixed md:left-0 md:top-0 md:h-full md:w-[210px] md:z-40 md:translate-x-0
+        ${isOpen ? 'fixed left-0 top-0 h-full w-72 z-50 translate-x-0' : 'fixed -left-72 top-0 h-full w-72 z-50'}
+        bg-[#0f172a] border-r border-white/5
+        flex flex-col transition-transform duration-300
       `}>
 
-      {/* Logo y botón X */}
-      <div className="flex items-center justify-between px-5 py-4 border-b border-white/10 pb-4 mb-2 flex-shrink-0">
+      {/* Logo y botón X - solo en drawer móvil */}
+      <div className="md:hidden flex items-center justify-between px-4 py-4 border-b border-white/10 flex-shrink-0">
         <div className="flex items-center gap-2">
-          <img src="/logo.png" alt="ZITA" className="h-8 w-8 object-contain" />
-          <span className="text-white font-bold text-2xl tracking-tight">ZITA</span>
+          <img src="/logo.png" alt="ZITA" className="h-6 w-6 object-contain" />
+          <span className="text-white font-bold text-lg tracking-tight">ZITA</span>
         </div>
         <button
           onClick={closeSidebar}
-          className="md:hidden text-white/50 hover:text-white transition"
+          className="text-white/50 hover:text-white transition"
         >
-          <X size={20} />
+          <X size={18} />
         </button>
       </div>
 
@@ -225,7 +223,7 @@ export default function Sidebar() {
       </nav>
 
       {/* Footer */}
-      <div className="px-3 py-3 border-t border-white/10 pt-3 mt-auto flex-shrink-0 space-y-2">
+      <div className="px-3 py-4 border-t border-white/10 mt-auto flex-shrink-0 space-y-2">
         <div className="px-3 py-2">
           <p className="text-white text-sm font-medium truncate">Mi negocio</p>
           <p className="text-white/50 text-xs truncate">{user?.email}</p>

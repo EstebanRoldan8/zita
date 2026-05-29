@@ -130,26 +130,26 @@ function TeamTab({ triggerAdd, onTriggerReset, showInactive, onShowInactiveChang
             };
             const avatarClass = avatarColors[initial] || 'bg-slate-600/30 text-slate-300';
             return (
-              <div key={emp.id} className="bg-[#131929] border border-violet-500/15 hover:border-violet-500/35 hover:bg-[#1a2235] transition-all duration-200 rounded-xl p-4 flex flex-col gap-3">
-                <div className="flex items-center gap-3 flex-wrap">
+              <div key={emp.id} className="bg-[#131929] border border-violet-500/15 hover:border-violet-500/35 transition-all duration-200 rounded-xl p-4 flex flex-col gap-2">
+                <div className="flex items-center gap-2 flex-wrap">
                   <div className={`w-10 h-10 rounded-full flex items-center justify-center font-semibold flex-shrink-0 ${avatarClass}`}>
                     {initial}
                   </div>
                   <div className="flex-1 min-w-0">
-                    <p className="text-white font-medium">{emp.name}</p>
+                    <p className="text-white font-medium text-sm">{emp.name}</p>
                   </div>
                   {emp.commission_percent > 0 && (
                     <span className="bg-violet-500/10 text-violet-400 border border-violet-500/20 text-xs px-2 py-0.5 rounded-full whitespace-nowrap flex-shrink-0">
-                      {emp.commission_percent}% comisión
+                      {emp.commission_percent}%
                     </span>
                   )}
                 </div>
-                <p className="text-slate-500 text-xs truncate max-w-full">{emp.email || emp.phone || 'Sin contacto'}</p>
+                <p className="text-slate-500 text-xs truncate">{emp.email || emp.phone || 'Sin contacto'}</p>
                 <div className="flex gap-2 pt-2 border-t border-white/10">
-                  <button onClick={() => openEdit(emp)} className="flex-1 text-slate-400 hover:text-white p-1.5 rounded-lg hover:bg-slate-700/50 transition text-xs">
+                  <button onClick={() => openEdit(emp)} className="flex-1 text-blue-400 text-xs px-2 py-1 rounded hover:bg-blue-500/20 transition">
                     Editar
                   </button>
-                  <button onClick={() => deactivateMutation.mutate(emp.id)} className="flex-1 text-slate-400 hover:text-red-400 p-1.5 rounded-lg hover:bg-red-500/10 transition text-xs">
+                  <button onClick={() => deactivateMutation.mutate(emp.id)} className="flex-1 text-yellow-400 text-xs px-2 py-1 rounded hover:bg-yellow-500/20 transition">
                     Desactivar
                   </button>
                 </div>
@@ -218,18 +218,18 @@ function TeamTab({ triggerAdd, onTriggerReset, showInactive, onShowInactiveChang
                   placeholder={placeholder}
                   min={type === 'number' ? 0 : undefined}
                   max={type === 'number' ? 100 : undefined}
-                  className="w-full bg-[#131929] border border-slate-700 text-white rounded-lg px-4 py-2.5 text-sm placeholder-slate-500 focus:border-violet-500 focus:ring-2 focus:ring-violet-500/20 focus:outline-none transition-all duration-150"
+                  className="w-full bg-[#0f172a] border border-white/10 text-white rounded-xl px-4 h-11 text-sm placeholder-white/40 focus:border-violet-500 focus:outline-none transition"
                 />
               </div>
             ))}
             <div className="flex gap-3 pt-2">
-              <button type="button" onClick={closeModal} className="flex-1 bg-slate-800 hover:bg-slate-700 text-slate-300 text-sm font-medium py-2.5 rounded-lg transition hover:bg-white/10 hover:text-white transition-colors duration-150">
+              <button type="button" onClick={closeModal} className="flex-1 bg-white/10 hover:bg-white/20 text-white text-sm font-medium h-11 rounded-xl transition">
                 Cancelar
               </button>
               <button
                 type="submit"
                 disabled={createMutation.isPending || updateMutation.isPending}
-                className="flex-1 bg-violet-600 hover:bg-violet-500 disabled:opacity-50 text-white text-sm font-medium py-2.5 rounded-lg transition"
+                className="flex-1 bg-violet-600 hover:bg-violet-500 disabled:opacity-50 text-white text-sm font-medium h-11 rounded-xl transition"
               >
                 {createMutation.isPending || updateMutation.isPending ? 'Guardando...' : 'Guardar'}
               </button>
@@ -248,7 +248,7 @@ function TeamTab({ triggerAdd, onTriggerReset, showInactive, onShowInactiveChang
               type="button"
               onClick={() => setDeleteConfirm(null)}
               disabled={deleteMutation.isPending}
-              className="flex-1 bg-slate-800 hover:bg-slate-700 disabled:opacity-50 text-slate-300 text-sm font-medium py-2.5 rounded-lg transition"
+              className="flex-1 bg-white/10 hover:bg-white/20 disabled:opacity-50 text-white text-sm font-medium h-11 rounded-xl transition"
             >
               Cancelar
             </button>
@@ -256,7 +256,7 @@ function TeamTab({ triggerAdd, onTriggerReset, showInactive, onShowInactiveChang
               type="button"
               onClick={() => deleteMutation.mutate(deleteConfirm.id)}
               disabled={deleteMutation.isPending}
-              className="flex-1 bg-red-600 hover:bg-red-500 disabled:opacity-50 text-white text-sm font-medium py-2.5 rounded-lg transition"
+              className="flex-1 bg-red-600 hover:bg-red-500 disabled:opacity-50 text-white text-sm font-medium h-11 rounded-xl transition"
             >
               {deleteMutation.isPending ? 'Eliminando...' : 'Eliminar'}
             </button>

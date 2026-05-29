@@ -97,24 +97,24 @@ export default function Services() {
                   <div>
                     <label className="block text-slate-400 text-sm mb-1.5">Nombre *</label>
                     <input type="text" value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} placeholder="Corte clásico"
-                      className="w-full bg-[#131929] border border-slate-700 text-white rounded-lg px-4 py-2.5 text-sm placeholder-slate-500 focus:outline-none focus:border-violet-500 focus:ring-1 focus:ring-violet-500 transition" />
+                      className="w-full bg-[#0f172a] border border-white/10 text-white rounded-xl px-4 h-11 text-sm placeholder-white/40 focus:border-violet-500 focus:outline-none transition" />
                   </div>
                   <div className="grid grid-cols-2 gap-3">
                     <div>
                       <label className="block text-slate-400 text-sm mb-1.5">Precio (COP) *</label>
                       <input type="number" value={form.price} onChange={(e) => setForm({ ...form, price: e.target.value })} placeholder="35000" min={0}
-                        className="w-full bg-[#131929] border border-slate-700 text-white rounded-lg px-4 py-2.5 text-sm placeholder-slate-500 focus:border-violet-500 focus:ring-2 focus:ring-violet-500/20 focus:outline-none transition-all duration-150" />
+                        className="w-full bg-[#0f172a] border border-white/10 text-white rounded-xl px-4 h-11 text-sm placeholder-white/40 focus:border-violet-500 focus:outline-none transition" />
                     </div>
                     <div>
                       <label className="block text-slate-400 text-sm mb-1.5">Duración (min) *</label>
                       <input type="number" value={form.duration_minutes} onChange={(e) => setForm({ ...form, duration_minutes: e.target.value })} min={5} step={5}
-                        className="w-full bg-[#131929] border border-slate-700 text-white rounded-lg px-4 py-2.5 text-sm placeholder-slate-500 focus:border-violet-500 focus:ring-2 focus:ring-violet-500/20 focus:outline-none transition-all duration-150" />
+                        className="w-full bg-[#0f172a] border border-white/10 text-white rounded-xl px-4 h-11 text-sm placeholder-white/40 focus:border-violet-500 focus:outline-none transition" />
                     </div>
                   </div>
                   <div>
                     <label className="block text-slate-400 text-sm mb-1.5">Descripción (opcional)</label>
-                    <textarea value={form.description} onChange={(e) => setForm({ ...form, description: e.target.value })} rows={2} placeholder="Descripción del servicio..."
-                      className="w-full bg-[#131929] border border-slate-700 text-white rounded-lg px-4 py-2.5 text-sm placeholder-slate-500 focus:outline-none focus:border-violet-500 focus:ring-1 focus:ring-violet-500 transition resize-none" />
+                    <textarea value={form.description} onChange={(e) => setForm({ ...form, description: e.target.value })} placeholder="Descripción del servicio..."
+                      className="w-full bg-[#0f172a] border border-white/10 text-white rounded-xl px-4 py-2 text-sm placeholder-white/40 focus:border-violet-500 focus:outline-none transition resize-none h-20" />
                   </div>
                   <div className="flex gap-3 pt-1">
                     <button type="button" onClick={() => setNewModal(false)} className="flex-1 bg-slate-800 hover:bg-slate-700 text-slate-300 text-sm font-medium py-2.5 rounded-lg transition hover:bg-white/10 hover:text-white transition-colors duration-150">Cancelar</button>
@@ -162,7 +162,7 @@ export default function Services() {
             </button>
           </div>
 
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+          <div className="grid grid-cols-1 gap-4">
             {displayedServices.map((svc) => {
               const inactive = svc.active === false;
               return (
@@ -194,28 +194,23 @@ export default function Services() {
                     </div>
                   </div>
 
-                  <div className="flex gap-2 mt-2 pt-2 border-t border-white/10 sm:opacity-0 sm:group-hover:opacity-100 sm:transition-opacity sm:duration-150">
+                  <div className="flex gap-2 mt-2 pt-2 border-t border-white/10">
                     <button onClick={() => openEdit(svc)}
-                      className="flex-1 sm:flex-none flex items-center justify-center gap-1 text-blue-400 text-xs px-2 py-1 rounded bg-blue-500/10 hover:bg-blue-500/20 transition">
-                      <Edit2 size={12} />
-                      <span className="sm:hidden">Editar</span>
+                      className="flex-1 text-blue-400 text-xs px-2 py-1 rounded bg-blue-500/10 hover:bg-blue-500/20 transition">
+                      Editar
                     </button>
                     <button
                       onClick={() => toggleMutation.mutate(svc.id)}
                       disabled={toggleMutation.isPending}
-                      className="flex-1 sm:flex-none flex items-center justify-center gap-1 text-yellow-400 text-xs px-2 py-1 rounded bg-yellow-500/10 hover:bg-yellow-500/20 transition disabled:opacity-50"
-                      title={svc.active ? 'Desactivar' : 'Reactivar'}
+                      className="flex-1 text-yellow-400 text-xs px-2 py-1 rounded bg-yellow-500/10 hover:bg-yellow-500/20 transition disabled:opacity-50"
                     >
-                      {svc.active ? <ToggleRight size={12} /> : <ToggleLeft size={12} />}
-                      <span className="sm:hidden">{svc.active ? 'Desactivar' : 'Activar'}</span>
+                      {svc.active ? 'Desactivar' : 'Activar'}
                     </button>
                     <button
                       onClick={() => setDeleteConfirm(svc)}
-                      className="flex-1 sm:flex-none flex items-center justify-center gap-1 text-red-400 text-xs px-2 py-1 rounded bg-red-500/10 hover:bg-red-500/20 transition"
-                      title="Eliminar"
+                      className="flex-1 text-red-400 text-xs px-2 py-1 rounded bg-red-500/10 hover:bg-red-500/20 transition"
                     >
-                      <Trash2 size={12} />
-                      <span className="sm:hidden">Eliminar</span>
+                      Eliminar
                     </button>
                   </div>
                 </div>
@@ -232,24 +227,24 @@ export default function Services() {
                   <div>
                     <label className="block text-slate-400 text-sm mb-1.5">Nombre *</label>
                     <input type="text" value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} placeholder="Corte clásico"
-                      className="w-full bg-[#131929] border border-slate-700 text-white rounded-lg px-4 py-2.5 text-sm placeholder-slate-500 focus:outline-none focus:border-violet-500 focus:ring-1 focus:ring-violet-500 transition" />
+                      className="w-full bg-[#0f172a] border border-white/10 text-white rounded-xl px-4 h-11 text-sm placeholder-white/40 focus:border-violet-500 focus:outline-none transition" />
                   </div>
                   <div className="grid grid-cols-2 gap-3">
                     <div>
                       <label className="block text-slate-400 text-sm mb-1.5">Precio (COP) *</label>
                       <input type="number" value={form.price} onChange={(e) => setForm({ ...form, price: e.target.value })} placeholder="35000" min={0}
-                        className="w-full bg-[#131929] border border-slate-700 text-white rounded-lg px-4 py-2.5 text-sm placeholder-slate-500 focus:border-violet-500 focus:ring-2 focus:ring-violet-500/20 focus:outline-none transition-all duration-150" />
+                        className="w-full bg-[#0f172a] border border-white/10 text-white rounded-xl px-4 h-11 text-sm placeholder-white/40 focus:border-violet-500 focus:outline-none transition" />
                     </div>
                     <div>
                       <label className="block text-slate-400 text-sm mb-1.5">Duración (min) *</label>
                       <input type="number" value={form.duration_minutes} onChange={(e) => setForm({ ...form, duration_minutes: e.target.value })} min={5} step={5}
-                        className="w-full bg-[#131929] border border-slate-700 text-white rounded-lg px-4 py-2.5 text-sm placeholder-slate-500 focus:border-violet-500 focus:ring-2 focus:ring-violet-500/20 focus:outline-none transition-all duration-150" />
+                        className="w-full bg-[#0f172a] border border-white/10 text-white rounded-xl px-4 h-11 text-sm placeholder-white/40 focus:border-violet-500 focus:outline-none transition" />
                     </div>
                   </div>
                   <div>
                     <label className="block text-slate-400 text-sm mb-1.5">Descripción (opcional)</label>
-                    <textarea value={form.description} onChange={(e) => setForm({ ...form, description: e.target.value })} rows={2} placeholder="Descripción del servicio..."
-                      className="w-full bg-[#131929] border border-slate-700 text-white rounded-lg px-4 py-2.5 text-sm placeholder-slate-500 focus:outline-none focus:border-violet-500 focus:ring-1 focus:ring-violet-500 transition resize-none" />
+                    <textarea value={form.description} onChange={(e) => setForm({ ...form, description: e.target.value })} placeholder="Descripción del servicio..."
+                      className="w-full bg-[#0f172a] border border-white/10 text-white rounded-xl px-4 py-2 text-sm placeholder-white/40 focus:border-violet-500 focus:outline-none transition resize-none h-20" />
                   </div>
                   <div className="flex gap-3 pt-1">
                     <button type="button" onClick={() => { setNewModal(false); setEditService(null); }} className="flex-1 bg-slate-800 hover:bg-slate-700 text-slate-300 text-sm font-medium py-2.5 rounded-lg transition">Cancelar</button>

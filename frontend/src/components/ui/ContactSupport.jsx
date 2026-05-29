@@ -33,8 +33,8 @@ export default function ContactSupport({ open, onClose }) {
 
   const modal = (
     <>
-      <div className="fixed inset-0 bg-black/70 backdrop-blur-sm z-[99] touch-action-none overscroll-none" onClick={handleClose} />
-      <div className="fixed inset-4 sm:bottom-20 sm:left-5 sm:inset-auto z-[100] w-auto sm:w-80 bg-[#1e293b] border border-white/15 rounded-2xl shadow-2xl p-6 flex flex-col max-h-[90dvh] sm:max-h-none">
+      <div className="fixed inset-0 bg-black/40 z-[99] touch-action-none overscroll-none" onClick={handleClose} />
+      <div className="fixed inset-4 sm:bottom-20 sm:left-5 sm:inset-auto z-[100] w-auto sm:w-80 bg-slate-900 border border-slate-700 rounded-2xl shadow-2xl p-5 flex flex-col max-h-[90dvh] sm:max-h-none">
         <div className="flex items-center justify-between mb-4 flex-shrink-0">
           <h3 className="text-white font-semibold text-sm sm:text-sm md:text-base">Contactar soporte</h3>
           <button onClick={handleClose} className="text-slate-500 hover:text-white transition">
@@ -65,12 +65,13 @@ export default function ContactSupport({ open, onClose }) {
               value={message}
               onChange={(e) => setMessage(e.target.value)}
               placeholder="Describe tu consulta (opcional)..."
-              className="w-full bg-[#0f172a] border border-white/10 text-white rounded-xl px-4 h-32 text-sm placeholder-white/40 focus:border-violet-500 focus:outline-none transition resize-none mb-4 flex-1"
+              rows={3}
+              className="w-full bg-slate-800 border border-slate-700 text-white rounded-lg px-3 py-2.5 text-sm placeholder-slate-500 focus:outline-none focus:border-violet-500 transition resize-none mb-4 flex-1 min-h-[100px]"
             />
             <button
               onClick={handleSend}
               disabled={loading}
-              className="w-full bg-violet-600 hover:bg-violet-500 disabled:opacity-50 text-white text-sm font-medium h-11 rounded-xl transition flex items-center justify-center gap-2 flex-shrink-0"
+              className="w-full bg-violet-600 hover:bg-violet-500 disabled:opacity-50 text-white text-sm font-medium py-2.5 rounded-lg transition flex items-center justify-center gap-2 flex-shrink-0"
             >
               {loading ? 'Enviando...' : <><Send size={14} /> Contactar soporte</>}
             </button>

@@ -45,37 +45,41 @@ function RetentionSection({ data }) {
   return (
     <div>
       {/* KPI Cards */}
-      <div className="grid grid-cols-2 gap-3 lg:grid-cols-4 lg:gap-4 mb-6">
-        <div className="bg-[#131929] border border-violet-500/15 hover:border-violet-500/35 rounded-xl shadow-lg shadow-black/30 p-3 transition-all duration-200">
-          <div className="w-8 h-8 rounded-lg bg-violet-500/20 flex items-center justify-center mb-2">
-            <TrendingUp size={16} className="text-violet-400" />
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
+        <div className="bg-[#131929] border border-violet-500/15 hover:border-violet-500/35 rounded-xl shadow-lg shadow-black/30 p-5 transition-all duration-200">
+          <div className="w-9 h-9 rounded-lg bg-violet-500/20 flex items-center justify-center mb-3">
+            <TrendingUp size={18} className="text-violet-400" />
           </div>
-          <p className="text-lg sm:text-2xl font-bold text-violet-400 mb-1">{retention_rate ?? 0}%</p>
+          <p className="text-3xl font-bold text-violet-400 mb-1">{retention_rate ?? 0}%</p>
           <p className="text-white text-xs font-medium">Tasa de retención</p>
+          <p className="text-white/40 text-xs mt-1">clientes que regresan vs mes anterior</p>
         </div>
 
-        <div className="bg-[#131929] border border-blue-500/15 hover:border-blue-500/35 rounded-xl shadow-lg shadow-black/30 p-3 transition-all duration-200">
-          <div className="w-8 h-8 rounded-lg bg-blue-500/20 flex items-center justify-center mb-2">
-            <Users size={16} className="text-blue-400" />
+        <div className="bg-[#131929] border border-blue-500/15 hover:border-blue-500/35 rounded-xl shadow-lg shadow-black/30 p-5 transition-all duration-200">
+          <div className="w-9 h-9 rounded-lg bg-blue-500/20 flex items-center justify-center mb-3">
+            <Users size={18} className="text-blue-400" />
           </div>
-          <p className="text-lg sm:text-2xl font-bold text-blue-400 mb-1">{new_clients ?? 0}</p>
+          <p className="text-3xl font-bold text-blue-400 mb-1">{new_clients ?? 0}</p>
           <p className="text-white text-xs font-medium">Clientes nuevos</p>
+          <p className="text-white/40 text-xs mt-1">registrados este mes</p>
         </div>
 
-        <div className="bg-[#131929] border border-emerald-500/15 hover:border-emerald-500/35 rounded-xl shadow-lg shadow-black/30 p-3 transition-all duration-200">
-          <div className="w-8 h-8 rounded-lg bg-emerald-500/20 flex items-center justify-center mb-2">
-            <UserCheck size={16} className="text-emerald-400" />
+        <div className="bg-[#131929] border border-emerald-500/15 hover:border-emerald-500/35 rounded-xl shadow-lg shadow-black/30 p-5 transition-all duration-200">
+          <div className="w-9 h-9 rounded-lg bg-emerald-500/20 flex items-center justify-center mb-3">
+            <UserCheck size={18} className="text-emerald-400" />
           </div>
-          <p className="text-lg sm:text-2xl font-bold text-emerald-400 mb-1">{returned_clients ?? 0}</p>
+          <p className="text-3xl font-bold text-emerald-400 mb-1">{returned_clients ?? 0}</p>
           <p className="text-white text-xs font-medium">Clientes que volvieron</p>
+          <p className="text-white/40 text-xs mt-1">de {last_month_total ?? 0} del mes pasado</p>
         </div>
 
-        <div className="bg-[#131929] border border-red-500/15 hover:border-red-500/35 rounded-xl shadow-lg shadow-black/30 p-3 transition-all duration-200">
-          <div className="w-8 h-8 rounded-lg bg-red-500/20 flex items-center justify-center mb-2">
-            <UserX size={16} className="text-red-400" />
+        <div className="bg-[#131929] border border-red-500/15 hover:border-red-500/35 rounded-xl shadow-lg shadow-black/30 p-5 transition-all duration-200">
+          <div className="w-9 h-9 rounded-lg bg-red-500/20 flex items-center justify-center mb-3">
+            <UserX size={18} className="text-red-400" />
           </div>
-          <p className="text-lg sm:text-2xl font-bold text-red-400 mb-1">{lost}</p>
+          <p className="text-3xl font-bold text-red-400 mb-1">{lost}</p>
           <p className="text-white text-xs font-medium">Clientes perdidos</p>
+          <p className="text-white/40 text-xs mt-1">no han vuelto desde el mes pasado</p>
         </div>
       </div>
 
@@ -258,9 +262,9 @@ export default function Analytics() {
       {/* Retention */}
       {retentionQ.isLoading ? (
         <div className="space-y-4">
-          <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
+          <div className="grid grid-cols-4 gap-4">
             {Array.from({ length: 4 }).map((_, i) => (
-              <div key={i} className="h-24 bg-[#131929] border border-slate-800 rounded-xl shadow-lg shadow-black/30 animate-pulse" />
+              <div key={i} className="h-32 bg-[#131929] border border-slate-800 rounded-xl shadow-lg shadow-black/30 animate-pulse" />
             ))}
           </div>
           <div className="h-64 bg-[#131929] border border-slate-800 rounded-xl shadow-lg shadow-black/30 animate-pulse" />

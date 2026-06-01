@@ -89,8 +89,8 @@ export default function Services() {
           <Plus size={40} className="mx-auto mb-3 text-slate-700" />
           <p className="text-slate-500">No hay servicios registrados</p>
           {newModal && (
-            <div className="fixed inset-0 bg-black/70 backdrop-blur-sm flex items-center justify-center z-50 px-4">
-              <div className="bg-[#1e293b] border border-white/15 rounded-2xl w-full max-w-md p-6 shadow-2xl">
+            <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50 px-4">
+              <div className="bg-[#131929] border border-slate-800 rounded-2xl w-full max-w-md p-6 shadow-xl border border-violet-500/25 shadow-2xl shadow-black/50">
                 <h3 className="text-white font-semibold text-lg mb-5">Nuevo servicio</h3>
                 <form onSubmit={handleSubmit} className="space-y-4">
                   {formError && <p className="text-red-400 text-sm bg-red-500/10 border border-red-500/20 px-3 py-2 rounded-lg">{formError}</p>}
@@ -117,8 +117,8 @@ export default function Services() {
                       className="w-full bg-[#131929] border border-slate-700 text-white rounded-lg px-4 py-2.5 text-sm placeholder-slate-500 focus:border-violet-500 focus:ring-2 focus:ring-violet-500/20 focus:outline-none transition-all duration-150 resize-none" />
                   </div>
                   <div className="flex gap-3 pt-2">
-                    <button type="button" onClick={() => setNewModal(false)} className="flex-1 bg-slate-800 hover:bg-slate-700 text-slate-300 text-sm font-medium py-2.5 rounded-lg transition hover:bg-white/10 hover:text-white transition-colors duration-150">Cancelar</button>
-                    <button type="submit" disabled={createMutation.isPending}
+                    <button type="button" onClick={() => { setNewModal(false); setEditService(null); }} className="flex-1 bg-slate-800 hover:bg-slate-700 text-slate-300 text-sm font-medium py-2.5 rounded-lg transition hover:bg-white/10 hover:text-white transition-colors duration-150">Cancelar</button>
+                    <button type="submit" disabled={createMutation.isPending || updateMutation.isPending}
                       className="flex-1 bg-violet-600 hover:bg-violet-500 disabled:opacity-50 text-white text-sm font-medium py-2.5 rounded-lg transition">
                       {createMutation.isPending ? 'Guardando...' : 'Crear servicio'}
                     </button>
@@ -221,8 +221,8 @@ export default function Services() {
           </div>
 
           {newModal && (
-            <div className="fixed inset-0 bg-black/70 backdrop-blur-sm flex items-center justify-center z-50 px-4">
-              <div className="bg-[#1e293b] border border-white/15 rounded-2xl w-full max-w-md p-6 shadow-2xl">
+            <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50 px-4">
+              <div className="bg-[#131929] border border-slate-800 rounded-2xl w-full max-w-md p-6 shadow-xl border border-violet-500/25 shadow-2xl shadow-black/50">
                 <h3 className="text-white font-semibold text-lg mb-5">{editService ? 'Editar servicio' : 'Nuevo servicio'}</h3>
                 <form onSubmit={handleSubmit} className="space-y-4">
                   {formError && <p className="text-red-400 text-sm bg-red-500/10 border border-red-500/20 px-3 py-2 rounded-lg">{formError}</p>}
@@ -261,8 +261,8 @@ export default function Services() {
           )}
 
           {deleteConfirm && (
-            <div className="fixed inset-0 bg-black/70 backdrop-blur-sm flex items-center justify-center z-50 px-4">
-              <div className="bg-[#1e293b] border border-white/15 rounded-2xl w-full max-w-md p-6 shadow-2xl">
+            <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50 px-4">
+              <div className="bg-[#131929] border border-slate-800 rounded-2xl w-full max-w-md p-6 shadow-xl border border-violet-500/25 shadow-2xl shadow-black/50">
                 <h3 className="text-white font-semibold text-lg mb-5">Eliminar servicio</h3>
                 <p className="text-slate-300 text-sm mb-6">
                   ¿Estás seguro que deseas eliminar <span className="font-semibold">{deleteConfirm.name}</span>? Esta acción no se puede deshacer.

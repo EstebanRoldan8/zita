@@ -495,30 +495,31 @@ export default function Clients() {
             <div className="w-80 sticky top-20 self-start bg-[#1e293b] border border-white/15 rounded-2xl shadow-2xl">
               <div className="border-b border-white/15 p-4">
                 {/* Header */}
-                <div className="flex items-center justify-between mb-3">
-                  <div className="flex items-center gap-2">
-                    <div className="w-10 h-10 rounded-full bg-gradient-to-br from-violet-500/30 to-blue-500/30 border border-slate-700 flex items-center justify-center text-sm text-violet-400 font-bold flex-shrink-0">
+                <div className="flex items-start justify-between mb-3">
+                  <div className="flex items-start gap-3">
+                    <div className="w-12 h-12 rounded-full bg-gradient-to-br from-violet-500/30 to-blue-500/30 border border-slate-700 flex items-center justify-center text-sm text-violet-400 font-bold flex-shrink-0">
                       {selected?.name?.[0]?.toUpperCase()}
                     </div>
-                    <div className="min-w-0">
-                      <h2 className="text-white text-base font-bold leading-tight truncate">{selected?.name}</h2>
-                      {selected?.phone && <p className="text-slate-500 text-xs truncate">{selected.phone}</p>}
+                    <div className="min-w-0 pt-0.5">
+                      <h2 className="text-white text-lg font-bold leading-tight truncate">{selected?.name}</h2>
+                      {selected?.phone && <p className="text-gray-400 text-xs truncate">{selected.phone}</p>}
+                      {selected?.email && <p className="text-gray-400 text-xs truncate">{selected.email}</p>}
                     </div>
                   </div>
                   <div className="flex items-center gap-1 flex-shrink-0">
-                    <button onClick={() => setShowEdit(true)} className="text-slate-500 hover:text-white p-1 rounded hover:bg-slate-700/50 transition"><Pencil size={12} /></button>
-                    <button onClick={() => setSelectedId(null)} className="text-slate-500 hover:text-white p-1 rounded hover:bg-slate-700/50 transition"><X size={12} /></button>
+                    <button onClick={() => setShowEdit(true)} className="text-slate-500 hover:text-white p-1.5 rounded hover:bg-slate-700/50 transition"><Pencil size={14} /></button>
+                    <button onClick={() => setSelectedId(null)} className="text-slate-500 hover:text-white p-1.5 rounded hover:bg-slate-700/50 transition"><X size={14} /></button>
                   </div>
                 </div>
 
-                {/* Stats horizontal compactos */}
-                <div className="flex gap-4">
-                  <div>
-                    <p className="text-sm font-semibold text-violet-400">{selected?.total_visits ?? 0}</p>
+                {/* Stats en 2 cards compactas */}
+                <div className="grid grid-cols-2 gap-2">
+                  <div className="flex flex-col items-center justify-center bg-white/5 rounded-lg p-2 text-center border border-white/5">
+                    <p className="text-lg font-semibold text-violet-400">{selected?.total_visits ?? 0}</p>
                     <p className="text-xs text-white/40">Visitas</p>
                   </div>
-                  <div>
-                    <p className="text-sm font-semibold text-emerald-400">{formatCOP(selected?.total_spent)}</p>
+                  <div className="flex flex-col items-center justify-center bg-white/5 rounded-lg p-2 text-center border border-white/5">
+                    <p className="text-lg font-semibold text-emerald-400">{formatCOP(selected?.total_spent)}</p>
                     <p className="text-xs text-white/40">Gastado</p>
                   </div>
                 </div>

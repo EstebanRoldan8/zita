@@ -97,29 +97,29 @@ export default function Services() {
                   <div>
                     <label className="block text-slate-400 text-sm mb-1.5">Nombre *</label>
                     <input type="text" value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} placeholder="Corte clásico"
-                      className="w-full bg-[#0f172a] border border-white/10 text-white rounded-xl px-4 h-11 text-sm placeholder-white/40 focus:border-violet-500 focus:outline-none transition" />
+                      className="w-full bg-[#131929] border border-slate-700 text-white rounded-lg px-4 py-2.5 text-sm placeholder-slate-500 focus:border-violet-500 focus:ring-2 focus:ring-violet-500/20 focus:outline-none transition-all duration-150" />
                   </div>
                   <div className="grid grid-cols-2 gap-3">
                     <div>
                       <label className="block text-slate-400 text-sm mb-1.5">Precio (COP) *</label>
                       <input type="number" value={form.price} onChange={(e) => setForm({ ...form, price: e.target.value })} placeholder="35000" min={0}
-                        className="w-full bg-[#0f172a] border border-white/10 text-white rounded-xl px-4 h-11 text-sm placeholder-white/40 focus:border-violet-500 focus:outline-none transition" />
+                        className="w-full bg-[#131929] border border-slate-700 text-white rounded-lg px-4 py-2.5 text-sm placeholder-slate-500 focus:border-violet-500 focus:ring-2 focus:ring-violet-500/20 focus:outline-none transition-all duration-150" />
                     </div>
                     <div>
                       <label className="block text-slate-400 text-sm mb-1.5">Duración (min) *</label>
                       <input type="number" value={form.duration_minutes} onChange={(e) => setForm({ ...form, duration_minutes: e.target.value })} min={5} step={5}
-                        className="w-full bg-[#0f172a] border border-white/10 text-white rounded-xl px-4 h-11 text-sm placeholder-white/40 focus:border-violet-500 focus:outline-none transition" />
+                        className="w-full bg-[#131929] border border-slate-700 text-white rounded-lg px-4 py-2.5 text-sm placeholder-slate-500 focus:border-violet-500 focus:ring-2 focus:ring-violet-500/20 focus:outline-none transition-all duration-150" />
                     </div>
                   </div>
                   <div>
                     <label className="block text-slate-400 text-sm mb-1.5">Descripción (opcional)</label>
                     <textarea value={form.description} onChange={(e) => setForm({ ...form, description: e.target.value })} placeholder="Descripción del servicio..."
-                      className="w-full bg-[#0f172a] border border-white/10 text-white rounded-xl px-4 py-2 text-sm placeholder-white/40 focus:border-violet-500 focus:outline-none transition resize-none h-20" />
+                      className="w-full bg-[#131929] border border-slate-700 text-white rounded-lg px-4 py-2.5 text-sm placeholder-slate-500 focus:border-violet-500 focus:ring-2 focus:ring-violet-500/20 focus:outline-none transition-all duration-150 resize-none" />
                   </div>
                   <div className="flex gap-3 pt-2">
-                    <button type="button" onClick={() => setNewModal(false)} className="flex-1 bg-white/10 hover:bg-white/20 text-white text-sm font-medium h-11 rounded-xl transition">Cancelar</button>
+                    <button type="button" onClick={() => setNewModal(false)} className="flex-1 bg-slate-800 hover:bg-slate-700 text-slate-300 text-sm font-medium py-2.5 rounded-lg transition hover:bg-white/10 hover:text-white transition-colors duration-150">Cancelar</button>
                     <button type="submit" disabled={createMutation.isPending}
-                      className="flex-1 bg-violet-600 hover:bg-violet-500 disabled:opacity-50 text-white text-sm font-medium h-11 rounded-xl transition">
+                      className="flex-1 bg-violet-600 hover:bg-violet-500 disabled:opacity-50 text-white text-sm font-medium py-2.5 rounded-lg transition">
                       {createMutation.isPending ? 'Guardando...' : 'Crear servicio'}
                     </button>
                   </div>
@@ -229,24 +229,24 @@ export default function Services() {
                   <div>
                     <label className="block text-slate-400 text-sm mb-1.5">Nombre *</label>
                     <input type="text" value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} placeholder="Corte clásico"
-                      className="w-full bg-[#0f172a] border border-white/10 text-white rounded-xl px-4 h-11 text-sm placeholder-white/40 focus:border-violet-500 focus:outline-none transition" />
+                      className="w-full bg-[#131929] border border-slate-700 text-white rounded-lg px-4 py-2.5 text-sm placeholder-slate-500 focus:border-violet-500 focus:ring-2 focus:ring-violet-500/20 focus:outline-none transition-all duration-150" />
                   </div>
                   <div className="grid grid-cols-2 gap-3">
                     <div>
                       <label className="block text-slate-400 text-sm mb-1.5">Precio (COP) *</label>
                       <input type="number" value={form.price} onChange={(e) => setForm({ ...form, price: e.target.value })} placeholder="35000" min={0}
-                        className="w-full bg-[#0f172a] border border-white/10 text-white rounded-xl px-4 h-11 text-sm placeholder-white/40 focus:border-violet-500 focus:outline-none transition" />
+                        className="w-full bg-[#131929] border border-slate-700 text-white rounded-lg px-4 py-2.5 text-sm placeholder-slate-500 focus:border-violet-500 focus:ring-2 focus:ring-violet-500/20 focus:outline-none transition-all duration-150" />
                     </div>
                     <div>
                       <label className="block text-slate-400 text-sm mb-1.5">Duración (min) *</label>
                       <input type="number" value={form.duration_minutes} onChange={(e) => setForm({ ...form, duration_minutes: e.target.value })} min={5} step={5}
-                        className="w-full bg-[#0f172a] border border-white/10 text-white rounded-xl px-4 h-11 text-sm placeholder-white/40 focus:border-violet-500 focus:outline-none transition" />
+                        className="w-full bg-[#131929] border border-slate-700 text-white rounded-lg px-4 py-2.5 text-sm placeholder-slate-500 focus:border-violet-500 focus:ring-2 focus:ring-violet-500/20 focus:outline-none transition-all duration-150" />
                     </div>
                   </div>
                   <div>
                     <label className="block text-slate-400 text-sm mb-1.5">Descripción (opcional)</label>
                     <textarea value={form.description} onChange={(e) => setForm({ ...form, description: e.target.value })} placeholder="Descripción del servicio..."
-                      className="w-full bg-[#0f172a] border border-white/10 text-white rounded-xl px-4 py-2 text-sm placeholder-white/40 focus:border-violet-500 focus:outline-none transition resize-none h-20" />
+                      className="w-full bg-[#131929] border border-slate-700 text-white rounded-lg px-4 py-2.5 text-sm placeholder-slate-500 focus:border-violet-500 focus:ring-2 focus:ring-violet-500/20 focus:outline-none transition-all duration-150 resize-none" />
                   </div>
                   <div className="flex gap-3 pt-2">
                     <button type="button" onClick={() => { setNewModal(false); setEditService(null); }} className="flex-1 bg-white/10 hover:bg-white/20 text-white text-sm font-medium h-11 rounded-xl transition">Cancelar</button>
@@ -267,12 +267,12 @@ export default function Services() {
                 <p className="text-slate-300 text-sm mb-6">
                   ¿Estás seguro que deseas eliminar <span className="font-semibold">{deleteConfirm.name}</span>? Esta acción no se puede deshacer.
                 </p>
-                <div className="flex gap-3">
+                <div className="flex gap-3 pt-2">
                   <button
                     type="button"
                     onClick={() => setDeleteConfirm(null)}
                     disabled={deleteMutation.isPending}
-                    className="flex-1 bg-white/10 hover:bg-white/20 disabled:opacity-50 text-white text-sm font-medium h-11 rounded-xl transition"
+                    className="flex-1 bg-slate-800 hover:bg-slate-700 disabled:opacity-50 text-slate-300 text-sm font-medium py-2.5 rounded-lg transition hover:bg-white/10 hover:text-white transition-colors duration-150"
                   >
                     Cancelar
                   </button>
@@ -280,7 +280,7 @@ export default function Services() {
                     type="button"
                     onClick={() => deleteMutation.mutate(deleteConfirm.id)}
                     disabled={deleteMutation.isPending}
-                    className="flex-1 bg-red-600 hover:bg-red-500 disabled:opacity-50 text-white text-sm font-medium h-11 rounded-xl transition"
+                    className="flex-1 bg-red-600 hover:bg-red-500 disabled:opacity-50 text-white text-sm font-medium py-2.5 rounded-lg transition"
                   >
                     {deleteMutation.isPending ? 'Eliminando...' : 'Eliminar'}
                   </button>

@@ -15,8 +15,8 @@ function formatCOP(v) {
 
 function Modal({ title, onClose, children }) {
   return (
-    <div className="fixed inset-0 bg-black/70 backdrop-blur-sm flex items-center justify-center z-50 px-4">
-      <div className="bg-[#1e293b] border border-white/15 rounded-2xl w-full max-w-md p-6 shadow-2xl">
+    <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50 px-4">
+      <div className="bg-[#131929] border border-slate-800 rounded-2xl w-full max-w-md p-6 shadow-xl border border-violet-500/25 shadow-2xl shadow-black/50">
         <h3 className="text-white font-semibold text-lg mb-5">{title}</h3>
         {children}
       </div>
@@ -199,18 +199,18 @@ function TeamTab({ showInactive, onShowInactiveChange, showCreateModal, setShowC
                   placeholder={placeholder}
                   min={type === 'number' ? 0 : undefined}
                   max={type === 'number' ? 100 : undefined}
-                  className="w-full bg-[#0f172a] border border-white/10 text-white rounded-xl px-4 h-11 text-sm placeholder-white/40 focus:border-violet-500 focus:outline-none transition"
+                  className="w-full bg-[#131929] border border-slate-700 text-white rounded-lg px-4 py-2.5 text-sm placeholder-slate-500 focus:border-violet-500 focus:ring-2 focus:ring-violet-500/20 focus:outline-none transition-all duration-150"
                 />
               </div>
             ))}
             <div className="flex gap-3 pt-2">
-              <button type="button" onClick={closeModal} className="flex-1 bg-white/10 hover:bg-white/20 text-white text-sm font-medium h-11 rounded-xl transition">
+              <button type="button" onClick={closeModal} className="flex-1 bg-slate-800 hover:bg-slate-700 text-slate-300 text-sm font-medium py-2.5 rounded-lg transition hover:bg-white/10 hover:text-white transition-colors duration-150">
                 Cancelar
               </button>
               <button
                 type="submit"
                 disabled={updateMutation.isPending}
-                className="flex-1 bg-violet-600 hover:bg-violet-500 disabled:opacity-50 text-white text-sm font-medium h-11 rounded-xl transition"
+                className="flex-1 bg-violet-600 hover:bg-violet-500 disabled:opacity-50 text-white text-sm font-medium py-2.5 rounded-lg transition"
               >
                 {updateMutation.isPending ? 'Guardando...' : 'Guardar'}
               </button>
@@ -566,7 +566,7 @@ export default function Employees() {
                   placeholder={placeholder}
                   min={type === 'number' ? 0 : undefined}
                   max={type === 'number' ? 100 : undefined}
-                  className="w-full bg-[#0f172a] border border-white/10 text-white rounded-xl px-4 h-11 text-sm placeholder-white/40 focus:border-violet-500 focus:outline-none transition"
+                  className="w-full bg-[#131929] border border-slate-700 text-white rounded-lg px-4 py-2.5 text-sm placeholder-slate-500 focus:border-violet-500 focus:ring-2 focus:ring-violet-500/20 focus:outline-none transition-all duration-150"
                 />
               </div>
             ))}
@@ -592,13 +592,13 @@ export default function Employees() {
           <div className="flex gap-3 pt-2">
             <button
               onClick={() => setLimitError(null)}
-              className="flex-1 bg-white/10 hover:bg-white/20 text-white h-11 rounded-xl text-sm font-medium transition"
+              className="flex-1 bg-slate-800 hover:bg-slate-700 text-slate-300 text-sm font-medium py-2.5 rounded-lg transition hover:bg-white/10 hover:text-white transition-colors duration-150"
             >
               Cerrar
             </button>
             <a
               href="/dashboard/suscripcion"
-              className="flex-1 bg-violet-600 hover:bg-violet-500 text-white h-11 rounded-xl text-sm font-medium transition text-center flex items-center justify-center"
+              className="flex-1 bg-violet-600 hover:bg-violet-500 text-white text-sm font-medium py-2.5 rounded-lg transition text-center flex items-center justify-center"
             >
               Ver planes
             </a>

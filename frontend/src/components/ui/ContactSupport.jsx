@@ -33,9 +33,9 @@ export default function ContactSupport({ open, onClose }) {
 
   const modal = (
     <>
-      <div className="fixed inset-0 bg-black/70 backdrop-blur-sm z-50 flex items-center justify-center px-4" onClick={handleClose} />
-      <div className="fixed inset-0 z-50 flex items-center justify-center px-4">
-        <div className="bg-[#1e293b] border border-white/15 rounded-2xl shadow-2xl w-full max-w-md p-6">
+      <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50 px-4" onClick={handleClose} />
+      <div className="fixed inset-0 z-50 flex items-center justify-center px-4 pointer-events-none">
+        <div className="bg-[#131929] border border-slate-800 rounded-2xl w-full max-w-md p-6 shadow-xl border border-violet-500/25 shadow-2xl shadow-black/50 pointer-events-auto">
           <div className="flex items-center justify-between mb-5">
             <h3 className="text-white font-semibold text-lg">Contactar soporte</h3>
             <button onClick={handleClose} className="text-slate-500 hover:text-white transition">
@@ -66,12 +66,13 @@ export default function ContactSupport({ open, onClose }) {
                 value={message}
                 onChange={(e) => setMessage(e.target.value)}
                 placeholder="Describe tu consulta (opcional)..."
-                className="w-full bg-[#0f172a] border border-white/10 text-white rounded-xl px-4 h-32 text-sm placeholder-white/40 focus:border-violet-500 focus:outline-none transition resize-none mb-4"
+                className="w-full bg-[#131929] border border-slate-700 text-white rounded-lg px-4 py-2.5 text-sm placeholder-slate-500 focus:border-violet-500 focus:ring-2 focus:ring-violet-500/20 focus:outline-none transition-all duration-150 resize-none mb-4"
+                rows={3}
               />
               <button
                 onClick={handleSend}
                 disabled={loading}
-                className="w-full bg-violet-600 hover:bg-violet-500 disabled:opacity-50 text-white text-sm font-medium h-11 rounded-xl transition flex items-center justify-center gap-2"
+                className="w-full bg-violet-600 hover:bg-violet-500 disabled:opacity-50 text-white text-sm font-medium py-2.5 rounded-lg transition flex items-center justify-center gap-2"
               >
                 {loading ? 'Enviando...' : <><Send size={14} /> Contactar soporte</>}
               </button>

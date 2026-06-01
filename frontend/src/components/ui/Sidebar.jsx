@@ -157,9 +157,10 @@ export default function Sidebar() {
         {/* Campana derecha */}
         <button
           onClick={() => window.dispatchEvent(new CustomEvent('toggle-alerts'))}
-          className="w-9 h-9 flex items-center justify-center rounded-lg hover:bg-white/5 transition"
+          className="relative w-9 h-9 flex items-center justify-center rounded-lg hover:bg-white/5 transition"
         >
           <Bell size={18} className="text-white/70" />
+          <span id="mobile-alerts-badge" className="hidden absolute -top-1 -right-1 w-5 h-5 rounded-full bg-violet-600 text-white text-[10px] font-bold items-center justify-center" />
         </button>
       </div>
 

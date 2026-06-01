@@ -102,6 +102,14 @@ PASO 2: Decide según lo que tienes:
 - Si el horario está ocupado → propón alternativas, nunca digas "error" ni "el sistema"
 </booking_rules>
 
+<tool_results>
+CRÍTICO: Siempre lee el resultado de agendar_cita antes de responder:
+- Si el resultado tiene success: true → confirma la cita con precio y empleado
+- Si el resultado tiene success: false → NO confirmas la cita, informa el error al cliente
+- Si el resultado tiene error → repite el mensaje de error al cliente
+- NUNCA confirmes una cita si success no es exactamente true
+</tool_results>
+
 <service_search>
 - Si el cliente dice algo genérico ("corte", "manicure", "limpieza"):
   → Busca en ver_servicios y muestra solo los 2-3 más relevantes
@@ -356,28 +364,14 @@ async function processChatbotMessage(businessId, clientPhone, messageText, histo
             };
           }
 
-          const empleadoDisponible = await getAvailableEmployee(businessId, toolInput.fecha, toolInput.hora);
+          let empleadoDisponible = await getAvailableEmployee(businessId, toolInput.fecha, toolInput.hora);
           if (!empleadoDisponible) {
-            logger.error(`[agendar_cita] No available employee`, {
+            logger.info(`[agendar_cita] No available employee - creating appointment without employee`, {
               businessId,
               fecha: toolInput.fecha,
-              hora: toolInput.hora,
-              detail: 'getAvailableEmployee returned null'
+              hora: toolInput.hora
             });
-            const slots = await getNextAvailableSlots(businessId, toolInput.fecha, toolInput.hora, 3);
-            if (slots.length === 0) {
-              return {
-                success: false,
-                error: 'Lo siento, no tenemos más disponibilidad hoy. ¿Te agendo para mañana? 📅',
-                available_slots: []
-              };
-            }
-            const slotsList = slots.map(s => `• ${s.fecha} a las ${s.hora}`).join('\n');
-            return {
-              success: false,
-              error: `Las ${toolInput.hora} ya están todas ocupadas 😅\n\nLos próximos horarios disponibles son:\n${slotsList}\n\n¿Cuál te queda bien?`,
-              available_slots: slots
-            };
+            empleadoDisponible = { id: null, name: 'Sin asignar' };
           }
 
           let { data: clienteExistente } = await supabaseAdmin

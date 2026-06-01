@@ -82,6 +82,11 @@ async function create(req, res) {
   try {
     const { client_id, service_id, scheduled_at, price, notes, is_reward, employee_id } = req.body;
 
+    // Asegurar que scheduled_at tenga timezone Colombia si viene sin timezone
+    const scheduledAtWithTZ = scheduled_at && !scheduled_at.includes('+') && !scheduled_at.includes('Z')
+      ? scheduled_at + '-05:00'
+      : scheduled_at;
+
     if (!client_id || !service_id || !scheduled_at || price == null) {
       return res.status(400).json({
         success: false,
@@ -129,8 +134,8 @@ async function create(req, res) {
     let finalEmployeeId = employee_id;
 
     if (!finalEmployeeId) {
-      const fecha = scheduled_at.slice(0, 10);
-      const hora = scheduled_at.slice(11, 16);
+      const fecha = scheduledAtWithTZ.slice(0, 10);
+      const hora = scheduledAtWithTZ.slice(11, 16);
       const available = await getAvailableEmployee(req.businessId, fecha, hora);
 
       if (!available) {
@@ -157,7 +162,7 @@ async function create(req, res) {
         business_id: req.businessId,
         client_id,
         service_id,
-        scheduled_at,
+        scheduled_at: scheduledAtWithTZ,
         price,
         notes,
         is_reward: is_reward ?? false,

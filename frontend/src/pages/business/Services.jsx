@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { Plus, Edit2, ToggleLeft, ToggleRight, Trash2 } from 'lucide-react';
+import { Plus, Edit2, Eye, EyeOff, Trash2 } from 'lucide-react';
 import api from '../../lib/api';
 
 function formatCOP(v) {
@@ -166,33 +166,32 @@ export default function Services() {
             {displayedServices.map((svc) => {
               const inactive = svc.active === false;
               return (
-                <div key={svc.id} className={`group bg-[#131929] border border-violet-500/15 hover:border-violet-500/40 transition-all duration-200 rounded-xl shadow-lg shadow-black/30 p-4 min-h-[130px] flex flex-col justify-between ${inactive ? 'opacity-50' : ''}`}>
-                  <div>
-                    <div className="flex items-start justify-between mb-2">
+                <div key={svc.id} className={`group relative bg-[#131929] border border-violet-500/15 hover:border-violet-500/35 rounded-xl shadow-lg shadow-black/30 overflow-hidden transition-all duration-200 flex flex-col justify-between ${inactive ? 'opacity-50' : ''}`}>
+                  <div className="p-3 space-y-3">
+                    <div className="flex items-start justify-between">
                       <div className="min-w-0 flex-1 pr-2">
-                        <p className="text-white font-medium text-sm leading-tight">{svc.name}</p>
-                        {svc.description && <p className="text-slate-500 text-xs text-white/50 line-clamp-2 mt-0.5">{svc.description}</p>}
+                        <p className="text-white font-semibold text-sm leading-tight truncate">{svc.name}</p>
+                        {svc.description && <p className="text-slate-500 text-xs mt-0.5 truncate">{svc.description}</p>}
                       </div>
-                      <span className="flex-shrink-0 ml-2">
-                        {inactive ? (
-                          <span className="w-2 h-2 rounded-full bg-white/20 inline-block"></span>
-                        ) : (
-                          <span className="w-2 h-2 rounded-full bg-emerald-400 inline-block"></span>
-                        )}
-                      </span>
+                      {inactive ? (
+                        <span className="text-xs font-medium text-slate-600 bg-[#131929] border border-slate-700 px-2 py-0.5 rounded-full flex-shrink-0">Inactivo</span>
+                      ) : (
+                        <div className="w-2 h-2 rounded-full bg-emerald-400 flex-shrink-0 mt-1" />
+                      )}
                     </div>
 
-                    <div className="flex items-center justify-between text-sm">
-                      <div className="flex items-baseline gap-1">
-                        <p className="text-white font-medium">{formatCOP(svc.price)}</p>
-                        <p className="text-slate-500">·</p>
+                    <div className="flex items-end justify-between">
+                      <div>
+                        <p className="text-slate-500 text-xs">Precio</p>
+                        <p className="text-white font-bold">{formatCOP(svc.price)}</p>
                       </div>
-                      <p className="text-slate-400">{svc.duration_minutes} min</p>
+                      <div className="text-right">
+                        <p className="text-slate-500 text-xs">Duración</p>
+                        <p className="text-white font-bold">{svc.duration_minutes} min</p>
+                      </div>
                     </div>
-                  </div>
 
-                  <div className="flex gap-2 mt-2 pt-2 border-t border-white/10">
-                    <div className="flex gap-2 flex-1 sm:hidden">
+                    <div className="flex gap-2 sm:hidden">
                       <button onClick={() => openEdit(svc)}
                         className="flex-1 text-blue-400 text-xs px-2 py-1 rounded bg-blue-500/10 hover:bg-blue-500/20 transition">
                         Editar
@@ -211,28 +210,28 @@ export default function Services() {
                         Eliminar
                       </button>
                     </div>
+                  </div>
 
-                    <div className="ml-auto flex gap-2 opacity-0 group-hover:opacity-100 transition-opacity hidden sm:flex">
-                      <button onClick={() => openEdit(svc)}
-                        className="w-9 h-9 flex items-center justify-center bg-slate-800 hover:bg-slate-700 text-slate-400 hover:text-white rounded-lg transition">
-                        <Edit2 size={14} />
-                      </button>
-                      <button
-                        onClick={() => toggleMutation.mutate(svc.id)}
-                        disabled={toggleMutation.isPending}
-                        className="w-9 h-9 flex items-center justify-center bg-slate-800 hover:bg-slate-700 text-slate-400 hover:text-white rounded-lg transition disabled:opacity-50"
-                        title={svc.active ? 'Desactivar' : 'Activar'}
-                      >
-                        {svc.active ? <ToggleRight size={14} /> : <ToggleLeft size={14} />}
-                      </button>
-                      <button
-                        onClick={() => setDeleteConfirm(svc)}
-                        className="w-9 h-9 flex items-center justify-center bg-slate-800 hover:bg-red-500/20 text-slate-400 hover:text-red-400 rounded-lg transition"
-                        title="Eliminar"
-                      >
-                        <Trash2 size={14} />
-                      </button>
-                    </div>
+                  <div className="absolute top-2 right-2 flex gap-2 opacity-0 group-hover:opacity-100 transition-opacity hidden sm:flex">
+                    <button onClick={() => openEdit(svc)}
+                      className="w-9 h-9 flex items-center justify-center bg-slate-800 hover:bg-slate-700 text-slate-400 hover:text-white rounded-lg transition">
+                      <Edit2 size={14} />
+                    </button>
+                    <button
+                      onClick={() => toggleMutation.mutate(svc.id)}
+                      disabled={toggleMutation.isPending}
+                      className="w-9 h-9 flex items-center justify-center bg-slate-800 hover:bg-slate-700 text-slate-400 hover:text-white rounded-lg transition disabled:opacity-50"
+                      title={svc.active ? 'Desactivar' : 'Activar'}
+                    >
+                      {svc.active ? <Eye size={14} /> : <EyeOff size={14} />}
+                    </button>
+                    <button
+                      onClick={() => setDeleteConfirm(svc)}
+                      className="w-9 h-9 flex items-center justify-center bg-slate-800 hover:bg-red-500/20 text-slate-400 hover:text-red-400 rounded-lg transition"
+                      title="Eliminar"
+                    >
+                      <Trash2 size={14} />
+                    </button>
                   </div>
                 </div>
               );

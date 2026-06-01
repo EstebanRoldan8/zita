@@ -148,7 +148,7 @@ export default function Appointments() {
         client_id: body.client_id,
         service_id: body.service_id,
         employee_id: employeeId,
-        scheduled_at: `${body.date}T${body.time}:00`,
+        scheduled_at: `${body.date}T${body.time}:00-05:00`,
         price: selectedService?.price ?? 0,
         notes: body.notes,
         is_reward: body.is_reward ?? false,

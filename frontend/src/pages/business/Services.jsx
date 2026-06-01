@@ -194,44 +194,48 @@ export default function Services() {
                     </div>
                   </div>
 
-                  <div className="flex gap-2 mt-2 pt-2 border-t border-white/10 sm:hidden">
-                    <button onClick={() => openEdit(svc)}
-                      className="flex-1 text-blue-400 text-xs px-2 py-1 rounded bg-blue-500/10 hover:bg-blue-500/20 transition">
-                      Editar
-                    </button>
-                    <button
-                      onClick={() => toggleMutation.mutate(svc.id)}
-                      disabled={toggleMutation.isPending}
-                      className="flex-1 text-yellow-400 text-xs px-2 py-1 rounded bg-yellow-500/10 hover:bg-yellow-500/20 transition disabled:opacity-50"
-                    >
-                      {svc.active ? 'Desactivar' : 'Activar'}
-                    </button>
-                    <button
-                      onClick={() => setDeleteConfirm(svc)}
-                      className="flex-1 text-red-400 text-xs px-2 py-1 rounded bg-red-500/10 hover:bg-red-500/20 transition"
-                    >
-                      Eliminar
-                    </button>
-                  </div>
+                  <div className="flex gap-2 mt-2 pt-2 border-t border-white/10">
+                    <div className="flex gap-2 flex-1 sm:hidden">
+                      <button onClick={() => openEdit(svc)}
+                        className="flex-1 text-blue-400 text-xs px-2 py-1 rounded bg-blue-500/10 hover:bg-blue-500/20 transition">
+                        Editar
+                      </button>
+                      <button
+                        onClick={() => toggleMutation.mutate(svc.id)}
+                        disabled={toggleMutation.isPending}
+                        className="flex-1 text-yellow-400 text-xs px-2 py-1 rounded bg-yellow-500/10 hover:bg-yellow-500/20 transition disabled:opacity-50"
+                      >
+                        {svc.active ? 'Desactivar' : 'Activar'}
+                      </button>
+                      <button
+                        onClick={() => setDeleteConfirm(svc)}
+                        className="flex-1 text-red-400 text-xs px-2 py-1 rounded bg-red-500/10 hover:bg-red-500/20 transition"
+                      >
+                        Eliminar
+                      </button>
+                    </div>
 
-                  <div className="hidden gap-2 mt-2 pt-2 border-t border-white/10 sm:group-hover:flex">
-                    <button onClick={() => openEdit(svc)}
-                      className="flex-1 text-blue-400 text-xs px-2 py-1 rounded bg-blue-500/10 hover:bg-blue-500/20 transition">
-                      Editar
-                    </button>
-                    <button
-                      onClick={() => toggleMutation.mutate(svc.id)}
-                      disabled={toggleMutation.isPending}
-                      className="flex-1 text-yellow-400 text-xs px-2 py-1 rounded bg-yellow-500/10 hover:bg-yellow-500/20 transition disabled:opacity-50"
-                    >
-                      {svc.active ? 'Desactivar' : 'Activar'}
-                    </button>
-                    <button
-                      onClick={() => setDeleteConfirm(svc)}
-                      className="flex-1 text-red-400 text-xs px-2 py-1 rounded bg-red-500/10 hover:bg-red-500/20 transition"
-                    >
-                      Eliminar
-                    </button>
+                    <div className="ml-auto flex gap-2 opacity-0 group-hover:opacity-100 transition-opacity hidden sm:flex">
+                      <button onClick={() => openEdit(svc)}
+                        className="w-9 h-9 flex items-center justify-center bg-slate-800 hover:bg-slate-700 text-slate-400 hover:text-white rounded-lg transition">
+                        <Edit2 size={14} />
+                      </button>
+                      <button
+                        onClick={() => toggleMutation.mutate(svc.id)}
+                        disabled={toggleMutation.isPending}
+                        className="w-9 h-9 flex items-center justify-center bg-slate-800 hover:bg-slate-700 text-slate-400 hover:text-white rounded-lg transition disabled:opacity-50"
+                        title={svc.active ? 'Desactivar' : 'Activar'}
+                      >
+                        {svc.active ? <ToggleRight size={14} /> : <ToggleLeft size={14} />}
+                      </button>
+                      <button
+                        onClick={() => setDeleteConfirm(svc)}
+                        className="w-9 h-9 flex items-center justify-center bg-slate-800 hover:bg-red-500/20 text-slate-400 hover:text-red-400 rounded-lg transition"
+                        title="Eliminar"
+                      >
+                        <Trash2 size={14} />
+                      </button>
+                    </div>
                   </div>
                 </div>
               );

@@ -49,28 +49,17 @@ export default function AppointmentModal({
   const selectedService = services?.find((s) => s.id === form.service_id);
   const selectedClient = (clients || []).find((c) => c?.id === form.client_id);
 
-  const parseHora = (text) => {
-    if (!text) return '';
-    text = text.trim().toLowerCase();
-    // Formato 24h: "15:30" o "15"
-    const match24 = text.match(/^(\d{1,2}):?(\d{2})?$/);
-    if (match24) {
-      const h = parseInt(match24[1]);
-      const m = match24[2] ? parseInt(match24[2]) : 0;
-      if (h >= 0 && h <= 23 && m >= 0 && m <= 59)
-        return `${String(h).padStart(2,'0')}:${String(m).padStart(2,'0')}`;
-    }
-    // Formato 12h: "3pm", "3:30pm", "3:30 pm"
-    const match12 = text.match(/^(\d{1,2}):?(\d{2})?\s*(am|pm)$/);
-    if (match12) {
-      let h = parseInt(match12[1]);
-      const m = match12[2] ? parseInt(match12[2]) : 0;
-      if (match12[3] === 'pm' && h !== 12) h += 12;
-      if (match12[3] === 'am' && h === 12) h = 0;
-      if (h >= 0 && h <= 23 && m >= 0 && m <= 59)
-        return `${String(h).padStart(2,'0')}:${String(m).padStart(2,'0')}`;
-    }
-    return '';
+  const horasGrid = [
+    '07:00','08:00','09:00','10:00','11:00','12:00',
+    '13:00','14:00','15:00','16:00','17:00','18:00',
+    '19:00','20:00','21:00','22:00'
+  ];
+
+  const formatHoraDisplay = (hora) => {
+    const [h, m] = hora.split(':').map(Number);
+    const period = h < 12 ? 'am' : 'pm';
+    const displayH = h > 12 ? h - 12 : h === 0 ? 12 : h;
+    return `${displayH}${m > 0 ? ':'+String(m).padStart(2,'0') : ''}${period}`;
   };
   const filteredClients = (clients || []).filter((c) => {
     try {
@@ -200,13 +189,47 @@ export default function AppointmentModal({
             </div>
             <div>
               <label className="block text-slate-400 text-xs mb-1">Hora</label>
-              <input type="text" value={horaText} onChange={(e) => setHoraText(e.target.value)}
-                onBlur={() => {
-                  const parsed = parseHora(horaText);
-                  if (parsed) setForm({ ...form, time: parsed });
-                }}
-                placeholder="Ej: 3pm, 15:30, 3:30 pm"
-                className={`w-full bg-slate-900 border ${parseHora(horaText) || !horaText ? 'border-slate-700' : 'border-red-500'} text-white rounded-lg px-3 h-9 text-sm focus:outline-none focus:border-violet-500 transition`} />
+              <p className="text-violet-400 text-xs font-medium mb-1.5">
+                {form.time ? formatHoraDisplay(form.time) : 'Selecciona una hora'}
+              </p>
+              <div className="grid grid-cols-4 gap-1.5 mb-2">
+                {horasGrid.map(hora => (
+                  <button
+                    key={hora}
+                    type="button"
+                    onClick={() => setForm({...form, time: hora})}
+                    className={`py-1.5 rounded-lg text-xs font-medium transition
+                      ${form.time === hora
+                        ? 'bg-violet-600 text-white'
+                        : 'bg-white/5 text-gray-400 hover:bg-white/10 hover:text-white'
+                      }`}
+                  >
+                    {formatHoraDisplay(hora)}
+                  </button>
+                ))}
+              </div>
+              {form.time && (
+                <div className="flex gap-1.5">
+                  {['00','15','30','45'].map(min => {
+                    const horaBase = form.time?.split(':')[0] || '09';
+                    const horaConMin = `${horaBase}:${min}`;
+                    return (
+                      <button
+                        key={min}
+                        type="button"
+                        onClick={() => setForm({...form, time: horaConMin})}
+                        className={`flex-1 py-1 rounded-lg text-xs transition
+                          ${form.time === horaConMin
+                            ? 'bg-violet-500 text-white'
+                            : 'bg-white/5 text-gray-400 hover:bg-white/10'
+                          }`}
+                      >
+                        :{min}
+                      </button>
+                    );
+                  })}
+                </div>
+              )}
             </div>
           </div>
 

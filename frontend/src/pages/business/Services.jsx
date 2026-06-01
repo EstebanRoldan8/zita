@@ -162,15 +162,15 @@ export default function Services() {
             </button>
           </div>
 
-          <div className="grid grid-cols-1 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
             {displayedServices.map((svc) => {
               const inactive = svc.active === false;
               return (
-                <div key={svc.id} className={`group bg-[#131929] border border-violet-500/15 hover:border-violet-500/40 transition-all duration-200 rounded-xl shadow-lg shadow-black/30 p-5 min-h-[160px] flex flex-col justify-between ${inactive ? 'opacity-50' : ''}`}>
+                <div key={svc.id} className={`group bg-[#131929] border border-violet-500/15 hover:border-violet-500/40 transition-all duration-200 rounded-xl shadow-lg shadow-black/30 p-4 min-h-[130px] flex flex-col justify-between ${inactive ? 'opacity-50' : ''}`}>
                   <div>
-                    <div className="flex items-start justify-between mb-3">
+                    <div className="flex items-start justify-between mb-2">
                       <div className="min-w-0 flex-1 pr-2">
-                        <p className="text-white font-semibold text-sm leading-tight">{svc.name}</p>
+                        <p className="text-white font-medium text-sm leading-tight">{svc.name}</p>
                         {svc.description && <p className="text-slate-500 text-xs text-white/50 line-clamp-2 mt-0.5">{svc.description}</p>}
                       </div>
                       <span className="flex-shrink-0 ml-2">
@@ -182,15 +182,12 @@ export default function Services() {
                       </span>
                     </div>
 
-                    <div className="flex items-end justify-between mb-4">
-                      <div>
-                        <p className="text-slate-500 text-xs">Precio</p>
-                        <p className="text-xl font-bold text-white">{formatCOP(svc.price)}</p>
+                    <div className="flex items-center justify-between text-sm">
+                      <div className="flex items-baseline gap-1">
+                        <p className="text-white font-medium">{formatCOP(svc.price)}</p>
+                        <p className="text-slate-500">·</p>
                       </div>
-                      <div className="text-right">
-                        <p className="text-slate-500 text-sm text-white/40">Duración</p>
-                        <p className="text-white font-bold">{svc.duration_minutes} min</p>
-                      </div>
+                      <p className="text-slate-400">{svc.duration_minutes} min</p>
                     </div>
                   </div>
 

@@ -116,10 +116,10 @@ export default function Services() {
                     <textarea value={form.description} onChange={(e) => setForm({ ...form, description: e.target.value })} placeholder="Descripción del servicio..."
                       className="w-full bg-[#0f172a] border border-white/10 text-white rounded-xl px-4 py-2 text-sm placeholder-white/40 focus:border-violet-500 focus:outline-none transition resize-none h-20" />
                   </div>
-                  <div className="flex gap-3 pt-1">
-                    <button type="button" onClick={() => setNewModal(false)} className="flex-1 bg-slate-800 hover:bg-slate-700 text-slate-300 text-sm font-medium py-2.5 rounded-lg transition hover:bg-white/10 hover:text-white transition-colors duration-150">Cancelar</button>
+                  <div className="flex gap-3 pt-2">
+                    <button type="button" onClick={() => setNewModal(false)} className="flex-1 bg-white/10 hover:bg-white/20 text-white text-sm font-medium h-11 rounded-xl transition">Cancelar</button>
                     <button type="submit" disabled={createMutation.isPending}
-                      className="flex-1 bg-violet-600 hover:bg-violet-500 disabled:opacity-50 text-white text-sm font-medium py-2.5 rounded-lg transition">
+                      className="flex-1 bg-violet-600 hover:bg-violet-500 disabled:opacity-50 text-white text-sm font-medium h-11 rounded-xl transition">
                       {createMutation.isPending ? 'Guardando...' : 'Crear servicio'}
                     </button>
                   </div>
@@ -248,10 +248,10 @@ export default function Services() {
                     <textarea value={form.description} onChange={(e) => setForm({ ...form, description: e.target.value })} placeholder="Descripción del servicio..."
                       className="w-full bg-[#0f172a] border border-white/10 text-white rounded-xl px-4 py-2 text-sm placeholder-white/40 focus:border-violet-500 focus:outline-none transition resize-none h-20" />
                   </div>
-                  <div className="flex gap-3 pt-1">
-                    <button type="button" onClick={() => { setNewModal(false); setEditService(null); }} className="flex-1 bg-slate-800 hover:bg-slate-700 text-slate-300 text-sm font-medium py-2.5 rounded-lg transition">Cancelar</button>
+                  <div className="flex gap-3 pt-2">
+                    <button type="button" onClick={() => { setNewModal(false); setEditService(null); }} className="flex-1 bg-white/10 hover:bg-white/20 text-white text-sm font-medium h-11 rounded-xl transition">Cancelar</button>
                     <button type="submit" disabled={createMutation.isPending || updateMutation.isPending}
-                      className="flex-1 bg-violet-600 hover:bg-violet-500 disabled:opacity-50 text-white text-sm font-medium py-2.5 rounded-lg transition">
+                      className="flex-1 bg-violet-600 hover:bg-violet-500 disabled:opacity-50 text-white text-sm font-medium h-11 rounded-xl transition">
                       {createMutation.isPending || updateMutation.isPending ? 'Guardando...' : editService ? 'Guardar cambios' : 'Crear servicio'}
                     </button>
                   </div>
@@ -263,7 +263,7 @@ export default function Services() {
           {deleteConfirm && (
             <div className="fixed inset-0 bg-black/70 backdrop-blur-sm flex items-center justify-center z-50 px-4">
               <div className="bg-[#1e293b] border border-white/15 rounded-2xl w-full max-w-md p-6 shadow-2xl">
-                <h3 className="text-white font-semibold text-lg mb-4">Eliminar servicio</h3>
+                <h3 className="text-white font-semibold text-lg mb-5">Eliminar servicio</h3>
                 <p className="text-slate-300 text-sm mb-6">
                   ¿Estás seguro que deseas eliminar <span className="font-semibold">{deleteConfirm.name}</span>? Esta acción no se puede deshacer.
                 </p>
@@ -272,7 +272,7 @@ export default function Services() {
                     type="button"
                     onClick={() => setDeleteConfirm(null)}
                     disabled={deleteMutation.isPending}
-                    className="flex-1 bg-slate-800 hover:bg-slate-700 disabled:opacity-50 text-slate-300 text-sm font-medium py-2.5 rounded-lg transition"
+                    className="flex-1 bg-white/10 hover:bg-white/20 disabled:opacity-50 text-white text-sm font-medium h-11 rounded-xl transition"
                   >
                     Cancelar
                   </button>
@@ -280,7 +280,7 @@ export default function Services() {
                     type="button"
                     onClick={() => deleteMutation.mutate(deleteConfirm.id)}
                     disabled={deleteMutation.isPending}
-                    className="flex-1 bg-red-600 hover:bg-red-500 disabled:opacity-50 text-white text-sm font-medium py-2.5 rounded-lg transition"
+                    className="flex-1 bg-red-600 hover:bg-red-500 disabled:opacity-50 text-white text-sm font-medium h-11 rounded-xl transition"
                   >
                     {deleteMutation.isPending ? 'Eliminando...' : 'Eliminar'}
                   </button>

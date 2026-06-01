@@ -33,10 +33,11 @@ export default function ContactSupport({ open, onClose }) {
 
   const modal = (
     <>
-      <div className="fixed inset-0 bg-black/70 backdrop-blur-sm z-[99] touch-action-none overscroll-none" onClick={handleClose} />
-      <div className="fixed inset-4 sm:bottom-20 sm:left-5 sm:inset-auto z-[100] w-auto sm:w-80 bg-[#1e293b] border border-white/15 rounded-2xl shadow-2xl p-6 flex flex-col max-h-[90dvh] sm:max-h-none">
-        <div className="flex items-center justify-between mb-4 flex-shrink-0">
-          <h3 className="text-white font-semibold text-sm sm:text-sm md:text-base">Contactar soporte</h3>
+      <div className="fixed inset-0 bg-black/70 backdrop-blur-sm z-50 flex items-center justify-center px-4" onClick={handleClose} />
+      <div className="fixed inset-0 z-50 flex items-center justify-center px-4">
+        <div className="bg-[#1e293b] border border-white/15 rounded-2xl shadow-2xl w-full max-w-md p-6">
+          <div className="flex items-center justify-between mb-5">
+            <h3 className="text-white font-semibold text-lg">Contactar soporte</h3>
           <button onClick={handleClose} className="text-slate-500 hover:text-white transition">
             <X className="w-5 h-5 sm:w-4 sm:h-4 md:w-5 md:h-5" />
           </button>
@@ -76,6 +77,8 @@ export default function ContactSupport({ open, onClose }) {
             </button>
           </>
         )}
+        </div>
+        </div>
       </div>
     </>
   );

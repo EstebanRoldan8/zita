@@ -14,7 +14,7 @@ async function getBusinessByPhoneNumberId(phoneNumberId) {
   return data;
 }
 
-function getBusinessSystemPrompt(business, clientInfo = null) {
+function getBusinessSystemPrompt(business, clientInfo = null, businessHours = null) {
   const now = new Date().toLocaleString('es-CO', { timeZone: 'America/Bogota' });
   const hoyFecha = new Date().toLocaleDateString('en-CA', { timeZone: 'America/Bogota' });
   const mañanaFecha = new Date(Date.now() + 86400000).toLocaleDateString('en-CA', { timeZone: 'America/Bogota' });
@@ -23,6 +23,14 @@ function getBusinessSystemPrompt(business, clientInfo = null) {
   const clientGreeting = clientInfo?.name && clientInfo.name !== 'Cliente WhatsApp'
     ? `El cliente se llama ${clientInfo.name}. Úsalo desde el primer mensaje.`
     : '';
+
+  const dias = ['Domingo', 'Lunes', 'Martes', 'Miércoles', 'Jueves', 'Viernes', 'Sábado'];
+  const horariosTexto = businessHours && businessHours.length > 0
+    ? businessHours
+        .sort((a, b) => a.day_of_week - b.day_of_week)
+        .map(h => `  • ${dias[h.day_of_week]}: ${h.is_open ? h.open_time + ' a ' + h.close_time : 'Cerrado'}`)
+        .join('\n')
+    : 'Horarios no disponibles';
 
   return `<identity>
 Eres el asistente virtual de ${business.name}.
@@ -34,6 +42,9 @@ Cuando el cliente diga 'hoy' usa EXACTAMENTE ${hoyFecha}
 Cuando el cliente diga 'mañana' usa EXACTAMENTE ${mañanaFecha}
 ${clientGreeting}
 Idioma: responde SIEMPRE en el mismo idioma que use el cliente.
+
+Horarios de atención:
+${horariosTexto}
 </identity>
 
 <personality>
@@ -220,8 +231,14 @@ async function saveConversationHistory(businessId, clientPhone, messages) {
 async function processChatbotMessage(businessId, clientPhone, messageText, history, business, clientInfo = null) {
   logger.info('Procesando mensaje del chatbot', { businessId, clientPhone, messageLength: messageText.length });
 
+  const { data: businessHours } = await supabaseAdmin
+    .from('business_hours')
+    .select('day_of_week, open_time, close_time, is_open')
+    .eq('business_id', businessId)
+    .order('day_of_week');
+
   const anthropicClient = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
-  const systemPrompt = getBusinessSystemPrompt(business, clientInfo);
+  const systemPrompt = getBusinessSystemPrompt(business, clientInfo, businessHours || []);
 
   const tools = [
     {
@@ -353,11 +370,14 @@ async function processChatbotMessage(businessId, clientPhone, messageText, histo
             return { success: false, error: 'Ese día estamos cerrados.' };
           }
 
-          const horaNum = parseInt(toolInput.hora.split(':')[0]);
-          const apertura = parseInt(horario.open_time?.split(':')[0] || '8');
-          const cierre = parseInt(horario.close_time?.split(':')[0] || '19');
+          const [horaH, horaM] = toolInput.hora.split(':').map(Number);
+          const appointmentMinutes = horaH * 60 + horaM;
+          const [aperturaH, aperturaM] = horario.open_time.split(':').map(Number);
+          const aperturaMinutes = aperturaH * 60 + aperturaM;
+          const [cierreH, cierreM] = horario.close_time.split(':').map(Number);
+          const cierreMinutes = cierreH * 60 + cierreM;
 
-          if (horaNum < apertura || horaNum >= cierre) {
+          if (appointmentMinutes < aperturaMinutes || appointmentMinutes >= cierreMinutes) {
             return {
               success: false,
               error: `Fuera de horario. Atendemos de ${horario.open_time} a ${horario.close_time}.`

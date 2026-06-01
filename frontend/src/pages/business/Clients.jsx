@@ -1,4 +1,4 @@
-import { useState, useRef } from 'react';
+import { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { Users, ChevronRight, X, Pencil, Search, Phone, Mail, Trophy, Plus, Check } from 'lucide-react';
 import api from '../../lib/api';
@@ -190,13 +190,9 @@ export default function Clients() {
   const [showRedeemConfirm, setShowRedeemConfirm] = useState(false);
   const [isRedeeming, setIsRedeeming] = useState(false);
   const [recallStatus, setRecallStatus] = useState({});
-  const detailRef = useRef(null);
 
   const handleSelectClient = (clientId) => {
     setSelectedId(clientId === selectedId ? null : clientId);
-    setTimeout(() => {
-      detailRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
-    }, 50);
   };
 
   const { data: sub, isLoading: subLoading } = useQuery({
@@ -420,10 +416,10 @@ export default function Clients() {
           )}
         </div>
       ) : (
-        <div className="flex gap-6">
+        <div className="md:grid md:grid-cols-3 md:gap-6">
 
           {/* Lista */}
-          <div className="flex-1 overflow-y-auto">
+          <div className="md:col-span-1">
             <div className="flex gap-3 mb-5">
               <div className="relative flex-1">
                 <Search size={15} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-500" />
@@ -496,7 +492,7 @@ export default function Clients() {
 
           {/* Panel de detalle */}
           {selectedId && (
-            <div ref={detailRef} className="w-96 sticky top-4 self-start max-h-[calc(100vh-6rem)] overflow-y-auto custom-scroll">
+            <div className="md:col-span-2">
               <div className="bg-gradient-to-br from-violet-600/20 to-indigo-600/5 border-b border-white/6 p-6 pb-8">
                 {/* Header */}
                 <div className="flex items-start justify-between">

@@ -412,10 +412,10 @@ export default function Clients() {
           )}
         </div>
       ) : (
-        <div className="flex gap-6 min-h-0">
+        <div className="flex gap-6">
 
           {/* Lista */}
-          <div className="flex-1 min-w-0">
+          <div className="flex-1 overflow-y-auto">
             <div className="flex gap-3 mb-5">
               <div className="relative flex-1">
                 <Search size={15} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-500" />
@@ -488,7 +488,7 @@ export default function Clients() {
 
           {/* Panel de detalle */}
           {selectedId && (
-            <div className="w-[480px] flex-shrink-0 max-h-screen overflow-y-auto custom-scroll">
+            <div className="w-96 sticky top-4 self-start max-h-[calc(100vh-6rem)] overflow-y-auto custom-scroll">
               <div className="bg-gradient-to-br from-violet-600/20 to-indigo-600/5 border-b border-white/6 p-6 pb-8">
                 {/* Header */}
                 <div className="flex items-start justify-between">

@@ -44,34 +44,10 @@ export default function AppointmentModal({
   setLimitError,
 }) {
   const [showProducts, setShowProducts] = useState(false);
-  const [horaInput, setHoraInput] = useState('');
-  const [horaDropdownOpen, setHoraDropdownOpen] = useState(false);
   const clientSearchRef = useRef(null);
   const selectedService = services?.find((s) => s.id === form.service_id);
   const selectedClient = (clients || []).find((c) => c?.id === form.client_id);
 
-  const generarSlots = () => {
-    const slots = [];
-    for (let h = 6; h <= 22; h++) {
-      for (let m = 0; m < 60; m += 15) {
-        if (h === 22 && m > 0) break;
-        const value = `${String(h).padStart(2,'0')}:${String(m).padStart(2,'0')}`;
-        const period = h < 12 ? 'AM' : 'PM';
-        const displayH = h > 12 ? h - 12 : h === 0 ? 12 : h;
-        const label = `${displayH}:${String(m).padStart(2,'0')} ${period}`;
-        slots.push({ value, label });
-      }
-    }
-    return slots;
-  };
-  const allSlots = generarSlots();
-
-  const filteredSlots = horaInput
-    ? allSlots.filter(s =>
-        s.label.toLowerCase().includes(horaInput.toLowerCase()) ||
-        s.value.includes(horaInput)
-      ).slice(0, 6)
-    : allSlots.slice(0, 6);
   const filteredClients = (clients || []).filter((c) => {
     try {
       return !clientSearch || (c?.name ?? '').toLowerCase().includes(clientSearch.toLowerCase()) || (c?.phone ?? '').includes(clientSearch);
@@ -198,36 +174,32 @@ export default function AppointmentModal({
                 className="w-full bg-slate-900 border border-slate-700 text-white rounded-lg px-3 h-9 text-xs focus:outline-none focus:border-violet-500 transition"
               />
             </div>
-            <div>
-              <label className="block text-slate-400 text-xs mb-1">Hora</label>
-              <div className="relative">
-                <input
-                  type="text"
-                  value={horaInput}
-                  onChange={(e) => { setHoraInput(e.target.value); setHoraDropdownOpen(true); }}
-                  onFocus={() => setHoraDropdownOpen(true)}
-                  onBlur={() => setTimeout(() => setHoraDropdownOpen(false), 150)}
-                  placeholder="Ej: 3pm, 15:30"
-                  className="w-full h-9 bg-slate-900 border border-slate-700 rounded-lg px-3 text-sm text-white placeholder-slate-500 focus:border-violet-500 focus:outline-none transition"
-                />
-                {horaDropdownOpen && filteredSlots.length > 0 && (
-                  <div className="absolute top-full left-0 right-0 mt-1 bg-slate-800 border border-slate-700 rounded-lg shadow-2xl z-50 overflow-hidden">
-                    {filteredSlots.map(slot => (
-                      <button
-                        key={slot.value}
-                        type="button"
-                        onMouseDown={() => {
-                          setForm({...form, time: slot.value});
-                          setHoraInput(slot.label);
-                          setHoraDropdownOpen(false);
-                        }}
-                        className="w-full text-left px-4 py-2 text-sm text-gray-300 hover:bg-violet-600/20 hover:text-white transition"
-                      >
-                        {slot.label}
-                      </button>
-                    ))}
-                  </div>
-                )}
+            <div className="flex gap-2">
+              <div className="flex-1">
+                <label className="block text-slate-400 text-xs mb-1">Hora</label>
+                <select
+                  value={form.time?.split(':')[0] || '09'}
+                  onChange={(e) => setForm({...form, time: `${e.target.value}:${form.time?.split(':')[1] || '00'}`})}
+                  className="w-full h-9 bg-slate-900 border border-slate-700 text-white rounded-lg px-3 text-sm focus:outline-none focus:border-violet-500 transition"
+                >
+                  {Array.from({length: 17}, (_, i) => i + 6).map(h => {
+                    const period = h < 12 ? 'AM' : 'PM';
+                    const displayH = h > 12 ? h - 12 : h === 0 ? 12 : h;
+                    return <option key={h} value={String(h).padStart(2,'0')}>{displayH} {period}</option>
+                  })}
+                </select>
+              </div>
+              <div className="flex-1">
+                <label className="block text-slate-400 text-xs mb-1">Min</label>
+                <select
+                  value={form.time?.split(':')[1] || '00'}
+                  onChange={(e) => setForm({...form, time: `${form.time?.split(':')[0] || '09'}:${e.target.value}`})}
+                  className="w-full h-9 bg-slate-900 border border-slate-700 text-white rounded-lg px-3 text-sm focus:outline-none focus:border-violet-500 transition"
+                >
+                  {['00','05','10','15','20','25','30','35','40','45','50','55'].map(m => (
+                    <option key={m} value={m}>:{m}</option>
+                  ))}
+                </select>
               </div>
             </div>
           </div>

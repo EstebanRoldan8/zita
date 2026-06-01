@@ -604,7 +604,7 @@ export default function Dashboard() {
   }
 
   return (
-    <div className="px-4 sm:px-6 lg:px-8 py-6 sm:py-8">
+    <div className="px-4 sm:px-6 lg:px-8 py-6 sm:py-8 overflow-x-hidden">
 
       {/* Header */}
       <div className="border-b border-white/6 pb-4 mb-6">

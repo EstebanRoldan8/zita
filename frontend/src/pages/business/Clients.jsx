@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useRef } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { Users, ChevronRight, X, Pencil, Search, Phone, Mail, Trophy, Plus, Check } from 'lucide-react';
 import api from '../../lib/api';
@@ -190,6 +190,14 @@ export default function Clients() {
   const [showRedeemConfirm, setShowRedeemConfirm] = useState(false);
   const [isRedeeming, setIsRedeeming] = useState(false);
   const [recallStatus, setRecallStatus] = useState({});
+  const detailRef = useRef(null);
+
+  const handleSelectClient = (clientId) => {
+    setSelectedId(clientId === selectedId ? null : clientId);
+    setTimeout(() => {
+      detailRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    }, 50);
+  };
 
   const { data: sub, isLoading: subLoading } = useQuery({
     queryKey: ['subscription'],
@@ -449,7 +457,7 @@ export default function Clients() {
                   };
                   const avatarClass = avatarColors[initial] || 'bg-slate-600/30 text-slate-300';
                   return (
-                    <button key={c.id} onClick={() => setSelectedId(c.id === selectedId ? null : c.id)}
+                    <button key={c.id} onClick={() => handleSelectClient(c.id)}
                       className={`w-full text-left bg-[#131929] border border-violet-500/15 hover:border-violet-500/35 hover:bg-[#1a2235] transition-all duration-200 rounded-xl px-5 py-4 flex items-center justify-between ${c.id === selectedId ? 'border-violet-500/50 bg-violet-500/5' : ''}`}>
                       <div className="flex items-center gap-3">
                         <div className={`w-8 h-8 rounded-full border flex items-center justify-center text-xs font-semibold flex-shrink-0 ${avatarClass}`}>
@@ -488,7 +496,7 @@ export default function Clients() {
 
           {/* Panel de detalle */}
           {selectedId && (
-            <div className="w-96 sticky top-4 self-start max-h-[calc(100vh-6rem)] overflow-y-auto custom-scroll">
+            <div ref={detailRef} className="w-96 sticky top-4 self-start max-h-[calc(100vh-6rem)] overflow-y-auto custom-scroll">
               <div className="bg-gradient-to-br from-violet-600/20 to-indigo-600/5 border-b border-white/6 p-6 pb-8">
                 {/* Header */}
                 <div className="flex items-start justify-between">

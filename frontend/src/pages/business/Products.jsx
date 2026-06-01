@@ -691,13 +691,6 @@ function CatalogoTab({ products, clients, showInactive, onShowInactiveChange, so
           isTienda={isTienda}
         />
       )}
-      {newModal && (
-        <ProductModal
-          onClose={() => setNewModal(false)}
-          onSave={() => { qc.invalidateQueries({ queryKey: ['products'] }); setNewModal(false); }}
-          isTienda={isTienda}
-        />
-      )}
 
       {deleteConfirm && (
         <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50 px-4">
@@ -732,7 +725,7 @@ function CatalogoTab({ products, clients, showInactive, onShowInactiveChange, so
 }
 
 // ── Inventario Tab ───────────────────────────────────────────────────────────
-function InventarioTab({ products, sales, sortBy, onSortChange, newModal, setNewModal }) {
+function InventarioTab({ products, sales, sortBy, onSortChange }) {
   const [selectedMonth, setSelectedMonth] = useState(new Date().toISOString().slice(0, 7));
   const [productSales, setProductSales] = useState([]);
   const [error, setError] = useState(null);
@@ -1075,9 +1068,17 @@ export default function Products() {
           {tab === 'catalogo' ? (
             <CatalogoTab products={products} clients={clients} showInactive={showInactive} onShowInactiveChange={setShowInactive} sortBy={sortBy} onSortChange={setSortBy} isTienda={isTienda} newModal={newModal} setNewModal={setNewModal} />
           ) : (
-            <InventarioTab products={products.filter((p) => p.is_active)} sales={sales} sortBy={sortBy} onSortChange={setSortBy} newModal={newModal} setNewModal={setNewModal} />
+            <InventarioTab products={products.filter((p) => p.is_active)} sales={sales} sortBy={sortBy} onSortChange={setSortBy} />
           )}
         </>
+      )}
+
+      {newModal && (
+        <ProductModal
+          onClose={() => setNewModal(false)}
+          onSave={() => { qc.invalidateQueries({ queryKey: ['products'] }); setNewModal(false); }}
+          isTienda={isTienda}
+        />
       )}
     </div>
   );

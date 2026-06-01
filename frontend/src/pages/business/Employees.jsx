@@ -27,31 +27,16 @@ function Modal({ title, onClose, children }) {
 const emptyForm = { name: '', email: '', phone: '', commission_percent: 0 };
 
 // ─── PESTAÑA EQUIPO ───────────────────────────────────────────────────────────
-function TeamTab({ triggerAdd, onTriggerReset, showInactive, onShowInactiveChange }) {
+function TeamTab({ showInactive, onShowInactiveChange, showCreateModal, setShowCreateModal }) {
   const qc = useQueryClient();
-  const [modal, setModal] = useState(null);
   const [editing, setEditing] = useState(null);
   const [form, setForm] = useState(emptyForm);
   const [formError, setFormError] = useState('');
   const [deleteConfirm, setDeleteConfirm] = useState(null);
-  const [limitError, setLimitError] = useState(null);
 
   const { data: employees = [], isLoading } = useQuery({
     queryKey: ['employees', showInactive],
     queryFn: () => api.get(`/api/employees?includeInactive=${showInactive}`).then((r) => r.data.data),
-  });
-
-  const createMutation = useMutation({
-    mutationFn: (body) => api.post('/api/employees', body),
-    onSuccess: () => { qc.invalidateQueries({ queryKey: ['employees'] }); closeModal(); },
-    onError: (err) => {
-      if (err.response?.data?.code === 'EMPLOYEES_LIMIT_REACHED') {
-        setLimitError(err.response.data.error);
-        closeModal();
-      } else {
-        setFormError(err.response?.data?.error || 'Error al guardar.');
-      }
-    },
   });
 
   const updateMutation = useMutation({
@@ -75,23 +60,17 @@ function TeamTab({ triggerAdd, onTriggerReset, showInactive, onShowInactiveChang
     onSuccess: () => { qc.invalidateQueries({ queryKey: ['employees'] }); setDeleteConfirm(null); },
   });
 
-  const openCreate = () => { setForm(emptyForm); setFormError(''); setModal('create'); };
-
-  useEffect(() => {
-    if (triggerAdd) { openCreate(); onTriggerReset(); }
-  }, [triggerAdd]);
   const openEdit = (emp) => {
     setEditing(emp);
     setForm({ name: emp.name, email: emp.email || '', phone: emp.phone || '', commission_percent: emp.commission_percent || 0 });
     setFormError('');
-    setModal('edit');
   };
-  const closeModal = () => { setModal(null); setEditing(null); };
+  const closeModal = () => { setEditing(null); };
 
   const handleSubmit = (e) => {
     e.preventDefault();
     if (!form.name.trim()) return setFormError('El nombre es obligatorio.');
-    if (modal === 'create') createMutation.mutate(form);
+    if (!editing) createMutation.mutate(form);
     else updateMutation.mutate({ id: editing.id, body: form });
   };
 
@@ -197,8 +176,8 @@ function TeamTab({ triggerAdd, onTriggerReset, showInactive, onShowInactiveChang
         </div>
       )}
 
-      {modal && (
-        <Modal title={modal === 'create' ? 'Nuevo empleado' : 'Editar empleado'} onClose={closeModal}>
+      {editing && (
+        <Modal title="Editar empleado" onClose={closeModal}>
           <form onSubmit={handleSubmit} className="space-y-4">
             {formError && (
               <p className="text-red-400 text-sm bg-red-500/10 border border-red-500/20 px-3 py-2 rounded-lg">{formError}</p>
@@ -228,10 +207,10 @@ function TeamTab({ triggerAdd, onTriggerReset, showInactive, onShowInactiveChang
               </button>
               <button
                 type="submit"
-                disabled={createMutation.isPending || updateMutation.isPending}
+                disabled={updateMutation.isPending}
                 className="flex-1 bg-violet-600 hover:bg-violet-500 disabled:opacity-50 text-white text-sm font-medium h-11 rounded-xl transition"
               >
-                {createMutation.isPending || updateMutation.isPending ? 'Guardando...' : 'Guardar'}
+                {updateMutation.isPending ? 'Guardando...' : 'Guardar'}
               </button>
             </div>
           </form>
@@ -263,35 +242,12 @@ function TeamTab({ triggerAdd, onTriggerReset, showInactive, onShowInactiveChang
           </div>
         </Modal>
       )}
-
-      {limitError && (
-        <div className="fixed inset-0 bg-black/70 backdrop-blur-sm flex items-center justify-center z-50 px-4">
-          <div className="bg-[#1e293b] border border-white/15 rounded-2xl w-full max-w-md p-6 shadow-2xl">
-            <h3 className="text-white font-semibold text-lg mb-3">Límite alcanzado</h3>
-            <p className="text-slate-400 text-sm mb-6">{limitError}</p>
-            <div className="flex gap-3">
-              <button
-                onClick={() => setLimitError(null)}
-                className="flex-1 bg-slate-800 hover:bg-slate-700 text-slate-300 py-2.5 rounded-lg text-sm font-medium transition"
-              >
-                Cerrar
-              </button>
-              <a
-                href="/dashboard/suscripcion"
-                className="flex-1 bg-violet-600 hover:bg-violet-500 text-white py-2.5 rounded-lg text-sm font-medium transition text-center"
-              >
-                Ver planes
-              </a>
-            </div>
-          </div>
-        </div>
-      )}
     </div>
   );
 }
 
 // ─── PESTAÑA RENDIMIENTO ──────────────────────────────────────────────────────
-function PerformanceTab({ triggerAdd, onTriggerReset }) {
+function PerformanceTab() {
   const defaultMonth = new Date().toISOString().slice(0, 7);
   const defaultDate = new Date().toISOString().slice(0, 10);
   const [viewType, setViewType] = useState('day');
@@ -499,8 +455,13 @@ const TABS = [
 
 export default function Employees() {
   const [tab, setTab] = useState('team');
-  const [triggerAdd, setTriggerAdd] = useState(false);
+  const [showCreateModal, setShowCreateModal] = useState(false);
   const [showInactive, setShowInactive] = useState(false);
+  const [form, setForm] = useState(emptyForm);
+  const [formError, setFormError] = useState('');
+  const [limitError, setLimitError] = useState(null);
+  const [loadingCreate, setLoadingCreate] = useState(false);
+  const qc = useQueryClient();
 
   const { data: sub, isLoading: subLoading } = useQuery({
     queryKey: ['subscription'],
@@ -512,6 +473,28 @@ export default function Employees() {
     queryKey: ['employees', showInactive],
     queryFn: () => api.get(`/api/employees?includeInactive=${showInactive}`).then((r) => r.data.data),
   });
+
+  const handleCreateEmployee = async () => {
+    setFormError('');
+    if (!form.name.trim()) return setFormError('El nombre es obligatorio.');
+    setLoadingCreate(true);
+    try {
+      await api.post('/api/employees', form);
+      qc.invalidateQueries({ queryKey: ['employees'] });
+      setShowCreateModal(false);
+      setForm(emptyForm);
+      setFormError('');
+    } catch (err) {
+      if (err.response?.data?.code === 'EMPLOYEES_LIMIT_REACHED') {
+        setLimitError(err.response.data.error);
+        setShowCreateModal(false);
+      } else {
+        setFormError(err.response?.data?.error || 'Error al guardar.');
+      }
+    } finally {
+      setLoadingCreate(false);
+    }
+  };
 
   const plan = sub?.plan || 'estandar';
   const visibleTabs = plan === 'lite' ? TABS.filter(t => t.id === 'team') : TABS;
@@ -550,15 +533,79 @@ export default function Employees() {
           ))}
         </div>
         <button
-          onClick={() => setTriggerAdd(true)}
+          onClick={() => { setShowCreateModal(true); setForm(emptyForm); setFormError(''); }}
           className="flex items-center justify-center sm:justify-start gap-2 w-full sm:w-auto bg-violet-600 hover:bg-violet-500 text-white text-xs sm:text-sm font-medium px-4 py-2 rounded-lg transition whitespace-nowrap"
         >
           <UserPlus size={16} /> <span>Agregar empleado</span>
         </button>
       </div>
 
-      {tab === 'team'        && <TeamTab triggerAdd={triggerAdd} onTriggerReset={() => setTriggerAdd(false)} showInactive={showInactive} onShowInactiveChange={setShowInactive} />}
-      {tab === 'performance' && <PerformanceTab triggerAdd={triggerAdd} onTriggerReset={() => setTriggerAdd(false)} />}
+      {tab === 'team'        && <TeamTab showInactive={showInactive} onShowInactiveChange={setShowInactive} showCreateModal={showCreateModal} setShowCreateModal={setShowCreateModal} />}
+      {tab === 'performance' && <PerformanceTab />}
+
+      {showCreateModal && (
+        <Modal title="Nuevo empleado" onClose={() => setShowCreateModal(false)}>
+          <form onSubmit={(e) => { e.preventDefault(); handleCreateEmployee(); }} className="space-y-4">
+            {formError && (
+              <p className="text-red-400 text-sm bg-red-500/10 border border-red-500/20 px-3 py-2 rounded-lg">{formError}</p>
+            )}
+            {[
+              { name: 'name',               label: 'Nombre *',    placeholder: 'Juan Pérez',     type: 'text' },
+              { name: 'email',              label: 'Email',        placeholder: 'juan@email.com', type: 'email' },
+              { name: 'phone',              label: 'Teléfono',     placeholder: '3001234567',     type: 'text' },
+              { name: 'commission_percent', label: 'Comisión (%)', placeholder: '0',              type: 'number' },
+            ].map(({ name, label, placeholder, type }) => (
+              <div key={name}>
+                <label className="block text-slate-400 text-sm mb-1.5">{label}</label>
+                <input
+                  type={type}
+                  value={form[name]}
+                  onChange={(e) => setForm({ ...form, [name]: e.target.value })}
+                  placeholder={placeholder}
+                  min={type === 'number' ? 0 : undefined}
+                  max={type === 'number' ? 100 : undefined}
+                  className="w-full bg-[#0f172a] border border-white/10 text-white rounded-xl px-4 h-11 text-sm placeholder-white/40 focus:border-violet-500 focus:outline-none transition"
+                />
+              </div>
+            ))}
+            <div className="flex gap-3 pt-2">
+              <button type="button" onClick={() => setShowCreateModal(false)} className="flex-1 bg-white/10 hover:bg-white/20 text-white text-sm font-medium h-11 rounded-xl transition">
+                Cancelar
+              </button>
+              <button
+                type="submit"
+                disabled={loadingCreate}
+                className="flex-1 bg-violet-600 hover:bg-violet-500 disabled:opacity-50 text-white text-sm font-medium h-11 rounded-xl transition"
+              >
+                {loadingCreate ? 'Guardando...' : 'Guardar'}
+              </button>
+            </div>
+          </form>
+        </Modal>
+      )}
+
+      {limitError && (
+        <div className="fixed inset-0 bg-black/70 backdrop-blur-sm flex items-center justify-center z-50 px-4">
+          <div className="bg-[#1e293b] border border-white/15 rounded-2xl w-full max-w-md p-6 shadow-2xl">
+            <h3 className="text-white font-semibold text-lg mb-3">Límite alcanzado</h3>
+            <p className="text-slate-400 text-sm mb-6">{limitError}</p>
+            <div className="flex gap-3">
+              <button
+                onClick={() => setLimitError(null)}
+                className="flex-1 bg-slate-800 hover:bg-slate-700 text-slate-300 py-2.5 rounded-lg text-sm font-medium transition"
+              >
+                Cerrar
+              </button>
+              <a
+                href="/dashboard/suscripcion"
+                className="flex-1 bg-violet-600 hover:bg-violet-500 text-white py-2.5 rounded-lg text-sm font-medium transition text-center"
+              >
+                Ver planes
+              </a>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

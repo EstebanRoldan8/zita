@@ -461,7 +461,8 @@ async function processChatbotMessage(businessId, clientPhone, messageText, histo
                   description: `${servicio.name} - agendado por WhatsApp`,
                   source: 'appointment',
                   appointment_id: data.id,
-                  date: toolInput.fecha
+                  date: toolInput.fecha,
+                  client_id: clienteExistente?.id || null
                 });
             } catch (incomeErr) {
               logger.error('Error creando ingreso automático:', incomeErr.message);

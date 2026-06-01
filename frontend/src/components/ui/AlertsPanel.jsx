@@ -45,6 +45,19 @@ export default function AlertsPanel() {
     }
   }, [badgeCount]);
 
+  useEffect(() => {
+    const badge = document.getElementById('desktop-alerts-badge');
+    if (!badge) return;
+    if (badgeCount > 0) {
+      badge.textContent = badgeCount > 9 ? '9+' : String(badgeCount);
+      badge.classList.remove('hidden');
+      badge.classList.add('flex');
+    } else {
+      badge.classList.add('hidden');
+      badge.classList.remove('flex');
+    }
+  }, [badgeCount]);
+
   function handleAction(link) {
     setOpen(false);
     navigate(link);

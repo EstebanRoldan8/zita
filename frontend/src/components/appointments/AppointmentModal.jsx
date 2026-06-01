@@ -174,13 +174,13 @@ export default function AppointmentModal({
                 className="w-full bg-slate-900 border border-slate-700 text-white rounded-lg px-3 h-9 text-xs focus:outline-none focus:border-violet-500 transition"
               />
             </div>
-            <div className="flex gap-2">
-              <div className="flex-1">
-                <label className="block text-slate-400 text-xs mb-1">Hora</label>
+            <div>
+              <label className="block text-slate-400 text-xs mb-1">Hora</label>
+              <div className="flex items-center gap-2">
                 <select
                   value={form.time?.split(':')[0] || '09'}
                   onChange={(e) => setForm({...form, time: `${e.target.value}:${form.time?.split(':')[1] || '00'}`})}
-                  className="w-full h-9 bg-slate-900 border border-slate-700 text-white rounded-lg px-3 text-sm focus:outline-none focus:border-violet-500 transition"
+                  className="flex-1 h-9 bg-slate-900 border border-slate-700 text-white rounded-lg px-3 text-sm focus:outline-none focus:border-violet-500 transition"
                 >
                   {Array.from({length: 17}, (_, i) => i + 6).map(h => {
                     const period = h < 12 ? 'AM' : 'PM';
@@ -188,16 +188,14 @@ export default function AppointmentModal({
                     return <option key={h} value={String(h).padStart(2,'0')}>{displayH} {period}</option>
                   })}
                 </select>
-              </div>
-              <div className="flex-1">
-                <label className="block text-slate-400 text-xs mb-1">Min</label>
+                <span className="text-white/40 text-sm font-bold">:</span>
                 <select
                   value={form.time?.split(':')[1] || '00'}
                   onChange={(e) => setForm({...form, time: `${form.time?.split(':')[0] || '09'}:${e.target.value}`})}
-                  className="w-full h-9 bg-slate-900 border border-slate-700 text-white rounded-lg px-3 text-sm focus:outline-none focus:border-violet-500 transition"
+                  className="w-20 h-9 bg-slate-900 border border-slate-700 text-white rounded-lg px-2 text-sm focus:outline-none focus:border-violet-500 transition"
                 >
                   {['00','05','10','15','20','25','30','35','40','45','50','55'].map(m => (
-                    <option key={m} value={m}>:{m}</option>
+                    <option key={m} value={m}>{m}</option>
                   ))}
                 </select>
               </div>

@@ -47,6 +47,19 @@ export default function AppointmentModal({
   const clientSearchRef = useRef(null);
   const selectedService = services?.find((s) => s.id === form.service_id);
   const selectedClient = (clients || []).find((c) => c?.id === form.client_id);
+
+  const timeSlots = [];
+  for (let h = 6; h <= 22; h++) {
+    ['00', '30'].forEach(m => {
+      if (h === 22 && m === '30') return;
+      const period = h < 12 ? 'AM' : 'PM';
+      const displayH = h > 12 ? h - 12 : h === 0 ? 12 : h;
+      timeSlots.push({
+        value: `${String(h).padStart(2,'0')}:${m}`,
+        label: `${displayH}:${m} ${period}`
+      });
+    });
+  }
   const filteredClients = (clients || []).filter((c) => {
     try {
       return !clientSearch || (c?.name ?? '').toLowerCase().includes(clientSearch.toLowerCase()) || (c?.phone ?? '').includes(clientSearch);
@@ -175,8 +188,13 @@ export default function AppointmentModal({
             </div>
             <div>
               <label className="block text-slate-400 text-xs mb-1">Hora</label>
-              <input type="time" value={form.time} onChange={(e) => setForm({ ...form, time: e.target.value })}
-                className="w-full bg-slate-900 border border-slate-700 text-white rounded-lg px-3 h-9 text-xs focus:outline-none focus:border-violet-500 transition" />
+              <select value={form.time} onChange={(e) => setForm({ ...form, time: e.target.value })}
+                className="w-full bg-slate-900 border border-slate-700 text-white rounded-lg px-3 h-9 text-sm focus:outline-none focus:border-violet-500 transition">
+                <option value="">Seleccionar...</option>
+                {timeSlots.map(slot => (
+                  <option key={slot.value} value={slot.value}>{slot.label}</option>
+                ))}
+              </select>
             </div>
           </div>
 

@@ -649,23 +649,23 @@ function CatalogoTab({ products, clients, showInactive, onShowInactiveChange, so
                   </button>
                   <div className="ml-auto flex gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
                     <button onClick={() => setEditProduct(p)}
-                      className="w-9 h-9 flex items-center justify-center bg-slate-800 hover:bg-slate-700 text-slate-400 hover:text-white rounded-lg transition">
-                      <Edit2 size={14} />
+                      className="p-2 rounded-lg text-slate-400 hover:text-blue-400 hover:bg-blue-500/20 transition">
+                      <Edit2 size={16} />
                     </button>
                     <button
                       onClick={() => toggleMutation.mutate(p.id)}
                       disabled={toggleMutation.isPending}
-                      className="w-9 h-9 flex items-center justify-center bg-slate-800 hover:bg-slate-700 text-slate-400 hover:text-white rounded-lg transition disabled:opacity-50"
+                      className="p-2 rounded-lg text-slate-400 hover:text-yellow-400 hover:bg-yellow-500/20 transition disabled:opacity-50"
                       title={p.is_active ? 'Desactivar' : 'Reactivar'}
                     >
-                      {p.is_active ? <ToggleRight size={14} /> : <ToggleLeft size={14} />}
+                      {p.is_active ? <ToggleRight size={16} /> : <ToggleLeft size={16} />}
                     </button>
                     <button
                       onClick={() => setDeleteConfirm(p)}
-                      className="w-9 h-9 flex items-center justify-center bg-slate-800 hover:bg-red-500/20 text-slate-400 hover:text-red-400 rounded-lg transition"
+                      className="p-2 rounded-lg text-slate-400 hover:text-red-400 hover:bg-red-500/20 transition"
                       title="Eliminar"
                     >
-                      <Trash2 size={14} />
+                      <Trash2 size={16} />
                     </button>
                   </div>
                 </div>

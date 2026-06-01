@@ -44,23 +44,34 @@ export default function AppointmentModal({
   setLimitError,
 }) {
   const [showProducts, setShowProducts] = useState(false);
-  const [horaText, setHoraText] = useState(form.time || '');
+  const [horaInput, setHoraInput] = useState('');
+  const [horaDropdownOpen, setHoraDropdownOpen] = useState(false);
   const clientSearchRef = useRef(null);
   const selectedService = services?.find((s) => s.id === form.service_id);
   const selectedClient = (clients || []).find((c) => c?.id === form.client_id);
 
-  const horasGrid = [
-    '07:00','08:00','09:00','10:00','11:00','12:00',
-    '13:00','14:00','15:00','16:00','17:00','18:00',
-    '19:00','20:00','21:00','22:00'
-  ];
-
-  const formatHoraDisplay = (hora) => {
-    const [h, m] = hora.split(':').map(Number);
-    const period = h < 12 ? 'am' : 'pm';
-    const displayH = h > 12 ? h - 12 : h === 0 ? 12 : h;
-    return `${displayH}${m > 0 ? ':'+String(m).padStart(2,'0') : ''}${period}`;
+  const generarSlots = () => {
+    const slots = [];
+    for (let h = 6; h <= 22; h++) {
+      for (let m = 0; m < 60; m += 15) {
+        if (h === 22 && m > 0) break;
+        const value = `${String(h).padStart(2,'0')}:${String(m).padStart(2,'0')}`;
+        const period = h < 12 ? 'AM' : 'PM';
+        const displayH = h > 12 ? h - 12 : h === 0 ? 12 : h;
+        const label = `${displayH}:${String(m).padStart(2,'0')} ${period}`;
+        slots.push({ value, label });
+      }
+    }
+    return slots;
   };
+  const allSlots = generarSlots();
+
+  const filteredSlots = horaInput
+    ? allSlots.filter(s =>
+        s.label.toLowerCase().includes(horaInput.toLowerCase()) ||
+        s.value.includes(horaInput)
+      ).slice(0, 6)
+    : allSlots.slice(0, 6);
   const filteredClients = (clients || []).filter((c) => {
     try {
       return !clientSearch || (c?.name ?? '').toLowerCase().includes(clientSearch.toLowerCase()) || (c?.phone ?? '').includes(clientSearch);
@@ -172,7 +183,7 @@ export default function AppointmentModal({
             </div>
           ))}
 
-          <div className="grid grid-cols-2 gap-2">
+          <div className="grid grid-cols-2 gap-3">
             <div>
               <label className="block text-slate-400 text-xs mb-1">Fecha</label>
               <DatePicker
@@ -189,47 +200,35 @@ export default function AppointmentModal({
             </div>
             <div>
               <label className="block text-slate-400 text-xs mb-1">Hora</label>
-              <p className="text-violet-400 text-xs font-medium mb-1.5">
-                {form.time ? formatHoraDisplay(form.time) : 'Selecciona una hora'}
-              </p>
-              <div className="grid grid-cols-4 gap-1.5 mb-2">
-                {horasGrid.map(hora => (
-                  <button
-                    key={hora}
-                    type="button"
-                    onClick={() => setForm({...form, time: hora})}
-                    className={`py-1.5 rounded-lg text-xs font-medium transition
-                      ${form.time === hora
-                        ? 'bg-violet-600 text-white'
-                        : 'bg-white/5 text-gray-400 hover:bg-white/10 hover:text-white'
-                      }`}
-                  >
-                    {formatHoraDisplay(hora)}
-                  </button>
-                ))}
-              </div>
-              {form.time && (
-                <div className="flex gap-1.5">
-                  {['00','15','30','45'].map(min => {
-                    const horaBase = form.time?.split(':')[0] || '09';
-                    const horaConMin = `${horaBase}:${min}`;
-                    return (
+              <div className="relative">
+                <input
+                  type="text"
+                  value={horaInput}
+                  onChange={(e) => { setHoraInput(e.target.value); setHoraDropdownOpen(true); }}
+                  onFocus={() => setHoraDropdownOpen(true)}
+                  onBlur={() => setTimeout(() => setHoraDropdownOpen(false), 150)}
+                  placeholder="Ej: 3pm, 15:30"
+                  className="w-full h-9 bg-slate-900 border border-slate-700 rounded-lg px-3 text-sm text-white placeholder-slate-500 focus:border-violet-500 focus:outline-none transition"
+                />
+                {horaDropdownOpen && filteredSlots.length > 0 && (
+                  <div className="absolute top-full left-0 right-0 mt-1 bg-slate-800 border border-slate-700 rounded-lg shadow-2xl z-50 overflow-hidden">
+                    {filteredSlots.map(slot => (
                       <button
-                        key={min}
+                        key={slot.value}
                         type="button"
-                        onClick={() => setForm({...form, time: horaConMin})}
-                        className={`flex-1 py-1 rounded-lg text-xs transition
-                          ${form.time === horaConMin
-                            ? 'bg-violet-500 text-white'
-                            : 'bg-white/5 text-gray-400 hover:bg-white/10'
-                          }`}
+                        onMouseDown={() => {
+                          setForm({...form, time: slot.value});
+                          setHoraInput(slot.label);
+                          setHoraDropdownOpen(false);
+                        }}
+                        className="w-full text-left px-4 py-2 text-sm text-gray-300 hover:bg-violet-600/20 hover:text-white transition"
                       >
-                        :{min}
+                        {slot.label}
                       </button>
-                    );
-                  })}
-                </div>
-              )}
+                    ))}
+                  </div>
+                )}
+              </div>
             </div>
           </div>
 

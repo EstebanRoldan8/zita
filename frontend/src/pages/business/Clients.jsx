@@ -492,39 +492,40 @@ export default function Clients() {
 
           {/* Panel de detalle */}
           {selectedId && (
-            <div className="w-80 sticky top-20 self-start max-h-[calc(100vh-5rem)] overflow-y-auto custom-scroll">
-              <div className="bg-gradient-to-br from-violet-600/20 to-indigo-600/5 border-b border-white/6 p-6 pb-8">
+            <div className="w-80 sticky top-20 self-start bg-[#1e293b] border border-white/15 rounded-2xl shadow-2xl">
+              <div className="border-b border-white/15 p-4">
                 {/* Header */}
-                <div className="flex items-start justify-between">
-                  <div className="flex items-center gap-3">
+                <div className="flex items-center justify-between mb-3">
+                  <div className="flex items-center gap-2">
                     <div className="w-10 h-10 rounded-full bg-gradient-to-br from-violet-500/30 to-blue-500/30 border border-slate-700 flex items-center justify-center text-sm text-violet-400 font-bold flex-shrink-0">
                       {selected?.name?.[0]?.toUpperCase()}
                     </div>
-                    <div>
-                      <h2 className="text-white font-semibold leading-tight">{selected?.name}</h2>
-                      {selected?.phone && <p className="text-slate-500 text-xs flex items-center gap-1 mt-0.5"><Phone size={11} /> {selected.phone}</p>}
-                      {selected?.email && <p className="text-slate-500 text-xs flex items-center gap-1"><Mail size={11} /> {selected.email}</p>}
+                    <div className="min-w-0">
+                      <h2 className="text-white text-base font-bold leading-tight truncate">{selected?.name}</h2>
+                      {selected?.phone && <p className="text-slate-500 text-xs truncate">{selected.phone}</p>}
                     </div>
                   </div>
-                  <div className="flex items-center gap-1">
-                    <button onClick={() => setShowEdit(true)} className="text-slate-500 hover:text-white p-1.5 rounded-lg hover:bg-slate-700/50 transition"><Pencil size={14} /></button>
-                    <button onClick={() => setSelectedId(null)} className="text-slate-500 hover:text-white p-1.5 rounded-lg hover:bg-slate-700/50 transition"><X size={14} /></button>
+                  <div className="flex items-center gap-1 flex-shrink-0">
+                    <button onClick={() => setShowEdit(true)} className="text-slate-500 hover:text-white p-1 rounded hover:bg-slate-700/50 transition"><Pencil size={12} /></button>
+                    <button onClick={() => setSelectedId(null)} className="text-slate-500 hover:text-white p-1 rounded hover:bg-slate-700/50 transition"><X size={12} /></button>
+                  </div>
+                </div>
+
+                {/* Stats horizontal compactos */}
+                <div className="flex gap-4">
+                  <div>
+                    <p className="text-sm font-semibold text-violet-400">{selected?.total_visits ?? 0}</p>
+                    <p className="text-xs text-white/40">Visitas</p>
+                  </div>
+                  <div>
+                    <p className="text-sm font-semibold text-emerald-400">{formatCOP(selected?.total_spent)}</p>
+                    <p className="text-xs text-white/40">Gastado</p>
                   </div>
                 </div>
               </div>
 
-              <div className="p-6 space-y-5">
-                {/* Stats */}
-                <div className="grid grid-cols-2 gap-3 items-stretch">
-                  <div className="flex flex-col items-center justify-center bg-white/5 rounded-2xl p-4 text-center border border-white/5 min-h-[100px]">
-                    <p className="text-4xl font-black text-violet-400 leading-none">{selected?.total_visits ?? 0}</p>
-                    <p className="text-xs text-white/40 uppercase tracking-wider mt-2">Visitas totales</p>
-                  </div>
-                  <div className="flex flex-col items-center justify-center bg-white/5 rounded-2xl p-4 text-center border border-white/5 min-h-[100px]">
-                    <p className="text-2xl font-bold text-emerald-400 leading-none">{formatCOP(selected?.total_spent)}</p>
-                    <p className="text-xs text-white/40 uppercase tracking-wider mt-2">Gastado</p>
-                  </div>
-                </div>
+              <div className="p-4 space-y-4">
+                {/* Stats - Hidden, moved to header */}
 
                 {/* Barra de fidelización */}
                 {loyaltyConfig && loyaltyConfig.reward_service_id && (
@@ -583,7 +584,7 @@ export default function Clients() {
                   {!detail?.appointments?.length ? (
                     <p className="text-slate-500 text-sm">Sin citas registradas</p>
                   ) : (
-                    <div className="max-h-[400px] overflow-y-auto pr-2 custom-scroll">
+                    <div className="max-h-[50vh] overflow-y-auto pr-2 custom-scroll">
                       {detail.appointments.map((a) => (
                         <div key={a.id} className="flex flex-col gap-1 py-3 border-b border-white/5 last:border-0">
                           <p className="text-sm font-semibold text-white">{a.services?.name || 'Sin servicio'}</p>

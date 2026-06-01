@@ -46,10 +46,6 @@ function formatTime(iso) {
   return new Date(iso).toLocaleTimeString('es-CO', { hour: '2-digit', minute: '2-digit', hour12: false });
 }
 
-function getTimeFromISO(iso) {
-  return timeFromISO(iso, business?.country);
-}
-
 function getGreeting() {
   const hour = new Date().getHours();
   if (hour < 12) return 'Buenos días';
@@ -94,6 +90,7 @@ function SkeletonCard() {
 export default function Dashboard() {
   const qc = useQueryClient();
   const { user, business } = useAuth();
+  const getTimeFromISO = (iso) => timeFromISO(iso, business?.country);
   const navigate = useNavigate();
   const [date, setDate] = useState(today());
   const [pickerDate, setPickerDate] = useState(todayLocal());

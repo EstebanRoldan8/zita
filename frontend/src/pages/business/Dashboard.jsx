@@ -684,10 +684,10 @@ export default function Dashboard() {
           </Link>
         </div>
         {daySummary ? (
-          <div className="flex flex-col sm:flex-row sm:overflow-x-auto sm:gap-3 gap-4 sm:gap-0">
-            <div className="sm:flex-shrink-0 sm:w-full sm:max-w-xs"><MetricCard icon={TrendingUp}   label="Ingresos de hoy"   value={formatCOP(daySummary.income_total)}  sub="Caja del día"        color="bg-emerald-600" /></div>
-            <div className="sm:flex-shrink-0 sm:w-full sm:max-w-xs"><MetricCard icon={TrendingDown} label="Egresos de hoy"    value={formatCOP(daySummary.expense_total)} sub="Gastos del día"       color="bg-red-600" /></div>
-            <div className="sm:flex-shrink-0 sm:w-full sm:max-w-xs bg-[#131929] border border-slate-800 rounded-xl shadow-lg shadow-black/30 p-3 sm:p-3 flex flex-col gap-1.5 sm:gap-3 border border-violet-500/15 hover:border-violet-500/40 hover:bg-slate-700/60 transition-all duration-200">
+          <div className="flex flex-row overflow-x-auto gap-3 md:flex-row md:overflow-visible md:gap-4">
+            <div className="flex-shrink-0 w-[72%] max-w-xs md:flex-shrink md:w-full"><MetricCard icon={TrendingUp}   label="Ingresos de hoy"   value={formatCOP(daySummary.income_total)}  sub="Caja del día"        color="bg-emerald-600" /></div>
+            <div className="flex-shrink-0 w-[72%] max-w-xs md:flex-shrink md:w-full"><MetricCard icon={TrendingDown} label="Egresos de hoy"    value={formatCOP(daySummary.expense_total)} sub="Gastos del día"       color="bg-red-600" /></div>
+            <div className="flex-shrink-0 w-[72%] max-w-xs md:flex-shrink md:w-full bg-[#131929] border border-slate-800 rounded-xl shadow-lg shadow-black/30 p-3 sm:p-3 flex flex-col gap-1.5 sm:gap-3 border border-violet-500/15 hover:border-violet-500/40 hover:bg-slate-700/60 transition-all duration-200">
               <div className="flex items-center justify-between">
                 <span className="text-slate-400 text-xs sm:text-sm font-medium">Ganancia neta hoy</span>
                 <div className={`w-11 h-11 rounded-xl flex items-center justify-center ${daySummary.net >= 0 ? 'bg-violet-600/20' : 'bg-violet-600/20'}`}>

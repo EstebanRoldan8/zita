@@ -155,6 +155,8 @@ async function create(req, res) {
       finalEmployeeId = available.id;
     }
 
+    logger.info(`scheduled_at enviado a Supabase: ${scheduledAtWithTZ}`);
+
     const userClient = createUserClient(req.headers.authorization);
     const { data, error } = await userClient
       .from('appointments')

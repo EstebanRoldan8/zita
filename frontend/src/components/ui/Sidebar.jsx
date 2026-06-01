@@ -156,7 +156,7 @@ export default function Sidebar() {
 
         {/* Campana derecha */}
         <button
-          onClick={() => {}}
+          onClick={() => window.dispatchEvent(new CustomEvent('toggle-alerts'))}
           className="w-9 h-9 flex items-center justify-center rounded-lg hover:bg-white/5 transition"
         >
           <Bell size={18} className="text-white/70" />

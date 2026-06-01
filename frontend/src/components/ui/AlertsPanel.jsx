@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { useNavigate } from 'react-router-dom';
 import { Bell, X, AlertCircle, AlertTriangle, Info, ChevronRight } from 'lucide-react';
@@ -23,6 +23,12 @@ export default function AlertsPanel() {
     refetchInterval: 5 * 60 * 1000,
   });
 
+  useEffect(() => {
+    const handler = () => setOpen((v) => !v);
+    window.addEventListener('toggle-alerts', handler);
+    return () => window.removeEventListener('toggle-alerts', handler);
+  }, []);
+
   const criticalCount = alerts.filter((a) => a.type === 'critical').length;
   const badgeCount    = alerts.length;
 
@@ -36,7 +42,7 @@ export default function AlertsPanel() {
       {/* Bell button — fixed top-right */}
       <button
         onClick={() => setOpen((v) => !v)}
-        className="fixed top-4 right-4 md:top-3 md:right-3 z-30 w-10 h-10 flex items-center justify-center rounded-xl bg-slate-800 border border-slate-700 hover:border-slate-600 transition shadow-lg"
+        className="hidden md:flex fixed md:top-3 md:right-3 z-30 w-10 h-10 items-center justify-center rounded-xl bg-slate-800 border border-slate-700 hover:border-slate-600 transition shadow-lg"
       >
         <Bell size={17} className={criticalCount > 0 ? 'text-red-400' : 'text-slate-400'} />
         {badgeCount > 0 && (

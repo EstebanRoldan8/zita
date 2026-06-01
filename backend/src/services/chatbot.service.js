@@ -650,8 +650,8 @@ async function processChatbotMessage(businessId, clientPhone, messageText, histo
   }
 }
 
-async function processWhatsAppMessage({ from, phoneNumberId, messageText }) {
-  logger.info('Mensaje WhatsApp recibido', { from, phoneNumberId });
+async function processWhatsAppMessage({ from, phoneNumberId, messageText, messageId }) {
+  logger.info('Mensaje WhatsApp recibido', { from, phoneNumberId, messageId });
 
   try {
     const business = await getBusinessByPhoneNumberId(phoneNumberId);
@@ -659,6 +659,21 @@ async function processWhatsAppMessage({ from, phoneNumberId, messageText }) {
     if (!business) {
       logger.warn('Negocio no encontrado', { phoneNumberId });
       return;
+    }
+
+    if (messageId) {
+      const { data: existingMsg } = await supabaseAdmin
+        .from('whatsapp_conversations')
+        .select('processed_message_ids')
+        .eq('business_id', business.id)
+        .eq('client_phone', from)
+        .maybeSingle();
+
+      const processedIds = existingMsg?.processed_message_ids || [];
+      if (processedIds.includes(messageId)) {
+        logger.info('Mensaje duplicado ignorado:', messageId);
+        return;
+      }
     }
 
     const businessToken = business.whatsapp_access_token
@@ -694,6 +709,30 @@ async function processWhatsAppMessage({ from, phoneNumberId, messageText }) {
       logger.info('Mensaje enviado al cliente');
     } catch(e) {
       logger.error('Error enviando mensaje:', e.message);
+    }
+
+    if (messageId) {
+      try {
+        const { data: existingMsg } = await supabaseAdmin
+          .from('whatsapp_conversations')
+          .select('processed_message_ids')
+          .eq('business_id', business.id)
+          .eq('client_phone', from)
+          .maybeSingle();
+
+        const processedIds = existingMsg?.processed_message_ids || [];
+        await supabaseAdmin
+          .from('whatsapp_conversations')
+          .update({
+            processed_message_ids: [...processedIds, messageId].slice(-50)
+          })
+          .eq('business_id', business.id)
+          .eq('client_phone', from);
+
+        logger.info('MessageId guardado:', messageId);
+      } catch(e) {
+        logger.error('Error guardando messageId:', e.message);
+      }
     }
 
   } catch (error) {

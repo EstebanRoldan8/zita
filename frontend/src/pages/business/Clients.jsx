@@ -492,7 +492,7 @@ export default function Clients() {
 
           {/* Panel de detalle */}
           {selectedId && (
-            <div className="w-80 sticky top-20 self-start bg-[#1e293b] border border-white/15 rounded-2xl shadow-2xl">
+            <div className="w-80 sticky top-20 self-start bg-[#1e293b] border border-violet-500/30 rounded-2xl shadow-2xl">
               <div className="border-b border-white/15 p-4">
                 {/* Header */}
                 <div className="flex items-start justify-between mb-3">
@@ -502,8 +502,8 @@ export default function Clients() {
                     </div>
                     <div className="min-w-0 pt-0.5">
                       <h2 className="text-white text-lg font-bold leading-tight truncate">{selected?.name}</h2>
-                      {selected?.phone && <p className="text-gray-400 text-xs truncate">{selected.phone}</p>}
-                      {selected?.email && <p className="text-gray-400 text-xs truncate">{selected.email}</p>}
+                      {selected?.phone && <p className="text-slate-400 text-xs truncate">{selected.phone}</p>}
+                      {selected?.email && <p className="text-slate-400 text-xs truncate">{selected.email}</p>}
                     </div>
                   </div>
                   <div className="flex items-center gap-1 flex-shrink-0">
@@ -514,13 +514,13 @@ export default function Clients() {
 
                 {/* Stats en 2 cards compactas */}
                 <div className="grid grid-cols-2 gap-2">
-                  <div className="flex flex-col items-center justify-center bg-white/5 rounded-lg p-2 text-center border border-white/5">
-                    <p className="text-lg font-semibold text-violet-400">{selected?.total_visits ?? 0}</p>
-                    <p className="text-xs text-white/40">Visitas</p>
+                  <div className="flex flex-col items-center justify-center bg-violet-600/10 rounded-lg p-2 text-center border border-violet-500/20">
+                    <p className="text-lg font-bold text-violet-400">{selected?.total_visits ?? 0}</p>
+                    <p className="text-xs text-slate-400">Visitas</p>
                   </div>
-                  <div className="flex flex-col items-center justify-center bg-white/5 rounded-lg p-2 text-center border border-white/5">
-                    <p className="text-lg font-semibold text-emerald-400">{formatCOP(selected?.total_spent)}</p>
-                    <p className="text-xs text-white/40">Gastado</p>
+                  <div className="flex flex-col items-center justify-center bg-violet-600/10 rounded-lg p-2 text-center border border-violet-500/20">
+                    <p className="text-lg font-bold text-emerald-400">{formatCOP(selected?.total_spent)}</p>
+                    <p className="text-xs text-slate-400">Gastado</p>
                   </div>
                 </div>
               </div>
@@ -588,12 +588,12 @@ export default function Clients() {
                     <div className="max-h-[50vh] overflow-y-auto pr-2 custom-scroll">
                       {detail.appointments.map((a) => (
                         <div key={a.id} className="flex flex-col gap-1 py-3 border-b border-white/5 last:border-0">
-                          <p className="text-sm font-semibold text-white">{a.services?.name || 'Sin servicio'}</p>
-                          <div className="text-xs text-white/40 space-y-0.5">
+                          <p className="text-sm text-white">{a.services?.name || 'Sin servicio'}</p>
+                          <div className="text-xs text-violet-400 space-y-0.5">
                             <p>{fmtDate(a.scheduled_at)}</p>
                             {a.employees?.name && <p>Con {a.employees.name}</p>}
                           </div>
-                          {a.price > 0 && <p className="text-sm font-medium text-violet-400">{formatCOP(a.price)}</p>}
+                          {a.price > 0 && <p className="text-xs font-medium text-emerald-400">{formatCOP(a.price)}</p>}
                           <div className="flex gap-1 pt-1">
                             {a.is_reward && <span className="text-xs px-2 py-0.5 rounded-full whitespace-nowrap bg-yellow-500/15 text-yellow-400">Recompensa</span>}
                             <span className={`text-xs px-2 py-0.5 rounded-full whitespace-nowrap ${a.status === 'completed' ? 'bg-emerald-500/15 text-emerald-400' : a.status === 'cancelled' ? 'bg-red-500/15 text-red-400' : 'bg-yellow-500/15 text-yellow-400'}`}>{STATUS_LABEL[a.status]}</span>

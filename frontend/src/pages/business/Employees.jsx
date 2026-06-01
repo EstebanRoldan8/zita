@@ -118,11 +118,11 @@ function TeamTab({ showInactive, onShowInactiveChange, showCreateModal, setShowC
                   <p className="text-slate-500 text-xs truncate">{emp.email || emp.phone || 'Sin contacto'}</p>
                 </div>
                 {emp.commission_percent > 0 && (
-                  <span className="bg-violet-500/10 text-violet-400 border border-violet-500/20 text-xs px-2 py-0.5 rounded-full whitespace-nowrap flex-shrink-0">
+                  <span className="absolute top-3 right-3 bg-violet-500/10 text-violet-400 border border-violet-500/20 text-xs px-2 py-0.5 rounded-full whitespace-nowrap">
                     {emp.commission_percent}%
                   </span>
                 )}
-                <div className="absolute bottom-3 right-3 flex gap-1 opacity-0 group-hover:opacity-100 transition sm:opacity-100">
+                <div className="absolute bottom-3 right-3 flex gap-1 opacity-40 group-hover:opacity-100 transition sm:opacity-100">
                   <button onClick={() => openEdit(emp)}
                     className="p-2 rounded-lg hover:bg-blue-500/20 text-slate-400 hover:text-blue-400 transition">
                     <Pencil size={14} />

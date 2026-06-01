@@ -56,7 +56,7 @@ export default function AlertsPanel() {
           />
 
           {/* Panel */}
-          <div className="fixed inset-x-4 top-16 md:top-0 md:right-0 md:inset-auto z-50 md:h-full w-auto md:w-80 bg-[#1e293b] border border-white/15 md:border-l md:border-t-0 md:border-r-0 md:border-b-0 rounded-2xl md:rounded-none shadow-2xl flex flex-col">
+          <div className="fixed inset-x-4 top-16 md:inset-auto md:top-14 md:right-4 z-50 md:w-80 bg-[#1e293b] border border-white/15 rounded-2xl shadow-2xl flex flex-col max-h-[80vh] overflow-hidden">
             {/* Header */}
             <div className="flex items-center justify-between px-4 py-3 border-b border-white/10">
               <div className="flex items-center gap-2">

@@ -133,19 +133,56 @@ cron.schedule('0 * * * *', async () => {
 
   try {
     const unaHoraAtras = new Date(Date.now() - 60 * 60 * 1000).toISOString();
-    const { data: updated, error } = await supabaseAdmin
+    const { data: toComplete, error: selectError } = await supabaseAdmin
       .from('appointments')
-      .update({ status: 'completed' })
+      .select('id, business_id, services(name, price)')
       .eq('status', 'confirmed')
-      .lt('scheduled_at', unaHoraAtras)
-      .select('id');
+      .lt('scheduled_at', unaHoraAtras);
 
-    if (error) {
-      logger.error('Error auto-completando citas:', error.message);
-    } else {
-      const count = updated?.length || 0;
-      logger.info(`Auto-completadas ${count} citas`);
+    if (selectError) {
+      logger.error('Error obteniendo citas para auto-completar:', selectError.message);
+      return;
     }
+
+    for (const appointment of toComplete || []) {
+      const { data: existingIncome } = await supabaseAdmin
+        .from('income')
+        .select('id')
+        .eq('appointment_id', appointment.id)
+        .maybeSingle();
+
+      if (existingIncome) {
+        logger.info(`Income ya existe para appointment ${appointment.id}, skipping`);
+        continue;
+      }
+
+      const { error: updateError } = await supabaseAdmin
+        .from('appointments')
+        .update({ status: 'completed' })
+        .eq('id', appointment.id);
+
+      if (updateError) {
+        logger.error(`Error marcando appointment ${appointment.id} como completed:`, updateError.message);
+        continue;
+      }
+
+      if (appointment.services?.price && appointment.services.price > 0) {
+        await supabaseAdmin
+          .from('income')
+          .insert({
+            business_id: appointment.business_id,
+            amount: appointment.services.price,
+            category: 'servicios',
+            description: `${appointment.services.name} - auto-completado`,
+            source: 'appointment',
+            appointment_id: appointment.id,
+            date: new Date().toLocaleDateString('en-CA', { timeZone: 'America/Bogota' })
+          })
+          .catch(err => logger.error(`Error creando income para appointment ${appointment.id}:`, err.message));
+      }
+    }
+
+    logger.info(`Auto-completadas ${toComplete?.length || 0} citas`);
   } catch (error) {
     logger.error('Error en scheduler de auto-completar:', error.message);
   }

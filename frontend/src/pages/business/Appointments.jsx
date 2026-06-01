@@ -7,6 +7,8 @@ import 'react-datepicker/dist/react-datepicker.css';
 import api from '../../lib/api';
 import { supabase } from '../../lib/supabase';
 import AppointmentModal from '../../components/appointments/AppointmentModal';
+import { useAuth } from '../../context/AuthContext';
+import { timeFromISO } from '../../lib/timezone';
 
 registerLocale('es', es);
 
@@ -44,14 +46,14 @@ function formatTime(iso) {
 }
 
 function getTimeFromISO(iso) {
-  const d = new Date(iso);
-  return `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`;
+  return timeFromISO(iso, business?.country);
 }
 
 const emptyForm = { client_id: '', service_id: '', employee_id: '', date: today(), time: '09:00', notes: '', is_reward: false };
 
 export default function Appointments() {
   const qc = useQueryClient();
+  const { business } = useAuth();
   const [date, setDate] = useState(today());
   const [pickerDate, setPickerDate] = useState(todayLocal());
   const [modal, setModal] = useState(false);
@@ -148,7 +150,7 @@ export default function Appointments() {
         client_id: body.client_id,
         service_id: body.service_id,
         employee_id: employeeId,
-        scheduled_at: `${body.date}T${body.time}:00-05:00`,
+        scheduled_at: `${body.date}T${body.time}:00`,
         price: selectedService?.price ?? 0,
         notes: body.notes,
         is_reward: body.is_reward ?? false,

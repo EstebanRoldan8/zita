@@ -55,7 +55,7 @@ export default function AlertsPanel() {
       {/* Bell button — fixed top-right */}
       <button
         onClick={() => setOpen((v) => !v)}
-        className="hidden md:flex fixed md:top-3 md:right-3 z-30 w-10 h-10 items-center justify-center rounded-xl bg-slate-800 border border-slate-700 hover:border-slate-600 transition shadow-lg"
+        className="md:hidden flex fixed top-4 right-4 z-30 w-10 h-10 items-center justify-center rounded-xl bg-slate-800 border border-slate-700 hover:border-slate-600 transition shadow-lg"
       >
         <Bell size={17} className={criticalCount > 0 ? 'text-red-400' : 'text-slate-400'} />
         {badgeCount > 0 && (
@@ -69,7 +69,7 @@ export default function AlertsPanel() {
       {open && (
         <>
           {/* Panel */}
-          <div className="fixed inset-x-4 top-16 md:inset-auto md:top-14 md:right-4 z-50 md:w-80 bg-[#1e293b] border border-violet-500/20 rounded-2xl shadow-2xl flex flex-col max-h-[80vh] overflow-hidden">
+          <div className="fixed inset-x-4 top-16 md:inset-auto md:top-14 md:right-4 z-50 md:w-80 bg-[#0f172a] border border-violet-500/20 rounded-2xl shadow-2xl flex flex-col max-h-[80vh] overflow-hidden">
             {/* Header */}
             <div className="flex items-center justify-between px-4 py-3 border-b border-white/10">
               <div className="flex items-center gap-2">

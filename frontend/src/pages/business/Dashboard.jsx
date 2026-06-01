@@ -8,6 +8,8 @@ import 'react-datepicker/dist/react-datepicker.css';
 import api from '../../lib/api';
 import { supabase } from '../../lib/supabase';
 import AppointmentModal from '../../components/appointments/AppointmentModal';
+import { timeFromISO } from '../../lib/timezone';
+import { useAuth } from '../../context/AuthContext';
 
 registerLocale('es', es);
 
@@ -45,8 +47,7 @@ function formatTime(iso) {
 }
 
 function getTimeFromISO(iso) {
-  const d = new Date(iso);
-  return `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`;
+  return timeFromISO(iso, business?.country);
 }
 
 function getGreeting() {
@@ -92,6 +93,7 @@ function SkeletonCard() {
 
 export default function Dashboard() {
   const qc = useQueryClient();
+  const { user, business } = useAuth();
   const navigate = useNavigate();
   const [date, setDate] = useState(today());
   const [pickerDate, setPickerDate] = useState(todayLocal());

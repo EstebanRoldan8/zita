@@ -194,7 +194,27 @@ export default function Services() {
                     </div>
                   </div>
 
-                  <div className="flex gap-2 mt-2 pt-2 border-t border-white/10">
+                  <div className="flex gap-2 mt-2 pt-2 border-t border-white/10 sm:hidden">
+                    <button onClick={() => openEdit(svc)}
+                      className="flex-1 text-blue-400 text-xs px-2 py-1 rounded bg-blue-500/10 hover:bg-blue-500/20 transition">
+                      Editar
+                    </button>
+                    <button
+                      onClick={() => toggleMutation.mutate(svc.id)}
+                      disabled={toggleMutation.isPending}
+                      className="flex-1 text-yellow-400 text-xs px-2 py-1 rounded bg-yellow-500/10 hover:bg-yellow-500/20 transition disabled:opacity-50"
+                    >
+                      {svc.active ? 'Desactivar' : 'Activar'}
+                    </button>
+                    <button
+                      onClick={() => setDeleteConfirm(svc)}
+                      className="flex-1 text-red-400 text-xs px-2 py-1 rounded bg-red-500/10 hover:bg-red-500/20 transition"
+                    >
+                      Eliminar
+                    </button>
+                  </div>
+
+                  <div className="hidden gap-2 mt-2 pt-2 border-t border-white/10 sm:group-hover:flex">
                     <button onClick={() => openEdit(svc)}
                       className="flex-1 text-blue-400 text-xs px-2 py-1 rounded bg-blue-500/10 hover:bg-blue-500/20 transition">
                       Editar

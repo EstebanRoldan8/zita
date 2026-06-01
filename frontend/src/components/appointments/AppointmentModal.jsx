@@ -44,22 +44,34 @@ export default function AppointmentModal({
   setLimitError,
 }) {
   const [showProducts, setShowProducts] = useState(false);
+  const [horaText, setHoraText] = useState(form.time || '');
   const clientSearchRef = useRef(null);
   const selectedService = services?.find((s) => s.id === form.service_id);
   const selectedClient = (clients || []).find((c) => c?.id === form.client_id);
 
-  const timeSlots = [];
-  for (let h = 6; h <= 22; h++) {
-    ['00', '30'].forEach(m => {
-      if (h === 22 && m === '30') return;
-      const period = h < 12 ? 'AM' : 'PM';
-      const displayH = h > 12 ? h - 12 : h === 0 ? 12 : h;
-      timeSlots.push({
-        value: `${String(h).padStart(2,'0')}:${m}`,
-        label: `${displayH}:${m} ${period}`
-      });
-    });
-  }
+  const parseHora = (text) => {
+    if (!text) return '';
+    text = text.trim().toLowerCase();
+    // Formato 24h: "15:30" o "15"
+    const match24 = text.match(/^(\d{1,2}):?(\d{2})?$/);
+    if (match24) {
+      const h = parseInt(match24[1]);
+      const m = match24[2] ? parseInt(match24[2]) : 0;
+      if (h >= 0 && h <= 23 && m >= 0 && m <= 59)
+        return `${String(h).padStart(2,'0')}:${String(m).padStart(2,'0')}`;
+    }
+    // Formato 12h: "3pm", "3:30pm", "3:30 pm"
+    const match12 = text.match(/^(\d{1,2}):?(\d{2})?\s*(am|pm)$/);
+    if (match12) {
+      let h = parseInt(match12[1]);
+      const m = match12[2] ? parseInt(match12[2]) : 0;
+      if (match12[3] === 'pm' && h !== 12) h += 12;
+      if (match12[3] === 'am' && h === 12) h = 0;
+      if (h >= 0 && h <= 23 && m >= 0 && m <= 59)
+        return `${String(h).padStart(2,'0')}:${String(m).padStart(2,'0')}`;
+    }
+    return '';
+  };
   const filteredClients = (clients || []).filter((c) => {
     try {
       return !clientSearch || (c?.name ?? '').toLowerCase().includes(clientSearch.toLowerCase()) || (c?.phone ?? '').includes(clientSearch);
@@ -188,13 +200,13 @@ export default function AppointmentModal({
             </div>
             <div>
               <label className="block text-slate-400 text-xs mb-1">Hora</label>
-              <select value={form.time} onChange={(e) => setForm({ ...form, time: e.target.value })}
-                className="w-full bg-slate-900 border border-slate-700 text-white rounded-lg px-3 h-9 text-sm focus:outline-none focus:border-violet-500 transition">
-                <option value="">Seleccionar...</option>
-                {timeSlots.map(slot => (
-                  <option key={slot.value} value={slot.value}>{slot.label}</option>
-                ))}
-              </select>
+              <input type="text" value={horaText} onChange={(e) => setHoraText(e.target.value)}
+                onBlur={() => {
+                  const parsed = parseHora(horaText);
+                  if (parsed) setForm({ ...form, time: parsed });
+                }}
+                placeholder="Ej: 3pm, 15:30, 3:30 pm"
+                className={`w-full bg-slate-900 border ${parseHora(horaText) || !horaText ? 'border-slate-700' : 'border-red-500'} text-white rounded-lg px-3 h-9 text-sm focus:outline-none focus:border-violet-500 transition`} />
             </div>
           </div>
 

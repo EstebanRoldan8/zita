@@ -63,15 +63,15 @@ function MetricCard({ icon: Icon, label, value, sub, color }) {
   const iconColor = isKpiCard ? 'bg-violet-600/20 text-violet-400' : color === 'bg-emerald-600' ? 'bg-emerald-500/20 text-emerald-400' : color === 'bg-red-600' ? 'bg-red-500/20 text-red-400' : 'bg-violet-600/20 text-violet-400';
 
   return (
-    <div className={`min-w-0 bg-[#131929] border border-slate-800 rounded-xl shadow-lg shadow-black/30 p-3 sm:p-5 flex flex-col gap-1.5 sm:gap-3 ${isKpiCard ? 'border border-violet-500/15 hover:border-violet-500/40 hover:bg-slate-700/60 transition-all duration-200' : 'border border-white/5 hover:border-violet-500/40 hover:bg-slate-700/60 transition-all duration-200'}`}>
+    <div className={`min-w-0 bg-[#131929] border border-slate-800 rounded-xl shadow-lg shadow-black/30 p-3 ${isKpiCard ? 'sm:p-3' : 'sm:p-3'} flex flex-col gap-1.5 sm:gap-3 ${isKpiCard ? 'border border-violet-500/15 hover:border-violet-500/40 hover:bg-slate-700/60 transition-all duration-200' : 'border border-white/5 hover:border-violet-500/40 hover:bg-slate-700/60 transition-all duration-200'}`}>
       <div className="flex items-center justify-between">
-        <span className="text-slate-400 text-xs sm:text-sm font-medium">{label}</span>
-        <div className={`w-11 h-11 rounded-xl flex items-center justify-center ${iconColor}`}>
-          <Icon size={18} className="text-inherit" />
+        <span className="text-slate-400 text-xs sm:text-xs font-medium">{label}</span>
+        <div className={`w-11 h-11 sm:w-8 sm:h-8 rounded-xl flex items-center justify-center ${iconColor}`}>
+          <Icon size={18} className="text-inherit sm:w-4 sm:h-4" />
         </div>
       </div>
       <div>
-        <p className={`${isKpiCard ? 'text-lg sm:text-2xl font-bold text-white' : 'text-white text-lg sm:text-2xl font-bold'}`}>{value}</p>
+        <p className={`${isKpiCard ? 'text-lg sm:text-lg font-bold text-white' : 'text-white text-lg sm:text-base font-bold'}`}>{value}</p>
         {sub && <p className={`${isKpiCard ? 'text-xs text-white/40 mt-1' : 'text-slate-500 text-xs mt-0.5 sm:mt-1'}`}>{sub}</p>}
       </div>
     </div>
@@ -684,10 +684,10 @@ export default function Dashboard() {
           </Link>
         </div>
         {daySummary ? (
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-            <MetricCard icon={TrendingUp}   label="Ingresos de hoy"   value={formatCOP(daySummary.income_total)}  sub="Caja del día"        color="bg-emerald-600" />
-            <MetricCard icon={TrendingDown} label="Egresos de hoy"    value={formatCOP(daySummary.expense_total)} sub="Gastos del día"       color="bg-red-600" />
-            <div className="bg-[#131929] border border-slate-800 rounded-xl shadow-lg shadow-black/30 p-3 sm:p-5 flex flex-col gap-1.5 sm:gap-3 border border-violet-500/15 hover:border-violet-500/40 hover:bg-slate-700/60 transition-all duration-200">
+          <div className="flex flex-col sm:flex-row sm:overflow-x-auto sm:gap-3 gap-4 sm:gap-0">
+            <div className="sm:flex-shrink-0 sm:w-full sm:max-w-xs"><MetricCard icon={TrendingUp}   label="Ingresos de hoy"   value={formatCOP(daySummary.income_total)}  sub="Caja del día"        color="bg-emerald-600" /></div>
+            <div className="sm:flex-shrink-0 sm:w-full sm:max-w-xs"><MetricCard icon={TrendingDown} label="Egresos de hoy"    value={formatCOP(daySummary.expense_total)} sub="Gastos del día"       color="bg-red-600" /></div>
+            <div className="sm:flex-shrink-0 sm:w-full sm:max-w-xs bg-[#131929] border border-slate-800 rounded-xl shadow-lg shadow-black/30 p-3 sm:p-3 flex flex-col gap-1.5 sm:gap-3 border border-violet-500/15 hover:border-violet-500/40 hover:bg-slate-700/60 transition-all duration-200">
               <div className="flex items-center justify-between">
                 <span className="text-slate-400 text-xs sm:text-sm font-medium">Ganancia neta hoy</span>
                 <div className={`w-11 h-11 rounded-xl flex items-center justify-center ${daySummary.net >= 0 ? 'bg-violet-600/20' : 'bg-violet-600/20'}`}>
@@ -746,18 +746,18 @@ export default function Dashboard() {
           <div>
             {(todayAppts || []).filter((a) => !['completed', 'cancelled'].includes(a.status)).length > 0 && (
               <div className="space-y-2 mb-4">
-                {(todayAppts || []).filter((a) => !['completed', 'cancelled'].includes(a.status)).map((cita, idx) => {
+                {(todayAppts || []).filter((a) => !['completed', 'cancelled'].includes(a.status)).slice(0, 3).map((cita, idx) => {
                   const isNext = idx === 0 && cita.status !== 'completed';
                   return (
-                    <div key={cita.id} className={`flex items-center gap-4 p-3 rounded-xl border transition-all duration-200 ${cita.status === 'completed' ? 'border-white/5 bg-white/2 opacity-60' : isNext ? 'border-violet-500/40 bg-violet-500/5' : 'border-white/5 hover:border-violet-500/20'}`}>
-                      <div className={`text-lg font-bold min-w-[52px] ${cita.status === 'completed' ? 'text-white/30 line-through' : 'text-violet-400'}`}>
+                    <div key={cita.id} className={`flex items-center gap-4 p-3 sm:py-2 rounded-xl border transition-all duration-200 ${cita.status === 'completed' ? 'border-white/5 bg-white/2 opacity-60' : isNext ? 'border-violet-500/40 bg-violet-500/5' : 'border-white/5 hover:border-violet-500/20'}`}>
+                      <div className={`text-lg sm:text-sm font-bold min-w-[52px] sm:min-w-fit ${cita.status === 'completed' ? 'text-white/30 line-through' : 'text-violet-400'}`}>
                         {getTimeFromISO(cita.scheduled_at)}
                       </div>
                       <div className="flex-1 min-w-0">
-                        <p className={`text-sm font-medium truncate ${cita.status === 'completed' ? 'text-white/40 line-through' : 'text-white'}`}>
+                        <p className={`text-sm sm:text-xs font-medium truncate ${cita.status === 'completed' ? 'text-white/40 line-through' : 'text-white'}`}>
                           {cita.clients?.name || cita.client?.name || 'Cliente ocasional'}
                         </p>
-                        <p className="text-xs text-white/40 truncate">
+                        <p className="text-xs sm:text-xs text-white/40 truncate">
                           {cita.services?.name || '—'} · {cita.employees?.name || 'Sin asignar'}
                         </p>
                       </div>

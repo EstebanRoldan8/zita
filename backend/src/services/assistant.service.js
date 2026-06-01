@@ -837,7 +837,8 @@ async function executeTool(toolName, toolInput, businessId) {
         scheduled_at: scheduledAt,
         status: 'confirmed',
         source: 'manual',
-        notes: toolInput.notes || null
+        notes: toolInput.notes || null,
+        price: service?.price || 0
       };
 
       logger.info('insertData:', JSON.stringify(insertData));
@@ -853,22 +854,30 @@ async function executeTool(toolName, toolInput, businessId) {
       if (error) return { success: false, error: error.message };
 
       // Create income entry automatically
-      if (data && service?.price) {
-        const incomeDate = scheduledAt.split('T')[0];
-        const incomeData = {
-          business_id: businessId,
-          appointment_id: data.id,
-          amount: service.price,
-          date: incomeDate,
-          description: `Cita manual registrada`,
-          source: 'appointment',
-          payment_method: 'cash'
-        };
-        const { error: incomeError } = await supabaseAdmin
+      if (data && service?.price > 0) {
+        const { data: existingIncome } = await supabaseAdmin
           .from('income')
-          .insert(incomeData);
-        if (incomeError) {
-          logger.error('Error creating income for appointment:', incomeError);
+          .select('id')
+          .eq('appointment_id', data.id)
+          .maybeSingle();
+
+        if (!existingIncome) {
+          const incomeDate = scheduledAt.split('T')[0];
+          const incomeData = {
+            business_id: businessId,
+            appointment_id: data.id,
+            amount: service.price,
+            date: incomeDate,
+            description: `Cita manual registrada`,
+            source: 'appointment',
+            payment_method: 'cash'
+          };
+          const { error: incomeError } = await supabaseAdmin
+            .from('income')
+            .insert(incomeData);
+          if (incomeError) {
+            logger.error('Error creating income for appointment:', incomeError);
+          }
         }
       }
 

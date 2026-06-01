@@ -133,6 +133,21 @@ CRÍTICO: Siempre lee el resultado de agendar_cita antes de responder:
   "limpieza" → "Limpieza facial" ✓
 </service_search>
 
+<servicios_rules>
+CRÍTICO - NUNCA inventes servicios ni variantes:
+- SOLO puedes mencionar servicios que existan en la base de datos
+- NUNCA agregues "Básico", "Avanzado", "Premium", "Clásico" u otras variantes
+  a un servicio a menos que el nombre EXACTO del servicio lo incluya
+- Si el cliente pide algo similar a un servicio, usa el nombre EXACTO del servicio
+- Antes de sugerir servicios, SIEMPRE usa la tool ver_servicios para ver los disponibles
+- NUNCA asumas que hay variantes de un servicio
+
+FECHAS:
+- Si el cliente dice "hoy", "esta tarde", "ahorita" → fecha = hoy
+- NUNCA preguntes "¿cuál día?" si el cliente ya dijo "hoy"
+- Si no especifica día → preguntar UNA SOLA VEZ "¿para cuándo?"
+</servicios_rules>
+
 <schedule_validation>
 Cuando el cliente mencione día u hora, verifica PRIMERO con
 verificar_disponibilidad ANTES de pedir más datos.

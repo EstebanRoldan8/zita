@@ -66,7 +66,7 @@ function MetricCard({ icon: Icon, label, value, sub, color }) {
     <div className={`min-w-0 bg-[#131929] border border-slate-800 rounded-xl shadow-lg shadow-black/30 p-3 ${isKpiCard ? 'sm:p-3' : 'sm:p-3'} flex flex-col gap-1.5 sm:gap-3 ${isKpiCard ? 'border border-violet-500/15 hover:border-violet-500/40 hover:bg-slate-700/60 transition-all duration-200' : 'border border-white/5 hover:border-violet-500/40 hover:bg-slate-700/60 transition-all duration-200'}`}>
       <div className="flex items-center justify-between">
         <span className="text-slate-400 text-[10px] leading-tight font-medium">{label}</span>
-        <div className={`w-11 h-11 sm:w-8 sm:h-8 rounded-xl flex items-center justify-center ${iconColor}`}>
+        <div className={`w-7 h-7 rounded-lg flex items-center justify-center flex-shrink-0 ${iconColor}`}>
           <Icon size={18} className="text-inherit sm:w-4 sm:h-4" />
         </div>
       </div>
@@ -690,7 +690,7 @@ export default function Dashboard() {
             <div className="bg-[#131929] border border-slate-800 rounded-xl shadow-lg shadow-black/30 p-3 sm:p-3 flex flex-col gap-1.5 sm:gap-3 border border-violet-500/15 hover:border-violet-500/40 hover:bg-slate-700/60 transition-all duration-200">
               <div className="flex items-center justify-between">
                 <span className="text-slate-400 text-xs sm:text-sm font-medium">Ganancia neta hoy</span>
-                <div className={`w-11 h-11 rounded-xl flex items-center justify-center ${daySummary.net >= 0 ? 'bg-violet-600/20' : 'bg-violet-600/20'}`}>
+                <div className={`w-7 h-7 rounded-lg flex items-center justify-center flex-shrink-0 ${daySummary.net >= 0 ? 'bg-violet-600/20' : 'bg-violet-600/20'}`}>
                   {daySummary.net >= 0 ? <TrendingUp size={18} className="text-violet-400" /> : <TrendingDown size={18} className="text-violet-400" />}
                 </div>
               </div>

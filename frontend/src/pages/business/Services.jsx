@@ -166,12 +166,11 @@ export default function Services() {
             {displayedServices.map((svc) => {
               const inactive = svc.active === false;
               return (
-                <div key={svc.id} className={`group relative bg-[#131929] border border-violet-500/15 hover:border-violet-500/35 rounded-xl shadow-lg shadow-black/30 overflow-hidden transition-all duration-200 flex flex-col justify-between ${inactive ? 'opacity-50' : ''}`}>
-                  <div className="p-3 space-y-3">
+                <div key={svc.id} className={`group relative bg-[#131929] border border-violet-500/15 hover:border-violet-500/35 rounded-xl shadow-lg shadow-black/30 overflow-hidden transition-all duration-200 flex flex-col min-h-[120px] ${inactive ? 'opacity-50' : ''}`}>
+                  <div className="p-4 space-y-2">
                     <div className="flex items-start justify-between">
                       <div className="min-w-0 flex-1 pr-2">
                         <p className="text-white font-semibold text-sm leading-tight truncate">{svc.name}</p>
-                        {svc.description && <p className="text-slate-500 text-xs mt-0.5 truncate">{svc.description}</p>}
                       </div>
                       {inactive ? (
                         <span className="text-xs font-medium text-slate-600 bg-[#131929] border border-slate-700 px-2 py-0.5 rounded-full flex-shrink-0">Inactivo</span>
@@ -190,29 +189,31 @@ export default function Services() {
                         <p className="text-white font-bold">{svc.duration_minutes} min</p>
                       </div>
                     </div>
-
                   </div>
 
-                  <div className="flex gap-1 mt-2 pt-2 border-t border-white/5 justify-end px-3 pb-3 opacity-100 sm:opacity-0 sm:group-hover:opacity-100 transition-opacity">
-                    <button onClick={() => openEdit(svc)}
-                      className="p-1.5 rounded-lg text-slate-400 hover:text-blue-400 hover:bg-blue-500/20 transition">
-                      <Edit2 size={14} />
-                    </button>
-                    <button
-                      onClick={() => toggleMutation.mutate(svc.id)}
-                      disabled={toggleMutation.isPending}
-                      className="p-1.5 rounded-lg text-slate-400 hover:text-yellow-400 hover:bg-yellow-500/20 transition disabled:opacity-50"
-                      title={svc.active ? 'Desactivar' : 'Activar'}
-                    >
-                      {svc.active ? <Eye size={14} /> : <EyeOff size={14} />}
-                    </button>
-                    <button
-                      onClick={() => setDeleteConfirm(svc)}
-                      className="p-1.5 rounded-lg text-slate-400 hover:text-red-400 hover:bg-red-500/20 transition"
-                      title="Eliminar"
-                    >
-                      <Trash2 size={14} />
-                    </button>
+                  <div className="mt-auto px-4 pt-2 pb-4 flex flex-col gap-2">
+                    {svc.description && <p className="text-xs text-slate-500 italic">{svc.description}</p>}
+                    <div className="flex gap-2 justify-end opacity-100 sm:opacity-0 sm:group-hover:opacity-100 transition-opacity">
+                      <button onClick={() => openEdit(svc)}
+                        className="p-2 rounded-lg text-slate-400 hover:text-blue-400 hover:bg-blue-500/20 transition">
+                        <Edit2 size={16} />
+                      </button>
+                      <button
+                        onClick={() => toggleMutation.mutate(svc.id)}
+                        disabled={toggleMutation.isPending}
+                        className="p-2 rounded-lg text-slate-400 hover:text-yellow-400 hover:bg-yellow-500/20 transition disabled:opacity-50"
+                        title={svc.active ? 'Desactivar' : 'Activar'}
+                      >
+                        {svc.active ? <Eye size={16} /> : <EyeOff size={16} />}
+                      </button>
+                      <button
+                        onClick={() => setDeleteConfirm(svc)}
+                        className="p-2 rounded-lg text-slate-400 hover:text-red-400 hover:bg-red-500/20 transition"
+                        title="Eliminar"
+                      >
+                        <Trash2 size={16} />
+                      </button>
+                    </div>
                   </div>
                 </div>
               );

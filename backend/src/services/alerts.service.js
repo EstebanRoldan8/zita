@@ -117,8 +117,9 @@ async function getAlerts(businessId) {
   // 2. Caída de ingresos > 20 %
   const currIncome = sum(currAppts, 'price') + sum(currManual, 'amount');
   const prevIncome = sum(prevAppts, 'price') + sum(prevManual, 'amount');
+  const dayOfMonth = now.getDate();
 
-  if (prevIncome > 0 && currIncome < prevIncome * 0.8) {
+  if (dayOfMonth >= 10 && prevIncome > 0 && currIncome < prevIncome * 0.8) {
     const drop = Math.round(((prevIncome - currIncome) / prevIncome) * 100);
     alerts.push({
       type: 'critical',

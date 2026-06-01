@@ -6,9 +6,9 @@ import api from '../../lib/api';
 import { useLockBodyScroll } from '../../hooks/useLockBodyScroll';
 
 const TYPE_CONFIG = {
-  critical: { icon: AlertCircle, color: 'text-red-400',    bg: 'bg-red-500/10',    border: 'border-red-500/20',    badge: 'bg-red-500'    },
-  warning:  { icon: AlertTriangle, color: 'text-yellow-400', bg: 'bg-yellow-500/10', border: 'border-yellow-500/20', badge: 'bg-yellow-500' },
-  info:     { icon: Info,          color: 'text-blue-400',   bg: 'bg-blue-500/10',   border: 'border-blue-500/20',   badge: 'bg-blue-500'   },
+  critical: { icon: AlertCircle, color: 'text-red-400',    borderLeft: 'border-l-red-500',    linkColor: 'text-red-400' },
+  warning:  { icon: AlertTriangle, color: 'text-yellow-400', borderLeft: 'border-l-yellow-500', linkColor: 'text-yellow-400' },
+  info:     { icon: Info,          color: 'text-blue-400',   borderLeft: 'border-l-blue-500',   linkColor: 'text-blue-400' },
 };
 
 export default function AlertsPanel() {
@@ -59,11 +59,13 @@ export default function AlertsPanel() {
           <div className="fixed inset-x-4 top-16 md:top-0 md:right-0 md:inset-auto z-50 md:h-full w-auto md:w-80 bg-[#1e293b] border border-white/10 md:border-l md:border-t-0 md:border-r-0 md:border-b-0 rounded-2xl md:rounded-none shadow-2xl flex flex-col">
             {/* Header */}
             <div className="flex items-center justify-between px-4 py-3 border-b border-white/10">
-              <div>
-                <h2 className="text-white font-semibold text-sm">Alertas</h2>
-                {badgeCount > 0
-                  ? <p className="text-slate-500 text-xs mt-0.5">{badgeCount} activa{badgeCount > 1 ? 's' : ''}</p>
-                  : <p className="text-slate-500 text-xs mt-0.5">Sin alertas activas</p>}
+              <div className="flex items-center gap-2">
+                <h2 className="text-white font-bold text-base">Alertas</h2>
+                {badgeCount > 0 && (
+                  <span className="bg-violet-600 text-white text-xs font-bold px-2 py-1 rounded-full">
+                    {badgeCount > 9 ? '9+' : badgeCount}
+                  </span>
+                )}
               </div>
               <button
                 onClick={() => setOpen(false)}
@@ -88,17 +90,17 @@ export default function AlertsPanel() {
                   return (
                     <div
                       key={alert.code}
-                      className={`rounded-xl border p-4 ${cfg.bg} ${cfg.border}`}
+                      className={`bg-white/3 border border-white/8 border-l-4 rounded-xl p-4 ${cfg.borderLeft}`}
                     >
                       <div className="flex items-start gap-3">
-                        <Icon size={16} className={`${cfg.color} flex-shrink-0 mt-0.5`} />
+                        <Icon size={18} className={`${cfg.color} flex-shrink-0 mt-0.5`} />
                         <div className="flex-1 min-w-0">
-                          <p className="text-white text-sm font-medium leading-tight">{alert.title}</p>
-                          <p className="text-slate-400 text-xs mt-1 leading-relaxed">{alert.message}</p>
+                          <p className="text-white font-semibold text-sm">{alert.title}</p>
+                          <p className="text-gray-400 text-xs mt-1">{alert.message}</p>
                           {alert.actionLink && (
                             <button
                               onClick={() => handleAction(alert.actionLink)}
-                              className={`flex items-center gap-1 mt-2.5 text-xs font-medium ${cfg.color} hover:opacity-80 transition`}
+                              className={`flex items-center gap-1 mt-2 text-xs font-medium ${cfg.linkColor} hover:opacity-80 transition`}
                             >
                               {alert.action} <ChevronRight size={12} />
                             </button>
@@ -112,8 +114,8 @@ export default function AlertsPanel() {
             </div>
 
             {/* Footer hint */}
-            <div className="px-4 py-2 border-t border-white/10">
-              <p className="text-white/40 text-xs text-center">Se actualiza cada 5 minutos</p>
+            <div className="px-4 py-3 border-t border-white/10">
+              <p className="text-gray-600 text-xs text-center">Se actualiza cada 5 minutos</p>
             </div>
           </div>
         </>

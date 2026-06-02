@@ -318,7 +318,11 @@ export default function Clients() {
           {selectedFidelizationClientId && (
             <>
               <div className="fixed inset-0 bg-black/40 z-40" onClick={() => setSelectedFidelizationClientId(null)} />
-              <div className="fixed right-0 top-0 h-full w-[480px] z-50 bg-[#131929] border-l border-slate-800 shadow-2xl shadow-black/50 transform transition-transform duration-300 overflow-y-auto custom-scroll">
+              <div className="fixed inset-0 z-50 bg-[#0f172a] overflow-y-auto md:right-0 md:top-0 md:left-auto md:h-full md:w-[480px] md:inset-auto md:border-l md:border-slate-800 md:shadow-2xl md:shadow-black/50 md:transform md:transition-transform md:duration-300 custom-scroll">
+                <button onClick={() => setSelectedFidelizationClientId(null)} className="md:hidden flex items-center gap-2 text-violet-400 text-sm font-medium mb-4 p-4">
+                  <ChevronLeft size={18} />
+                  Volver a clientes
+                </button>
                 <div className="p-6 pb-8 sticky top-0 bg-gradient-to-br from-violet-600/20 to-indigo-600/5 border-b border-white/6">
                   <div className="flex items-start justify-between">
                     <div className="flex items-center gap-3">
@@ -460,14 +464,14 @@ export default function Clients() {
                           {initial}
                         </div>
                         <div>
-                          <p className="text-white font-medium">{c.name}</p>
+                          <p className="text-white font-medium truncate max-w-[120px] md:max-w-none">{c.name}</p>
                           <p className="text-slate-500 text-sm">{c.phone}</p>
                         </div>
                       </div>
                       <div className="flex items-center gap-3">
                         <div className="text-right">
                           <p className="text-sm text-white/60">{c.total_visits} visitas</p>
-                          <p className="text-xs text-white/40">{formatCOP(c.total_spent)}</p>
+                          <p className="hidden md:block text-xs text-white/40">{formatCOP(c.total_spent)}</p>
                         </div>
                         <button onClick={(e) => handleRecall(e, c.id)} disabled={recallStatus[c.id] === 'loading'}
                           className={`flex-shrink-0 px-3 py-1.5 rounded-lg text-xs font-medium transition ${
@@ -514,7 +518,7 @@ export default function Clients() {
                   </div>
                   <div className="flex items-center gap-1 flex-shrink-0">
                     <button onClick={() => setShowEdit(true)} className="text-slate-500 hover:text-white p-1.5 rounded hover:bg-slate-700/50 transition"><Pencil size={14} /></button>
-                    <button onClick={() => setSelectedId(null)} className="text-slate-500 hover:text-white p-1.5 rounded hover:bg-slate-700/50 transition"><X size={14} /></button>
+                    <button onClick={() => setSelectedId(null)} className="hidden md:flex text-slate-500 hover:text-white p-1.5 rounded hover:bg-slate-700/50 transition"><X size={14} /></button>
                   </div>
                 </div>
 

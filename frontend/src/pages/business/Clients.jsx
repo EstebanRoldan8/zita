@@ -497,7 +497,7 @@ export default function Clients() {
           {/* Panel de detalle */}
           {selectedId && (
             <div className={selectedId
-  ? 'fixed inset-0 z-50 w-full h-full bg-[#0f172a] overflow-y-auto md:static md:inset-auto md:z-auto md:w-80 md:h-auto md:sticky md:top-20 md:self-start md:rounded-2xl md:border md:border-violet-500/20 md:shadow-2xl'
+  ? 'fixed inset-0 z-50 w-full h-full bg-[#0f172a] overflow-y-auto md:static md:inset-auto md:z-auto md:w-80 md:h-auto md:sticky md:top-20 md:self-start md:rounded-2xl md:border md:border-violet-500/20 md:shadow-2xl md:overflow-hidden'
   : 'hidden md:block md:w-80 md:sticky md:top-20 md:self-start md:bg-[#0f172a] md:border md:border-violet-500/20 md:rounded-2xl md:shadow-2xl'}>
               <div className="md:hidden flex items-center gap-2 p-4 border-b border-white/10">
                 <button onClick={() => setSelectedId(null)} className="flex items-center gap-2 text-violet-400 text-sm font-medium">

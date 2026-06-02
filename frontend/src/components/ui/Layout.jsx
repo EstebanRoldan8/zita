@@ -7,7 +7,7 @@ import SubscriptionWarning from './SubscriptionWarning';
 
 export default function Layout() {
   return (
-    <div className="flex min-h-screen bg-[#080d18] overflow-x-hidden">
+    <div className="flex min-h-screen bg-[#080d18]">
       <Sidebar />
       <div className="hidden md:flex fixed top-0 left-[210px] right-0 h-14 bg-[#0a0f1e] border-b border-white/5 z-30 items-center justify-center">
         <div className="flex items-center gap-2">
@@ -24,7 +24,7 @@ export default function Layout() {
           </button>
         </div>
       </div>
-      <main className="md:ml-[210px] min-h-screen flex-1 px-4 sm:px-6 py-6 pt-14 overflow-x-hidden w-full min-w-0">
+      <main className="md:ml-[210px] min-h-screen flex-1 px-4 sm:px-6 py-6 pt-14 w-full min-w-0">
         <SubscriptionWarning />
         <Outlet />
       </main>

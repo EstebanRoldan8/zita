@@ -4,18 +4,22 @@ const logger = require('../utils/logger');
 const VALID_CATEGORIES = ['nomina', 'materias_primas', 'servicios', 'arriendo', 'otro'];
 
 function parseMonth(monthStr) {
-  // monthStr esperado: "2026-04"
-  const [year, month] = (monthStr || '').split('-').map(Number);
+  const todayCol = new Date().toLocaleDateString('en-CA', { timeZone: 'America/Bogota' });
+  const currentMonth = todayCol.slice(0, 7);
+  const [year, month] = (monthStr || currentMonth).split('-').map(Number);
   if (!year || !month || month < 1 || month > 12) {
-    const now = new Date();
+    const [y, m] = currentMonth.split('-').map(Number);
+    const lastDay = new Date(y, m, 0).getDate();
     return {
-      start: new Date(now.getFullYear(), now.getMonth(), 1).toISOString().slice(0, 10),
-      end: new Date(now.getFullYear(), now.getMonth() + 1, 0).toISOString().slice(0, 10),
+      start: `${currentMonth}-01`,
+      end: `${currentMonth}-${String(lastDay).padStart(2, '0')}`,
     };
   }
-  const start = new Date(year, month - 1, 1).toISOString().slice(0, 10);
-  const end = new Date(year, month, 0).toISOString().slice(0, 10);
-  return { start, end };
+  const lastDay = new Date(year, month, 0).getDate();
+  return {
+    start: `${String(year)}-${String(month).padStart(2, '0')}-01`,
+    end: `${String(year)}-${String(month).padStart(2, '0')}-${String(lastDay).padStart(2, '0')}`,
+  };
 }
 
 async function getAll(req, res) {

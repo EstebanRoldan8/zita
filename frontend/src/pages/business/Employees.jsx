@@ -264,7 +264,7 @@ function PerformanceTab() {
   });
 
   const label = viewType === 'day'
-    ? new Date(date).toLocaleDateString('es-CO', { weekday: 'long', day: 'numeric', month: 'long' })
+    ? new Date(date + 'T12:00:00').toLocaleDateString('es-CO', { weekday: 'long', day: 'numeric', month: 'long' })
     : new Date(`${month}-15`).toLocaleDateString('es-CO', { month: 'long', year: 'numeric' });
 
   if (isLoading) {
@@ -305,7 +305,7 @@ function PerformanceTab() {
           ) : (
             <DatePicker
               selected={date ? new Date(date) : null}
-              onChange={(d) => setDate(d.toISOString().slice(0, 10))}
+              onChange={(d) => setDate(d.toLocaleDateString('en-CA', { timeZone: 'America/Bogota' }))}
               dateFormat="dd/MM/yyyy"
               locale="es"
               placeholderText="Seleccionar"

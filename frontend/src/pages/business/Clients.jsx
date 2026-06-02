@@ -525,7 +525,7 @@ export default function Clients() {
                   Volver a clientes
                 </button>
               </div>
-              <div className="border-b border-white/15 p-4">
+              <div className="border-b border-white/15 p-4 md:relative sticky top-[57px] z-10 bg-[#0a0f1e] md:bg-transparent md:sticky-none md:top-auto md:z-auto">
                 {/* Header */}
                 <div className="flex items-start justify-between mb-3">
                   <div className="flex items-start gap-3">

@@ -195,6 +195,40 @@ export default function Clients() {
     setSelectedId(clientId === selectedId ? null : clientId);
   };
 
+  useEffect(() => {
+    if (selectedId && window.innerWidth < 768) {
+      document.body.style.overflow = 'hidden';
+      document.body.style.position = 'fixed';
+      document.body.style.width = '100%';
+    } else if (!selectedId) {
+      document.body.style.overflow = '';
+      document.body.style.position = '';
+      document.body.style.width = '';
+    }
+    return () => {
+      document.body.style.overflow = '';
+      document.body.style.position = '';
+      document.body.style.width = '';
+    };
+  }, [selectedId]);
+
+  useEffect(() => {
+    if (selectedFidelizationClientId && window.innerWidth < 768) {
+      document.body.style.overflow = 'hidden';
+      document.body.style.position = 'fixed';
+      document.body.style.width = '100%';
+    } else if (!selectedFidelizationClientId) {
+      document.body.style.overflow = '';
+      document.body.style.position = '';
+      document.body.style.width = '';
+    }
+    return () => {
+      document.body.style.overflow = '';
+      document.body.style.position = '';
+      document.body.style.width = '';
+    };
+  }, [selectedFidelizationClientId]);
+
   const { data: sub, isLoading: subLoading } = useQuery({
     queryKey: ['subscription'],
     queryFn: () => api.get('/api/subscription').then(r => r.data.data),
@@ -497,9 +531,9 @@ export default function Clients() {
           {/* Panel de detalle */}
           {selectedId && (
             <div className={selectedId
-  ? 'fixed inset-0 z-50 w-full h-full bg-[#0f172a] overflow-y-auto md:static md:inset-auto md:z-auto md:w-80 md:h-auto md:sticky md:top-20 md:self-start md:rounded-2xl md:border md:border-violet-500/20 md:shadow-2xl md:overflow-hidden'
+  ? 'fixed inset-0 z-50 w-full h-full bg-[#0a0f1e] overflow-y-auto md:static md:inset-auto md:z-auto md:w-80 md:h-auto md:sticky md:top-20 md:self-start md:rounded-2xl md:border md:border-violet-500/20 md:shadow-2xl md:overflow-hidden'
   : 'hidden md:block md:w-80 md:sticky md:top-20 md:self-start md:bg-[#0f172a] md:border md:border-violet-500/20 md:rounded-2xl md:shadow-2xl'}>
-              <div className="md:hidden flex items-center gap-2 p-4 border-b border-white/10">
+              <div className="md:hidden sticky top-0 z-10 flex items-center gap-2 p-4 bg-[#0a0f1e] border-b border-white/10">
                 <button onClick={() => setSelectedId(null)} className="flex items-center gap-2 text-violet-400 text-sm font-medium">
                   <ChevronLeft size={18} />
                   Volver a clientes

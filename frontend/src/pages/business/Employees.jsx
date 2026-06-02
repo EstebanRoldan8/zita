@@ -304,7 +304,7 @@ function PerformanceTab() {
             <MonthSelector value={month} onChange={setMonth} />
           ) : (
             <DatePicker
-              selected={date ? new Date(date) : null}
+              selected={date ? new Date(date + 'T12:00:00') : null}
               onChange={(d) => setDate(d.toLocaleDateString('en-CA', { timeZone: 'America/Bogota' }))}
               dateFormat="dd/MM/yyyy"
               locale="es"

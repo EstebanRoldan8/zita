@@ -24,7 +24,7 @@ function formatCOP(v) {
   }).format(v ?? 0);
 }
 
-const today = () => new Date().toISOString().slice(0, 10);
+const today = () => new Date().toLocaleDateString('en-CA', { timeZone: 'America/Bogota' });
 
 const MONTH_ABBR = ['Ene','Feb','Mar','Abr','May','Jun','Jul','Ago','Sep','Oct','Nov','Dic'];
 const fmtMonthKey = (k) => MONTH_ABBR[parseInt(k.slice(5, 7)) - 1];
@@ -100,7 +100,7 @@ function SummaryTab({ month, period, onPeriodChange, dayDate, onDayDateChange })
       if (period === 'mes') {
         url += `?month=${month}`;
       } else if (period === 'día') {
-        url += `?period=day&date=${dayDate.toISOString().slice(0, 10)}`;
+        url += `?period=day&date=${dayDate.toLocaleDateString('en-CA', { timeZone: 'America/Bogota' })}`;
       } else {
         url += `?period=week`;
       }
@@ -312,7 +312,7 @@ function IncomeTab({ month, period, onPeriodChange, dayDate, onDayDateChange }) 
       if (period === 'mes') {
         url += `?month=${month}`;
       } else if (period === 'día') {
-        url += `?period=day&date=${dayDate.toISOString().slice(0, 10)}`;
+        url += `?period=day&date=${dayDate.toLocaleDateString('en-CA', { timeZone: 'America/Bogota' })}`;
       } else {
         url += `?period=week`;
       }
@@ -623,7 +623,7 @@ function ExpensesTab({ month, period, onPeriodChange, dayDate, onDayDateChange }
       if (period === 'mes') {
         url += `?month=${month}`;
       } else if (period === 'día') {
-        url += `?period=day&date=${dayDate.toISOString().slice(0, 10)}`;
+        url += `?period=day&date=${dayDate.toLocaleDateString('en-CA', { timeZone: 'America/Bogota' })}`;
       } else {
         url += `?period=week`;
       }

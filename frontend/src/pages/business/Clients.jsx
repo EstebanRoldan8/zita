@@ -423,7 +423,7 @@ export default function Clients() {
         <div className="flex flex-col md:flex-row gap-6 items-start">
 
           {/* Lista */}
-          <div className="flex-1 min-w-0 md:min-h-screen">
+          <div className="flex-1 min-w-0">
             <div className="flex flex-col gap-3 md:flex-row mb-5">
               <div className="relative flex-1">
                 <Search size={15} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-500" />
@@ -496,7 +496,7 @@ export default function Clients() {
 
           {/* Panel de detalle */}
           {selectedId && (
-            <div className={`${selectedId ? 'fixed inset-0 z-50 overflow-y-auto md:relative md:inset-auto md:z-auto md:overflow-visible' : 'hidden md:block'} md:w-80 md:sticky md:top-20 md:self-start bg-[#0f172a] md:border md:border-violet-500/20 md:rounded-2xl md:shadow-2xl`}>
+            <div className={`w-80 sticky top-20 self-start bg-[#0f172a] border border-violet-500/20 rounded-2xl shadow-2xl ${selectedId ? 'fixed inset-0 z-50 w-full h-full rounded-none border-0 md:relative md:inset-auto md:z-auto md:w-80 md:h-auto md:rounded-2xl md:border' : 'hidden md:block'}`}>
               <div className="md:hidden flex items-center gap-2 p-4 border-b border-white/10">
                 <button onClick={() => setSelectedId(null)} className="flex items-center gap-2 text-violet-400 text-sm font-medium">
                   <ChevronLeft size={18} />

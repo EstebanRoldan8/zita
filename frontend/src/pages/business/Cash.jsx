@@ -844,7 +844,7 @@ function ExpensesTab({ month, period, onPeriodChange, dayDate, onDayDateChange }
                   <label className="block text-slate-400 text-sm mb-1.5">Fecha *</label>
                   <DatePicker
                     selected={form.date ? new Date(form.date) : null}
-                    onChange={(d) => setForm({ ...form, date: d.toISOString().slice(0, 10) })}
+                    onChange={(d) => setForm({ ...form, date: d.toLocaleDateString('en-CA', { timeZone: 'America/Bogota' }) })}
                     dateFormat="dd/MM/yyyy"
                     locale="es"
                     placeholderText="Seleccionar"
@@ -890,7 +890,7 @@ const TABS = [
 
 export default function Cash() {
   const [tab, setTab] = useState('summary');
-  const [month, setMonth] = useState(() => new Date().toISOString().slice(0, 7));
+  const [month, setMonth] = useState(() => new Date().toLocaleDateString('en-CA', { timeZone: 'America/Bogota' }).slice(0, 7));
   const [period, setPeriod] = useState('mes');
   const [dayDate, setDayDate] = useState(new Date());
   const { business } = useAuth();
@@ -905,10 +905,10 @@ export default function Cash() {
     staleTime: 5 * 60 * 1000
   });
 
-  const today = new Date().toISOString().slice(0, 10);
+  const todayDate = new Date().toLocaleDateString('en-CA', { timeZone: 'America/Bogota' });
   const { data: dayData } = useQuery({
-    queryKey: ['cash-summary-day', today],
-    queryFn: () => api.get(`/api/cash/summary?period=day&date=${today}`).then((r) => r.data.data),
+    queryKey: ['cash-summary-day', todayDate],
+    queryFn: () => api.get(`/api/cash/summary?period=day&date=${todayDate}`).then((r) => r.data.data),
   });
 
   const { data: monthData } = useQuery({

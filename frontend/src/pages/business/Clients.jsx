@@ -195,6 +195,24 @@ export default function Clients() {
     setSelectedId(clientId === selectedId ? null : clientId);
   };
 
+  useEffect(() => {
+    if (selectedId) {
+      document.body.style.overflow = 'hidden';
+    } else {
+      document.body.style.overflow = '';
+    }
+    return () => { document.body.style.overflow = ''; };
+  }, [selectedId]);
+
+  useEffect(() => {
+    if (selectedFidelizationClientId) {
+      document.body.style.overflow = 'hidden';
+    } else {
+      document.body.style.overflow = '';
+    }
+    return () => { document.body.style.overflow = ''; };
+  }, [selectedFidelizationClientId]);
+
   const { data: sub, isLoading: subLoading } = useQuery({
     queryKey: ['subscription'],
     queryFn: () => api.get('/api/subscription').then(r => r.data.data),
@@ -318,7 +336,7 @@ export default function Clients() {
           {selectedFidelizationClientId && (
             <>
               <div className="fixed inset-0 bg-black/40 z-40" onClick={() => setSelectedFidelizationClientId(null)} />
-              <div className="fixed inset-0 z-50 bg-[#0f172a] overflow-y-auto md:right-0 md:top-0 md:left-auto md:h-full md:w-[480px] md:inset-auto md:border-l md:border-slate-800 md:shadow-2xl md:shadow-black/50 md:transform md:transition-transform md:duration-300 custom-scroll">
+              <div className="fixed inset-0 z-50 bg-[#0f172a] overflow-y-auto md:right-0 md:top-0 md:left-auto md:h-full md:w-[480px] md:inset-auto md:border-l md:border-slate-800 md:shadow-2xl md:shadow-black/50 md:transform md:transition-transform md:duration-300 custom-scroll" style={{ scrollbarWidth: 'none', msOverflowStyle: 'none' }}>
                 <button onClick={() => setSelectedFidelizationClientId(null)} className="md:hidden flex items-center gap-2 text-violet-400 text-sm font-medium mb-4 p-4">
                   <ChevronLeft size={18} />
                   Volver a clientes
@@ -496,7 +514,7 @@ export default function Clients() {
 
           {/* Panel de detalle */}
           {selectedId && (
-            <div className={`${selectedId ? 'fixed inset-0 z-50 overflow-y-auto md:relative md:inset-auto md:z-auto' : 'hidden md:block'} md:w-80 md:sticky md:top-20 md:self-start bg-[#0f172a] md:border md:border-violet-500/20 md:rounded-2xl md:shadow-2xl`}>
+            <div className={`${selectedId ? 'fixed inset-0 z-50 overflow-y-auto md:relative md:inset-auto md:z-auto' : 'hidden md:block'} md:w-80 md:sticky md:top-20 md:self-start bg-[#0f172a] md:border md:border-violet-500/20 md:rounded-2xl md:shadow-2xl`} style={{ scrollbarWidth: 'none', msOverflowStyle: 'none' }}>
               <div className="md:hidden flex items-center gap-2 p-4 border-b border-white/10">
                 <button onClick={() => setSelectedId(null)} className="flex items-center gap-2 text-violet-400 text-sm font-medium">
                   <ChevronLeft size={18} />

@@ -198,35 +198,19 @@ export default function Clients() {
   useEffect(() => {
     if (selectedId && window.innerWidth < 768) {
       document.body.style.overflow = 'hidden';
-      document.body.style.position = 'fixed';
-      document.body.style.width = '100%';
-    } else if (!selectedId) {
+    } else {
       document.body.style.overflow = '';
-      document.body.style.position = '';
-      document.body.style.width = '';
     }
-    return () => {
-      document.body.style.overflow = '';
-      document.body.style.position = '';
-      document.body.style.width = '';
-    };
+    return () => { document.body.style.overflow = ''; };
   }, [selectedId]);
 
   useEffect(() => {
     if (selectedFidelizationClientId && window.innerWidth < 768) {
       document.body.style.overflow = 'hidden';
-      document.body.style.position = 'fixed';
-      document.body.style.width = '100%';
-    } else if (!selectedFidelizationClientId) {
+    } else {
       document.body.style.overflow = '';
-      document.body.style.position = '';
-      document.body.style.width = '';
     }
-    return () => {
-      document.body.style.overflow = '';
-      document.body.style.position = '';
-      document.body.style.width = '';
-    };
+    return () => { document.body.style.overflow = ''; };
   }, [selectedFidelizationClientId]);
 
   const { data: sub, isLoading: subLoading } = useQuery({
@@ -352,11 +336,13 @@ export default function Clients() {
           {selectedFidelizationClientId && (
             <>
               <div className="fixed inset-0 bg-black/40 z-40" onClick={() => setSelectedFidelizationClientId(null)} />
-              <div className="fixed inset-0 z-50 bg-[#0f172a] overflow-y-auto md:right-0 md:top-0 md:left-auto md:h-full md:w-[480px] md:inset-auto md:border-l md:border-slate-800 md:shadow-2xl md:shadow-black/50 md:transform md:transition-transform md:duration-300 custom-scroll" style={{ scrollbarWidth: 'none', msOverflowStyle: 'none' }}>
-                <button onClick={() => setSelectedFidelizationClientId(null)} className="md:hidden flex items-center gap-2 text-violet-400 text-sm font-medium mb-4 p-4">
-                  <ChevronLeft size={18} />
-                  Volver a clientes
-                </button>
+              <div className="fixed inset-0 z-50 bg-[#0a0f1e] overflow-y-auto overscroll-contain md:right-0 md:top-0 md:left-auto md:h-full md:w-[480px] md:inset-auto md:border-l md:border-slate-800 md:shadow-2xl md:shadow-black/50 md:transform md:transition-transform md:duration-300 custom-scroll" style={{ scrollbarWidth: 'none' }}>
+                <div className="md:hidden sticky top-0 z-10 flex items-center gap-2 p-4 bg-[#0a0f1e] border-b border-white/10">
+                  <button onClick={() => setSelectedFidelizationClientId(null)} className="flex items-center gap-2 text-violet-400 text-sm font-medium">
+                    <ChevronLeft size={18} />
+                    Volver a clientes
+                  </button>
+                </div>
                 <div className="p-6 pb-8 sticky top-0 bg-gradient-to-br from-violet-600/20 to-indigo-600/5 border-b border-white/6">
                   <div className="flex items-start justify-between">
                     <div className="flex items-center gap-3">
@@ -531,7 +517,7 @@ export default function Clients() {
           {/* Panel de detalle */}
           {selectedId && (
             <div className={selectedId
-  ? 'fixed inset-0 z-50 w-full h-full bg-[#0a0f1e] overflow-y-auto md:static md:inset-auto md:z-auto md:w-80 md:h-auto md:sticky md:top-20 md:self-start md:rounded-2xl md:border md:border-violet-500/20 md:shadow-2xl md:overflow-hidden'
+  ? 'fixed inset-0 z-50 w-full h-full bg-[#0a0f1e] overflow-y-auto overscroll-contain md:static md:inset-auto md:z-auto md:w-80 md:h-auto md:sticky md:top-20 md:self-start md:rounded-2xl md:border md:border-violet-500/20 md:shadow-2xl md:overflow-hidden'
   : 'hidden md:block md:w-80 md:sticky md:top-20 md:self-start md:bg-[#0f172a] md:border md:border-violet-500/20 md:rounded-2xl md:shadow-2xl'}>
               <div className="md:hidden sticky top-0 z-10 flex items-center gap-2 p-4 bg-[#0a0f1e] border-b border-white/10">
                 <button onClick={() => setSelectedId(null)} className="flex items-center gap-2 text-violet-400 text-sm font-medium">

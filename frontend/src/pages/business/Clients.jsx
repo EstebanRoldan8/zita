@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { Users, ChevronRight, X, Pencil, Search, Phone, Mail, Trophy, Plus, Check } from 'lucide-react';
+import { Users, ChevronRight, ChevronLeft, X, Pencil, Search, Phone, Mail, Trophy, Plus, Check } from 'lucide-react';
 import api from '../../lib/api';
 import { useAuth } from '../../context/AuthContext';
 
@@ -416,11 +416,11 @@ export default function Clients() {
           )}
         </div>
       ) : (
-        <div className="flex gap-6 items-start">
+        <div className="flex flex-col md:flex-row gap-6 items-start">
 
           {/* Lista */}
           <div className="flex-1 min-w-0">
-            <div className="flex gap-3 mb-5">
+            <div className="flex flex-col gap-3 md:flex-row mb-5">
               <div className="relative flex-1">
                 <Search size={15} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-500" />
                 <input type="text" value={search} onChange={(e) => setSearch(e.target.value)}
@@ -492,7 +492,13 @@ export default function Clients() {
 
           {/* Panel de detalle */}
           {selectedId && (
-            <div className="w-80 sticky top-20 self-start bg-[#0f172a] border border-violet-500/20 rounded-2xl shadow-2xl">
+            <div className={`${selectedId ? 'fixed inset-0 z-50 overflow-y-auto md:relative md:inset-auto md:z-auto' : 'hidden md:block'} md:w-80 md:sticky md:top-20 md:self-start bg-[#0f172a] md:border md:border-violet-500/20 md:rounded-2xl md:shadow-2xl`}>
+              <div className="md:hidden flex items-center gap-2 p-4 border-b border-white/10">
+                <button onClick={() => setSelectedId(null)} className="flex items-center gap-2 text-violet-400 text-sm font-medium">
+                  <ChevronLeft size={18} />
+                  Volver a clientes
+                </button>
+              </div>
               <div className="border-b border-white/15 p-4">
                 {/* Header */}
                 <div className="flex items-start justify-between mb-3">

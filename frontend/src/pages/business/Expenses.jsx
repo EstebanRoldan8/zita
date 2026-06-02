@@ -14,7 +14,7 @@ function formatCOP(v) {
 }
 
 function currentMonth() {
-  return new Date().toISOString().slice(0, 7);
+  return new Date().toLocaleDateString('en-CA', { timeZone: 'America/Bogota' }).slice(0, 7);
 }
 
 const CATEGORIES = [
@@ -33,7 +33,7 @@ const CAT_COLOR = {
   otro:            'text-slate-400 bg-slate-500/10 border-slate-500/20',
 };
 
-const emptyForm = { amount: '', category: 'otro', description: '', date: new Date().toISOString().slice(0, 10) };
+const emptyForm = { amount: '', category: 'otro', description: '', date: new Date().toLocaleDateString('en-CA', { timeZone: 'America/Bogota' }) };
 
 export default function Expenses() {
   const qc = useQueryClient();
@@ -230,7 +230,7 @@ export default function Expenses() {
                   <label className="block text-slate-400 text-sm mb-1.5">Fecha *</label>
                   <DatePicker
                     selected={form.date ? new Date(form.date) : null}
-                    onChange={(d) => setForm({ ...form, date: d.toISOString().slice(0, 10) })}
+                    onChange={(d) => setForm({ ...form, date: d.toLocaleDateString('en-CA', { timeZone: 'America/Bogota' }) })}
                     dateFormat="dd/MM/yyyy"
                     locale="es"
                     placeholderText="Seleccionar"

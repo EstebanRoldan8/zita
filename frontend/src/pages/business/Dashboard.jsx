@@ -130,14 +130,17 @@ export default function Dashboard() {
   const { data: todayAppts } = useQuery({
     queryKey: ['appointments-today'],
     queryFn: () => {
-      const today = new Date().toISOString().slice(0, 10);
+      const today = new Date().toLocaleDateString('en-CA', { timeZone: 'America/Bogota' });
       return api.get(`/api/appointments?date=${today}`).then((r) => r.data.data);
     },
   });
 
   const { data: daySummary } = useQuery({
     queryKey: ['cash-summary', 'day'],
-    queryFn: () => api.get('/api/cash/summary?period=day').then((r) => r.data.data),
+    queryFn: () => {
+      const today = new Date().toLocaleDateString('en-CA', { timeZone: 'America/Bogota' });
+      return api.get(`/api/cash/summary?period=day&date=${today}`).then((r) => r.data.data);
+    },
   });
 
   const { data: clientMetrics } = useQuery({

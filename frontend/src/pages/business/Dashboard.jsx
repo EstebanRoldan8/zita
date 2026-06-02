@@ -119,6 +119,7 @@ export default function Dashboard() {
   const { data: overview, isLoading, isError, error: overviewError } = useQuery({
     queryKey: ['metrics-overview'],
     queryFn: () => api.get('/api/metrics/overview').then((r) => r.data.data),
+    refetchInterval: 30000,
   });
 
   useEffect(() => {
@@ -133,6 +134,7 @@ export default function Dashboard() {
       const today = new Date().toLocaleDateString('en-CA', { timeZone: 'America/Bogota' });
       return api.get(`/api/appointments?date=${today}`).then((r) => r.data.data);
     },
+    refetchInterval: 15000,
   });
 
   const { data: daySummary } = useQuery({
@@ -141,6 +143,7 @@ export default function Dashboard() {
       const today = new Date().toLocaleDateString('en-CA', { timeZone: 'America/Bogota' });
       return api.get(`/api/cash/summary?period=day&date=${today}`).then((r) => r.data.data);
     },
+    refetchInterval: 15000,
   });
 
   const { data: clientMetrics } = useQuery({
@@ -152,6 +155,7 @@ export default function Dashboard() {
   const { data: appointments = [] } = useQuery({
     queryKey: ['appointments-lite', date],
     queryFn: () => api.get(`/api/appointments?date=${date}`).then((r) => r.data.data),
+    refetchInterval: 15000,
   });
 
   const { data: clients = [] } = useQuery({

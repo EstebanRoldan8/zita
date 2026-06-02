@@ -196,7 +196,8 @@ export default function Clients() {
   };
 
   useEffect(() => {
-    if (selectedId) {
+    const isMobile = window.innerWidth < 768;
+    if (selectedId && isMobile) {
       document.body.style.overflow = 'hidden';
     } else {
       document.body.style.overflow = '';
@@ -205,7 +206,8 @@ export default function Clients() {
   }, [selectedId]);
 
   useEffect(() => {
-    if (selectedFidelizationClientId) {
+    const isMobile = window.innerWidth < 768;
+    if (selectedFidelizationClientId && isMobile) {
       document.body.style.overflow = 'hidden';
     } else {
       document.body.style.overflow = '';

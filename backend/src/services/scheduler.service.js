@@ -167,18 +167,26 @@ cron.schedule('0 * * * *', async () => {
       }
 
       if (appointment.services?.price && appointment.services.price > 0) {
-        await supabaseAdmin
+        const { data: existingIncome } = await supabaseAdmin
           .from('income')
-          .insert({
-            business_id: appointment.business_id,
-            amount: appointment.services.price,
-            category: 'servicios',
-            description: `${appointment.services.name} - auto-completado`,
-            source: 'appointment',
-            appointment_id: appointment.id,
-            date: new Date().toLocaleDateString('en-CA', { timeZone: 'America/Bogota' })
-          })
-          .catch(err => logger.error(`Error creando income para appointment ${appointment.id}:`, err.message));
+          .select('id')
+          .eq('appointment_id', appointment.id)
+          .limit(1);
+
+        if (!existingIncome || existingIncome.length === 0) {
+          await supabaseAdmin
+            .from('income')
+            .insert({
+              business_id: appointment.business_id,
+              amount: appointment.services.price,
+              category: 'servicios',
+              description: `${appointment.services.name} - auto-completado`,
+              source: 'appointment',
+              appointment_id: appointment.id,
+              date: new Date().toLocaleDateString('en-CA', { timeZone: 'America/Bogota' })
+            })
+            .catch(err => logger.error(`Error creando income para appointment ${appointment.id}:`, err.message));
+        }
       }
     }
 

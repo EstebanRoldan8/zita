@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { Users, ChevronRight, ChevronLeft, X, Pencil, Search, Phone, Mail, Trophy, Plus, Check } from 'lucide-react';
 import api from '../../lib/api';
@@ -194,26 +194,6 @@ export default function Clients() {
   const handleSelectClient = (clientId) => {
     setSelectedId(clientId === selectedId ? null : clientId);
   };
-
-  useEffect(() => {
-    const isMobile = window.innerWidth < 768;
-    if (selectedId && isMobile) {
-      document.body.style.overflow = 'hidden';
-    } else {
-      document.body.style.overflow = '';
-    }
-    return () => { document.body.style.overflow = ''; };
-  }, [selectedId]);
-
-  useEffect(() => {
-    const isMobile = window.innerWidth < 768;
-    if (selectedFidelizationClientId && isMobile) {
-      document.body.style.overflow = 'hidden';
-    } else {
-      document.body.style.overflow = '';
-    }
-    return () => { document.body.style.overflow = ''; };
-  }, [selectedFidelizationClientId]);
 
   const { data: sub, isLoading: subLoading } = useQuery({
     queryKey: ['subscription'],

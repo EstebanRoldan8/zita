@@ -29,7 +29,7 @@ function periodRange(query) {
     if (query.date && /^\d{4}-\d{2}-\d{2}$/.test(query.date)) {
       return { start: query.date, end: query.date };
     }
-    const today = dateToString(now);
+    const today = new Date().toLocaleDateString('en-CA', { timeZone: 'America/Bogota' });
     return { start: today, end: today };
   }
 
@@ -73,9 +73,8 @@ async function getSummary(req, res) {
     const chartStart = chartFrom.toISOString().slice(0, 10);
 
     // Convert dates to ISO timestamps (UTC): start at 00:00, end at next day 00:00
-    const startTS = `${start}T00:00:00Z`;
-    const nextDay = new Date(new Date(end).getTime() + 86400000);
-    const endTS = nextDay.toISOString().split('T')[0] + 'T00:00:00Z';
+    const startTS = `${start}T00:00:00-05:00`;
+    const endTS = `${end}T23:59:59-05:00`;
     const chartStartTS = `${chartStart}T00:00:00Z`;
 
     const [
@@ -150,9 +149,8 @@ async function getIncome(req, res) {
     const userClient = createUserClient(req.headers.authorization);
     let { start, end } = periodRange(req.query);
 
-    const startTS = `${start}T00:00:00Z`;
-    const nextDay = new Date(new Date(end).getTime() + 86400000);
-    const endTS = nextDay.toISOString().split('T')[0] + 'T00:00:00Z';
+    const startTS = `${start}T00:00:00-05:00`;
+    const endTS = `${end}T23:59:59-05:00`;
 
     const [
       { data: manual, error: incErr },
@@ -419,8 +417,8 @@ async function exportPdf(req, res) {
     const [yr, mo] = month.split('-').map(Number);
     const start = `${month}-01`;
     const end = new Date(yr, mo, 0).toISOString().slice(0, 10);
-    const startTS = `${start}T00:00:00Z`;
-    const endTS = new Date(new Date(end).getTime() + 86400000).toISOString().split('T')[0] + 'T00:00:00Z';
+    const startTS = `${start}T00:00:00-05:00`;
+    const endTS = `${end}T23:59:59-05:00`;
     const MONTHS = ['Enero','Febrero','Marzo','Abril','Mayo','Junio','Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre'];
     const monthLabel = `${MONTHS[mo-1]} ${yr}`;
     const today = new Date().toLocaleDateString('es-CO', { timeZone: 'America/Bogota' });
@@ -598,8 +596,8 @@ async function getExcel(req, res) {
     const [yr, mo] = month.split('-').map(Number);
     const start = `${month}-01`;
     const end = new Date(yr, mo, 0).toISOString().slice(0, 10);
-    const startTS = `${start}T00:00:00Z`;
-    const endTS = new Date(new Date(end).getTime() + 86400000).toISOString().split('T')[0] + 'T00:00:00Z';
+    const startTS = `${start}T00:00:00-05:00`;
+    const endTS = `${end}T23:59:59-05:00`;
     const MONTHS = ['Enero','Febrero','Marzo','Abril','Mayo','Junio','Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre'];
     const monthLabel = `${MONTHS[mo - 1]} ${yr}`;
     const today = new Date().toLocaleDateString('es-CO', { timeZone: 'America/Bogota' });

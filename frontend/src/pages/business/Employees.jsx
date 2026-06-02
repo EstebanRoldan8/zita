@@ -145,7 +145,7 @@ function TeamTab({ showInactive, onShowInactiveChange, showCreateModal, setShowC
                 <div key={emp.id} className="bg-[#131929]/50 border border-slate-800/50 rounded-xl px-5 py-4 opacity-60 flex items-center justify-between">
                   <div>
                     <div className="flex items-center gap-2">
-                      <p className="text-slate-400 font-medium">{emp.name}</p>
+                      <p className="text-slate-400 font-medium truncate">{emp.name}</p>
                       <span className="text-xs text-slate-500 bg-slate-700/50 border border-slate-600 px-2 py-0.5 rounded-full">Inactivo</span>
                     </div>
                   </div>
@@ -251,7 +251,7 @@ function TeamTab({ showInactive, onShowInactiveChange, showCreateModal, setShowC
 // ─── PESTAÑA RENDIMIENTO ──────────────────────────────────────────────────────
 function PerformanceTab() {
   const defaultMonth = new Date().toISOString().slice(0, 7);
-  const defaultDate = new Date().toISOString().slice(0, 10);
+  const defaultDate = new Date().toLocaleDateString('en-CA', { timeZone: 'America/Bogota' });
   const [viewType, setViewType] = useState('day');
   const [month, setMonth] = useState(defaultMonth);
   const [date, setDate] = useState(defaultDate);
@@ -288,13 +288,13 @@ function PerformanceTab() {
           <div className="bg-[#131929] rounded-lg p-1 inline-flex gap-1">
             <button
               onClick={() => setViewType('day')}
-              className={`px-3 py-1 rounded-md text-sm font-medium transition ${viewType === 'day' ? 'bg-violet-600 text-white' : 'text-white/50 hover:text-white'}`}
+              className={`px-3 py-1 rounded-md text-sm font-medium transition whitespace-nowrap ${viewType === 'day' ? 'bg-violet-600 text-white' : 'text-white/50 hover:text-white'}`}
             >
               Por día
             </button>
             <button
               onClick={() => setViewType('month')}
-              className={`px-3 py-1 rounded-md text-sm font-medium transition ${viewType === 'month' ? 'bg-violet-600 text-white' : 'text-white/50 hover:text-white'}`}
+              className={`px-3 py-1 rounded-md text-sm font-medium transition whitespace-nowrap ${viewType === 'month' ? 'bg-violet-600 text-white' : 'text-white/50 hover:text-white'}`}
             >
               Por mes
             </button>

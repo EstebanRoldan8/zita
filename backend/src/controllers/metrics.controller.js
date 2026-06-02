@@ -180,8 +180,8 @@ async function employeeMetrics(req, res) {
 
     if (dateParam && /^\d{4}-\d{2}-\d{2}$/.test(dateParam)) {
       const [y, m, d] = dateParam.split('-').map(Number);
-      start = new Date(y, m - 1, d).toISOString();
-      end = new Date(y, m - 1, d + 1).toISOString();
+      start = `${dateParam}T00:00:00-05:00`;
+      end = `${dateParam}T23:59:59-05:00`;
     } else if (monthParam && /^\d{4}-\d{2}$/.test(monthParam)) {
       const [y, m] = monthParam.split('-').map(Number);
       start = new Date(y, m - 1, 1).toISOString();
@@ -190,9 +190,9 @@ async function employeeMetrics(req, res) {
       ({ start, end } = monthRange());
     }
 
-    const today = new Date();
-    const todayStart = new Date(today.getFullYear(), today.getMonth(), today.getDate()).toISOString();
-    const todayEnd = new Date(today.getFullYear(), today.getMonth(), today.getDate() + 1).toISOString();
+    const todayCol = new Date().toLocaleDateString('en-CA', { timeZone: 'America/Bogota' });
+    const todayStart = `${todayCol}T00:00:00-05:00`;
+    const todayEnd = `${todayCol}T23:59:59-05:00`;
 
     const [{ data: employees, error: empErr }, { data: appts, error: apptErr }, { data: todayAppts, error: todayErr }] = await Promise.all([
       userClient

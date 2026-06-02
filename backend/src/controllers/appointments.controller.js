@@ -110,8 +110,11 @@ async function create(req, res) {
       const limite = PLANS[plan].max_appointments_month;
 
       if (limite !== -1) {
-        const inicioMes = new Date(ahora.getFullYear(), ahora.getMonth(), 1).toISOString();
-        const finMes = new Date(ahora.getFullYear(), ahora.getMonth() + 1, 0, 23, 59, 59).toISOString();
+        const mesActual = new Date().toLocaleDateString('en-CA', { timeZone: 'America/Bogota' }).slice(0, 7);
+        const inicioMes = `${mesActual}-01T00:00:00-05:00`;
+        const [yr, mo] = mesActual.split('-').map(Number);
+        const ultimoDia = new Date(yr, mo, 0).getDate();
+        const finMes = `${mesActual}-${String(ultimoDia).padStart(2, '0')}T23:59:59-05:00`;
 
         const { count } = await supabaseAdmin
           .from('appointments')
@@ -343,7 +346,7 @@ async function update(req, res) {
               category: 'otro',
               amount: price,
               description: `Servicio de recompensa para ${clientName}`,
-              date: new Date().toISOString().slice(0, 10),
+              date: new Date().toLocaleDateString('en-CA', { timeZone: 'America/Bogota' }),
             });
         }
       } catch (loyaltyErr) {

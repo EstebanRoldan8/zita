@@ -420,7 +420,7 @@ export default function Clients() {
           )}
         </div>
       ) : (
-        <div className="flex flex-col md:flex-row gap-6 items-start">
+        <div className="flex flex-col md:flex-row gap-6 items-start md:items-stretch">
 
           {/* Lista */}
           <div className="flex-1 min-w-0">
@@ -496,7 +496,7 @@ export default function Clients() {
 
           {/* Panel de detalle */}
           {selectedId && (
-            <div className={`${selectedId ? 'fixed inset-0 z-50 overflow-y-auto md:relative md:inset-auto md:z-auto' : 'hidden md:block'} md:w-80 md:sticky md:top-20 md:self-start bg-[#0f172a] md:border md:border-violet-500/20 md:rounded-2xl md:shadow-2xl`} style={{ scrollbarWidth: 'none', msOverflowStyle: 'none' }}>
+            <div className={`${selectedId ? 'fixed inset-0 z-50 overflow-y-auto md:relative md:inset-auto md:z-auto' : 'hidden md:block'} md:w-80 md:sticky md:top-20 md:self-start md:max-h-[calc(100vh-6rem)] md:overflow-y-auto bg-[#0f172a] md:border md:border-violet-500/20 md:rounded-2xl md:shadow-2xl`} style={{ scrollbarWidth: 'none', msOverflowStyle: 'none' }}>
               <div className="md:hidden flex items-center gap-2 p-4 border-b border-white/10">
                 <button onClick={() => setSelectedId(null)} className="flex items-center gap-2 text-violet-400 text-sm font-medium">
                   <ChevronLeft size={18} />

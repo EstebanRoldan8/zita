@@ -69,7 +69,7 @@ app.options('*', cors(corsOptions));
 
 const globalLimiter = rateLimit({
   windowMs: 15 * 60 * 1000,
-  max: 1000,
+  max: 3000,
   message: { success: false, error: 'Demasiadas solicitudes, intenta de nuevo en 15 minutos.' },
   skip: (req) => process.env.NODE_ENV !== 'production',
 });

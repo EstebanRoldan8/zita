@@ -1099,19 +1099,9 @@ export default function Settings() {
         </p>
       </div>
 
-      {/* Tabs - Dropdown en móvil, Buttons en desktop */}
+      {/* Tabs - Horizontal scroll en móvil */}
       <div className="mb-6 sm:mb-8">
-        <select
-          value={tab}
-          onChange={(e) => setTab(e.target.value)}
-          className="sm:hidden w-full bg-[#131929] border border-slate-800 text-white rounded-lg px-4 py-2.5 text-sm focus:outline-none focus:border-violet-500 transition"
-        >
-          {visibleTabs.map(({ id, label }) => (
-            <option key={id} value={id}>{label}</option>
-          ))}
-        </select>
-
-        <div className="flex flex-wrap gap-1 mb-6 bg-[#0d1420] p-1 rounded-xl border border-white/5">
+        <div className="flex overflow-x-auto gap-1 mb-6 bg-[#0d1420] p-1 rounded-xl border border-white/5 scrollbar-hide">
           {visibleTabs.map(({ id, label, icon: Icon }) => (
             <button
               key={id}

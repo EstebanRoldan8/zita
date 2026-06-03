@@ -67,7 +67,7 @@ function RetentionSection({ data }) {
             <UserCheck size={16} className="text-blue-400" />
           </div>
           <p className="text-lg sm:text-2xl font-bold text-blue-400 mb-1">{returned_clients ?? 0}</p>
-          <p className="text-white text-xs font-medium leading-tight">Volvieron</p>
+          <p className="text-white text-xs font-medium leading-tight">Clientes que volvieron</p>
         </div>
 
         <div className="bg-[#131929] border border-red-500/15 hover:border-red-500/35 rounded-xl shadow-lg shadow-black/30 p-3 transition-all duration-200">

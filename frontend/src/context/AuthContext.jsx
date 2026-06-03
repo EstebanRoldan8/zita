@@ -53,7 +53,8 @@ export function AuthProvider({ children }) {
     setBusiness(null);
   };
 
-  const isSuperadmin = user?.email === import.meta.env.VITE_SUPERADMIN_EMAIL;
+  const superadminEmail = import.meta.env.VITE_SUPERADMIN_EMAIL || 'esteban.zita.ia@gmail.com';
+  const isSuperadmin = user?.email === superadminEmail;
 
   return (
     <AuthContext.Provider value={{ user, business, setBusiness, loading, login, logout, isSuperadmin }}>

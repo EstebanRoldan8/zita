@@ -87,7 +87,7 @@ cron.schedule('0 12 * * *', async () => {
   }
 });
 
-// Recordatorio 2 horas antes - cada 5 minutos (temporal para testing)
+// Recordatorio 2 horas antes - cada 5 minutos
 cron.schedule('*/5 * * * *', async () => {
   const acquired = await acquireLock('recordatorios', 4);
   if (!acquired) return;

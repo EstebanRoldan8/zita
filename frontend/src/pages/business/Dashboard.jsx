@@ -123,6 +123,12 @@ export default function Dashboard() {
   });
 
   useEffect(() => {
+    // Reset picker date when business changes
+    setPickerDate(todayLocal());
+    setDate(today());
+  }, [business?.id]);
+
+  useEffect(() => {
     if (isError && overviewError) {
       console.log('[Dashboard] /api/metrics/overview error:', overviewError?.response?.status, overviewError?.response?.data, overviewError?.message);
     }

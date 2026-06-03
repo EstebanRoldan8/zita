@@ -516,6 +516,10 @@ function ProductModal({ initial, onClose, onSave, isTienda }) {
 
 // ── Catálogo Tab ─────────────────────────────────────────────────────────────
 function CatalogoTab({ products, clients, showInactive, onShowInactiveChange, sortBy, onSortChange, isTienda, newModal, setNewModal }) {
+  if (!products || !Array.isArray(products)) {
+    return <div className="text-slate-500">Error cargando productos</div>;
+  }
+
   const qc = useQueryClient();
   const [sellProduct, setSellProduct] = useState(null);
   const [editProduct, setEditProduct] = useState(null);

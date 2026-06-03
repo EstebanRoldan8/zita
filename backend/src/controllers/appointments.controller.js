@@ -46,6 +46,11 @@ async function getAll(req, res) {
       query = query.gte('scheduled_at', start).lte('scheduled_at', end);
     }
 
+    // Paginación: ?limit=N&offset=M para límites custom, default 100
+    const limit = Math.min(parseInt(req.query.limit || '100'), 1000);
+    const offset = parseInt(req.query.offset || '0');
+    query = query.range(offset, offset + limit - 1);
+
     const { data, error } = await query;
     if (error) throw error;
     return res.json({ success: true, data });

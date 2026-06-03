@@ -146,7 +146,7 @@ export default function Services() {
         </div>
       ) : (
         <>
-          <div className="mb-6 flex flex-col gap-3">
+          <div className="mb-6 flex flex-col gap-3 md:flex-row md:items-center md:justify-between md:gap-0">
             <label className="flex items-center gap-2 cursor-pointer">
               <input
                 type="checkbox"

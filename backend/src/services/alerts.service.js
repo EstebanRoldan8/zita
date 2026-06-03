@@ -26,6 +26,17 @@ async function getAlerts(businessId) {
   const thirtyDaysAgo = new Date(); thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
   const thirtyDaysAgoStr = thirtyDaysAgo.toLocaleDateString('en-CA', { timeZone: 'America/Bogota' }) + 'T00:00:00-05:00';
 
+  logger.info('ALERTS DEBUG', {
+    todayCol,
+    tomorrowStr,
+    monthStart,
+    monthEnd,
+    prevStart,
+    prevEnd,
+    sevenDaysAgoStr,
+    thirtyDaysAgoStr
+  });
+
   const [
     { data: pendingTomorrow },
     { data: currAppts        },

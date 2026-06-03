@@ -49,8 +49,10 @@ async function getSales(req, res) {
   try {
     const sb = createUserClient(req.headers.authorization);
     const now = new Date();
-    const monthStart = new Date(now.getFullYear(), now.getMonth(), 1).toISOString().slice(0, 10);
-    const monthEnd   = new Date(now.getFullYear(), now.getMonth() + 1, 0).toISOString().slice(0, 10);
+    const todayCol = new Date().toLocaleDateString('en-CA', { timeZone: 'America/Bogota' });
+    const [cy, cm] = todayCol.slice(0, 7).split('-').map(Number);
+    const monthStart = `${todayCol.slice(0, 7)}-01`;
+    const monthEnd   = `${todayCol.slice(0, 7)}-${String(new Date(cy, cm, 0).getDate()).padStart(2, '0')}`;
 
     const { data, error } = await sb
       .from('product_sales')
@@ -282,7 +284,7 @@ async function sell(req, res) {
         amount:      totalAmount,
         category:    'productos',
         description: `Venta: ${product.name}${qty > 1 ? ` ×${qty}` : ''}`,
-        date:        new Date().toISOString().slice(0, 10),
+        date:        new Date().toLocaleDateString('en-CA', { timeZone: 'America/Bogota' }),
       });
     if (incomeErr) logger.warn('products.sell income: ' + incomeErr.message);
 

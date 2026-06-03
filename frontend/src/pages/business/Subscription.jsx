@@ -393,7 +393,7 @@ export default function Subscription() {
                       {plan.key === 'lite' && (
                         <div className="mt-3 p-3 rounded-xl bg-violet-500/10 border border-violet-500/20 text-center">
                           <p className="text-xs text-violet-300">
-                            ✨ Desbloquea panel completo y asistente IA
+                            ✨ Desbloquea el panel completo + IA
                           </p>
                           <p className="text-xs text-violet-400 font-medium mt-0.5">
                             desde $100k/mes →

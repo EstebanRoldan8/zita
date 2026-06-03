@@ -131,7 +131,7 @@ async function getAlerts(businessId) {
   // 2. Caída de ingresos > 20 %
   const currIncome = sum(currAppts, 'price') + sum(currManual, 'amount');
   const prevIncome = sum(prevAppts, 'price') + sum(prevManual, 'amount');
-  const dayOfMonth = now.getDate();
+  const dayOfMonth = new Date().toLocaleDateString('en-CA', { timeZone: 'America/Bogota' }).slice(8, 10) * 1;
 
   if (dayOfMonth >= 10 && prevIncome > 0 && currIncome < prevIncome * 0.8) {
     const drop = Math.round(((prevIncome - currIncome) / prevIncome) * 100);
@@ -193,7 +193,7 @@ async function getAlerts(businessId) {
 
   // 6. Meta mensual en riesgo (< 50% a mitad de mes)
   if (monthGoal?.income_goal > 0) {
-    const dayOfMonth  = now.getDate();
+    const dayOfMonth  = new Date().toLocaleDateString('en-CA', { timeZone: 'America/Bogota' }).slice(8, 10) * 1;
     const daysInMonth = new Date(year, month, 0).getDate();
     if (dayOfMonth >= Math.floor(daysInMonth / 2)) {
       const goalPct = currIncome / Number(monthGoal.income_goal);

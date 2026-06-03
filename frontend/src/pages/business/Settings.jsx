@@ -437,7 +437,7 @@ function ProfileTab() {
         <button
           onClick={() => saveMutation.mutate(form)}
           disabled={saveMutation.isPending}
-          className="flex items-center gap-2 bg-violet-600 hover:bg-violet-500 disabled:opacity-50 text-white text-sm font-medium px-5 py-2.5 rounded-lg transition"
+          className="flex items-center justify-center gap-2 bg-violet-600 hover:bg-violet-500 disabled:opacity-50 text-white text-sm font-medium px-5 py-2.5 rounded-lg transition w-full md:w-auto"
         >
           <Check size={15} />
           {saveMutation.isPending ? 'Guardando...' : 'Guardar perfil'}
@@ -532,7 +532,7 @@ function NotificationsTab() {
         <button
           onClick={() => saveMutation.mutate({ whatsapp_notify: form.whatsapp_notify, owner_whatsapp: form.owner_whatsapp || null })}
           disabled={saveMutation.isPending}
-          className="flex items-center gap-2 bg-violet-600 hover:bg-violet-500 disabled:opacity-50 text-white text-sm font-medium px-5 py-2.5 rounded-lg transition"
+          className="flex items-center justify-center gap-2 bg-violet-600 hover:bg-violet-500 disabled:opacity-50 text-white text-sm font-medium px-5 py-2.5 rounded-lg transition w-full md:w-auto"
         >
           <Check size={15} />
           {saveMutation.isPending ? 'Guardando...' : 'Guardar notificaciones'}
@@ -634,7 +634,7 @@ function WhatsappTab() {
             whatsapp_access_token:    form.whatsapp_access_token?.trim()    || null,
           })}
           disabled={saveMutation.isPending}
-          className="flex items-center gap-2 bg-violet-600 hover:bg-violet-500 disabled:opacity-50 text-white text-sm font-medium px-5 py-2.5 rounded-lg transition"
+          className="flex items-center justify-center gap-2 bg-violet-600 hover:bg-violet-500 disabled:opacity-50 text-white text-sm font-medium px-5 py-2.5 rounded-lg transition w-full md:w-auto"
         >
           <Check size={15} />
           {saveMutation.isPending ? 'Guardando...' : 'Guardar configuración'}
@@ -736,7 +736,7 @@ function ModulesTab() {
         <button
           onClick={handleSave}
           disabled={saveMutation.isPending}
-          className="flex items-center gap-2 bg-violet-600 hover:bg-violet-500 disabled:opacity-50 text-white text-sm font-medium px-5 py-2.5 rounded-lg transition mt-6"
+          className="flex items-center justify-center gap-2 bg-violet-600 hover:bg-violet-500 disabled:opacity-50 text-white text-sm font-medium px-5 py-2.5 rounded-lg transition mt-6 w-full md:w-auto"
         >
           <Check size={15} />
           {saveMutation.isPending ? 'Guardando...' : 'Guardar módulos'}
@@ -855,7 +855,7 @@ function LoyaltyConfigTab() {
             reward_service_id: form.reward_service_id || null,
           })}
           disabled={saveMutation.isPending}
-          className="flex items-center gap-2 bg-violet-600 hover:bg-violet-500 disabled:opacity-50 text-white text-sm font-medium px-5 py-2.5 rounded-lg transition"
+          className="flex items-center justify-center gap-2 bg-violet-600 hover:bg-violet-500 disabled:opacity-50 text-white text-sm font-medium px-5 py-2.5 rounded-lg transition w-full md:w-auto"
         >
           <Check size={15} />
           {saveMutation.isPending ? 'Guardando...' : 'Guardar configuración'}
@@ -1051,7 +1051,7 @@ function RecallTab() {
       <button
         onClick={handleSave}
         disabled={saveMutation.isPending}
-        className="flex items-center gap-2 bg-violet-600 hover:bg-violet-500 disabled:opacity-50 text-white text-sm font-medium px-5 py-2.5 rounded-lg transition"
+        className="flex items-center justify-center gap-2 bg-violet-600 hover:bg-violet-500 disabled:opacity-50 text-white text-sm font-medium px-5 py-2.5 rounded-lg transition w-full md:w-auto"
       >
         <Check size={15} />
         {saveMutation.isPending ? 'Guardando...' : 'Guardar configuración'}

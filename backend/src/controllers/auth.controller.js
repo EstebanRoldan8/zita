@@ -42,7 +42,10 @@ async function register(req, res) {
 
     return res.status(201).json({
       success: true,
-      data: { user: authData.user, business },
+      data: {
+        user: { id: authData.user.id, email: authData.user.email, created_at: authData.user.created_at },
+        business
+      },
     });
   } catch (err) {
     logger.error(`register: ${err.message}`);
@@ -77,7 +80,7 @@ async function login(req, res) {
       success: true,
       data: {
         session: authData.session,
-        user: authData.user,
+        user: { id: authData.user.id, email: authData.user.email, created_at: authData.user.created_at },
         business: business || null,
       },
     });

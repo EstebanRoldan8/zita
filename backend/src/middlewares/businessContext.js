@@ -17,12 +17,20 @@ async function businessContext(req, res, next) {
 
     const { data, error } = await userClient
       .from('businesses')
-      .select('id')
+      .select('id, user_id')
       .eq('user_id', req.user.id)
       .single();
 
     if (error || !data) {
       return res.status(404).json({ success: false, error: 'Negocio no encontrado' });
+    }
+
+    if (data.user_id !== req.user.id) {
+      logger.error('Intento de acceso a negocio ajeno', {
+        userId: req.user.id,
+        businessUserId: data.user_id
+      });
+      return res.status(403).json({ success: false, error: 'Acceso no autorizado' });
     }
 
     req.businessId = data.id;

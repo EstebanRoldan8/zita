@@ -279,7 +279,7 @@ export default function Subscription() {
 
       {/* SECCIÓN 3 — Comparativo de planes */}
       <div className="mb-6 pt-6">
-        <h2 className="text-slate-300 text-sm font-semibold mb-4">Planes disponibles</h2>
+        <h2 className="text-slate-300 text-sm font-semibold mb-4 text-center md:text-left">Planes disponibles</h2>
         <div>
           {/* Tabs solo en móvil */}
           <div className="flex lg:hidden gap-2 mb-4">

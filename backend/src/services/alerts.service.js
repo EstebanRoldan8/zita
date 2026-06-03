@@ -1,4 +1,5 @@
 const { supabaseAdmin } = require('../config/supabase');
+const logger = require('../utils/logger');
 
 function sum(arr, field) {
   return (arr || []).reduce((s, r) => s + (Number(r[field]) || 0), 0);

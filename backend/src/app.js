@@ -1,5 +1,8 @@
 require('dotenv').config();
 
+const fs = require('fs');
+if (!fs.existsSync('logs')) fs.mkdirSync('logs', { recursive: true });
+
 process.on('uncaughtException', (err) => {
   console.error('UNCAUGHT EXCEPTION:', err.message);
   console.error(err.stack);
@@ -155,8 +158,10 @@ const server = app.listen(PORT, () => {
   logger.info(`ZITA API corriendo en puerto ${PORT} [${process.env.NODE_ENV}]`);
   logger.info('Rutas registradas: /api/auth, /api/businesses, /api/appointments, /api/clients, /api/services, /api/metrics, /api/support, /api/admin, /api/employees, /api/webhook');
   initScheduler();
-  console.log('\n✓ Scheduler verificado y activo\n');
+  logger.info('✓ Scheduler verificado y activo');
 });
+
+server.setTimeout(30000);
 
 server.on('error', (err) => {
   if (err.code === 'EADDRINUSE') {

@@ -6,11 +6,14 @@ const logger = require('../utils/logger');
 const { getAvailableEmployee, getNextAvailableSlots } = require('../utils/availability');
 
 async function getBusinessByPhoneNumberId(phoneNumberId) {
-  const { data } = await supabaseAdmin
+  const { data, error } = await supabaseAdmin
     .from('businesses')
     .select('id, name, business_type, whatsapp_phone_number_id, whatsapp_access_token')
     .eq('whatsapp_phone_number_id', phoneNumberId)
     .single();
+  if (error) {
+    logger.error('Error buscando business por phoneNumberId:', { phoneNumberId, error: error.message });
+  }
   return data;
 }
 

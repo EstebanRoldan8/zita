@@ -354,7 +354,11 @@ async function update(req, res) {
       }
 
       // Sumar puntos de fidelización (independiente)
-      awardLoyaltyPoints(req.businessId, existing.client_id, id);
+      try {
+        await awardLoyaltyPoints(req.businessId, existing.client_id, id);
+      } catch (loyaltyError) {
+        logger.error('Error otorgando puntos de fidelización:', loyaltyError.message);
+      }
     }
 
     return res.json({ success: true, data });

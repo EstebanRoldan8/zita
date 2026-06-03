@@ -3,6 +3,8 @@ const { sendMessage } = require('../config/whatsapp');
 const { supabaseAdmin } = require('../config/supabase');
 const logger = require('../utils/logger');
 
+let schedulerInitialized = false;
+
 async function acquireLock(lockName, expiresInMinutes = 10) {
   const expiresAt = new Date(Date.now() + expiresInMinutes * 60 * 1000).toISOString();
   const lockKey = `scheduler_${lockName}`;
@@ -28,6 +30,11 @@ async function acquireLock(lockName, expiresInMinutes = 10) {
 }
 
 const initScheduler = () => {
+if (schedulerInitialized) {
+  logger.warn('initScheduler ya fue inicializado, ignorando llamada duplicada');
+  return;
+}
+schedulerInitialized = true;
 
 // Resumen diario a las 7am Colombia (12:00 UTC)
 cron.schedule('0 12 * * *', async () => {

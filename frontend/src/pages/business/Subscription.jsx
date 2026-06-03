@@ -277,7 +277,7 @@ export default function Subscription() {
       {/* SECCIÓN 3 — Comparativo de planes */}
       <div className="mb-6 pt-6">
         <h2 className="text-slate-300 text-sm font-semibold mb-4">Planes disponibles</h2>
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 max-w-5xl mx-auto items-stretch pt-8">
+        <div className="flex flex-col gap-6 lg:grid lg:grid-cols-3 lg:gap-6 max-w-5xl mx-auto items-stretch pt-8 md:flex-row md:overflow-x-auto md:pb-4">
           {plans.map((plan) => {
             const isCurrent = plan.key === sub.plan;
             const planOrder = PLAN_ORDER[plan.key];
@@ -369,7 +369,7 @@ export default function Subscription() {
                       {plan.key === 'lite' && (
                         <div className="mt-3 p-3 rounded-xl bg-violet-500/10 border border-violet-500/20 text-center">
                           <p className="text-xs text-violet-300">
-                            ✨ Desbloquea panel completo, asistente IA y más
+                            ✨ Desbloquea panel completo y asistente IA
                           </p>
                           <p className="text-xs text-violet-400 font-medium mt-0.5">
                             desde $100k/mes →

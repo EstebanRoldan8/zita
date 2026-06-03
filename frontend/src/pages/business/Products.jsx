@@ -1053,7 +1053,7 @@ export default function Products() {
           ))}
         </div>
         <button onClick={() => setNewModal(true)} className="flex-shrink-0 px-3 py-2 text-xs sm:text-sm bg-violet-600 hover:bg-violet-500 text-white rounded-xl transition-colors flex items-center gap-1 whitespace-nowrap">
-          <Plus size={14} /> Nuevo
+          <Plus size={14} /> Nuevo producto
         </button>
       </div>
 

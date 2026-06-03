@@ -71,12 +71,12 @@ async function getAlerts(businessId) {
     supabaseAdmin
       .from('income').select('amount')
       .eq('business_id', businessId)
-      .gte('date', monthStart).lte('date', monthEnd),
+      .gte('date', monthStart.slice(0, 10)).lte('date', monthEnd.slice(0, 10)),
 
     supabaseAdmin
       .from('income').select('amount')
       .eq('business_id', businessId)
-      .gte('date', prevStart).lte('date', prevEnd),
+      .gte('date', prevStart.slice(0, 10)).lte('date', prevEnd.slice(0, 10)),
 
     supabaseAdmin
       .from('employees').select('id, name')
@@ -102,7 +102,7 @@ async function getAlerts(businessId) {
     supabaseAdmin
       .from('expenses').select('amount')
       .eq('business_id', businessId)
-      .gte('date', monthStart).lte('date', monthEnd),
+      .gte('date', monthStart.slice(0, 10)).lte('date', monthEnd.slice(0, 10)),
 
     supabaseAdmin
       .from('monthly_goals').select('income_goal')

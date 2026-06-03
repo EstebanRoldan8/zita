@@ -284,7 +284,7 @@ function PerformanceTab() {
           Rendimiento del equipo — <span className="text-slate-300">{label}</span>
         </p>
 
-        <div className="flex flex-col gap-2 md:flex-row md:items-center md:gap-3">
+        <div className="flex flex-wrap items-center gap-2 md:flex-nowrap md:gap-3">
           <div className="bg-[#131929] rounded-lg p-1 inline-flex gap-1">
             <button
               onClick={() => setViewType('day')}
@@ -309,7 +309,7 @@ function PerformanceTab() {
               dateFormat="dd/MM/yyyy"
               locale="es"
               placeholderText="Seleccionar"
-              className="w-full md:w-auto bg-[#131929] border border-slate-800 text-white rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:border-violet-500 transition"
+              className="w-36 bg-[#131929] border border-slate-800 text-white rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:border-violet-500 transition"
             />
           )}
         </div>

@@ -11,7 +11,7 @@ async function getMetrics(req, res) {
     const [
       { count: totalBusinesses },
       { count: todayAppointments },
-      { data: byStatus },
+      { count: statusCount },
     ] = await Promise.all([
       supabaseAdmin.from('businesses').select('*', { count: 'exact', head: true }),
       supabaseAdmin
@@ -19,10 +19,11 @@ async function getMetrics(req, res) {
         .select('*', { count: 'exact', head: true })
         .gte('scheduled_at', todayStart.toISOString())
         .lte('scheduled_at', todayEnd.toISOString()),
-      supabaseAdmin.from('businesses').select('status'),
+      supabaseAdmin.from('businesses').select('status', { count: 'exact', head: true }),
     ]);
 
-    const statusCount = (byStatus || []).reduce((acc, b) => {
+    const { data: byStatus } = await supabaseAdmin.from('businesses').select('status');
+    const statusCountMap = (byStatus || []).reduce((acc, b) => {
       acc[b.status] = (acc[b.status] || 0) + 1;
       return acc;
     }, {});
@@ -32,9 +33,9 @@ async function getMetrics(req, res) {
       data: {
         total_businesses: totalBusinesses || 0,
         today_appointments: todayAppointments || 0,
-        active: statusCount['active'] || 0,
-        trial: statusCount['trial'] || 0,
-        suspended: statusCount['suspended'] || 0,
+        active: statusCountMap['active'] || 0,
+        trial: statusCountMap['trial'] || 0,
+        suspended: statusCountMap['suspended'] || 0,
       },
     });
   } catch (err) {

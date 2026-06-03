@@ -67,7 +67,7 @@ function RetentionSection({ data }) {
             <UserCheck size={16} className="text-blue-400" />
           </div>
           <p className="text-lg sm:text-2xl font-bold text-blue-400 mb-1">{returned_clients ?? 0}</p>
-          <p className="text-white text-xs font-medium">Clientes que volvieron</p>
+          <p className="text-white text-xs font-medium leading-tight">Volvieron</p>
         </div>
 
         <div className="bg-[#131929] border border-red-500/15 hover:border-red-500/35 rounded-xl shadow-lg shadow-black/30 p-3 transition-all duration-200">
@@ -169,12 +169,10 @@ function RetentionSection({ data }) {
       {/* At-risk clients */}
       {(at_risk_clients || []).length > 0 && (
         <div>
-          <div className="flex items-center gap-2 mb-4">
+          <div className="flex flex-wrap items-center gap-2 mb-4">
             <span className="text-amber-400">⚠</span>
-            <h2 className="text-base font-semibold text-white">
-              Clientes en riesgo
-            </h2>
-            <span className="text-xs bg-amber-500/15 text-amber-400 border border-amber-500/20 px-2 py-0.5 rounded-full">
+            <h2 className="text-base font-semibold text-white whitespace-nowrap">Clientes en riesgo</h2>
+            <span className="text-xs bg-amber-500/15 text-amber-400 border border-amber-500/20 px-2 py-0.5 rounded-full whitespace-nowrap">
               sin visita 30-90 días
             </span>
           </div>
@@ -205,7 +203,7 @@ function RetentionSection({ data }) {
                     {client.name?.[0]?.toUpperCase()}
                   </div>
                   <div className="flex-1 min-w-0">
-                    <p className="text-sm font-medium text-white">{client.name}</p>
+                    <p className="text-sm font-medium text-white truncate">{client.name}</p>
                     <p className="text-xs text-white/40">{client.phone || '—'}</p>
                   </div>
                   <button

@@ -43,18 +43,18 @@ async function getAlerts(businessId) {
     supabaseAdmin
       .from('appointments').select('id')
       .eq('business_id', businessId).eq('status', 'pending')
-      .gte('scheduled_at', tomorrowStr + 'T00:00:00')
-      .lte('scheduled_at', tomorrowStr + 'T23:59:59'),
+      .gte('scheduled_at', tomorrowStr + 'T00:00:00-05:00')
+      .lte('scheduled_at', tomorrowStr + 'T23:59:59-05:00'),
 
     supabaseAdmin
       .from('appointments').select('price')
       .eq('business_id', businessId).eq('status', 'completed')
-      .gte('scheduled_at', monthStart).lte('scheduled_at', monthEnd + 'T23:59:59'),
+      .gte('scheduled_at', monthStart).lte('scheduled_at', monthEnd),
 
     supabaseAdmin
       .from('appointments').select('price')
       .eq('business_id', businessId).eq('status', 'completed')
-      .gte('scheduled_at', prevStart).lte('scheduled_at', prevEnd + 'T23:59:59'),
+      .gte('scheduled_at', prevStart).lte('scheduled_at', prevEnd),
 
     supabaseAdmin
       .from('income').select('amount')
@@ -94,7 +94,7 @@ async function getAlerts(businessId) {
 
     supabaseAdmin
       .from('monthly_goals').select('income_goal')
-      .eq('business_id', businessId).eq('month', monthStart)
+      .eq('business_id', businessId).eq('month', monthStart.slice(0, 10))
       .maybeSingle(),
 
     supabaseAdmin

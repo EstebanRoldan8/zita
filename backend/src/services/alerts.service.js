@@ -5,24 +5,26 @@ function sum(arr, field) {
 }
 
 async function getAlerts(businessId) {
-  const now = new Date();
+  const todayCol = new Date().toLocaleDateString('en-CA', { timeZone: 'America/Bogota' });
+  const [cy, cm] = todayCol.split('-').map(Number);
 
-  const tomorrow = new Date(now);
-  tomorrow.setDate(now.getDate() + 1);
-  const tomorrowStr = tomorrow.toISOString().slice(0, 10);
+  const tomorrowDate = new Date(cy, cm - 1, parseInt(todayCol.slice(8)) + 1);
+  const tomorrowStr = tomorrowDate.toLocaleDateString('en-CA', { timeZone: 'America/Bogota' });
 
-  const year  = now.getFullYear();
-  const month = now.getMonth() + 1;
-  const monthStart = `${year}-${String(month).padStart(2, '0')}-01`;
-  const monthEnd   = new Date(year, month, 0).toISOString().slice(0, 10);
+  const year  = cy;
+  const month = cm;
+  const monthStart = `${todayCol.slice(0, 7)}-01`;
+  const monthEnd   = `${todayCol.slice(0, 7)}-${String(new Date(cy, cm, 0).getDate()).padStart(2, '0')}`;
 
   const prevMonth  = month === 1 ? 12 : month - 1;
   const prevYear   = month === 1 ? year - 1 : year;
   const prevStart  = `${prevYear}-${String(prevMonth).padStart(2, '0')}-01`;
-  const prevEnd    = new Date(prevYear, prevMonth, 0).toISOString().slice(0, 10);
+  const prevEnd    = `${prevYear}-${String(prevMonth).padStart(2, '0')}-${String(new Date(prevYear, prevMonth, 0).getDate()).padStart(2, '0')}`;
 
-  const sevenDaysAgo  = new Date(now); sevenDaysAgo.setDate(now.getDate() - 7);
-  const thirtyDaysAgo = new Date(now); thirtyDaysAgo.setDate(now.getDate() - 30);
+  const sevenDaysAgo  = new Date(); sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
+  const sevenDaysAgoStr = sevenDaysAgo.toLocaleDateString('en-CA', { timeZone: 'America/Bogota' }) + 'T00:00:00-05:00';
+  const thirtyDaysAgo = new Date(); thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
+  const thirtyDaysAgoStr = thirtyDaysAgo.toLocaleDateString('en-CA', { timeZone: 'America/Bogota' }) + 'T00:00:00-05:00';
 
   const [
     { data: pendingTomorrow },
@@ -71,13 +73,13 @@ async function getAlerts(businessId) {
     supabaseAdmin
       .from('appointments').select('employee_id')
       .eq('business_id', businessId)
-      .gte('scheduled_at', sevenDaysAgo.toISOString())
+      .gte('scheduled_at', sevenDaysAgoStr)
       .not('employee_id', 'is', null),
 
     supabaseAdmin
       .from('appointments').select('client_id')
       .eq('business_id', businessId)
-      .gte('scheduled_at', thirtyDaysAgo.toISOString())
+      .gte('scheduled_at', thirtyDaysAgoStr)
       .not('client_id', 'is', null),
 
     supabaseAdmin

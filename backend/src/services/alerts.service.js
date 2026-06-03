@@ -13,13 +13,13 @@ async function getAlerts(businessId) {
 
   const year  = cy;
   const month = cm;
-  const monthStart = `${todayCol.slice(0, 7)}-01`;
-  const monthEnd   = `${todayCol.slice(0, 7)}-${String(new Date(cy, cm, 0).getDate()).padStart(2, '0')}`;
+  const monthStart = `${todayCol.slice(0, 7)}-01T00:00:00-05:00`;
+  const monthEnd   = `${todayCol.slice(0, 7)}-${String(new Date(cy, cm, 0).getDate()).padStart(2, '0')}T23:59:59-05:00`;
 
   const prevMonth  = month === 1 ? 12 : month - 1;
   const prevYear   = month === 1 ? year - 1 : year;
-  const prevStart  = `${prevYear}-${String(prevMonth).padStart(2, '0')}-01`;
-  const prevEnd    = `${prevYear}-${String(prevMonth).padStart(2, '0')}-${String(new Date(prevYear, prevMonth, 0).getDate()).padStart(2, '0')}`;
+  const prevStart  = `${prevYear}-${String(prevMonth).padStart(2, '0')}-01T00:00:00-05:00`;
+  const prevEnd    = `${prevYear}-${String(prevMonth).padStart(2, '0')}-${String(new Date(prevYear, prevMonth, 0).getDate()).padStart(2, '0')}T23:59:59-05:00`;
 
   const sevenDaysAgo  = new Date(); sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
   const sevenDaysAgoStr = sevenDaysAgo.toLocaleDateString('en-CA', { timeZone: 'America/Bogota' }) + 'T00:00:00-05:00';

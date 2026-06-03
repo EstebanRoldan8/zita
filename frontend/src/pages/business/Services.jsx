@@ -146,7 +146,7 @@ export default function Services() {
         </div>
       ) : (
         <>
-          <div className="mb-6 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 sm:gap-0">
+          <div className="mb-6 flex flex-col gap-3">
             <label className="flex items-center gap-2 cursor-pointer">
               <input
                 type="checkbox"
@@ -157,7 +157,7 @@ export default function Services() {
               <span className="text-slate-400 text-sm">Mostrar inactivos ({inactive.length})</span>
             </label>
             <button onClick={openCreate}
-              className="flex items-center gap-2 bg-violet-600 hover:bg-violet-500 text-white text-sm font-medium px-4 py-2 rounded-lg transition">
+              className="flex items-center justify-center gap-2 bg-violet-600 hover:bg-violet-500 text-white text-sm font-medium px-4 py-2 rounded-lg transition w-full md:w-auto">
               <Plus size={15} /> Nuevo servicio
             </button>
           </div>
@@ -175,7 +175,7 @@ export default function Services() {
                       {inactive ? (
                         <span className="text-xs font-medium text-slate-600 bg-[#131929] border border-slate-700 px-2 py-0.5 rounded-full flex-shrink-0">Inactivo</span>
                       ) : (
-                        <div className="w-2 h-2 rounded-full bg-emerald-400 flex-shrink-0 mt-1" />
+                        <span className="text-[10px] font-medium text-emerald-400 bg-emerald-400/10 border border-emerald-400/30 px-1.5 py-0.5 rounded-full flex-shrink-0">Activo</span>
                       )}
                     </div>
 
@@ -193,7 +193,7 @@ export default function Services() {
 
                   <div className="mt-auto px-4 pt-2 pb-4 flex flex-col gap-2">
                     {svc.description && <p className="text-xs text-slate-500 italic">{svc.description}</p>}
-                    <div className="flex gap-2 justify-end opacity-100 sm:opacity-0 sm:group-hover:opacity-100 transition-opacity">
+                    <div className="flex gap-2 justify-end opacity-100 md:opacity-0 md:group-hover:opacity-100 transition-opacity">
                       <button onClick={() => openEdit(svc)}
                         className="p-2 rounded-lg text-slate-400 hover:text-blue-400 hover:bg-blue-500/20 transition">
                         <Edit2 size={16} />

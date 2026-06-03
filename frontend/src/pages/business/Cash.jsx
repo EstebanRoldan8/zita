@@ -278,12 +278,12 @@ function SummaryTab({ month, period, onPeriodChange, dayDate, onDayDateChange })
           {/* Botones exportar - móvil: full width apilados */}
           <div className="mt-auto pt-3 border-t border-slate-800 space-y-2">
             <button onClick={handleExportPdf}
-              className="flex items-center justify-center gap-2 w-full bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs md:text-xs font-medium px-3 py-2 md:py-2 rounded-lg transition">
-              <Download size={13} /> <span className="hidden md:inline">Exportar PDF</span><span className="md:hidden">PDF</span>
+              className="flex items-center justify-center gap-2 w-full bg-slate-800 hover:bg-slate-700 border border-violet-500/30 text-white text-xs font-medium px-3 py-2 rounded-lg transition">
+              <Download size={13} /> Exportar PDF
             </button>
             <button onClick={handleExportXlsx}
-              className="flex items-center justify-center gap-2 w-full bg-emerald-900/30 hover:bg-emerald-900/50 border border-emerald-800/40 text-emerald-400 text-xs md:text-xs font-medium px-3 py-2 md:py-2 rounded-lg transition">
-              <Download size={13} /> <span className="hidden md:inline">Exportar Excel</span><span className="md:hidden">Excel</span>
+              className="flex items-center justify-center gap-2 w-full bg-emerald-900/30 hover:bg-emerald-900/50 border border-emerald-500/40 text-emerald-400 text-xs font-medium px-3 py-2 rounded-lg transition">
+              <Download size={13} /> Exportar Excel
             </button>
           </div>
         </div>

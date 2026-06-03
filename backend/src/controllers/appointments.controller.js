@@ -136,7 +136,17 @@ async function create(req, res) {
 
     let finalEmployeeId = employee_id;
 
-    if (!finalEmployeeId) {
+    if (finalEmployeeId) {
+      const { data: empleado } = await userClient
+        .from('employees')
+        .select('id')
+        .eq('id', finalEmployeeId)
+        .eq('business_id', req.businessId)
+        .single();
+      if (!empleado) {
+        return res.status(400).json({ success: false, error: 'Empleado no pertenece a este negocio.' });
+      }
+    } else {
       const fecha = scheduledAtWithTZ.slice(0, 10);
       const hora = scheduledAtWithTZ.slice(11, 16);
       const available = await getAvailableEmployee(req.businessId, fecha, hora);

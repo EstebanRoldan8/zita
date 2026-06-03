@@ -5,6 +5,19 @@ const logger = require('../utils/logger');
 
 const client = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
 
+async function callClaudeWithRetry(params, maxRetries = 2) {
+  for (let attempt = 0; attempt <= maxRetries; attempt++) {
+    try {
+      return await client.messages.create(params);
+    } catch (error) {
+      if (attempt === maxRetries) throw error;
+      const delay = Math.pow(2, attempt) * 1000;
+      logger.warn(`Claude API error, reintentando en ${delay}ms...`, { attempt, error: error.message });
+      await new Promise(resolve => setTimeout(resolve, delay));
+    }
+  }
+}
+
 const SYSTEM_PROMPT = `<identity>
 Eres el asistente inteligente de ZITA, un sistema de gestión para negocios de citas.
 Tu personalidad: amigable, eficiente, hablas español colombiano informal.

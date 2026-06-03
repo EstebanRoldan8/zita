@@ -23,14 +23,22 @@ function periodRange(query) {
   }
 
   const period = query.period || 'month';
-  let now = new Date();
-
-  if (period === 'day') {
-    if (query.date && /^\d{4}-\d{2}-\d{2}$/.test(query.date)) {
-      return { start: query.date, end: query.date };
-    }
+  if (!['day', 'week', 'month'].includes(period)) {
     const today = new Date().toLocaleDateString('en-CA', { timeZone: 'America/Bogota' });
     return { start: today, end: today };
+  }
+
+  let now = new Date();
+  if (query.date && /^\d{4}-\d{2}-\d{2}$/.test(query.date)) {
+    const dateObj = new Date(query.date);
+    if (!isNaN(dateObj.getTime())) {
+      now = dateObj;
+    }
+  }
+
+  if (period === 'day') {
+    const dayStr = dateToString(now);
+    return { start: dayStr, end: dayStr };
   }
 
   if (period === 'week') {

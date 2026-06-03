@@ -82,6 +82,15 @@ async function create(req, res) {
       return res.status(400).json({ success: false, error: 'Datos incompletos.' });
     }
 
+    for (const item of items) {
+      if (!item.quantity || item.quantity <= 0) {
+        return res.status(400).json({ success: false, error: `Cantidad inválida para el artículo: ${item.name || 'sin nombre'}.` });
+      }
+      if (item.unit_price == null || item.unit_price < 0) {
+        return res.status(400).json({ success: false, error: `Precio inválido para el artículo: ${item.name || 'sin nombre'}.` });
+      }
+    }
+
     const validStatuses = ['recibido', 'en_proceso', 'listo', 'enviado', 'entregado', 'cancelado'];
     const totalAmount = items.reduce((sum, item) => sum + (item.quantity * item.unit_price), 0);
 

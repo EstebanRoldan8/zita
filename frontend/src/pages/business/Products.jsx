@@ -565,8 +565,8 @@ function CatalogoTab({ products, clients, showInactive, onShowInactiveChange, so
 
   return (
     <>
-      <div className="flex flex-col sm:flex-row sm:items-center gap-3 mb-4">
-        <div className="flex items-center gap-3">
+      <div className="flex flex-col gap-3 mb-4 md:flex-row md:items-center">
+        <div className="flex items-center gap-3 flex-wrap">
           <label className="flex items-center gap-2 cursor-pointer">
             <input
               type="checkbox"
@@ -574,7 +574,7 @@ function CatalogoTab({ products, clients, showInactive, onShowInactiveChange, so
               onChange={(e) => onShowInactiveChange(e.target.checked)}
               className="w-4 h-4 rounded bg-[#131929] border border-slate-700 cursor-pointer accent-violet-600"
             />
-            <span className="text-slate-400 text-sm">
+            <span className="text-slate-400 text-sm whitespace-nowrap">
               Mostrar inactivos ({inactive.length})
             </span>
           </label>
@@ -619,7 +619,7 @@ function CatalogoTab({ products, clients, showInactive, onShowInactiveChange, so
                   {inactive ? (
                     <span className="text-xs font-medium text-slate-600 bg-[#131929] border border-slate-700 px-2 py-0.5 rounded-full flex-shrink-0">Inactivo</span>
                   ) : status.label === 'OK' ? (
-                    <div className="w-2 h-2 rounded-full bg-emerald-400 flex-shrink-0 mt-1" />
+                    <span className="text-[10px] font-medium text-emerald-400 bg-emerald-400/10 border border-emerald-400/30 px-1.5 py-0.5 rounded-full flex-shrink-0">OK</span>
                   ) : (
                     <span className={`text-xs font-medium border px-2 py-0.5 rounded-full flex-shrink-0 ${status.cls}`}>
                       {status.label}

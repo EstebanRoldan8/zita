@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { Eye, EyeOff } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
@@ -7,6 +7,7 @@ import { supabase } from '../lib/supabase';
 export default function Login() {
   const { login, isSuperadmin } = useAuth();
   const navigate = useNavigate();
+  const timeoutRef = useRef(null);
   const [form, setForm] = useState({ email: '', password: '' });
   const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState('');
@@ -28,6 +29,9 @@ export default function Login() {
       }
     };
     detectRecovery();
+    return () => {
+      if (timeoutRef.current) clearTimeout(timeoutRef.current);
+    };
   }, []);
 
   const isMobile = typeof window !== 'undefined' && window.innerWidth < 768;
@@ -61,7 +65,7 @@ export default function Login() {
 
       if (!resetError) {
         setResetMessage('Te enviamos un enlace a tu correo');
-        setTimeout(() => {
+        timeoutRef.current = setTimeout(() => {
           setResetMode(false);
           setResetEmail('');
           setResetMessage('');
@@ -98,7 +102,7 @@ export default function Login() {
 
       if (!updateError) {
         setResetMessage('¡Contraseña actualizada! Ya puedes ingresar.');
-        setTimeout(() => {
+        timeoutRef.current = setTimeout(() => {
           navigate('/login');
         }, 2000);
       } else {

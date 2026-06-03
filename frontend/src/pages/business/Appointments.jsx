@@ -45,15 +45,13 @@ function formatTime(iso) {
   return new Date(iso).toLocaleTimeString('es-CO', { hour: '2-digit', minute: '2-digit', hour12: false });
 }
 
-function getTimeFromISO(iso) {
-  return timeFromISO(iso, business?.country);
-}
-
 const emptyForm = { client_id: '', service_id: '', employee_id: '', date: today(), time: '09:00', notes: '', is_reward: false };
 
 export default function Appointments() {
   const qc = useQueryClient();
   const { business } = useAuth();
+
+  const getTimeFromISO = (iso) => timeFromISO(iso, business?.country);
   const [date, setDate] = useState(today());
   const [pickerDate, setPickerDate] = useState(todayLocal());
   const [modal, setModal] = useState(false);
@@ -273,6 +271,10 @@ export default function Appointments() {
 
       {isLoading ? (
         <div className="space-y-3">{Array.from({ length: 4 }).map((_, i) => <div key={i} className="h-16 bg-[#131929] border border-slate-800 rounded-xl shadow-lg shadow-black/30 animate-pulse" />)}</div>
+      ) : !appointments || !Array.isArray(appointments) ? (
+        <div className="text-center py-20 text-slate-500">
+          <p>Error cargando citas</p>
+        </div>
       ) : appointments.length === 0 ? (
         <div className="text-center py-20 text-slate-500">
           <CalendarPlus size={40} className="mx-auto mb-3 opacity-30" />

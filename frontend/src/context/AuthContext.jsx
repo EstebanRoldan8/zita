@@ -13,7 +13,8 @@ export function AuthProvider({ children }) {
     try {
       const res = await api.get('/api/businesses/me');
       setBusiness(res.data?.data ?? null);
-    } catch {
+    } catch (err) {
+      console.error('Error cargando datos del negocio:', err.message);
       setBusiness(null);
     }
   };

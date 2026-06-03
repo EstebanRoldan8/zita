@@ -36,7 +36,7 @@ import AdminNotifications from './pages/admin/Notifications';
 
 const queryClient = new QueryClient({
   defaultOptions: {
-    queries: { retry: 1, staleTime: 30_000 },
+    queries: { retry: 1, staleTime: 60_000 },
   },
 });
 

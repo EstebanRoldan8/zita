@@ -69,6 +69,7 @@ export default function Subscription() {
   const { business } = useAuth();
   const typeConfig = BUSINESS_TYPE_CONFIG[business?.business_type] || DEFAULT_TYPE_CONFIG;
   const [sub, setSub] = useState(null);
+  const [selectedPlanTab, setSelectedPlanTab] = useState(null);
   const [loading, setLoading] = useState(true);
   const [upgradeModal, setUpgradeModal] = useState(null);
 
@@ -91,6 +92,8 @@ export default function Subscription() {
 
   console.log('plan actual:', sub?.plan, 'estado:', sub?.estado);
   const currentPlanOrder = PLAN_ORDER[sub.plan] ?? 0;
+  const nextPlanKey = Object.keys(PLAN_ORDER).find(k => PLAN_ORDER[k] === currentPlanOrder + 1) || 'pro';
+  if (selectedPlanTab === null) setSelectedPlanTab(nextPlanKey);
   const getStateText = () => {
     if (sub.estado === 'trial') {
       return `🎁 Trial activo — ${sub.dias_restantes} días restantes`;
@@ -277,7 +280,28 @@ export default function Subscription() {
       {/* SECCIÓN 3 — Comparativo de planes */}
       <div className="mb-6 pt-6">
         <h2 className="text-slate-300 text-sm font-semibold mb-4">Planes disponibles</h2>
-        <div className="flex flex-row overflow-x-auto gap-4 pb-4 lg:grid lg:grid-cols-3 lg:gap-6 lg:overflow-visible lg:pb-0 max-w-5xl mx-auto items-stretch pt-8">
+        <div>
+          {/* Tabs solo en móvil */}
+          <div className="flex lg:hidden gap-2 mb-4">
+            {['lite', 'estandar', 'pro'].map((key) => (
+              <button
+                key={key}
+                onClick={() => setSelectedPlanTab(key)}
+                className={`flex-1 py-2 rounded-xl text-sm font-semibold transition-all duration-200 border ${
+                  selectedPlanTab === key
+                    ? key === 'lite'
+                      ? 'bg-slate-700 border-slate-500 text-white'
+                      : key === 'estandar'
+                      ? 'bg-violet-600 border-violet-500 text-white'
+                      : 'bg-yellow-500/20 border-yellow-500/50 text-yellow-400'
+                    : 'bg-white/5 border-white/10 text-slate-400'
+                }`}
+              >
+                {key === 'lite' ? 'Lite' : key === 'estandar' ? 'Estándar' : 'Pro'}
+              </button>
+            ))}
+          </div>
+          <div className="lg:grid lg:grid-cols-3 lg:gap-6 max-w-5xl mx-auto items-stretch pt-2 lg:pt-8">
           {plans.map((plan) => {
             const isCurrent = plan.key === sub.plan;
             const planOrder = PLAN_ORDER[plan.key];
@@ -313,7 +337,7 @@ export default function Subscription() {
             return (
               <div
                 key={plan.key}
-                className={`flex-shrink-0 w-[85vw] lg:w-auto min-w-0 flex flex-col rounded-2xl border p-7 relative overflow-visible ${cardBg} backdrop-blur-sm ${shadowClass} ${cardBorder}`}
+                className={`${selectedPlanTab !== plan.key ? 'hidden lg:flex' : ''} flex-shrink-0 w-[85vw] lg:w-auto min-w-0 flex flex-col rounded-2xl border p-7 relative overflow-visible ${cardBg} backdrop-blur-sm ${shadowClass} ${cardBorder}`}
               >
                 {isCurrent && (
                   <div className="absolute top-[-12px] left-1/2 -translate-x-1/2 bg-violet-600 text-white text-xs font-bold px-4 py-1 rounded-full whitespace-nowrap">
@@ -425,6 +449,7 @@ export default function Subscription() {
               </div>
             );
           })}
+        </div>
         </div>
       </div>
 

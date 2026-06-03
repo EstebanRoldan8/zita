@@ -277,7 +277,7 @@ export default function Subscription() {
       {/* SECCIÓN 3 — Comparativo de planes */}
       <div className="mb-6 pt-6">
         <h2 className="text-slate-300 text-sm font-semibold mb-4">Planes disponibles</h2>
-        <div className="flex flex-col gap-6 lg:grid lg:grid-cols-3 lg:gap-6 max-w-5xl mx-auto items-stretch pt-8 md:flex-row md:overflow-x-auto md:pb-4">
+        <div className="flex flex-row overflow-x-auto gap-4 pb-4 lg:grid lg:grid-cols-3 lg:gap-6 lg:overflow-visible lg:pb-0 max-w-5xl mx-auto items-stretch pt-8">
           {plans.map((plan) => {
             const isCurrent = plan.key === sub.plan;
             const planOrder = PLAN_ORDER[plan.key];
@@ -313,7 +313,7 @@ export default function Subscription() {
             return (
               <div
                 key={plan.key}
-                className={`min-w-0 flex flex-col rounded-2xl border p-7 relative overflow-visible ${cardBg} backdrop-blur-sm ${shadowClass} ${cardBorder}`}
+                className={`flex-shrink-0 w-[85vw] lg:w-auto min-w-0 flex flex-col rounded-2xl border p-7 relative overflow-visible ${cardBg} backdrop-blur-sm ${shadowClass} ${cardBorder}`}
               >
                 {isCurrent && (
                   <div className="absolute top-[-12px] left-1/2 -translate-x-1/2 bg-violet-600 text-white text-xs font-bold px-4 py-1 rounded-full whitespace-nowrap">

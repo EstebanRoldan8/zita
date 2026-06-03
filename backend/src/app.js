@@ -3,20 +3,19 @@ require('dotenv').config();
 const fs = require('fs');
 if (!fs.existsSync('logs')) fs.mkdirSync('logs', { recursive: true });
 
-process.on('uncaughtException', (err) => {
-  console.error('UNCAUGHT EXCEPTION:', err.message);
-  console.error(err.stack);
-});
-
-process.on('unhandledRejection', (reason) => {
-  console.error('UNHANDLED REJECTION:', reason);
-});
-
 const express = require('express');
 const helmet = require('helmet');
 const cors = require('cors');
 const rateLimit = require('express-rate-limit');
 const logger = require('./utils/logger');
+
+process.on('uncaughtException', (error) => {
+  logger.error('uncaughtException:', { message: error.message, stack: error.stack });
+});
+
+process.on('unhandledRejection', (reason) => {
+  logger.error('unhandledRejection:', { reason: String(reason) });
+});
 
 const authRoutes = require('./routes/auth.routes');
 const businessesRoutes = require('./routes/businesses.routes');

@@ -28,9 +28,16 @@ async function handleWebhook(req, res) {
       return res.sendStatus(404);
     }
 
-    const entry = body.entry?.[0];
-    const changes = entry?.changes?.[0];
-    const value = changes?.value;
+    if (!body.entry || !Array.isArray(body.entry) || body.entry.length === 0) {
+      return res.status(200).json({ success: true });
+    }
+
+    const entry = body.entry[0];
+    if (!entry.changes || !Array.isArray(entry.changes) || entry.changes.length === 0) {
+      return res.status(200).json({ success: true });
+    }
+
+    const value = entry.changes[0]?.value;
 
     if (!value?.messages?.[0]) {
       return res.sendStatus(200);

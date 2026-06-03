@@ -748,8 +748,8 @@ async function getProductsSold(req, res) {
   try {
     const businessId = req.businessId;
 
-    console.log('req.business completo:', JSON.stringify(req.business));
-    console.log('businessId resuelto:', businessId);
+    logger.info('Req business completo:', { business: JSON.stringify(req.business) });
+    logger.info('Business ID resuelto:', { businessId });
 
     if (!businessId) {
       return res.status(400).json({ success: false, error: 'Business no encontrado' });
@@ -770,7 +770,7 @@ async function getProductsSold(req, res) {
       .lte('created_at', fin + 'T23:59:59Z')
       .order('created_at', { ascending: false });
 
-    console.log('mes:', mes, 'inicio:', inicio, 'fin:', fin, 'results:', data?.length);
+    logger.info('Período consultado', { mes, inicio, fin, resultsCount: data?.length });
 
     if (error) throw error;
 
@@ -796,7 +796,7 @@ async function getProductsSold(req, res) {
     res.json({ success: true, data: productos });
 
   } catch (error) {
-    console.log('ERROR products-sold:', error.message);
+    logger.error('Error en products-sold:', error.message);
     res.status(500).json({ success: false, error: error.message });
   }
 }

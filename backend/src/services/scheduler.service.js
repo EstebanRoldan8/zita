@@ -61,7 +61,8 @@ cron.schedule('0 12 * * *', async () => {
         .gte('scheduled_at', hoy + 'T00:00:00-05:00')
         .lte('scheduled_at', hoy + 'T23:59:59-05:00')
         .in('status', ['confirmed', 'pending'])
-        .order('scheduled_at');
+        .order('scheduled_at')
+        .limit(200);
 
       if (!citas || citas.length === 0) continue;
 
@@ -103,7 +104,8 @@ cron.schedule('*/5 * * * *', async () => {
       .eq('status', 'confirmed')
       .gte('scheduled_at', en2h.toISOString())
       .lte('scheduled_at', en2h5m.toISOString())
-      .not('clients.phone', 'is', null);
+      .not('clients.phone', 'is', null)
+      .limit(500);
 
     logger.info('Citas a recordar encontradas:', citas?.length);
 
@@ -144,7 +146,8 @@ cron.schedule('0 * * * *', async () => {
       .from('appointments')
       .select('id, business_id, services(name, price)')
       .eq('status', 'confirmed')
-      .lt('scheduled_at', unaHoraAtras);
+      .lt('scheduled_at', unaHoraAtras)
+      .limit(200);
 
     if (selectError) {
       logger.error('Error obteniendo citas para auto-completar:', selectError.message);

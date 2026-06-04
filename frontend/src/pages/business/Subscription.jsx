@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
-import { CreditCard, AlertCircle, CheckCircle2, AlertTriangle, XCircle } from 'lucide-react';
+import { useLocation } from 'react-router-dom';
+import { CreditCard, AlertCircle, CheckCircle2, AlertTriangle, XCircle, Loader2 } from 'lucide-react';
 import api from '../../lib/api';
 import { useAuth } from '../../context/AuthContext';
 
@@ -67,25 +68,61 @@ const FEATURE_LABELS = {
 
 export default function Subscription() {
   const { business } = useAuth();
+  const location = useLocation();
   const typeConfig = BUSINESS_TYPE_CONFIG[business?.business_type] || DEFAULT_TYPE_CONFIG;
   const [sub, setSub] = useState(null);
   const [selectedPlanTab, setSelectedPlanTab] = useState(null);
   const [loading, setLoading] = useState(true);
   const [upgradeModal, setUpgradeModal] = useState(null);
+  const [paymentLoading, setPaymentLoading] = useState(false);
+  const [paymentBanner, setPaymentBanner] = useState(null); // 'success' | 'error' | null
+
+  const fetchSub = async () => {
+    try {
+      const { data } = await api.get('/api/subscription');
+      setSub(data.data);
+    } catch (err) {
+      console.error('Error fetching subscription:', err);
+    } finally {
+      setLoading(false);
+    }
+  };
 
   useEffect(() => {
-    const fetchSub = async () => {
-      try {
-        const { data } = await api.get('/api/subscription');
-        setSub(data.data);
-      } catch (err) {
-        console.error('Error fetching subscription:', err);
-      } finally {
-        setLoading(false);
-      }
-    };
     fetchSub();
   }, []);
+
+  useEffect(() => {
+    const params = new URLSearchParams(location.search);
+    const paymentParam = params.get('payment');
+    if (paymentParam === 'success') {
+      setPaymentBanner('success');
+      fetchSub();
+    } else if (paymentParam === 'error') {
+      setPaymentBanner('error');
+    }
+  }, [location.search]);
+
+  const handlePayment = async (plan) => {
+    setPaymentLoading(true);
+    try {
+      const res = await api.post('/api/payments/create-session', { plan, payment_method_type: 'manual' });
+      if (!res.data.success) throw new Error(res.data.error);
+      const { reference, publicKey, amountInCents, currency, integritySignature, redirectUrl } = res.data.data;
+      const checkoutUrl =
+        `https://checkout.wompi.co/p/?` +
+        `public-key=${encodeURIComponent(publicKey)}` +
+        `&currency=${currency}` +
+        `&amount-in-cents=${amountInCents}` +
+        `&reference=${encodeURIComponent(reference)}` +
+        `&signature:integrity=${integritySignature}` +
+        `&redirect-url=${encodeURIComponent(redirectUrl)}`;
+      window.location.href = checkoutUrl;
+    } catch (err) {
+      console.error('Payment error:', err);
+      setPaymentLoading(false);
+    }
+  };
 
   if (loading) return <div className="p-6 text-slate-400">Cargando...</div>;
   if (!sub) return <div className="p-6 text-red-400">Error al cargar suscripción</div>;
@@ -183,6 +220,19 @@ export default function Subscription() {
         <h1 className="text-white text-xl sm:text-2xl font-bold">Mi Suscripción</h1>
         <p className="text-slate-400 text-xs sm:text-sm mt-1">Gestiona tu plan y revisa el uso</p>
       </div>
+
+      {paymentBanner === 'success' && (
+        <div className="mb-4 flex items-center gap-3 bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 text-sm rounded-xl px-4 py-3">
+          <CheckCircle2 size={18} className="shrink-0" />
+          ¡Plan activado exitosamente! Tu suscripción está ahora activa.
+        </div>
+      )}
+      {paymentBanner === 'error' && (
+        <div className="mb-4 flex items-center gap-3 bg-red-500/10 border border-red-500/20 text-red-400 text-sm rounded-xl px-4 py-3">
+          <XCircle size={18} className="shrink-0" />
+          El pago no pudo procesarse. Intenta nuevamente o contáctanos.
+        </div>
+      )}
 
       {/* SECCIÓN 1 — Estado actual */}
       <div className={`mb-6 p-4 sm:p-6 rounded-xl border ${PLAN_COLORS[sub.plan]}`}>
@@ -516,29 +566,29 @@ export default function Subscription() {
       {upgradeModal && (
         <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50 px-4 py-4 sm:py-0">
           <div className="bg-[#131929] border border-slate-800 rounded-2xl w-full max-w-md p-6 shadow-xl">
-            <h3 className="text-white font-semibold text-lg mb-4">
-              Actualizar a {sub.todos_los_planes[upgradeModal].name}
+            <h3 className="text-white font-semibold text-lg mb-1">
+              Activar Plan {sub.todos_los_planes[upgradeModal].name}
             </h3>
-            <p className="text-slate-400 text-sm mb-6">
-              Próximamente podrás pagar directamente aquí. Por ahora escríbenos por WhatsApp
-              y te activamos el plan en minutos. 🚀
+            <p className="text-slate-400 text-sm mb-5">
+              ${sub.todos_los_planes[upgradeModal].price.toLocaleString('es-CO')} COP / mes · renovación manual
             </p>
-            <div className="flex gap-3">
-              <button
-                onClick={() => setUpgradeModal(null)}
-                className="flex-1 bg-slate-800 hover:bg-slate-700 text-slate-300 py-2.5 rounded-lg text-sm font-medium transition"
-              >
-                Cancelar
-              </button>
-              <a
-                href="https://wa.me/573001234567"
-                target="_blank"
-                rel="noopener noreferrer"
-                className="flex-1 bg-green-600 hover:bg-green-500 text-white py-2.5 rounded-lg text-sm font-medium transition text-center"
-              >
-                Escribir en WhatsApp
-              </a>
-            </div>
+
+            <button
+              onClick={() => handlePayment(upgradeModal)}
+              disabled={paymentLoading}
+              className="w-full flex items-center justify-center gap-2 bg-violet-600 hover:bg-violet-500 disabled:opacity-60 text-white py-3 rounded-xl text-sm font-bold transition mb-2"
+            >
+              {paymentLoading ? <Loader2 size={16} className="animate-spin" /> : null}
+              {paymentLoading ? 'Redirigiendo...' : `Pagar $${(sub.todos_los_planes[upgradeModal].price / 1000).toFixed(0)}k con Wompi`}
+            </button>
+
+            <button
+              onClick={() => setUpgradeModal(null)}
+              disabled={paymentLoading}
+              className="w-full bg-slate-800 hover:bg-slate-700 text-slate-300 py-2.5 rounded-xl text-sm font-medium transition"
+            >
+              Cancelar
+            </button>
           </div>
         </div>
       )}

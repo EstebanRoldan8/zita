@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { ArrowLeft, Users, Scissors, CalendarCheck, CheckCircle, XCircle, CreditCard } from 'lucide-react';
+import { ArrowLeft, Users, Scissors, CalendarCheck, CheckCircle, XCircle, CreditCard, Link, Copy, Check } from 'lucide-react';
 import api from '../../lib/api';
 
 function formatCOP(v) {
@@ -31,6 +31,30 @@ export default function BusinessDetail() {
   const navigate = useNavigate();
   const qc = useQueryClient();
   const [selectedPlan, setSelectedPlan] = useState(null);
+  const [paymentLinkModal, setPaymentLinkModal] = useState(false);
+  const [paymentLinkPlan, setPaymentLinkPlan] = useState('estandar');
+  const [paymentLinkUrl, setPaymentLinkUrl] = useState('');
+  const [paymentLinkLoading, setPaymentLinkLoading] = useState(false);
+  const [copied, setCopied] = useState(false);
+
+  const generatePaymentLink = async () => {
+    setPaymentLinkLoading(true);
+    setPaymentLinkUrl('');
+    try {
+      const res = await api.post(`/api/admin/businesses/${id}/payment-link`, { plan: paymentLinkPlan });
+      if (res.data.success) setPaymentLinkUrl(res.data.data.checkoutUrl);
+    } catch (err) {
+      console.error('Error generando link:', err);
+    } finally {
+      setPaymentLinkLoading(false);
+    }
+  };
+
+  const copyLink = () => {
+    navigator.clipboard.writeText(paymentLinkUrl);
+    setCopied(true);
+    setTimeout(() => setCopied(false), 2000);
+  };
 
   const { data, isLoading } = useQuery({
     queryKey: ['admin-business', id],
@@ -166,9 +190,61 @@ export default function BusinessDetail() {
             >
               Cambiar plan
             </button>
+            <button
+              onClick={() => { setPaymentLinkModal(true); setPaymentLinkUrl(''); }}
+              className="flex items-center gap-1.5 bg-emerald-600/20 hover:bg-emerald-600/30 text-emerald-400 border border-emerald-500/30 px-4 py-2 rounded-lg text-sm font-medium transition"
+            >
+              <Link size={14} /> Generar link de pago
+            </button>
           </div>
         </div>
       </div>
+
+      {/* Modal link de pago */}
+      {paymentLinkModal && (
+        <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50 px-4">
+          <div className="bg-[#131929] border border-slate-800 rounded-2xl w-full max-w-md p-6 shadow-xl">
+            <h3 className="text-white font-semibold text-lg mb-4">Generar link de pago</h3>
+            <div className="flex gap-2 mb-4">
+              {['lite', 'estandar', 'pro'].map((p) => (
+                <button
+                  key={p}
+                  onClick={() => { setPaymentLinkPlan(p); setPaymentLinkUrl(''); }}
+                  className={`flex-1 py-2 rounded-lg text-sm font-medium transition border ${paymentLinkPlan === p ? 'bg-violet-600 border-violet-500 text-white' : 'bg-slate-800 border-slate-700 text-slate-400'}`}
+                >
+                  {p === 'lite' ? 'Lite' : p === 'estandar' ? 'Estándar' : 'Pro'}
+                </button>
+              ))}
+            </div>
+            <button
+              onClick={generatePaymentLink}
+              disabled={paymentLinkLoading}
+              className="w-full bg-emerald-600 hover:bg-emerald-500 disabled:opacity-60 text-white py-2.5 rounded-lg text-sm font-bold transition mb-3"
+            >
+              {paymentLinkLoading ? 'Generando...' : 'Generar link'}
+            </button>
+            {paymentLinkUrl && (
+              <div className="bg-slate-800/50 border border-slate-700 rounded-xl p-3 mb-3">
+                <p className="text-xs text-slate-400 mb-2">Link de pago generado:</p>
+                <p className="text-xs text-slate-300 break-all font-mono mb-3">{paymentLinkUrl}</p>
+                <button
+                  onClick={copyLink}
+                  className="w-full flex items-center justify-center gap-2 bg-violet-600 hover:bg-violet-500 text-white py-2 rounded-lg text-xs font-medium transition"
+                >
+                  {copied ? <Check size={14} /> : <Copy size={14} />}
+                  {copied ? '¡Copiado!' : 'Copiar link'}
+                </button>
+              </div>
+            )}
+            <button
+              onClick={() => setPaymentLinkModal(false)}
+              className="w-full bg-slate-800 hover:bg-slate-700 text-slate-300 py-2.5 rounded-lg text-sm font-medium transition"
+            >
+              Cerrar
+            </button>
+          </div>
+        </div>
+      )}
 
       {/* Recent appointments */}
       <div className="bg-slate-900 border border-slate-800 rounded-xl overflow-hidden">

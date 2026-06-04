@@ -10,6 +10,7 @@ const {
   changePlan,
 } = require('../controllers/admin.controller');
 const { getAll: getSupportConversations, replyAsAdmin } = require('../controllers/support.controller');
+const { adminGeneratePaymentLink } = require('../controllers/payment.controller');
 const { verifyToken } = require('../middlewares/auth');
 const { superadminOnly } = require('../middlewares/superadmin');
 
@@ -21,6 +22,7 @@ router.get('/businesses', getBusinesses);
 router.get('/businesses/:id', getBusinessDetail);
 router.patch('/businesses/:id', updateBusiness);
 router.patch('/businesses/:id/plan', changePlan);
+router.post('/businesses/:id/payment-link', adminGeneratePaymentLink);
 
 router.get('/support', getSupportConversations);
 router.get('/support/:id', getConversationDetail);

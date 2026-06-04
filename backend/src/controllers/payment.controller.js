@@ -156,4 +156,52 @@ async function getStatus(req, res) {
   }
 }
 
-module.exports = { createSession, handleWebhook, getHistory, getStatus };
+async function adminGeneratePaymentLink(req, res) {
+  try {
+    const { id } = req.params;
+    const { plan } = req.body;
+
+    if (!PLAN_PRICES_COP[plan]) {
+      return res.status(400).json({ success: false, error: 'Plan inválido.' });
+    }
+
+    const { data: business } = await supabaseAdmin
+      .from('businesses')
+      .select('country')
+      .eq('id', id)
+      .single();
+
+    const country = business?.country || 'colombia';
+    const provider = getPaymentProvider(country);
+    const amountInCents = PLAN_PRICES_COP[plan];
+    const currency = 'COP';
+    const reference = `ZITA-${id.slice(0, 8)}-${Date.now()}`;
+    const integritySignature = generateIntegritySignature(reference, amountInCents, currency, provider.integritySecret);
+
+    await supabaseAdmin.from('payments').insert({
+      business_id: id,
+      plan,
+      amount: amountInCents,
+      currency,
+      status: 'pending',
+      wompi_reference: reference,
+      country,
+      provider: provider.provider,
+    });
+
+    const checkoutUrl =
+      `https://checkout.wompi.co/p/?` +
+      `public-key=${provider.publicKey}` +
+      `&currency=${currency}` +
+      `&amount-in-cents=${amountInCents}` +
+      `&reference=${reference}` +
+      `&signature:integrity=${integritySignature}`;
+
+    return res.json({ success: true, data: { checkoutUrl, reference, amountInCents, currency } });
+  } catch (err) {
+    logger.error('payment.adminGeneratePaymentLink error:', { message: err.message });
+    return res.status(500).json({ success: false, error: 'Error al generar link de pago.' });
+  }
+}
+
+module.exports = { createSession, handleWebhook, getHistory, getStatus, adminGeneratePaymentLink };

@@ -1,3 +1,4 @@
+require('./instrument');
 require('dotenv').config();
 
 const fs = require('fs');
@@ -142,6 +143,9 @@ app.use('/api/subscription', verifyToken, businessContext, subscriptionRoutes);
 app.use('/api/webhook', webhookRoutes);
 app.use('/api/contact', contactRoutes);
 app.use('/api/demo', contactRoutes);
+
+const Sentry = require("@sentry/node");
+Sentry.setupExpressErrorHandler(app);
 
 // Manejador global de errores
 app.use((err, req, res, next) => {

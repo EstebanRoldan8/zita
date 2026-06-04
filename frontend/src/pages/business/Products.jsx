@@ -682,7 +682,8 @@ function CatalogoTab({ products, clients, showInactive, onShowInactiveChange, so
 
                 <div className="flex gap-2 mt-auto">
                   <button onClick={() => setSellProduct(p)} disabled={displayStock === 0 || !p.is_active}
-                    className="w-full bg-violet-600 hover:bg-violet-700 text-white py-2 text-sm font-medium rounded-lg flex items-center justify-center gap-2 transition disabled:opacity-40">
+                    className="w-full bg-violet-600 hover:bg-violet-700 text-white py-2 text-sm font-medium rounded-lg flex items-center justify-center gap-2 transition disabled:opacity-40"
+                    style={{ backgroundColor: '#7c3aed', color: 'white' }}>
                     <ShoppingCart size={13} /> Vender
                   </button>
                   <div className="ml-auto flex gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
@@ -882,11 +883,17 @@ function InventarioTab({ products, sales, sortBy, onSortChange }) {
                         {status.label}
                       </span>
                     </div>
-                    <div className="grid grid-cols-3 gap-2 text-xs">
+                    <div className={`grid gap-2 text-xs ${p.cost_price != null ? 'grid-cols-2' : 'grid-cols-3'}`}>
                       <div>
                         <p className="text-slate-500">Precio</p>
                         <p className="text-slate-300">{formatCOP(p.price)}</p>
                       </div>
+                      {p.cost_price != null && (
+                        <div>
+                          <p className="text-slate-500">Costo</p>
+                          <p className="text-orange-400">{formatCOP(p.cost_price)}</p>
+                        </div>
+                      )}
                       <div>
                         <p className="text-slate-500">Stock</p>
                         <p className={(p.stock ?? 0) === 0 ? 'text-red-400 font-bold' : (p.stock ?? 0) <= (p.min_stock ?? 0) ? 'text-yellow-400' : 'text-white'}>
@@ -1045,10 +1052,16 @@ function InventarioTab({ products, sales, sortBy, onSortChange }) {
                               <span className="text-slate-400 text-xs">{v.cantidad} unid.</span>
                               <span className="text-emerald-400 font-semibold text-sm">{formatCOP(v.total)}</span>
                             </div>
+                            {costo != null && (
+                              <div className="flex items-center justify-between">
+                                <span className="text-slate-500 text-xs">Costo</span>
+                                <span className="text-orange-400 text-sm font-medium">{formatCOP(costo)}</span>
+                              </div>
+                            )}
                             {ganancia != null && (
                               <div className="flex items-center justify-between">
                                 <span className="text-slate-500 text-xs">Ganancia</span>
-                                <span className={`text-xs font-medium ${ganancia >= 0 ? 'text-emerald-400' : 'text-red-400'}`}>{formatCOP(ganancia)}</span>
+                                <span className={`text-sm font-medium ${ganancia >= 0 ? 'text-emerald-400' : 'text-red-400'}`}>{formatCOP(ganancia)}</span>
                               </div>
                             )}
                           </div>

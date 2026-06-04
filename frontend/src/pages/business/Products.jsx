@@ -87,17 +87,20 @@ function SellModal({ product, clients, onClose, onSuccess }) {
     }
   }, [loadingVariants, variants]);
 
+  const inputCls = "w-full bg-[#0f172a] border border-slate-700 text-white rounded-lg px-4 py-2.5 text-sm focus:outline-none focus:border-violet-500 transition";
+  const labelCls = "block text-slate-300 text-sm mb-1.5";
+
   return (
-    <div className="fixed inset-0 bg-black/70 backdrop-blur-sm flex items-center justify-center z-50 px-4">
-      <div className="bg-[#1e293b] border border-white/15 rounded-2xl w-full max-w-sm p-6 shadow-2xl">
+    <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50 px-4">
+      <div className="bg-[#1e293b] border border-violet-500/20 rounded-2xl w-full max-w-sm p-6 shadow-2xl">
         <div className="flex items-center justify-between mb-5">
           <h3 className="text-white font-semibold">Registrar venta</h3>
           <button onClick={onClose} className="text-slate-500 hover:text-white transition"><X size={18} /></button>
         </div>
 
-        <div className="mb-4 p-3 bg-[#131929]/80 border border-slate-700 rounded-xl shadow-lg shadow-black/30">
-          <p className="text-white text-sm font-medium">{product.name}</p>
-          <p className="text-slate-400 text-xs mt-0.5">{formatCOP(product.price)}</p>
+        <div className="mb-4 p-3 bg-[#0f172a] border border-slate-700 rounded-xl">
+          <p className="text-white text-sm font-semibold">{product.name}</p>
+          <p className="text-violet-400 text-xs mt-0.5">{formatCOP(product.price)}</p>
         </div>
 
         {error && <p className="text-red-400 text-sm bg-red-500/10 border border-red-500/20 px-3 py-2 rounded-lg mb-4">{error}</p>}
@@ -105,12 +108,11 @@ function SellModal({ product, clients, onClose, onSuccess }) {
         <div className="space-y-3">
           {product.has_variants && (
             <div>
-              <label className="block text-slate-400 text-sm mb-1.5">Variante</label>
+              <label className={labelCls}>Variante</label>
               {loadingVariants ? (
                 <p className="text-slate-500 text-xs py-2">Cargando variantes...</p>
               ) : (
-                <select value={selectedVariantId} onChange={(e) => setSelectedVariantId(e.target.value)}
-                  className="w-full bg-[#131929] border border-slate-700 text-white rounded-lg px-4 py-2.5 text-sm focus:border-violet-500 focus:ring-2 focus:ring-violet-500/20 focus:outline-none transition-all duration-150">
+                <select value={selectedVariantId} onChange={(e) => setSelectedVariantId(e.target.value)} className={inputCls}>
                   <option value="">Seleccionar variante...</option>
                   {variants.map((v) => (
                     <option key={v.id} value={v.id}>
@@ -122,29 +124,27 @@ function SellModal({ product, clients, onClose, onSuccess }) {
             </div>
           )}
           <div>
-            <label className="block text-slate-400 text-sm mb-1.5">Cantidad</label>
+            <label className={labelCls}>Cantidad</label>
             <input type="number" min="1" max={product.has_variants ? selectedVariant?.stock : product.stock} value={qty}
-              onChange={(e) => setQty(e.target.value)}
-              className="w-full bg-[#131929] border border-slate-700 text-white rounded-lg px-4 py-2.5 text-sm focus:outline-none focus:border-violet-500 transition" />
-            {selectedVariant && <p className="text-slate-500 text-xs mt-1">Stock disponible: {selectedVariant.stock}</p>}
-            {!product.has_variants && <p className="text-slate-500 text-xs mt-1">Stock disponible: {product.stock}</p>}
+              onChange={(e) => setQty(e.target.value)} className={inputCls} />
+            {selectedVariant && <p className="text-slate-400 text-xs mt-1">Stock disponible: {selectedVariant.stock}</p>}
+            {!product.has_variants && <p className="text-slate-400 text-xs mt-1">Stock disponible: {product.stock}</p>}
           </div>
           <div>
-            <label className="block text-slate-400 text-sm mb-1.5">Canal de venta</label>
-            <select value={soldVia} onChange={(e) => setSoldVia(e.target.value)}
-              className="w-full bg-[#131929] border border-slate-700 text-white rounded-lg px-4 py-2.5 text-sm focus:outline-none focus:border-violet-500 transition">
+            <label className={labelCls}>Canal de venta</label>
+            <select value={soldVia} onChange={(e) => setSoldVia(e.target.value)} className={inputCls}>
               <option value="presencial">Presencial</option>
               <option value="whatsapp">WhatsApp</option>
             </select>
           </div>
           <div>
-            <label className="block text-slate-400 text-sm mb-1.5">Cliente (opcional)</label>
+            <label className={labelCls}>Cliente (opcional)</label>
             <div className="relative">
               {selectedClient ? (
-                <div className="flex items-center justify-between bg-[#131929] border border-violet-500/50 rounded-lg px-4 py-2.5">
+                <div className="flex items-center justify-between bg-[#0f172a] border border-violet-500/50 rounded-lg px-4 py-2.5">
                   <div>
                     <p className="text-white text-sm font-medium">{selectedClient.name}</p>
-                    <p className="text-slate-500 text-xs">{selectedClient.phone}</p>
+                    <p className="text-slate-400 text-xs">{selectedClient.phone}</p>
                   </div>
                   <button type="button" onClick={() => { setClientId(''); setClientSearch(''); }}
                     className="text-slate-500 hover:text-white p-0.5 transition"><X size={14} /></button>
@@ -154,12 +154,12 @@ function SellModal({ product, clients, onClose, onSuccess }) {
                   onChange={(e) => { setClientSearch(e.target.value); setShowClientDrop(true); }}
                   onFocus={() => setShowClientDrop(true)}
                   placeholder="Buscar cliente por nombre o teléfono..."
-                  className="w-full bg-[#131929] border border-slate-700 text-white rounded-lg px-4 py-2.5 text-sm placeholder-slate-500 focus:outline-none focus:border-violet-500 transition" />
+                  className={`${inputCls} placeholder-slate-500`} />
               )}
               {showClientDrop && !selectedClient && (
-                <div className="absolute top-full left-0 right-0 mt-1 bg-[#131929] border border-slate-700 rounded-lg overflow-hidden z-20 shadow-xl max-h-44 overflow-y-auto">
+                <div className="absolute top-full left-0 right-0 mt-1 bg-[#0f172a] border border-slate-700 rounded-lg overflow-hidden z-20 shadow-xl max-h-44 overflow-y-auto">
                   <button type="button" onMouseDown={() => { setClientId(''); setClientSearch(''); setShowClientDrop(false); }}
-                    className="w-full text-left px-4 py-2.5 text-sm text-slate-400 hover:bg-slate-700 border-b border-slate-700 transition">
+                    className="w-full text-left px-4 py-2.5 text-sm text-slate-400 hover:bg-slate-800 border-b border-slate-700 transition">
                     Cliente sin registro
                   </button>
                   {filteredClients.length === 0 && clientSearch ? (
@@ -168,7 +168,7 @@ function SellModal({ product, clients, onClose, onSuccess }) {
                     filteredClients.map((c) => (
                       <button key={c.id} type="button"
                         onMouseDown={() => { setClientId(c.id); setClientSearch(''); setShowClientDrop(false); }}
-                        className="w-full text-left px-4 py-2.5 text-sm hover:bg-slate-700 transition">
+                        className="w-full text-left px-4 py-2.5 text-sm hover:bg-slate-800 transition">
                         <span className="text-white">{c.name}</span>
                         <span className="text-slate-500 text-xs ml-2">{c.phone}</span>
                       </button>
@@ -181,18 +181,18 @@ function SellModal({ product, clients, onClose, onSuccess }) {
         </div>
 
         {qty && Number(qty) > 0 && (
-          <p className="text-slate-400 text-sm mt-3">
-            Total: <span className="text-white font-semibold">{formatCOP(product.price * Number(qty))}</span>
+          <p className="text-white font-bold text-sm mt-3">
+            Total: <span className="text-violet-400">{formatCOP(product.price * Number(qty))}</span>
           </p>
         )}
 
         <div className="flex gap-3 mt-5">
           <button onClick={onClose}
-            className="flex-1 bg-slate-800 hover:bg-slate-700 text-slate-300 text-sm font-medium py-2.5 rounded-lg transition">
+            className="flex-1 bg-slate-700 hover:bg-slate-600 text-white text-sm font-medium py-2.5 rounded-lg transition">
             Cancelar
           </button>
           <button onClick={handleSell} disabled={loading}
-            className="flex-1 bg-violet-600 hover:bg-violet-500 disabled:opacity-50 text-white text-sm font-medium py-2.5 rounded-lg transition">
+            className="flex-1 bg-violet-600 hover:bg-violet-700 disabled:opacity-50 text-white text-sm font-medium py-2.5 rounded-lg transition">
             {loading ? 'Registrando...' : 'Registrar venta'}
           </button>
         </div>

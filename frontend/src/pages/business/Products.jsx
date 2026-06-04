@@ -1031,11 +1031,18 @@ function InventarioTab({ products, sales, sortBy, onSortChange }) {
                     <div className="overflow-x-auto">
                       {(() => {
                         return (
-                          <table className="w-full text-sm min-w-[520px]">
+                          <table className="w-full text-sm min-w-[320px]">
                             <thead className="bg-[#131929]">
                               <tr className="border-b border-slate-800">
-                                {['Fecha', 'Cantidad', 'Total', 'Costo', 'Ganancia', 'Canal'].map((h) => (
-                                  <th key={h} className="text-left text-slate-500 font-medium px-4 py-2 text-xs">{h}</th>
+                                {[
+                                  { label: 'Fecha',    cls: '' },
+                                  { label: 'Cantidad', cls: '' },
+                                  { label: 'Total',    cls: '' },
+                                  { label: 'Costo',    cls: 'hidden md:table-cell' },
+                                  { label: 'Ganancia', cls: 'hidden md:table-cell' },
+                                  { label: 'Canal',    cls: '' },
+                                ].map(({ label, cls }) => (
+                                  <th key={label} className={`text-left text-slate-500 font-medium px-4 py-2 text-xs ${cls}`}>{label}</th>
                                 ))}
                               </tr>
                             </thead>
@@ -1048,8 +1055,8 @@ function InventarioTab({ products, sales, sortBy, onSortChange }) {
                                     <td className="px-4 py-2 text-slate-400 text-xs">{v.fecha}</td>
                                     <td className="px-4 py-2 text-slate-300">{v.cantidad}</td>
                                     <td className="px-4 py-2 text-emerald-400 font-medium">{formatCOP(v.total)}</td>
-                                    <td className="px-4 py-2 text-orange-400">{costo != null ? formatCOP(costo) : <span className="text-slate-600">—</span>}</td>
-                                    <td className="px-4 py-2 font-medium">
+                                    <td className="hidden md:table-cell px-4 py-2 text-orange-400">{costo != null ? formatCOP(costo) : <span className="text-slate-600">—</span>}</td>
+                                    <td className="hidden md:table-cell px-4 py-2 font-medium">
                                       {ganancia != null
                                         ? <span className={ganancia >= 0 ? 'text-emerald-400' : 'text-red-400'}>{formatCOP(ganancia)}</span>
                                         : <span className="text-slate-600">—</span>}

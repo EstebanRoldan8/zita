@@ -254,6 +254,33 @@ MÚLTIPLES ACCIONES EN UN MENSAJE:
   confirmar todo junto en una sola respuesta
 - Eficiencia sobre confirmaciones múltiples
 </product_management>
+
+<rentabilidad>
+ANÁLISIS DE RENTABILIDAD Y MÁRGENES:
+
+Cuando el usuario pregunte por:
+- "¿cuál es mi producto más rentable?" → usa analizar_rentabilidad
+- "¿cuál es mi margen este mes?" → usa consultar_metricas con periodo=month
+- "¿cuánto gané realmente este mes?" → usa consultar_metricas con periodo=month, responde con utilidad_neta
+- "¿qué producto me deja más ganancia?" → usa analizar_rentabilidad
+- "rentabilidad", "margen", "ganancia real", "utilidad" → analizar_rentabilidad o consultar_metricas según contexto
+
+AL PRESENTAR RESULTADOS DE RENTABILIDAD:
+- Muestra margen_pct con el símbolo % y un emoji de color:
+  * ≥ 40% → 🟢 excelente
+  * 20-39% → 🟡 aceptable
+  * < 20% → 🔴 bajo
+- Presenta utilidad_neta como "lo que realmente ganaste"
+- Si un producto no tiene costo definido, menciona que falta definir su precio de costo para calcular margen
+- Siempre muestra los montos en formato colombiano: $ 1.250.000
+- Resume en máximo 3-4 líneas: el mejor producto, el margen general y la utilidad neta
+
+DIFERENCIA IMPORTANTE:
+- "Ingresos" = lo que entró (ventas)
+- "Margen Bruto" = Ingresos − Costo de Ventas (costo de los productos vendidos)
+- "Utilidad Neta" = Margen Bruto − Egresos Operativos (lo que realmente ganaste)
+- NUNCA confundas ingresos con ganancia real
+</rentabilidad>
 `;
 
 // FunciÃ³n para calcular similitud entre strings
@@ -592,6 +619,11 @@ const tools = [
     }
   },
   {
+    name: 'analizar_rentabilidad',
+    description: 'Analiza rentabilidad de productos del mes actual. Retorna ranking de más a menos rentable, producto más/menos rentable y margen promedio. Usar cuando pregunten por rentabilidad, margen, ganancia por producto o qué producto deja más utilidad.',
+    input_schema: { type: 'object', properties: {} }
+  },
+  {
     name: 'actualizar_cita',
     description: 'Actualiza el cliente o empleado de una cita existente. Usar cuando el usuario dice que se equivocó de cliente.',
     input_schema: {
@@ -725,13 +757,20 @@ async function executeTool(toolName, toolInput, businessId) {
       const normalizedSearch = normalize(toolInput.nombre);
       const { data: allProducts } = await supabaseAdmin
         .from('products')
-        .select('id, name, price, stock')
+        .select('id, name, price, stock, cost_price')
         .eq('business_id', businessId)
         .eq('is_active', true);
 
       if (!allProducts || allProducts.length === 0) {
         return { found: false, message: 'No encontré ese producto' };
       }
+
+      const addMargin = (p) => ({
+        ...p,
+        margen_pct: p.cost_price != null && p.price > 0
+          ? Number(((p.price - p.cost_price) / p.price * 100).toFixed(1))
+          : null,
+      });
 
       const matches = allProducts.filter(p =>
         normalize(p.name).includes(normalizedSearch) || normalizedSearch.split(' ').some(w => normalize(p.name).includes(w))
@@ -741,14 +780,14 @@ async function executeTool(toolName, toolInput, businessId) {
         return { found: false, message: 'No encontré ese producto' };
       }
 
-      if (matches.length === 1) return { found: true, product: matches[0] };
+      if (matches.length === 1) return { found: true, product: addMargin(matches[0]) };
 
       const bestMatch = matches.reduce((best, current) => {
         const currentScore = calculateSimilarity(toolInput.nombre, current.name);
         const bestScore = calculateSimilarity(toolInput.nombre, best.name);
         return currentScore > bestScore ? current : best;
       });
-      return { found: true, product: bestMatch };
+      return { found: true, product: addMargin(bestMatch) };
     }
 
     case 'listar_servicios': {
@@ -898,20 +937,31 @@ async function executeTool(toolName, toolInput, businessId) {
     }
 
     case 'consultar_metricas': {
-      const hoy = new Date().toLocaleDateString('en-CA', { timeZone: 'America/Bogota' });
-      const primerDiaDelMes = new Date(new Date().getFullYear(), new Date().getMonth(), 1)
-        .toLocaleDateString('en-CA', { timeZone: 'America/Bogota' });
+      const bogota = { timeZone: 'America/Bogota' };
+      const hoy = new Date().toLocaleDateString('en-CA', bogota);
+      const inicioFecha = toolInput.periodo === 'day'
+        ? hoy
+        : toolInput.periodo === 'week'
+          ? new Date(Date.now() - 7 * 86400000).toLocaleDateString('en-CA', bogota)
+          : new Date(new Date().getFullYear(), new Date().getMonth(), 1).toLocaleDateString('en-CA', bogota);
 
-      const { data: ingresos } = await supabaseAdmin
-        .from('income')
-        .select('amount')
-        .eq('business_id', businessId)
-        .gte('date', toolInput.periodo === 'day' ? hoy : toolInput.periodo === 'week'
-          ? new Date(Date.now() - 7 * 86400000).toLocaleDateString('en-CA', { timeZone: 'America/Bogota' })
-          : primerDiaDelMes);
+      const [{ data: ingresos }, { data: egresos }] = await Promise.all([
+        supabaseAdmin.from('income').select('amount').eq('business_id', businessId).gte('date', inicioFecha),
+        supabaseAdmin.from('expenses').select('amount, category').eq('business_id', businessId).gte('date', inicioFecha),
+      ]);
 
-      const total = ingresos?.reduce((sum, i) => sum + (i.amount || 0), 0) || 0;
-      return { total_income: total, period: toolInput.periodo, currency: 'COP' };
+      const total_ingresos    = (ingresos || []).reduce((s, i) => s + Number(i.amount || 0), 0);
+      const costo_ventas      = (egresos || []).filter(e => e.category === 'costo_producto').reduce((s, e) => s + Number(e.amount), 0);
+      const egresos_operativos = (egresos || []).filter(e => e.category !== 'costo_producto').reduce((s, e) => s + Number(e.amount), 0);
+      const margen_bruto      = total_ingresos - costo_ventas;
+      const utilidad_neta     = margen_bruto - egresos_operativos;
+      const margen_pct        = total_ingresos > 0 ? Number((utilidad_neta / total_ingresos * 100).toFixed(1)) : 0;
+
+      return {
+        total_ingresos, costo_ventas, egresos_operativos,
+        margen_bruto, utilidad_neta, margen_pct,
+        period: toolInput.periodo, currency: 'COP',
+      };
     }
 
     case 'registrar_venta': {
@@ -1011,11 +1061,17 @@ async function executeTool(toolName, toolInput, businessId) {
     case 'listar_productos': {
       const { data } = await supabaseAdmin
         .from('products')
-        .select('id, name, price, stock')
+        .select('id, name, price, stock, cost_price')
         .eq('business_id', businessId)
         .eq('is_active', true)
         .order('name');
-      return { products: data };
+      const products = (data || []).map(p => ({
+        ...p,
+        margen_pct: p.cost_price != null && p.price > 0
+          ? Number(((p.price - p.cost_price) / p.price * 100).toFixed(1))
+          : null,
+      }));
+      return { products };
     }
 
     case 'activar_producto': {
@@ -1225,6 +1281,74 @@ async function executeTool(toolName, toolInput, businessId) {
         total: total || 0,
         nuevos_este_mes: nuevosEsteMes || 0,
         activos_esta_semana: clientesActivos
+      };
+    }
+
+    case 'analizar_rentabilidad': {
+      const bogota = { timeZone: 'America/Bogota' };
+      const hoy = new Date().toLocaleDateString('en-CA', bogota);
+      const inicioMes = hoy.slice(0, 7) + '-01';
+
+      const [{ data: productos }, { data: ventas }, { data: costosExp }] = await Promise.all([
+        supabaseAdmin.from('products').select('id, name, price, cost_price').eq('business_id', businessId).eq('is_active', true),
+        supabaseAdmin.from('product_sales').select('product_id, quantity, total_amount').eq('business_id', businessId).gte('created_at', inicioMes + 'T00:00:00-05:00'),
+        supabaseAdmin.from('expenses').select('amount, description').eq('business_id', businessId).eq('category', 'costo_producto').gte('date', inicioMes),
+      ]);
+
+      const ventasPorProducto = {};
+      (ventas || []).forEach(v => {
+        if (!ventasPorProducto[v.product_id]) ventasPorProducto[v.product_id] = { unidades: 0, ingresos: 0 };
+        ventasPorProducto[v.product_id].unidades += v.quantity;
+        ventasPorProducto[v.product_id].ingresos += Number(v.total_amount);
+      });
+
+      const costosPorProducto = {};
+      (costosExp || []).forEach(e => {
+        const match = e.description?.match(/Costo de venta: (.+) \((\d+) unidades\)/);
+        if (match) {
+          const nombre = match[1];
+          costosPorProducto[nombre] = (costosPorProducto[nombre] || 0) + Number(e.amount);
+        }
+      });
+
+      const ranking = (productos || [])
+        .filter(p => ventasPorProducto[p.id])
+        .map(p => {
+          const v = ventasPorProducto[p.id];
+          const costo_total = p.cost_price != null
+            ? Number(p.cost_price) * v.unidades
+            : (costosPorProducto[p.name] || 0);
+          const margen_bruto = v.ingresos - costo_total;
+          const margen_pct = v.ingresos > 0 ? Number((margen_bruto / v.ingresos * 100).toFixed(1)) : null;
+          return {
+            nombre: p.name,
+            unidades_vendidas: v.unidades,
+            ingresos_totales: v.ingresos,
+            costo_total,
+            margen_bruto,
+            margen_pct,
+            tiene_costo: p.cost_price != null,
+          };
+        })
+        .sort((a, b) => (b.margen_pct ?? -999) - (a.margen_pct ?? -999));
+
+      const conMargen = ranking.filter(p => p.margen_pct !== null);
+      const margen_promedio = conMargen.length > 0
+        ? Number((conMargen.reduce((s, p) => s + p.margen_pct, 0) / conMargen.length).toFixed(1))
+        : null;
+
+      const totalIngresos = ranking.reduce((s, p) => s + p.ingresos_totales, 0);
+      const totalCosto    = ranking.reduce((s, p) => s + p.costo_total, 0);
+      const utilidadNeta  = totalIngresos - totalCosto;
+
+      return {
+        ranking,
+        producto_mas_rentable:   conMargen[0] || null,
+        producto_menos_rentable: conMargen[conMargen.length - 1] || null,
+        margen_promedio_negocio: margen_promedio,
+        resumen: { total_ingresos: totalIngresos, total_costo: totalCosto, utilidad_neta: utilidadNeta },
+        periodo: `${inicioMes} al ${hoy}`,
+        nota: conMargen.length < ranking.length ? 'Algunos productos no tienen costo definido; su margen no se puede calcular.' : null,
       };
     }
 

@@ -949,7 +949,7 @@ function InventarioTab({ products, sales, sortBy, onSortChange }) {
                           </span>
                         </td>
                         <td className="px-4 py-3 text-center text-slate-400">{p.min_stock ?? 0}</td>
-                        <td className="px-4 py-3">
+                        <td className="px-4 py-3 text-center">
                           {status.label === 'OK' ? (
                             <span className="text-xs font-medium text-emerald-400 bg-emerald-500/15 border border-emerald-500/20 px-2 py-1 rounded-lg">OK</span>
                           ) : status.label === 'Stock bajo' ? (

@@ -1017,19 +1017,17 @@ function InventarioTab({ products, sales, sortBy, onSortChange }) {
                   onClick={() => setExpandedProducts(prev => ({ ...prev, [p.nombre]: !prev[p.nombre] }))}
                   className="w-full px-4 py-3 bg-[#131929]/80 hover:bg-slate-800 transition flex items-center justify-between"
                 >
-                  <div className="flex items-start gap-2 flex-1 min-w-0">
-                    <div className="flex-1 text-left min-w-0">
-                      <p className="text-white font-medium truncate max-w-[55%] sm:max-w-none">{p.nombre}</p>
-                      <p className="text-slate-400 text-xs">{p.unidades} unidade{p.unidades !== 1 ? 's' : ''}</p>
-                    </div>
-                    <div className="text-right whitespace-nowrap flex-shrink-0">
-                      <p className="text-emerald-400 font-bold">{formatCOP(p.total)}</p>
+                  <div className="flex-1 text-left min-w-0">
+                    <p className="text-white font-medium line-clamp-2 sm:line-clamp-1">{p.nombre}</p>
+                    <p className="text-slate-400 text-sm mt-0.5">{p.unidades} unidade{p.unidades !== 1 ? 's' : ''}</p>
+                    <p className="mt-0.5">
+                      <span className="text-emerald-400 font-bold">{formatCOP(p.total)}</span>
                       {gananciaProduct != null && (
-                        <p className="text-emerald-400 text-xs font-semibold">+{formatCOP(gananciaProduct)}</p>
+                        <span className="text-emerald-400 text-sm"> · +{formatCOP(gananciaProduct)}</span>
                       )}
-                    </div>
+                    </p>
                   </div>
-                  <span className="text-slate-400 ml-4">{expandedProducts[p.nombre] ? '▼' : '▶'}</span>
+                  <span className="text-slate-400 ml-3 flex-shrink-0">{expandedProducts[p.nombre] ? '▼' : '▶'}</span>
                 </button>
                 {expandedProducts[p.nombre] && (
                   <div className="bg-[#131929]/50 border-t border-slate-800">

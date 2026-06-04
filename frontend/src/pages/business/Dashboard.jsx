@@ -68,7 +68,7 @@ function MetricCard({ icon: Icon, label, value, sub, color, valueColor }) {
         </div>
       </div>
       <div>
-        <p className={`${isKpiCard ? `text-base sm:text-lg font-bold truncate ${valueColor || 'text-white'}` : 'text-white text-base sm:text-lg font-bold truncate'}`}>{value}</p>
+        <p className={`${isKpiCard ? `text-base sm:text-lg font-bold ${valueColor || 'text-white'}` : 'text-white text-base sm:text-lg font-bold'}`}>{value}</p>
         {sub && <p className={`${isKpiCard ? 'text-xs text-white/40 mt-1' : 'text-slate-500 text-xs mt-0.5 sm:mt-1'}`}>{sub}</p>}
       </div>
     </div>
@@ -697,18 +697,18 @@ export default function Dashboard() {
           </Link>
         </div>
         {daySummary ? (
-          <div className="grid grid-cols-3 gap-2 md:gap-4">
+          <div className="grid grid-cols-2 gap-2 md:gap-4">
             <MetricCard icon={TrendingUp}   label="Ingresos"   value={formatCOP(daySummary.income_total)}  sub="Caja del día"  color="bg-emerald-600" />
             <MetricCard icon={TrendingDown} label="Egresos"    value={formatCOP(daySummary.expense_total)} sub="Gastos del día" color="bg-red-600" />
-            <div className="bg-[#131929] border border-slate-800 rounded-xl shadow-lg shadow-black/30 p-3 sm:p-3 flex flex-col gap-1.5 sm:gap-3 border border-violet-500/15 hover:border-violet-500/40 hover:bg-slate-700/60 transition-all duration-200">
+            <div className="col-span-2 sm:col-span-1 bg-[#131929] border border-slate-800 rounded-xl shadow-lg shadow-black/30 p-3 sm:p-3 flex flex-col gap-1.5 sm:gap-3 border border-violet-500/15 hover:border-violet-500/40 hover:bg-slate-700/60 transition-all duration-200">
               <div className="flex items-center justify-between">
-                <span className="text-slate-400 text-[10px] leading-tight font-medium">Ganancia</span>
+                <span className="text-slate-400 text-xs font-medium mr-1">Ganancia</span>
                 <div className={`w-7 h-7 rounded-lg flex items-center justify-center flex-shrink-0 ${daySummary.net >= 0 ? 'bg-violet-600/20' : 'bg-violet-600/20'}`}>
                   {daySummary.net >= 0 ? <TrendingUp size={18} className="text-violet-400" /> : <TrendingDown size={18} className="text-violet-400" />}
                 </div>
               </div>
               <div>
-                <p className={`text-base sm:text-lg font-bold truncate ${daySummary.net > 0 ? 'text-emerald-400' : daySummary.net === 0 ? 'text-white/60' : 'text-red-400'}`}>
+                <p className={`text-xl sm:text-lg font-bold ${daySummary.net > 0 ? 'text-emerald-400' : daySummary.net === 0 ? 'text-white/60' : 'text-red-400'}`}>
                   {formatCOP(daySummary.net)}
                 </p>
                 <p className="text-slate-500 text-xs mt-0.5 sm:mt-1">Ingresos − egresos</p>

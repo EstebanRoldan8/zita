@@ -38,6 +38,7 @@ const adminRoutes = require('./routes/admin.routes');
 const loyaltyRoutes = require('./routes/loyalty.routes');
 const subscriptionRoutes = require('./routes/subscription.routes');
 const contactRoutes = require('./routes/contact.routes');
+const paymentRoutes = require('./routes/payment.routes');
 const { verifyToken } = require('./middlewares/auth');
 const { businessContext } = require('./middlewares/businessContext');
 const { initScheduler } = require('./services/scheduler.service');
@@ -143,6 +144,7 @@ app.use('/api/subscription', verifyToken, businessContext, subscriptionRoutes);
 app.use('/api/webhook', webhookRoutes);
 app.use('/api/contact', contactRoutes);
 app.use('/api/demo', contactRoutes);
+app.use('/api/payments', paymentRoutes);
 
 const Sentry = require("@sentry/node");
 Sentry.setupExpressErrorHandler(app);

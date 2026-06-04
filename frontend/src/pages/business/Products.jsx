@@ -900,12 +900,13 @@ function InventarioTab({ products, sales, sortBy, onSortChange }) {
               <table className="w-full text-sm border-collapse">
                 <thead>
                   <tr className="bg-[#0d1420]">
-                    <th className="w-[30%] text-left text-white/40 font-medium px-4 py-3 text-xs uppercase tracking-wider">Producto</th>
-                    <th className="w-[12%] text-center text-white/40 font-medium px-4 py-3 text-xs uppercase tracking-wider">Categoría</th>
-                    <th className="w-[13%] text-left text-white/40 font-medium px-4 py-3 text-xs uppercase tracking-wider">Precio</th>
-                    <th className="w-[10%] text-center text-white/40 font-medium px-4 py-3 text-xs uppercase tracking-wider">Margen</th>
-                    <th className="w-[10%] text-center text-white/40 font-medium px-4 py-3 text-xs uppercase tracking-wider">Stock actual</th>
-                    <th className="w-[10%] text-center text-white/40 font-medium px-4 py-3 text-xs uppercase tracking-wider">Stock mín.</th>
+                    <th className="w-[26%] text-left text-white/40 font-medium px-4 py-3 text-xs uppercase tracking-wider">Producto</th>
+                    <th className="w-[11%] text-center text-white/40 font-medium px-4 py-3 text-xs uppercase tracking-wider">Categoría</th>
+                    <th className="w-[11%] text-left text-white/40 font-medium px-4 py-3 text-xs uppercase tracking-wider">Precio</th>
+                    <th className="w-[10%] text-left text-white/40 font-medium px-4 py-3 text-xs uppercase tracking-wider">Costo</th>
+                    <th className="w-[9%] text-center text-white/40 font-medium px-4 py-3 text-xs uppercase tracking-wider">Margen</th>
+                    <th className="w-[9%] text-center text-white/40 font-medium px-4 py-3 text-xs uppercase tracking-wider">Stock actual</th>
+                    <th className="w-[9%] text-center text-white/40 font-medium px-4 py-3 text-xs uppercase tracking-wider">Stock mín.</th>
                     <th className="w-[15%] text-left text-white/40 font-medium px-4 py-3 text-xs uppercase tracking-wider">Estado</th>
                   </tr>
                 </thead>
@@ -917,6 +918,11 @@ function InventarioTab({ products, sales, sortBy, onSortChange }) {
                         <td className="px-4 py-3 text-white font-medium">{p.name}</td>
                         <td className="px-4 py-3 text-center text-slate-400">{p.category || '—'}</td>
                         <td className="px-4 py-3 text-slate-300">{formatCOP(p.price)}</td>
+                        <td className="px-4 py-3">
+                          {p.cost_price != null
+                            ? <span className="text-slate-300">{formatCOP(p.cost_price)}</span>
+                            : <span className="text-slate-600 text-xs">—</span>}
+                        </td>
                         <td className="px-4 py-3 text-center">
                           {p.cost_price != null ? (
                             <span className={`text-xs font-semibold ${

@@ -634,7 +634,7 @@ function CatalogoTab({ products, clients, showInactive, onShowInactiveChange, so
                 </div>
               )}
 
-              <div className="p-3 space-y-3">
+              <div className="p-3 flex flex-col flex-1 gap-3">
                 <div className="flex items-start justify-between">
                   <div className="min-w-0 flex-1 pr-2">
                     <p className="text-white font-semibold text-sm leading-tight truncate">{p.name}</p>
@@ -680,9 +680,9 @@ function CatalogoTab({ products, clients, showInactive, onShowInactiveChange, so
                   </div>
                 </div>
 
-                <div className="flex gap-2">
+                <div className="flex gap-2 mt-auto">
                   <button onClick={() => setSellProduct(p)} disabled={displayStock === 0 || !p.is_active}
-                    className="w-full py-2 text-sm bg-violet-600 hover:bg-violet-500 text-white rounded-lg transition-colors flex items-center justify-center gap-2 mt-3 disabled:opacity-40">
+                    className="w-full py-2 text-sm bg-violet-600 hover:bg-violet-500 text-white rounded-lg transition-colors flex items-center justify-center gap-2 disabled:opacity-40">
                     <ShoppingCart size={13} /> Vender
                   </button>
                   <div className="ml-auto flex gap-2 opacity-0 group-hover:opacity-100 transition-opacity">

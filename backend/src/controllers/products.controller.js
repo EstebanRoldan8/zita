@@ -1,5 +1,6 @@
 const { createUserClient } = require('../config/supabase');
 const logger = require('../utils/logger');
+const { getTimezone } = require('../utils/timezone');
 
 async function getAll(req, res) {
   try {
@@ -48,8 +49,7 @@ async function getLowStock(req, res) {
 async function getSales(req, res) {
   try {
     const sb = createUserClient(req.headers.authorization);
-    const now = new Date();
-    const todayCol = new Date().toLocaleDateString('en-CA', { timeZone: 'America/Bogota' });
+    const todayCol = new Date().toLocaleDateString('en-CA', { timeZone: getTimezone(req.business?.country) });
     const [cy, cm] = todayCol.slice(0, 7).split('-').map(Number);
     const monthStart = `${todayCol.slice(0, 7)}-01`;
     const monthEnd   = `${todayCol.slice(0, 7)}-${String(new Date(cy, cm, 0).getDate()).padStart(2, '0')}`;
@@ -279,7 +279,7 @@ async function sell(req, res) {
       });
     if (saleErr) throw saleErr;
 
-    const saleDate = new Date().toLocaleDateString('en-CA', { timeZone: 'America/Bogota' });
+    const saleDate = new Date().toLocaleDateString('en-CA', { timeZone: getTimezone(req.business?.country) });
 
     const { error: incomeErr } = await sb
       .from('income')

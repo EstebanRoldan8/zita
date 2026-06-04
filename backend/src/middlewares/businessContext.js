@@ -17,7 +17,7 @@ async function businessContext(req, res, next) {
 
     const { data, error } = await userClient
       .from('businesses')
-      .select('id, user_id')
+      .select('id, user_id, country, plan, business_type, name')
       .eq('user_id', req.user.id)
       .single();
 
@@ -34,6 +34,7 @@ async function businessContext(req, res, next) {
     }
 
     req.businessId = data.id;
+    req.business   = data;
     next();
   } catch (err) {
     logger.error(`businessContext: ${err.message}`);

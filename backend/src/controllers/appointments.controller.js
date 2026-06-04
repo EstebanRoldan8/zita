@@ -1,5 +1,6 @@
 const { createUserClient, supabaseAdmin } = require('../config/supabase');
 const logger = require('../utils/logger');
+const { getTimezone, getOffsetForTz } = require('../utils/timezone');
 const { getAvailableEmployee, getNextAvailableSlots } = require('../utils/availability');
 const { sendMessage } = require('../config/whatsapp');
 const { decrypt } = require('../utils/encrypt');
@@ -41,8 +42,9 @@ async function getAll(req, res) {
       .order('scheduled_at');
 
     if (req.query.date) {
-      const start = `${req.query.date}T00:00:00-05:00`;
-      const end   = `${req.query.date}T23:59:59-05:00`;
+      const offset = getOffsetForTz(getTimezone(req.business?.country));
+      const start = `${req.query.date}T00:00:00${offset}`;
+      const end   = `${req.query.date}T23:59:59${offset}`;
       query = query.gte('scheduled_at', start).lte('scheduled_at', end);
     }
 
@@ -115,11 +117,13 @@ async function create(req, res) {
       const limite = PLANS[plan].max_appointments_month;
 
       if (limite !== -1) {
-        const mesActual = new Date().toLocaleDateString('en-CA', { timeZone: 'America/Bogota' }).slice(0, 7);
-        const inicioMes = `${mesActual}-01T00:00:00-05:00`;
+        const _tz = getTimezone(req.business?.country);
+        const _off = getOffsetForTz(_tz);
+        const mesActual = new Date().toLocaleDateString('en-CA', { timeZone: _tz }).slice(0, 7);
+        const inicioMes = `${mesActual}-01T00:00:00${_off}`;
         const [yr, mo] = mesActual.split('-').map(Number);
         const ultimoDia = new Date(yr, mo, 0).getDate();
-        const finMes = `${mesActual}-${String(ultimoDia).padStart(2, '0')}T23:59:59-05:00`;
+        const finMes = `${mesActual}-${String(ultimoDia).padStart(2, '0')}T23:59:59${_off}`;
 
         const { count } = await supabaseAdmin
           .from('appointments')
@@ -272,16 +276,17 @@ async function update(req, res) {
                 const token = decrypt(business.whatsapp_access_token);
 
                 // Formatear fecha y hora
+                const _apptTz = getTimezone(req.business?.country);
                 const fecha = new Date(fullAppt.scheduled_at)
                   .toLocaleDateString('es-CO', {
-                    timeZone: 'America/Bogota',
+                    timeZone: _apptTz,
                     weekday: 'long',
                     day: 'numeric',
                     month: 'long'
                   });
                 const hora = new Date(fullAppt.scheduled_at)
                   .toLocaleTimeString('es-CO', {
-                    timeZone: 'America/Bogota',
+                    timeZone: _apptTz,
                     hour: '2-digit',
                     minute: '2-digit'
                   });
@@ -361,7 +366,7 @@ async function update(req, res) {
               category: 'otro',
               amount: price,
               description: `Servicio de recompensa para ${clientName}`,
-              date: new Date().toLocaleDateString('en-CA', { timeZone: 'America/Bogota' }),
+              date: new Date().toLocaleDateString('en-CA', { timeZone: getTimezone(req.business?.country) }),
             });
         }
       } catch (loyaltyErr) {

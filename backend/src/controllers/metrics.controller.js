@@ -1,27 +1,31 @@
 const { createUserClient } = require('../config/supabase');
 const logger = require('../utils/logger');
+const { getTimezone, getOffsetForTz } = require('../utils/timezone');
 
-function monthRange() {
-  const todayCol = new Date().toLocaleDateString('en-CA', { timeZone: 'America/Bogota' });
-  const [y, m] = todayCol.slice(0, 7).split('-').map(Number);
-  const lastDay = new Date(y, m, 0).getDate();
+function monthRange(tz = 'America/Bogota') {
+  const offset   = getOffsetForTz(tz);
+  const todayCol = new Date().toLocaleDateString('en-CA', { timeZone: tz });
+  const [y, m]   = todayCol.slice(0, 7).split('-').map(Number);
+  const lastDay  = new Date(y, m, 0).getDate();
   return {
-    start: `${todayCol.slice(0, 7)}-01T00:00:00-05:00`,
-    end: `${todayCol.slice(0, 7)}-${String(lastDay).padStart(2, '0')}T23:59:59-05:00`,
+    start: `${todayCol.slice(0, 7)}-01T00:00:00${offset}`,
+    end:   `${todayCol.slice(0, 7)}-${String(lastDay).padStart(2, '0')}T23:59:59${offset}`,
   };
 }
 
-function daysAgoISO(days) {
+function daysAgoISO(days, tz = 'America/Bogota') {
+  const offset = getOffsetForTz(tz);
   const d = new Date();
   d.setDate(d.getDate() - days);
-  const dateCol = d.toLocaleDateString('en-CA', { timeZone: 'America/Bogota' });
-  return `${dateCol}T00:00:00-05:00`;
+  const dateCol = d.toLocaleDateString('en-CA', { timeZone: tz });
+  return `${dateCol}T00:00:00${offset}`;
 }
 
 async function overview(req, res) {
   try {
     const userClient = createUserClient(req.headers.authorization);
-    const { start, end } = monthRange();
+    const tz = getTimezone(req.business?.country);
+    const { start, end } = monthRange(tz);
     const startDate = start.slice(0, 10);
     const endDate   = end.slice(0, 10);
 
@@ -102,8 +106,9 @@ async function overview(req, res) {
 async function appointments(req, res) {
   try {
     const userClient = createUserClient(req.headers.authorization);
+    const tz = getTimezone(req.business?.country);
     const period = req.query.period === 'month' ? 30 : 7;
-    const since = daysAgoISO(period);
+    const since = daysAgoISO(period, tz);
 
     const { data, error } = await userClient
       .from('appointments')
@@ -136,7 +141,8 @@ async function appointments(req, res) {
 async function clients(req, res) {
   try {
     const userClient = createUserClient(req.headers.authorization);
-    const since30days = daysAgoISO(30);
+    const tz = getTimezone(req.business?.country);
+    const since30days = daysAgoISO(30, tz);
 
     const [
       { data: topClients },
@@ -191,25 +197,26 @@ async function employeeMetrics(req, res) {
   try {
     const userClient = createUserClient(req.headers.authorization);
 
+    const tz = getTimezone(req.business?.country);
+    const offset = getOffsetForTz(tz);
     let start, end;
-    const dateParam = req.query.date; // YYYY-MM-DD
-    const monthParam = req.query.month; // YYYY-MM
+    const dateParam = req.query.date;
+    const monthParam = req.query.month;
 
     if (dateParam && /^\d{4}-\d{2}-\d{2}$/.test(dateParam)) {
-      const [y, m, d] = dateParam.split('-').map(Number);
-      start = `${dateParam}T00:00:00-05:00`;
-      end = `${dateParam}T23:59:59-05:00`;
+      start = `${dateParam}T00:00:00${offset}`;
+      end   = `${dateParam}T23:59:59${offset}`;
     } else if (monthParam && /^\d{4}-\d{2}$/.test(monthParam)) {
       const [y, m] = monthParam.split('-').map(Number);
-      start = new Date(y, m - 1, 1).toISOString();
-      end = new Date(y, m, 0, 23, 59, 59, 999).toISOString();
+      start = `${monthParam}-01T00:00:00${offset}`;
+      end   = `${new Date(y, m, 0).toISOString().slice(0, 10)}T23:59:59${offset}`;
     } else {
-      ({ start, end } = monthRange());
+      ({ start, end } = monthRange(tz));
     }
 
-    const todayCol = new Date().toLocaleDateString('en-CA', { timeZone: 'America/Bogota' });
-    const todayStart = `${todayCol}T00:00:00-05:00`;
-    const todayEnd = `${todayCol}T23:59:59-05:00`;
+    const todayCol   = new Date().toLocaleDateString('en-CA', { timeZone: tz });
+    const todayStart = `${todayCol}T00:00:00${offset}`;
+    const todayEnd   = `${todayCol}T23:59:59${offset}`;
 
     const [{ data: employees, error: empErr }, { data: appts, error: apptErr }, { data: todayAppts, error: todayErr }] = await Promise.all([
       userClient
@@ -285,7 +292,8 @@ async function employeeMetrics(req, res) {
 async function getHeatmap(req, res) {
   try {
     const userClient = createUserClient(req.headers.authorization);
-    const since = daysAgoISO(30);
+    const tz = getTimezone(req.business?.country);
+    const since = daysAgoISO(30, tz);
 
     const { data, error } = await userClient
       .from('appointments')
@@ -318,20 +326,21 @@ async function getHeatmap(req, res) {
 async function getRetention(req, res) {
   try {
     const userClient = createUserClient(req.headers.authorization);
-    const now = new Date();
+    const tz = getTimezone(req.business?.country);
+    const offset = getOffsetForTz(tz);
 
-    const todayCol = new Date().toLocaleDateString('en-CA', { timeZone: 'America/Bogota' });
+    const todayCol = new Date().toLocaleDateString('en-CA', { timeZone: tz });
     const [cy, cm] = todayCol.slice(0, 7).split('-').map(Number);
-    const thisMonthStart = `${todayCol.slice(0, 7)}-01T00:00:00-05:00`;
-    const lastMonthDate = new Date(cy, cm - 2, 1);
-    const lastMonthStr = lastMonthDate.toLocaleDateString('en-CA', { timeZone: 'America/Bogota' }).slice(0, 7);
-    const lastMonthStart = `${lastMonthStr}-01T00:00:00-05:00`;
-    const lastMonthEnd = `${todayCol.slice(0, 7)}-01T00:00:00-05:00`;
+    const thisMonthStart = `${todayCol.slice(0, 7)}-01T00:00:00${offset}`;
+    const lastMonthDate  = new Date(cy, cm - 2, 1);
+    const lastMonthStr   = lastMonthDate.toLocaleDateString('en-CA', { timeZone: tz }).slice(0, 7);
+    const lastMonthStart = `${lastMonthStr}-01T00:00:00${offset}`;
+    const lastMonthEnd   = `${todayCol.slice(0, 7)}-01T00:00:00${offset}`;
     const sixMonthsAgoDate = new Date(cy, cm - 6, 1);
-    const sixMonthsAgoStr = sixMonthsAgoDate.toLocaleDateString('en-CA', { timeZone: 'America/Bogota' }).slice(0, 7);
-    const sixMonthsAgo = `${sixMonthsAgoStr}-01T00:00:00-05:00`;
-    const days30         = daysAgoISO(30);
-    const days90         = daysAgoISO(90);
+    const sixMonthsAgoStr  = sixMonthsAgoDate.toLocaleDateString('en-CA', { timeZone: tz }).slice(0, 7);
+    const sixMonthsAgo   = `${sixMonthsAgoStr}-01T00:00:00${offset}`;
+    const days30 = daysAgoISO(30, tz);
+    const days90 = daysAgoISO(90, tz);
 
     const [
       { count: newThisMonth },

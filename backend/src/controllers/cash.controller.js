@@ -2,6 +2,7 @@ const { createUserClient, supabaseAdmin } = require('../config/supabase');
 const logger = require('../utils/logger');
 const PDFDocument = require('pdfkit');
 const ExcelJS = require('exceljs');
+const { getTimezone, getOffsetForTz, getDateByCountry } = require('../utils/timezone');
 
 const INCOME_CATEGORIES = ['servicios', 'productos', 'otro'];
 const EXPENSE_CATEGORIES = ['nomina', 'materias_primas', 'servicios', 'arriendo', 'otro'];
@@ -13,7 +14,7 @@ function dateToString(date) {
   return `${y}-${m}-${d}`;
 }
 
-function periodRange(query) {
+function periodRange(query, tz = 'America/Bogota') {
   // Accept ?month=YYYY-MM (preferred) or ?period=day|week|month (legacy)
   if (query.month && /^\d{4}-\d{2}$/.test(query.month)) {
     const [yr, mo] = query.month.split('-').map(Number);
@@ -23,8 +24,8 @@ function periodRange(query) {
   }
 
   const period = query.period || 'month';
-  // Always derive today from Colombia timezone to avoid UTC offset issues
-  const todayCol = new Date().toLocaleDateString('en-CA', { timeZone: 'America/Bogota' });
+  // Always derive today from the business timezone to avoid UTC offset issues
+  const todayCol = new Date().toLocaleDateString('en-CA', { timeZone: tz });
 
   if (!['day', 'week', 'month'].includes(period)) {
     return { start: todayCol, end: todayCol };
@@ -68,7 +69,9 @@ function fmtCOP(v) {
 async function getSummary(req, res) {
   try {
     const userClient = createUserClient(req.headers.authorization);
-    const { start, end } = periodRange(req.query);
+    const tz = getTimezone(req.business?.country);
+    const offset = getOffsetForTz(tz);
+    const { start, end } = periodRange(req.query, tz);
 
     // Last 6 months for chart
     const chartFrom = new Date();
@@ -76,9 +79,8 @@ async function getSummary(req, res) {
     chartFrom.setDate(1);
     const chartStart = chartFrom.toISOString().slice(0, 10);
 
-    // Convert dates to ISO timestamps (UTC): start at 00:00, end at next day 00:00
-    const startTS = `${start}T00:00:00-05:00`;
-    const endTS = `${end}T23:59:59-05:00`;
+    const startTS = `${start}T00:00:00${offset}`;
+    const endTS = `${end}T23:59:59${offset}`;
     const chartStartTS = `${chartStart}T00:00:00Z`;
 
     const [
@@ -159,10 +161,12 @@ async function getSummary(req, res) {
 async function getIncome(req, res) {
   try {
     const userClient = createUserClient(req.headers.authorization);
-    let { start, end } = periodRange(req.query);
+    const tz = getTimezone(req.business?.country);
+    const offset = getOffsetForTz(tz);
+    let { start, end } = periodRange(req.query, tz);
 
-    const startTS = `${start}T00:00:00-05:00`;
-    const endTS = `${end}T23:59:59-05:00`;
+    const startTS = `${start}T00:00:00${offset}`;
+    const endTS = `${end}T23:59:59${offset}`;
 
     const [
       { data: manual, error: incErr },
@@ -185,8 +189,8 @@ async function getIncome(req, res) {
       userClient.from('product_sales')
         .select('id, quantity, total_amount, created_at, sold_via, products(name)')
         .eq('business_id', req.businessId)
-        .gte('created_at', `${start}T00:00:00-05:00`)
-        .lte('created_at', `${end}T23:59:59-05:00`)
+        .gte('created_at', `${start}T00:00:00${offset}`)
+        .lte('created_at', `${end}T23:59:59${offset}`)
         .order('created_at', { ascending: false }),
     ]);
 
@@ -426,15 +430,17 @@ async function deleteExpense(req, res) {
 async function exportPdf(req, res) {
   try {
     const userClient = createUserClient(req.headers.authorization);
-    const month  = req.query.month || new Date().toISOString().slice(0, 7);
+    const tz = getTimezone(req.business?.country);
+    const offset = getOffsetForTz(tz);
+    const month  = req.query.month || new Date().toLocaleDateString('en-CA', { timeZone: tz }).slice(0, 7);
     const [yr, mo] = month.split('-').map(Number);
     const start  = `${month}-01`;
     const end    = new Date(yr, mo, 0).toISOString().slice(0, 10);
-    const startTS = `${start}T00:00:00-05:00`;
-    const endTS   = `${end}T23:59:59-05:00`;
+    const startTS = `${start}T00:00:00${offset}`;
+    const endTS   = `${end}T23:59:59${offset}`;
     const MONTHS  = ['Enero','Febrero','Marzo','Abril','Mayo','Junio','Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre'];
     const monthLabel = `${MONTHS[mo-1]} ${yr}`;
-    const today = new Date().toLocaleDateString('es-CO', { timeZone: 'America/Bogota' });
+    const today = new Date().toLocaleDateString('es-CO', { timeZone: tz });
 
     const [{ data: incomeData }, { data: allExpensesData }, { data: apptData }, { data: biz }] = await Promise.all([
       userClient.from('income').select('amount,category,description,date,clients(name)').eq('business_id', req.businessId).gte('date', start).lte('date', end).order('date'),
@@ -658,15 +664,17 @@ async function exportPdf(req, res) {
 async function getExcel(req, res) {
   try {
     const userClient = createUserClient(req.headers.authorization);
-    const month  = req.query.month || new Date().toISOString().slice(0, 7);
+    const tz = getTimezone(req.business?.country);
+    const offset = getOffsetForTz(tz);
+    const month  = req.query.month || new Date().toLocaleDateString('en-CA', { timeZone: tz }).slice(0, 7);
     const [yr, mo] = month.split('-').map(Number);
     const start  = `${month}-01`;
     const end    = new Date(yr, mo, 0).toISOString().slice(0, 10);
-    const startTS = `${start}T00:00:00-05:00`;
-    const endTS   = `${end}T23:59:59-05:00`;
+    const startTS = `${start}T00:00:00${offset}`;
+    const endTS   = `${end}T23:59:59${offset}`;
     const MONTHS  = ['Enero','Febrero','Marzo','Abril','Mayo','Junio','Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre'];
     const monthLabel = `${MONTHS[mo - 1]} ${yr}`;
-    const today  = new Date().toLocaleDateString('es-CO', { timeZone: 'America/Bogota' });
+    const today  = new Date().toLocaleDateString('es-CO', { timeZone: tz });
 
     const [{ data: incomeData }, { data: allExpensesData }, { data: apptData }, { data: biz }] = await Promise.all([
       userClient.from('income').select('amount,category,description,date,clients(name)').eq('business_id', req.businessId).gte('date', start).lte('date', end).order('date'),

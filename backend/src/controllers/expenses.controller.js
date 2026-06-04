@@ -1,10 +1,11 @@
 const { createUserClient } = require('../config/supabase');
 const logger = require('../utils/logger');
+const { getTimezone } = require('../utils/timezone');
 
 const VALID_CATEGORIES = ['nomina', 'materias_primas', 'servicios', 'arriendo', 'otro'];
 
-function parseMonth(monthStr) {
-  const todayCol = new Date().toLocaleDateString('en-CA', { timeZone: 'America/Bogota' });
+function parseMonth(monthStr, tz = 'America/Bogota') {
+  const todayCol = new Date().toLocaleDateString('en-CA', { timeZone: tz });
   const currentMonth = todayCol.slice(0, 7);
   const [year, month] = (monthStr || currentMonth).split('-').map(Number);
   if (!year || !month || month < 1 || month > 12) {
@@ -25,7 +26,7 @@ function parseMonth(monthStr) {
 async function getAll(req, res) {
   try {
     const userClient = createUserClient(req.headers.authorization);
-    const { start, end } = parseMonth(req.query.month);
+    const { start, end } = parseMonth(req.query.month, getTimezone(req.business?.country));
 
     const { data, error } = await userClient
       .from('expenses')

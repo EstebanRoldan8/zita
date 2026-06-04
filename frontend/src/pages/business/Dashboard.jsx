@@ -688,7 +688,7 @@ export default function Dashboard() {
       {/* Caja del día */}
       <div className="mt-6">
         <div className="border-t border-slate-700/50 mb-4" />
-        <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between mb-3 gap-2">
+        <div className="flex items-center justify-between mb-3 gap-2">
           <div className="flex items-center gap-2">
             <Wallet size={14} className="sm:w-4 sm:h-4 text-slate-400" />
             <h2 className="text-sm font-semibold text-slate-300">Caja de hoy</h2>

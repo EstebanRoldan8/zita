@@ -595,7 +595,7 @@ function IncomeTab({ month, period, onPeriodChange, dayDate, onDayDateChange }) 
               <div>
                 <label className="block text-slate-400 text-sm mb-1.5">Categoría *</label>
                 <select value={form.category} onChange={(e) => setForm({ ...form, category: e.target.value })}
-                  className="w-full bg-[#131929] border border-slate-700 text-white rounded-lg px-4 py-2.5 text-sm focus:outline-none focus:border-violet-500 transition">
+                  className="w-full bg-[#0f172a] border border-slate-700 text-white rounded-lg px-4 py-2.5 text-sm focus:outline-none focus:border-violet-500 transition [&>option]:bg-[#0f172a] [&>option]:text-white">
                   {INCOME_CATS.map(({ value, label }) => <option key={value} value={value}>{label}</option>)}
                 </select>
               </div>
@@ -908,7 +908,7 @@ function ExpensesTab({ month, period, onPeriodChange, dayDate, onDayDateChange }
               <div>
                 <label className="block text-slate-400 text-sm mb-1.5">Categoría *</label>
                 <select value={form.category} onChange={(e) => setForm({ ...form, category: e.target.value })}
-                  className="w-full bg-[#131929] border border-slate-700 text-white rounded-lg px-4 py-2.5 text-sm focus:outline-none focus:border-violet-500 transition">
+                  className="w-full bg-[#0f172a] border border-slate-700 text-white rounded-lg px-4 py-2.5 text-sm focus:outline-none focus:border-violet-500 transition [&>option]:bg-[#0f172a] [&>option]:text-white">
                   {EXPENSE_CATS.map(({ value, label }) => <option key={value} value={value}>{label}</option>)}
                 </select>
               </div>

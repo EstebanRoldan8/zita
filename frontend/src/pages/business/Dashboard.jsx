@@ -55,7 +55,7 @@ function getGreeting() {
 
 const emptyForm = { client_id: '', service_id: '', employee_id: '', date: today(), time: '09:00', notes: '', is_reward: false };
 
-function MetricCard({ icon: Icon, label, value, sub, color }) {
+function MetricCard({ icon: Icon, label, value, sub, color, valueColor }) {
   const isKpiCard = ['bg-blue-600', 'bg-violet-600', 'bg-emerald-600', 'bg-green-600'].includes(color);
   const iconColor = isKpiCard ? 'bg-violet-600/20 text-violet-400' : color === 'bg-emerald-600' ? 'bg-emerald-500/20 text-emerald-400' : color === 'bg-red-600' ? 'bg-red-500/20 text-red-400' : 'bg-violet-600/20 text-violet-400';
 
@@ -68,7 +68,7 @@ function MetricCard({ icon: Icon, label, value, sub, color }) {
         </div>
       </div>
       <div>
-        <p className={`${isKpiCard ? 'text-lg sm:text-lg font-bold text-white' : 'text-white text-lg sm:text-base font-bold'}`}>{value}</p>
+        <p className={`${isKpiCard ? `text-lg sm:text-lg font-bold ${valueColor || 'text-white'}` : 'text-white text-lg sm:text-base font-bold'}`}>{value}</p>
         {sub && <p className={`${isKpiCard ? 'text-xs text-white/40 mt-1' : 'text-slate-500 text-xs mt-0.5 sm:mt-1'}`}>{sub}</p>}
       </div>
     </div>
@@ -660,17 +660,18 @@ export default function Dashboard() {
               color="bg-blue-600"
             />
             <MetricCard
-              icon={TrendingUp}
-              label="Ingresos hoy"
-              value={formatCOP(daySummary?.income_total ?? 0)}
-              sub={daySummary?.income_total > 0 ? 'Caja del día' : 'Sin movimiento'}
-              color={daySummary?.income_total > 0 ? 'bg-emerald-600' : 'bg-violet-600'}
+              icon={overview?.utilidad_neta_mes >= 0 ? TrendingUp : TrendingDown}
+              label="Utilidad neta"
+              value={formatCOP(overview?.utilidad_neta_mes ?? 0)}
+              sub="Ganancia real del mes"
+              color={overview?.utilidad_neta_mes >= 0 ? 'bg-emerald-600' : 'bg-red-600'}
+              valueColor={overview?.utilidad_neta_mes >= 0 ? 'text-emerald-400' : 'text-red-400'}
             />
             <MetricCard
               icon={DollarSign}
               label="Ingresos del mes"
               value={formatCOP(overview?.total_income)}
-              sub="Citas, productos y manuales"
+              sub="Total del mes"
               color="bg-violet-600"
             />
             <MetricCard

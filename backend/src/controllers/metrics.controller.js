@@ -27,6 +27,7 @@ async function overview(req, res) {
 
     const [
       { data: incomeData },
+      { data: expensesData },
       { data: allAppts },
       { data: waAppts },
       { count: totalClients },
@@ -34,6 +35,13 @@ async function overview(req, res) {
     ] = await Promise.all([
       userClient
         .from('income')
+        .select('amount')
+        .eq('business_id', req.businessId)
+        .gte('date', startDate)
+        .lte('date', endDate),
+
+      userClient
+        .from('expenses')
         .select('amount')
         .eq('business_id', req.businessId)
         .gte('date', startDate)
@@ -68,12 +76,17 @@ async function overview(req, res) {
         .lte('created_at', end),
     ]);
 
-    const total_income = (incomeData || []).reduce((sum, r) => sum + Number(r.amount || 0), 0);
+    const ingresos_mes       = (incomeData   || []).reduce((sum, r) => sum + Number(r.amount || 0), 0);
+    const total_egresos_mes  = (expensesData || []).reduce((sum, r) => sum + Number(r.amount || 0), 0);
+    const utilidad_neta_mes  = ingresos_mes - total_egresos_mes;
 
     return res.json({
       success: true,
       data: {
-        total_income,
+        total_income: ingresos_mes,
+        ingresos_mes,
+        total_egresos_mes,
+        utilidad_neta_mes,
         total_appointments: (allAppts || []).length,
         total_clients: totalClients || 0,
         whatsapp_appointments: (waAppts || []).length,

@@ -183,7 +183,7 @@ async function getIncome(req, res) {
         .gte('scheduled_at', startTS)
         .lt('scheduled_at', endTS),
       userClient.from('product_sales')
-        .select('id, quantity, total_amount, created_at, products(name)')
+        .select('id, quantity, total_amount, created_at, sold_via, products(name)')
         .eq('business_id', req.businessId)
         .gte('created_at', `${start}T00:00:00-05:00`)
         .lte('created_at', `${end}T23:59:59-05:00`)
@@ -216,7 +216,7 @@ async function getIncome(req, res) {
       client_id: null,
       clients: null,
       services_detail: null,
-      source: 'product_sale',
+      source: s.sold_via === 'whatsapp' ? 'whatsapp' : 'manual',
       sale_id: s.id,
       date: s.created_at?.slice(0, 10),
       created_at: s.created_at,

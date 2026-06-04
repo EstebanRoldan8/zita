@@ -203,7 +203,11 @@ function SellModal({ product, clients, onClose, onSuccess }) {
 
 // ── Product Form Modal ──────────────────────────────────────────────────────
 function ProductModal({ initial, onClose, onSave, isTienda }) {
-  const [form, setForm] = useState(initial || emptyForm);
+  const [form, setForm] = useState({
+    ...emptyForm,
+    ...initial,
+    cost_price: initial?.cost_price ?? '',
+  });
   const [imagePreview, setImagePreview] = useState(initial?.image_url || null);
   const [imageFile, setImageFile] = useState(null);
   const [hasVariants, setHasVariants] = useState(initial?.has_variants || false);

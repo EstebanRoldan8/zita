@@ -85,7 +85,7 @@ async function create(req, res) {
     if (description !== undefined) payload.description = description?.trim() || null;
     if (min_stock  !== undefined) payload.min_stock  = Number(min_stock);
     if (category   !== undefined) payload.category   = category?.trim() || null;
-    if (cost_price !== undefined) payload.cost_price = (cost_price !== null && cost_price !== '' && Number(cost_price) >= 0) ? Number(cost_price) : null;
+    if (cost_price !== undefined) { const _cp = parseFloat(cost_price); payload.cost_price = (!isNaN(_cp) && _cp >= 0) ? _cp : null; }
 
     const { data, error } = await sb
       .from('products')
@@ -118,7 +118,7 @@ async function update(req, res) {
     if (min_stock !== undefined) updates.min_stock = Number(min_stock);
     if (category !== undefined) updates.category = category?.trim() || null;
     if (has_variants !== undefined) updates.has_variants = Boolean(has_variants);
-    if (cost_price !== undefined) updates.cost_price = (cost_price !== null && cost_price !== '' && Number(cost_price) >= 0) ? Number(cost_price) : null;
+    if (cost_price !== undefined) { const _cp = parseFloat(cost_price); updates.cost_price = (!isNaN(_cp) && _cp >= 0) ? _cp : null; }
 
     const { data, error } = await sb
       .from('products')

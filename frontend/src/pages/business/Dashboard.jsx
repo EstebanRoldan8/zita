@@ -660,19 +660,19 @@ export default function Dashboard() {
               color="bg-blue-600"
             />
             <MetricCard
+              icon={DollarSign}
+              label="Ingresos del mes"
+              value={formatCOP(overview?.total_income)}
+              sub="Total del mes"
+              color="bg-violet-600"
+            />
+            <MetricCard
               icon={overview?.utilidad_neta_mes >= 0 ? TrendingUp : TrendingDown}
               label="Utilidad neta"
               value={formatCOP(overview?.utilidad_neta_mes ?? 0)}
               sub="Ganancia real del mes"
               color={overview?.utilidad_neta_mes >= 0 ? 'bg-emerald-600' : 'bg-red-600'}
               valueColor={overview?.utilidad_neta_mes >= 0 ? 'text-emerald-400' : 'text-red-400'}
-            />
-            <MetricCard
-              icon={DollarSign}
-              label="Ingresos del mes"
-              value={formatCOP(overview?.total_income)}
-              sub="Total del mes"
-              color="bg-violet-600"
             />
             <MetricCard
               icon={MessageCircle}

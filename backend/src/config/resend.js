@@ -1,17 +1,7 @@
 const { Resend } = require('resend');
 
-let _resend;
+if (!process.env.RESEND_API_KEY) throw new Error('Missing required env var: RESEND_API_KEY');
 
-function getResend() {
-  if (!_resend) {
-    if (!process.env.RESEND_API_KEY) throw new Error('RESEND_API_KEY env var is required');
-    _resend = new Resend(process.env.RESEND_API_KEY);
-  }
-  return _resend;
-}
+const resend = new Resend(process.env.RESEND_API_KEY);
 
-module.exports = new Proxy({}, {
-  get(_, prop) {
-    return getResend()[prop];
-  },
-});
+module.exports = resend;

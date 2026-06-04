@@ -43,11 +43,21 @@ const EXPENSE_CATS = [
   { value: 'otro',            label: 'Otro' },
 ];
 
-const SOURCE_LABEL = { manual: 'Manual', appointment: 'Cita' };
-const SOURCE_COLOR = {
-  manual:      'text-violet-400 bg-violet-500/10 border-violet-500/20',
-  appointment: 'text-blue-400 bg-blue-500/10 border-blue-500/20',
+const SOURCE_LABEL = {
+  manual:       'Manual',
+  appointment:  'Cita',
+  cita:         'Cita',
+  product_sale: 'Venta',
+  whatsapp:     'WhatsApp',
 };
+const SOURCE_COLOR = {
+  manual:       'text-violet-400 bg-violet-500/10 border-violet-500/20',
+  appointment:  'text-blue-400 bg-blue-500/10 border-blue-500/20',
+  cita:         'text-blue-400 bg-blue-500/10 border-blue-500/20',
+  product_sale: 'text-emerald-400 bg-emerald-500/10 border-emerald-500/20',
+  whatsapp:     'text-green-400 bg-green-500/10 border-green-500/20',
+};
+const fmtSource = (s) => SOURCE_LABEL[s] ?? (s ? s.charAt(0).toUpperCase() + s.slice(1) : '—');
 
 const CAT_COLORS = [
   'bg-violet-500', 'bg-blue-500', 'bg-emerald-500',
@@ -495,7 +505,7 @@ function IncomeTab({ month, period, onPeriodChange, dayDate, onDayDateChange }) 
                       </div>
                     )}
                     <span className={`text-xs font-medium border px-2 py-0.5 rounded-full inline-block ${SOURCE_COLOR[r.source] || SOURCE_COLOR.manual}`}>
-                      {SOURCE_LABEL[r.source] || r.source}
+                      {fmtSource(r.source)}
                     </span>
                   </div>
                   <p className="text-emerald-400 text-lg font-bold">{formatCOP(r.amount)}</p>
@@ -525,7 +535,7 @@ function IncomeTab({ month, period, onPeriodChange, dayDate, onDayDateChange }) 
                     <td className="px-4 py-3 text-slate-400">{r.clients?.name || '—'}</td>
                     <td className="px-4 py-3">
                       <span className={`text-xs font-medium border px-2 py-0.5 rounded-full ${SOURCE_COLOR[r.source] || SOURCE_COLOR.manual}`}>
-                        {SOURCE_LABEL[r.source] || r.source}
+                        {fmtSource(r.source)}
                       </span>
                     </td>
                     <td className="px-4 py-3 text-emerald-400 font-medium whitespace-nowrap">{formatCOP(r.amount)}</td>

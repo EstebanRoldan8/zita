@@ -47,16 +47,19 @@ const app = express();
 
 app.set('trust proxy', 1);
 
-app.use(helmet());
+app.use(helmet({
+  crossOriginResourcePolicy: false,
+}));
+
+const allowedOrigins = [
+  'https://zita-alpha.vercel.app',
+  'http://localhost:5173',
+  'http://localhost:3000',
+];
+if (process.env.FRONTEND_URL) allowedOrigins.push(process.env.FRONTEND_URL);
 
 const corsOptions = {
   origin: function(origin, callback) {
-    const allowedOrigins = [
-      process.env.FRONTEND_URL,
-      'https://zita-alpha.vercel.app',
-      'http://localhost:5173',
-      'http://localhost:3000'
-    ];
     if (!origin || allowedOrigins.includes(origin)) {
       callback(null, true);
     } else {
@@ -65,11 +68,13 @@ const corsOptions = {
   },
   credentials: true,
   methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
-  allowedHeaders: ['Content-Type', 'Authorization']
+  allowedHeaders: ['Content-Type', 'Authorization'],
+  preflightContinue: false,
+  optionsSuccessStatus: 204,
 };
 
-app.use(cors(corsOptions));
 app.options('*', cors(corsOptions));
+app.use(cors(corsOptions));
 
 const globalLimiter = rateLimit({
   windowMs: 15 * 60 * 1000,

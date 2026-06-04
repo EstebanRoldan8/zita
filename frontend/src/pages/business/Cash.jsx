@@ -44,20 +44,22 @@ const EXPENSE_CATS = [
 ];
 
 const SOURCE_LABEL = {
-  manual:       'Manual',
+  manual:       'Presencial',
+  presencial:   'Presencial',
+  product_sale: 'Presencial',
   appointment:  'Cita',
   cita:         'Cita',
-  product_sale: 'Venta',
   whatsapp:     'WhatsApp',
 };
 const SOURCE_COLOR = {
-  manual:       'text-violet-400 bg-violet-500/10 border-violet-500/20',
-  appointment:  'text-blue-400 bg-blue-500/10 border-blue-500/20',
-  cita:         'text-blue-400 bg-blue-500/10 border-blue-500/20',
-  product_sale: 'text-emerald-400 bg-emerald-500/10 border-emerald-500/20',
+  manual:       'text-slate-400 bg-slate-500/10 border-slate-500/20',
+  presencial:   'text-slate-400 bg-slate-500/10 border-slate-500/20',
+  product_sale: 'text-slate-400 bg-slate-500/10 border-slate-500/20',
+  appointment:  'text-violet-400 bg-violet-500/10 border-violet-500/20',
+  cita:         'text-violet-400 bg-violet-500/10 border-violet-500/20',
   whatsapp:     'text-green-400 bg-green-500/10 border-green-500/20',
 };
-const fmtSource = (s) => SOURCE_LABEL[s] ?? (s ? s.charAt(0).toUpperCase() + s.slice(1) : '—');
+const fmtSource = (s) => SOURCE_LABEL[s] ?? 'Presencial';
 
 const CAT_COLORS = [
   'bg-violet-500', 'bg-blue-500', 'bg-emerald-500',

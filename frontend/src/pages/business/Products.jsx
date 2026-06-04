@@ -983,13 +983,28 @@ function InventarioTab({ products, sales, sortBy, onSortChange }) {
               return <option key={val} value={val}>{label}</option>;
             })}
           </select>
-          <span className="text-emerald-400 text-sm font-bold">{formatCOP(totalSales)}</span>
+          <div className="flex items-center gap-2">
+            <span className="text-emerald-400 text-sm font-bold">{formatCOP(totalSales)}</span>
+            {(() => {
+              let totalGanancia = null;
+              for (const p of (productSales || [])) {
+                const cp = (products || []).find(pr => pr.name === p.nombre)?.cost_price ?? null;
+                if (cp != null) { if (totalGanancia === null) totalGanancia = 0; totalGanancia += p.total - cp * p.unidades; }
+              }
+              return totalGanancia != null ? (
+                <span className="text-slate-500 text-sm">• Ganancia <span className="text-emerald-400 font-bold">{formatCOP(totalGanancia)}</span></span>
+              ) : null;
+            })()}
+          </div>
         </div>
         {(productSales || []).length === 0 ? (
           <p className="text-slate-500 text-sm text-center py-10">Sin ventas este período</p>
         ) : (
           <div className="space-y-2">
-            {productSales.map((p) => (
+            {productSales.map((p) => {
+              const costPrice = (products || []).find(pr => pr.name === p.nombre)?.cost_price ?? null;
+              const gananciaProduct = costPrice != null ? p.total - costPrice * p.unidades : null;
+              return (
               <div key={p.nombre} className="border border-slate-800 rounded-lg overflow-hidden">
                 <button
                   onClick={() => setExpandedProducts(prev => ({ ...prev, [p.nombre]: !prev[p.nombre] }))}
@@ -1001,7 +1016,12 @@ function InventarioTab({ products, sales, sortBy, onSortChange }) {
                       <p className="text-slate-400 text-xs">{p.unidades} unidade{p.unidades !== 1 ? 's' : ''}</p>
                     </div>
                     <div className="text-right">
-                      <p className="text-emerald-400 font-bold">{formatCOP(p.total)}</p>
+                      <p className="text-emerald-400 font-bold">
+                        {formatCOP(p.total)}
+                        {gananciaProduct != null && (
+                          <span className="text-slate-500 font-normal text-xs ml-1">• Ganancia <span className="text-emerald-400 font-semibold">{formatCOP(gananciaProduct)}</span></span>
+                        )}
+                      </p>
                     </div>
                   </div>
                   <span className="text-slate-400 ml-4">{expandedProducts[p.nombre] ? '▼' : '▶'}</span>
@@ -1010,7 +1030,6 @@ function InventarioTab({ products, sales, sortBy, onSortChange }) {
                   <div className="bg-[#131929]/50 border-t border-slate-800">
                     <div className="overflow-x-auto">
                       {(() => {
-                        const costPrice = (products || []).find(prod => prod.name === p.nombre)?.cost_price ?? null;
                         return (
                           <table className="w-full text-sm min-w-[520px]">
                             <thead className="bg-[#131929]">
@@ -1038,10 +1057,10 @@ function InventarioTab({ products, sales, sortBy, onSortChange }) {
                                     <td className="px-4 py-2">
                                       <span className={`text-xs border px-2 py-0.5 rounded-full ${
                                         v.canal === 'whatsapp'
-                                          ? 'text-green-400 bg-green-500/10 border-green-500/20'
-                                          : 'text-slate-400 bg-slate-500/10 border-slate-500/20'
+                                          ? 'text-green-400 bg-green-500/20 border-green-500/30'
+                                          : 'text-indigo-400 bg-indigo-500/20 border-indigo-500/30'
                                       }`}>
-                                        {v.canal}
+                                        {v.canal === 'whatsapp' ? 'WhatsApp' : 'Presencial'}
                                       </span>
                                     </td>
                                   </tr>
@@ -1055,7 +1074,8 @@ function InventarioTab({ products, sales, sortBy, onSortChange }) {
                   </div>
                 )}
               </div>
-            ))}
+              );
+            })}
           </div>
         )}
       </div>

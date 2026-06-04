@@ -52,13 +52,14 @@ const SOURCE_LABEL = {
   whatsapp:     'WhatsApp',
 };
 const SOURCE_COLOR = {
-  manual:       'text-slate-400 bg-slate-500/10 border-slate-500/20',
-  presencial:   'text-slate-400 bg-slate-500/10 border-slate-500/20',
-  product_sale: 'text-slate-400 bg-slate-500/10 border-slate-500/20',
-  appointment:  'text-violet-400 bg-violet-500/10 border-violet-500/20',
-  cita:         'text-violet-400 bg-violet-500/10 border-violet-500/20',
-  whatsapp:     'text-green-400 bg-green-500/10 border-green-500/20',
+  manual:       'text-indigo-400 bg-indigo-500/20 border-indigo-500/30',
+  presencial:   'text-indigo-400 bg-indigo-500/20 border-indigo-500/30',
+  product_sale: 'text-indigo-400 bg-indigo-500/20 border-indigo-500/30',
+  appointment:  'text-violet-400 bg-violet-500/20 border-violet-500/30',
+  cita:         'text-violet-400 bg-violet-500/20 border-violet-500/30',
+  whatsapp:     'text-green-400 bg-green-500/20 border-green-500/30',
 };
+const SOURCE_COLOR_DEFAULT = 'text-slate-400 bg-slate-500/20 border-slate-500/30';
 const fmtSource = (s) => SOURCE_LABEL[s] ?? 'Presencial';
 
 const CAT_COLORS = [
@@ -506,7 +507,7 @@ function IncomeTab({ month, period, onPeriodChange, dayDate, onDayDateChange }) 
                         <span>{r.clients.name}</span>
                       </div>
                     )}
-                    <span className={`text-xs font-medium border px-2 py-0.5 rounded-full inline-block ${SOURCE_COLOR[r.source] || SOURCE_COLOR.manual}`}>
+                    <span className={`text-xs font-medium border px-2 py-0.5 rounded-full inline-block ${SOURCE_COLOR[r.source] || SOURCE_COLOR_DEFAULT}`}>
                       {fmtSource(r.source)}
                     </span>
                   </div>
@@ -536,7 +537,7 @@ function IncomeTab({ month, period, onPeriodChange, dayDate, onDayDateChange }) 
                     </td>
                     <td className="px-4 py-3 text-slate-400">{r.clients?.name || '—'}</td>
                     <td className="px-4 py-3">
-                      <span className={`text-xs font-medium border px-2 py-0.5 rounded-full ${SOURCE_COLOR[r.source] || SOURCE_COLOR.manual}`}>
+                      <span className={`text-xs font-medium border px-2 py-0.5 rounded-full ${SOURCE_COLOR[r.source] || SOURCE_COLOR_DEFAULT}`}>
                         {fmtSource(r.source)}
                       </span>
                     </td>

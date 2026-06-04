@@ -656,25 +656,28 @@ function CatalogoTab({ products, clients, showInactive, onShowInactiveChange, so
                     <p className="text-slate-500 text-xs">Precio</p>
                     <p className="text-white font-bold">{formatCOP(p.price)}</p>
                   </div>
-                  {p.cost_price != null ? (
-                    <div className="text-right">
-                      <p className="text-slate-500 text-xs">Margen</p>
-                      <p className={`font-bold text-sm ${
-                        ((p.price - p.cost_price) / p.price * 100) > 40 ? 'text-emerald-400' :
-                        ((p.price - p.cost_price) / p.price * 100) >= 20 ? 'text-yellow-400' :
-                        'text-red-400'
-                      }`}>
-                        {((p.price - p.cost_price) / p.price * 100).toFixed(0)}%
-                      </p>
-                    </div>
-                  ) : !p.has_variants ? (
-                    <div className="text-right">
-                      <p className="text-slate-500 text-xs">Stock</p>
-                      <p className={`font-bold ${p.stock === 0 ? 'text-red-400' : p.stock <= p.min_stock ? 'text-yellow-400' : 'text-white'}`}>
-                        {p.stock} <span className="text-slate-500 text-xs font-normal">/ mín {p.min_stock}</span>
-                      </p>
-                    </div>
-                  ) : null}
+                  <div className="text-right">
+                    {p.cost_price != null && (
+                      <>
+                        <p className="text-slate-500 text-xs">Margen</p>
+                        <p className={`font-bold text-sm ${
+                          ((p.price - p.cost_price) / p.price * 100) > 40 ? 'text-emerald-400' :
+                          ((p.price - p.cost_price) / p.price * 100) >= 20 ? 'text-yellow-400' :
+                          'text-red-400'
+                        }`}>
+                          {((p.price - p.cost_price) / p.price * 100).toFixed(0)}%
+                        </p>
+                      </>
+                    )}
+                    {!p.has_variants && (
+                      <>
+                        <p className="text-slate-500 text-xs mt-0.5">Stock</p>
+                        <p className={`font-bold text-sm ${p.stock === 0 ? 'text-red-400' : p.stock <= p.min_stock ? 'text-yellow-400' : 'text-white'}`}>
+                          {p.stock} <span className="text-slate-500 text-xs font-normal">/ mín {p.min_stock}</span>
+                        </p>
+                      </>
+                    )}
+                  </div>
                 </div>
 
                 <div className="flex gap-2">

@@ -1,4 +1,4 @@
-const { supabaseAdmin } = require('../lib/supabase');
+const { supabaseAdmin } = require('../config/supabase');
 const { getPaymentProvider, PLAN_PRICES_COP } = require('../config/payments');
 const { generateIntegritySignature, validateWebhookSignature } = require('../services/wompi.service');
 const logger = require('../utils/logger');

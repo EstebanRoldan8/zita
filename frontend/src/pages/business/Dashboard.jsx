@@ -670,7 +670,7 @@ export default function Dashboard() {
               icon={DollarSign}
               label="Ingresos del mes"
               value={formatCOP(overview?.total_income)}
-              sub="Solo citas completadas"
+              sub="Citas, productos y manuales"
               color="bg-violet-600"
             />
             <MetricCard

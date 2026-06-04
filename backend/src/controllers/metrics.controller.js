@@ -22,21 +22,22 @@ async function overview(req, res) {
   try {
     const userClient = createUserClient(req.headers.authorization);
     const { start, end } = monthRange();
+    const startDate = start.slice(0, 10);
+    const endDate   = end.slice(0, 10);
 
     const [
-      { data: completedAppts },
+      { data: incomeData },
       { data: allAppts },
       { data: waAppts },
       { count: totalClients },
       { count: newClients },
     ] = await Promise.all([
       userClient
-        .from('appointments')
-        .select('price, is_reward')
+        .from('income')
+        .select('amount')
         .eq('business_id', req.businessId)
-        .eq('status', 'completed')
-        .gte('scheduled_at', start)
-        .lte('scheduled_at', end),
+        .gte('date', startDate)
+        .lte('date', endDate),
 
       userClient
         .from('appointments')
@@ -67,7 +68,7 @@ async function overview(req, res) {
         .lte('created_at', end),
     ]);
 
-    const total_income = (completedAppts || []).reduce((sum, a) => sum + (a.is_reward ? 0 : (a.price || 0)), 0);
+    const total_income = (incomeData || []).reduce((sum, r) => sum + Number(r.amount || 0), 0);
 
     return res.json({
       success: true,

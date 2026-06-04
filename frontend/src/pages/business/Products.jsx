@@ -206,7 +206,9 @@ function ProductModal({ initial, onClose, onSave, isTienda }) {
   const [form, setForm] = useState({
     ...emptyForm,
     ...initial,
-    cost_price: initial?.cost_price ?? '',
+    description: initial?.description ?? '',
+    category:    initial?.category    ?? '',
+    cost_price:  initial?.cost_price  ?? '',
   });
   const [imagePreview, setImagePreview] = useState(initial?.image_url || null);
   const [imageFile, setImageFile] = useState(null);
@@ -314,11 +316,11 @@ function ProductModal({ initial, onClose, onSave, isTienda }) {
     try {
       const payload = {
         name: form.name.trim(),
-        description: form.description.trim() || null,
+        description: form.description?.trim() || null,
         price: Number(form.price),
         stock: hasVariants ? 0 : Number(form.stock),
         min_stock: Number(form.min_stock),
-        category: form.category.trim() || null,
+        category: form.category?.trim() || null,
         has_variants: hasVariants,
         cost_price: form.cost_price !== '' && form.cost_price !== null ? Number(form.cost_price) : null,
       };

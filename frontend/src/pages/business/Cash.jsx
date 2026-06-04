@@ -160,9 +160,9 @@ function SummaryTab({ month, period, onPeriodChange, dayDate, onDayDateChange })
   );
 
   return (
-    <div className="space-y-5">
+    <div className="space-y-3 md:space-y-2">
       {/* Período selector - móvil: grid-cols-3 completo */}
-      <div className="space-y-3 md:flex md:items-center md:gap-3">
+      <div className="space-y-2 md:flex md:items-center md:gap-3">
         <div className="grid grid-cols-3 gap-2 md:flex md:gap-2 md:bg-[#131929] md:border md:border-slate-800 md:rounded-lg md:p-1">
           {['día', 'semana', 'mes'].map((p) => (
             <button key={p} onClick={() => onPeriodChange(p)}
@@ -188,7 +188,7 @@ function SummaryTab({ month, period, onPeriodChange, dayDate, onDayDateChange })
       </div>
 
       {/* Cards - móvil: 2+1 layout, desktop: 3 cols */}
-      <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 min-w-0">
+      <div className="grid grid-cols-2 sm:grid-cols-3 gap-2 md:gap-3 min-w-0">
         <div className="min-w-0 bg-[#131929] border border-slate-800 rounded-xl shadow-lg shadow-black/30 p-4 sm:p-5 border border-violet-500/15 hover:border-violet-500/35 transition-all duration-200">
           <div className="flex items-center justify-between mb-2 sm:mb-3">
             <p className="text-xs sm:text-sm text-slate-400 truncate mr-1">Ingresos</p>
@@ -220,7 +220,7 @@ function SummaryTab({ month, period, onPeriodChange, dayDate, onDayDateChange })
 
       {/* Margen / Costo de ventas — solo si hay datos de costo */}
       {(periodData?.costo_ventas > 0 || periodData?.margen_bruto != null) && (
-        <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 min-w-0">
+        <div className="grid grid-cols-2 sm:grid-cols-3 gap-2 min-w-0">
           <div className="min-w-0 bg-[#131929] border border-violet-500/15 hover:border-violet-500/35 rounded-xl shadow-lg shadow-black/30 p-4 sm:p-5 md:py-2 md:px-4 transition-all duration-200">
             <div className="flex items-center justify-between mb-2 sm:mb-3">
               <p className="text-xs sm:text-sm text-slate-400 truncate mr-1">Margen Bruto</p>
@@ -1098,22 +1098,22 @@ export default function Cash() {
   }
 
   return (
-    <div className="p-8">
+    <div className="p-4 md:p-6">
       {/* Header */}
-      <div className="page-header border-b border-white/6 pb-4 mb-6">
+      <div className="page-header border-b border-white/6 pb-3 mb-2">
         <div>
           <h1 className="text-white text-2xl font-bold">Caja</h1>
-          <p className="text-slate-400 text-sm mt-1">Control de ingresos y egresos</p>
+          <p className="text-slate-400 text-sm mt-0.5">Control de ingresos y egresos</p>
         </div>
         {period === 'mes' && (
-          <div className="mt-4 flex gap-2">
+          <div className="mt-2 flex gap-2">
             <MonthSelector value={month} onChange={setMonth} />
           </div>
         )}
       </div>
 
       {/* Tabs */}
-      <div className="flex gap-1 border-b border-slate-800 mb-6">
+      <div className="flex gap-1 border-b border-slate-800 mb-2">
         {TABS.map(({ id, label }) => (
           <button key={id} onClick={() => setTab(id)}
             className={`px-4 py-2.5 text-sm font-medium transition border-b-2 -mb-px ${

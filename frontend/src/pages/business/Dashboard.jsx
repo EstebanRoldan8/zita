@@ -676,7 +676,7 @@ export default function Dashboard() {
             />
             <MetricCard
               icon={MessageCircle}
-              label="Citas por WhatsApp"
+              label={<><span className="md:hidden">Citas WA</span><span className="hidden md:inline">Citas por WhatsApp</span></>}
               value={`${waPercent}%`}
               sub={`${overview?.whatsapp_appointments ?? 0} de ${overview?.total_appointments ?? 0} citas`}
               color="bg-green-600"

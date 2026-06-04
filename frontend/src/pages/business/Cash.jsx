@@ -187,73 +187,70 @@ function SummaryTab({ month, period, onPeriodChange, dayDate, onDayDateChange })
         )}
       </div>
 
-      {/* Cards - móvil: apiladas, text grande */}
-      <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 min-w-0">
-        <div className="min-w-0 bg-[#131929] border border-slate-800 rounded-xl shadow-lg shadow-black/30 p-5 border border-violet-500/15 hover:border-violet-500/35 transition-all duration-200">
-          <div className="flex items-center justify-between mb-3">
-            <p className="whitespace-nowrap text-sm text-slate-400">Ingresos</p>
-            <div className="w-8 h-8 bg-emerald-600 rounded-lg flex items-center justify-center flex-shrink-0">
-              <TrendingUp size={15} className="text-white" />
+      {/* Cards - móvil: 2+1 layout, desktop: 3 cols */}
+      <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 min-w-0">
+        <div className="min-w-0 bg-[#131929] border border-slate-800 rounded-xl shadow-lg shadow-black/30 p-4 sm:p-5 border border-violet-500/15 hover:border-violet-500/35 transition-all duration-200">
+          <div className="flex items-center justify-between mb-2 sm:mb-3">
+            <p className="text-xs sm:text-sm text-slate-400 truncate mr-1">Ingresos</p>
+            <div className="w-7 h-7 sm:w-8 sm:h-8 bg-emerald-600 rounded-lg flex items-center justify-center flex-shrink-0">
+              <TrendingUp size={14} className="text-white" />
             </div>
           </div>
-          <p className="text-lg sm:text-xl font-bold text-white">{formatCOP(periodData?.income_total)}</p>
+          <p className="text-sm sm:text-xl font-bold text-white truncate">{formatCOP(periodData?.income_total)}</p>
         </div>
-        <div className="min-w-0 bg-[#131929] border border-slate-800 rounded-xl shadow-lg shadow-black/30 p-5 border border-violet-500/15 hover:border-violet-500/35 transition-all duration-200">
-          <div className="flex items-center justify-between mb-3">
-            <p className="whitespace-nowrap text-sm text-slate-400">Egresos</p>
-            <div className="w-8 h-8 bg-red-600 rounded-lg flex items-center justify-center flex-shrink-0">
-              <TrendingDown size={15} className="text-white" />
+        <div className="min-w-0 bg-[#131929] border border-slate-800 rounded-xl shadow-lg shadow-black/30 p-4 sm:p-5 border border-violet-500/15 hover:border-violet-500/35 transition-all duration-200">
+          <div className="flex items-center justify-between mb-2 sm:mb-3">
+            <p className="text-xs sm:text-sm text-slate-400 truncate mr-1">Egresos</p>
+            <div className="w-7 h-7 sm:w-8 sm:h-8 bg-red-600 rounded-lg flex items-center justify-center flex-shrink-0">
+              <TrendingDown size={14} className="text-white" />
             </div>
           </div>
-          <p className="text-lg sm:text-xl font-bold text-white">{formatCOP(periodData?.expense_total)}</p>
+          <p className="text-sm sm:text-xl font-bold text-white truncate">{formatCOP(periodData?.expense_total)}</p>
         </div>
-        <div className="min-w-0 bg-[#131929] border border-slate-800 rounded-xl shadow-lg shadow-black/30 p-5 border border-violet-500/15 hover:border-violet-500/35 transition-all duration-200">
-          <div className="flex items-center justify-between mb-3">
-            <p className="whitespace-nowrap text-sm text-slate-400">Ganancia neta</p>
-            <div className={`w-8 h-8 rounded-lg flex items-center justify-center flex-shrink-0 ${net >= 0 ? 'bg-emerald-600' : 'bg-red-600'}`}>
-              {net >= 0 ? <TrendingUp size={15} className="text-white" /> : <TrendingDown size={15} className="text-white" />}
+        <div className="col-span-2 sm:col-span-1 min-w-0 bg-[#131929] border border-slate-800 rounded-xl shadow-lg shadow-black/30 p-4 sm:p-5 border border-violet-500/15 hover:border-violet-500/35 transition-all duration-200">
+          <div className="flex items-center justify-between mb-2 sm:mb-3">
+            <p className="text-xs sm:text-sm text-slate-400 truncate mr-1">Ganancia neta</p>
+            <div className={`w-7 h-7 sm:w-8 sm:h-8 rounded-lg flex items-center justify-center flex-shrink-0 ${net >= 0 ? 'bg-emerald-600' : 'bg-red-600'}`}>
+              {net >= 0 ? <TrendingUp size={14} className="text-white" /> : <TrendingDown size={14} className="text-white" />}
             </div>
           </div>
-          <p className={`text-lg sm:text-xl font-bold ${net >= 0 ? 'text-emerald-400' : 'text-red-400'}`}>{formatCOP(net)}</p>
+          <p className={`text-2xl sm:text-xl font-bold truncate ${net >= 0 ? 'text-emerald-400' : 'text-red-400'}`}>{formatCOP(net)}</p>
         </div>
       </div>
 
       {/* Margen / Costo de ventas — solo si hay datos de costo */}
       {(periodData?.costo_ventas > 0 || periodData?.margen_bruto != null) && (
-        <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 min-w-0">
-          <div className="min-w-0 bg-[#131929] border border-violet-500/15 hover:border-violet-500/35 rounded-xl shadow-lg shadow-black/30 p-5 transition-all duration-200">
-            <div className="flex items-center justify-between mb-3">
-              <p className="whitespace-nowrap text-sm text-slate-400">Margen Bruto</p>
-              <div className="w-8 h-8 bg-emerald-700 rounded-lg flex items-center justify-center flex-shrink-0">
-                <TrendingUp size={15} className="text-white" />
+        <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 min-w-0">
+          <div className="min-w-0 bg-[#131929] border border-violet-500/15 hover:border-violet-500/35 rounded-xl shadow-lg shadow-black/30 p-4 sm:p-5 transition-all duration-200">
+            <div className="flex items-center justify-between mb-2 sm:mb-3">
+              <p className="text-xs sm:text-sm text-slate-400 truncate mr-1">Margen Bruto</p>
+              <div className="w-7 h-7 sm:w-8 sm:h-8 bg-emerald-700 rounded-lg flex items-center justify-center flex-shrink-0">
+                <TrendingUp size={14} className="text-white" />
               </div>
             </div>
-            <p className={`text-lg sm:text-xl font-bold ${(periodData?.margen_bruto ?? 0) >= 0 ? 'text-emerald-400' : 'text-red-400'}`}>
+            <p className={`text-sm sm:text-xl font-bold truncate ${(periodData?.margen_bruto ?? 0) >= 0 ? 'text-emerald-400' : 'text-red-400'}`}>
               {formatCOP(periodData?.margen_bruto)}
             </p>
-            <p className="text-slate-600 text-xs mt-1">Ingresos − costo de ventas</p>
           </div>
-          <div className="min-w-0 bg-[#131929] border border-violet-500/15 hover:border-violet-500/35 rounded-xl shadow-lg shadow-black/30 p-5 transition-all duration-200">
-            <div className="flex items-center justify-between mb-3">
-              <p className="whitespace-nowrap text-sm text-slate-400">Costo de Ventas</p>
-              <div className="w-8 h-8 bg-orange-700 rounded-lg flex items-center justify-center flex-shrink-0">
-                <TrendingDown size={15} className="text-white" />
+          <div className="min-w-0 bg-[#131929] border border-violet-500/15 hover:border-violet-500/35 rounded-xl shadow-lg shadow-black/30 p-4 sm:p-5 transition-all duration-200">
+            <div className="flex items-center justify-between mb-2 sm:mb-3">
+              <p className="text-xs sm:text-sm text-slate-400 truncate mr-1">Costo Ventas</p>
+              <div className="w-7 h-7 sm:w-8 sm:h-8 bg-orange-700 rounded-lg flex items-center justify-center flex-shrink-0">
+                <TrendingDown size={14} className="text-white" />
               </div>
             </div>
-            <p className="text-lg sm:text-xl font-bold text-orange-400">{formatCOP(periodData?.costo_ventas)}</p>
-            <p className="text-slate-600 text-xs mt-1">Egreso automático por productos vendidos</p>
+            <p className="text-sm sm:text-xl font-bold text-orange-400 truncate">{formatCOP(periodData?.costo_ventas)}</p>
           </div>
-          <div className="min-w-0 bg-[#131929] border border-violet-500/15 hover:border-violet-500/35 rounded-xl shadow-lg shadow-black/30 p-5 transition-all duration-200">
-            <div className="flex items-center justify-between mb-3">
-              <p className="whitespace-nowrap text-sm text-slate-400">Utilidad Neta</p>
-              <div className={`w-8 h-8 rounded-lg flex items-center justify-center flex-shrink-0 ${(periodData?.utilidad_neta ?? 0) >= 0 ? 'bg-emerald-600' : 'bg-red-600'}`}>
-                {(periodData?.utilidad_neta ?? 0) >= 0 ? <TrendingUp size={15} className="text-white" /> : <TrendingDown size={15} className="text-white" />}
+          <div className="col-span-2 sm:col-span-1 min-w-0 bg-[#131929] border border-violet-500/15 hover:border-violet-500/35 rounded-xl shadow-lg shadow-black/30 p-4 sm:p-5 transition-all duration-200">
+            <div className="flex items-center justify-between mb-2 sm:mb-3">
+              <p className="text-xs sm:text-sm text-slate-400 truncate mr-1">Utilidad Neta</p>
+              <div className={`w-7 h-7 sm:w-8 sm:h-8 rounded-lg flex items-center justify-center flex-shrink-0 ${(periodData?.utilidad_neta ?? 0) >= 0 ? 'bg-emerald-600' : 'bg-red-600'}`}>
+                {(periodData?.utilidad_neta ?? 0) >= 0 ? <TrendingUp size={14} className="text-white" /> : <TrendingDown size={14} className="text-white" />}
               </div>
             </div>
-            <p className={`text-lg sm:text-xl font-bold ${(periodData?.utilidad_neta ?? 0) >= 0 ? 'text-emerald-400' : 'text-red-400'}`}>
+            <p className={`text-2xl sm:text-xl font-bold truncate ${(periodData?.utilidad_neta ?? 0) >= 0 ? 'text-emerald-400' : 'text-red-400'}`}>
               {formatCOP(periodData?.utilidad_neta)}
             </p>
-            <p className="text-slate-600 text-xs mt-1">Margen bruto − egresos operativos</p>
           </div>
         </div>
       )}

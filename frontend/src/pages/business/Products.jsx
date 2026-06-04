@@ -686,7 +686,7 @@ function CatalogoTab({ products, clients, showInactive, onShowInactiveChange, so
                     style={{ backgroundColor: '#7c3aed', color: 'white' }}>
                     <ShoppingCart size={13} /> Vender
                   </button>
-                  <div className="ml-auto flex gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
+                  <div className="ml-auto flex gap-2 sm:opacity-0 sm:group-hover:opacity-100 transition-opacity">
                     <button onClick={() => setEditProduct(p)}
                       className="p-2 rounded-lg text-slate-400 hover:text-blue-400 hover:bg-blue-500/20 transition">
                       <Edit2 size={16} />
@@ -1017,18 +1017,16 @@ function InventarioTab({ products, sales, sortBy, onSortChange }) {
                   onClick={() => setExpandedProducts(prev => ({ ...prev, [p.nombre]: !prev[p.nombre] }))}
                   className="w-full px-4 py-3 bg-[#131929]/80 hover:bg-slate-800 transition flex items-center justify-between"
                 >
-                  <div className="flex items-center gap-4 flex-1">
-                    <div className="flex-1 text-left">
-                      <p className="text-white font-medium">{p.nombre}</p>
+                  <div className="flex items-start gap-2 flex-1 min-w-0">
+                    <div className="flex-1 text-left min-w-0">
+                      <p className="text-white font-medium truncate max-w-[55%] sm:max-w-none">{p.nombre}</p>
                       <p className="text-slate-400 text-xs">{p.unidades} unidade{p.unidades !== 1 ? 's' : ''}</p>
                     </div>
-                    <div className="text-right">
-                      <p className="text-emerald-400 font-bold">
-                        {formatCOP(p.total)}
-                        {gananciaProduct != null && (
-                          <span className="text-slate-500 font-normal text-xs ml-1">• Ganancia <span className="text-emerald-400 font-semibold">{formatCOP(gananciaProduct)}</span></span>
-                        )}
-                      </p>
+                    <div className="text-right whitespace-nowrap flex-shrink-0">
+                      <p className="text-emerald-400 font-bold">{formatCOP(p.total)}</p>
+                      {gananciaProduct != null && (
+                        <p className="text-emerald-400 text-xs font-semibold">+{formatCOP(gananciaProduct)}</p>
+                      )}
                     </div>
                   </div>
                   <span className="text-slate-400 ml-4">{expandedProducts[p.nombre] ? '▼' : '▶'}</span>
@@ -1043,7 +1041,7 @@ function InventarioTab({ products, sales, sortBy, onSortChange }) {
                         return (
                           <div key={idx} className="px-4 py-3 space-y-1.5">
                             <div className="flex items-center justify-between">
-                              <span className="text-slate-400 text-xs">{v.fecha}</span>
+                              <span className="text-slate-400 text-xs">{new Date(v.fecha + 'T12:00:00').toLocaleDateString('es-CO', { day: 'numeric', month: 'short', year: 'numeric' })}</span>
                               <span className={`text-xs border px-2 py-0.5 rounded-full ${v.canal === 'whatsapp' ? 'text-green-400 bg-green-500/20 border-green-500/30' : 'text-indigo-400 bg-indigo-500/20 border-indigo-500/30'}`}>
                                 {v.canal === 'whatsapp' ? 'WhatsApp' : 'Presencial'}
                               </span>

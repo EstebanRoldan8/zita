@@ -176,6 +176,7 @@ async function getIncome(req, res) {
       userClient.from('income')
         .select('id, amount, category, description, custom_category, client_id, services_detail, source, date, created_at, clients(name)')
         .eq('business_id', req.businessId)
+        .neq('source', 'product_sale')
         .gte('date', start)
         .lte('date', end)
         .order('date', { ascending: false }),

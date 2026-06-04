@@ -927,10 +927,8 @@ function InventarioTab({ products, sales, sortBy, onSortChange }) {
                         <td className="px-4 py-3 text-white font-medium">{p.name}</td>
                         <td className="px-4 py-3 text-center text-slate-400">{p.category || '—'}</td>
                         <td className="px-4 py-3 text-slate-300">{formatCOP(p.price)}</td>
-                        <td className="px-4 py-3">
-                          {p.cost_price != null
-                            ? <span className="text-slate-300">{formatCOP(p.cost_price)}</span>
-                            : <span className="text-slate-600 text-xs">—</span>}
+                        <td className="px-4 py-3 text-slate-300">
+                          {p.cost_price != null ? formatCOP(p.cost_price) : <span className="text-slate-600 text-xs">—</span>}
                         </td>
                         <td className="px-4 py-3 text-center">
                           {p.cost_price != null ? (
@@ -1011,33 +1009,48 @@ function InventarioTab({ products, sales, sortBy, onSortChange }) {
                 {expandedProducts[p.nombre] && (
                   <div className="bg-[#131929]/50 border-t border-slate-800">
                     <div className="overflow-x-auto">
-                      <table className="w-full text-sm min-w-[400px]">
-                        <thead className="bg-[#131929]">
-                          <tr className="border-b border-slate-800">
-                            {['Fecha', 'Cantidad', 'Total', 'Canal'].map((h) => (
-                              <th key={h} className="text-left text-slate-500 font-medium px-4 py-2 text-xs">{h}</th>
-                            ))}
-                          </tr>
-                        </thead>
-                        <tbody>
-                          {(p.ventas || []).map((v, idx) => (
-                            <tr key={idx} className="border-b border-slate-800/30">
-                              <td className="px-4 py-2 text-slate-400 text-xs">{v.fecha}</td>
-                              <td className="px-4 py-2 text-slate-300">{v.cantidad}</td>
-                              <td className="px-4 py-2 text-emerald-400 font-medium">{formatCOP(v.total)}</td>
-                              <td className="px-4 py-2">
-                                <span className={`text-xs border px-2 py-0.5 rounded-full ${
-                                  v.canal === 'whatsapp'
-                                    ? 'text-green-400 bg-green-500/10 border-green-500/20'
-                                    : 'text-slate-400 bg-slate-500/10 border-slate-500/20'
-                                }`}>
-                                  {v.canal}
-                                </span>
-                              </td>
-                            </tr>
-                          ))}
-                        </tbody>
-                      </table>
+                      {(() => {
+                        const costPrice = (products || []).find(prod => prod.name === p.nombre)?.cost_price ?? null;
+                        return (
+                          <table className="w-full text-sm min-w-[520px]">
+                            <thead className="bg-[#131929]">
+                              <tr className="border-b border-slate-800">
+                                {['Fecha', 'Cantidad', 'Total', 'Costo', 'Ganancia', 'Canal'].map((h) => (
+                                  <th key={h} className="text-left text-slate-500 font-medium px-4 py-2 text-xs">{h}</th>
+                                ))}
+                              </tr>
+                            </thead>
+                            <tbody>
+                              {(p.ventas || []).map((v, idx) => {
+                                const costo   = costPrice != null ? costPrice * v.cantidad : null;
+                                const ganancia = costo != null ? v.total - costo : null;
+                                return (
+                                  <tr key={idx} className="border-b border-slate-800/30">
+                                    <td className="px-4 py-2 text-slate-400 text-xs">{v.fecha}</td>
+                                    <td className="px-4 py-2 text-slate-300">{v.cantidad}</td>
+                                    <td className="px-4 py-2 text-emerald-400 font-medium">{formatCOP(v.total)}</td>
+                                    <td className="px-4 py-2 text-orange-400">{costo != null ? formatCOP(costo) : <span className="text-slate-600">—</span>}</td>
+                                    <td className="px-4 py-2 font-medium">
+                                      {ganancia != null
+                                        ? <span className={ganancia >= 0 ? 'text-emerald-400' : 'text-red-400'}>{formatCOP(ganancia)}</span>
+                                        : <span className="text-slate-600">—</span>}
+                                    </td>
+                                    <td className="px-4 py-2">
+                                      <span className={`text-xs border px-2 py-0.5 rounded-full ${
+                                        v.canal === 'whatsapp'
+                                          ? 'text-green-400 bg-green-500/10 border-green-500/20'
+                                          : 'text-slate-400 bg-slate-500/10 border-slate-500/20'
+                                      }`}>
+                                        {v.canal}
+                                      </span>
+                                    </td>
+                                  </tr>
+                                );
+                              })}
+                            </tbody>
+                          </table>
+                        );
+                      })()}
                     </div>
                   </div>
                 )}

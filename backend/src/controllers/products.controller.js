@@ -289,6 +289,7 @@ async function sell(req, res) {
         category:    'productos',
         description: `Venta: ${product.name}${qty > 1 ? ` ×${qty}` : ''}`,
         date:        saleDate,
+        client_id:   client_id || null,
       });
     if (incomeErr) logger.warn('products.sell income: ' + incomeErr.message);
 

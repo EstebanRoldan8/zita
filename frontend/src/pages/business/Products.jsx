@@ -92,7 +92,7 @@ function SellModal({ product, clients, onClose, onSuccess }) {
 
   return (
     <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50 px-4">
-      <div className="bg-[#1e293b] border border-violet-500/20 rounded-2xl w-full max-w-sm p-6 shadow-2xl">
+      <div className="bg-[#131929] border border-violet-500/20 rounded-2xl w-full max-w-sm p-6 shadow-2xl">
         <div className="flex items-center justify-between mb-5">
           <h3 className="text-white font-semibold">Registrar venta</h3>
           <button onClick={onClose} className="text-slate-500 hover:text-white transition"><X size={18} /></button>

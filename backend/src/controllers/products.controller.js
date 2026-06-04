@@ -71,7 +71,7 @@ async function getSales(req, res) {
 async function create(req, res) {
   try {
     const sb = createUserClient(req.headers.authorization);
-    const { name, description, price, stock, min_stock, category, has_variants } = req.body;
+    const { name, description, price, stock, min_stock, category, has_variants, cost_price } = req.body;
     if (!name?.trim()) return res.status(400).json({ success: false, error: 'El nombre del producto es obligatorio.' });
     if (price === undefined || Number(price) < 0) return res.status(400).json({ success: false, error: 'El precio debe ser mayor o igual a 0.' });
 
@@ -85,6 +85,7 @@ async function create(req, res) {
     if (description !== undefined) payload.description = description?.trim() || null;
     if (min_stock  !== undefined) payload.min_stock  = Number(min_stock);
     if (category   !== undefined) payload.category   = category?.trim() || null;
+    if (cost_price !== undefined) payload.cost_price = (cost_price !== null && cost_price !== '' && Number(cost_price) >= 0) ? Number(cost_price) : null;
 
     const { data, error } = await sb
       .from('products')
@@ -107,7 +108,7 @@ async function update(req, res) {
   try {
     const sb = createUserClient(req.headers.authorization);
     const { id } = req.params;
-    const { name, description, price, stock, min_stock, category, has_variants } = req.body;
+    const { name, description, price, stock, min_stock, category, has_variants, cost_price } = req.body;
 
     const updates = { updated_at: new Date().toISOString() };
     if (name !== undefined) updates.name = name.trim();
@@ -117,6 +118,7 @@ async function update(req, res) {
     if (min_stock !== undefined) updates.min_stock = Number(min_stock);
     if (category !== undefined) updates.category = category?.trim() || null;
     if (has_variants !== undefined) updates.has_variants = Boolean(has_variants);
+    if (cost_price !== undefined) updates.cost_price = (cost_price !== null && cost_price !== '' && Number(cost_price) >= 0) ? Number(cost_price) : null;
 
     const { data, error } = await sb
       .from('products')
@@ -277,6 +279,8 @@ async function sell(req, res) {
       });
     if (saleErr) throw saleErr;
 
+    const saleDate = new Date().toLocaleDateString('en-CA', { timeZone: 'America/Bogota' });
+
     const { error: incomeErr } = await sb
       .from('income')
       .insert({
@@ -284,9 +288,23 @@ async function sell(req, res) {
         amount:      totalAmount,
         category:    'productos',
         description: `Venta: ${product.name}${qty > 1 ? ` ×${qty}` : ''}`,
-        date:        new Date().toLocaleDateString('en-CA', { timeZone: 'America/Bogota' }),
+        date:        saleDate,
       });
     if (incomeErr) logger.warn('products.sell income: ' + incomeErr.message);
+
+    if (product.cost_price != null) {
+      const costoTotal = Number(product.cost_price) * qty;
+      const { error: expErr } = await sb
+        .from('expenses')
+        .insert({
+          business_id: req.businessId,
+          amount:      costoTotal,
+          category:    'costo_producto',
+          description: `Costo de venta: ${product.name} (${qty} unidades)`,
+          date:        saleDate,
+        });
+      if (expErr) logger.warn('products.sell expense: ' + expErr.message);
+    }
 
     return res.json({ success: true, data: { stock: newStock, total_amount: totalAmount } });
   } catch (err) {

@@ -102,7 +102,7 @@ async function getSummary(req, res) {
         .eq('status', 'completed')
         .gte('scheduled_at', startTS)
         .lt('scheduled_at', endTS),
-      userClient.from('expenses').select('amount')
+      userClient.from('expenses').select('amount, category')
         .eq('business_id', req.businessId)
         .gte('date', start)
         .lte('date', end),
@@ -118,9 +118,13 @@ async function getSummary(req, res) {
         .gte('scheduled_at', chartStartTS),
     ]);
 
-    const incomeTotal  = (periodIncome  || []).reduce((s, r) => s + Number(r.amount), 0)
-                       + (periodAppts   || []).reduce((s, r) => s + Number(r.price || 0), 0);
-    const expenseTotal = (periodExpenses|| []).reduce((s, r) => s + Number(r.amount), 0);
+    const incomeTotal       = (periodIncome  || []).reduce((s, r) => s + Number(r.amount), 0)
+                            + (periodAppts   || []).reduce((s, r) => s + Number(r.price || 0), 0);
+    const costoVentas       = (periodExpenses|| []).filter(r => r.category === 'costo_producto').reduce((s, r) => s + Number(r.amount), 0);
+    const egresosOperativos = (periodExpenses|| []).filter(r => r.category !== 'costo_producto').reduce((s, r) => s + Number(r.amount), 0);
+    const expenseTotal      = costoVentas + egresosOperativos;
+    const margenBruto       = incomeTotal - costoVentas;
+    const utilidadNeta      = margenBruto - egresosOperativos;
 
     // Build 6-month chart
     const chartMap = {};
@@ -137,10 +141,14 @@ async function getSummary(req, res) {
     return res.json({
       success: true,
       data: {
-        income_total:  incomeTotal,
-        expense_total: expenseTotal,
-        net:           incomeTotal - expenseTotal,
-        chart_data:    Object.values(chartMap),
+        income_total:        incomeTotal,
+        expense_total:       expenseTotal,
+        costo_ventas:        costoVentas,
+        egresos_operativos:  egresosOperativos,
+        margen_bruto:        margenBruto,
+        utilidad_neta:       utilidadNeta,
+        net:                 incomeTotal - expenseTotal,
+        chart_data:          Object.values(chartMap),
       },
     });
   } catch (err) {

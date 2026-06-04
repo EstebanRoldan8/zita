@@ -917,7 +917,7 @@ async function executeTool(toolName, toolInput, businessId) {
     case 'registrar_venta': {
       const { data: product } = await supabaseAdmin
         .from('products')
-        .select('stock, price')
+        .select('stock, price, name, cost_price')
         .eq('id', toolInput.product_id)
         .single();
 
@@ -929,6 +929,8 @@ async function executeTool(toolName, toolInput, businessId) {
         .from('products')
         .update({ stock: product.stock - toolInput.quantity })
         .eq('id', toolInput.product_id);
+
+      const saleDate = new Date().toLocaleDateString('en-CA', { timeZone: 'America/Bogota' });
 
       const { data } = await supabaseAdmin
         .from('product_sales')
@@ -942,6 +944,20 @@ async function executeTool(toolName, toolInput, businessId) {
         })
         .select()
         .single();
+
+      if (product.cost_price != null) {
+        const costoTotal = Number(product.cost_price) * toolInput.quantity;
+        await supabaseAdmin
+          .from('expenses')
+          .insert({
+            business_id: businessId,
+            amount:      costoTotal,
+            category:    'costo_producto',
+            description: `Costo de venta: ${product.name} (${toolInput.quantity} unidades)`,
+            date:        saleDate,
+          });
+      }
+
       return { success: true, sale: data };
     }
 

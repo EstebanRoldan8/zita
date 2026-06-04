@@ -60,16 +60,16 @@ function MetricCard({ icon: Icon, label, value, sub, color, valueColor }) {
   const iconColor = isKpiCard ? 'bg-violet-600/20 text-violet-400' : color === 'bg-emerald-600' ? 'bg-emerald-500/20 text-emerald-400' : color === 'bg-red-600' ? 'bg-red-500/20 text-red-400' : 'bg-violet-600/20 text-violet-400';
 
   return (
-    <div className={`min-w-0 bg-[#131929] border border-slate-800 rounded-xl shadow-lg shadow-black/30 p-3 ${isKpiCard ? 'sm:p-3' : 'sm:p-3'} flex flex-col gap-1.5 sm:gap-3 ${isKpiCard ? 'border border-violet-500/15 hover:border-violet-500/40 hover:bg-slate-700/60 transition-all duration-200' : 'border border-white/5 hover:border-violet-500/40 hover:bg-slate-700/60 transition-all duration-200'}`}>
+    <div className={`min-w-0 bg-[#131929] border border-slate-800 rounded-xl shadow-lg shadow-black/30 p-4 flex flex-col ${isKpiCard ? 'border border-violet-500/15 hover:border-violet-500/40 hover:bg-slate-700/60 transition-all duration-200' : 'border border-white/5 hover:border-violet-500/40 hover:bg-slate-700/60 transition-all duration-200'}`}>
       <div className="flex items-center justify-between">
-        <span className="text-slate-400 text-xs font-medium truncate min-w-0 mr-1">{label}</span>
+        <span className="text-slate-400 text-xs font-medium min-w-0 mr-1">{label}</span>
         <div className={`w-7 h-7 rounded-lg flex items-center justify-center flex-shrink-0 ${iconColor}`}>
           <Icon size={18} className="text-inherit sm:w-4 sm:h-4" />
         </div>
       </div>
-      <div>
-        <p className={`${isKpiCard ? `text-base sm:text-lg font-bold ${valueColor || 'text-white'}` : 'text-white text-base sm:text-lg font-bold'}`}>{value}</p>
-        {sub && <p className={`${isKpiCard ? 'text-xs text-white/40 mt-1' : 'text-slate-500 text-xs mt-0.5 sm:mt-1'}`}>{sub}</p>}
+      <div className="mt-2">
+        <p className={`${isKpiCard ? `text-xl font-bold mb-1 ${valueColor || 'text-white'}` : 'text-white text-xl font-bold mb-1'}`}>{value}</p>
+        {sub && <p className="text-xs text-slate-400">{sub}</p>}
       </div>
     </div>
   );
@@ -686,11 +686,12 @@ export default function Dashboard() {
       </div>
 
       {/* Caja del día */}
-      <div className="mt-6 sm:mt-8">
+      <div className="mt-6">
+        <div className="border-t border-slate-700/50 mb-4" />
         <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between mb-3 gap-2">
           <div className="flex items-center gap-2">
             <Wallet size={14} className="sm:w-4 sm:h-4 text-slate-400" />
-            <h2 className="text-slate-400 text-xs sm:text-sm font-medium">Caja de hoy</h2>
+            <h2 className="text-sm font-semibold text-slate-300">Caja de hoy</h2>
           </div>
           <Link to="/dashboard/caja" className="text-violet-400 hover:text-violet-300 text-xs transition">
             Ver módulo completo →
@@ -700,15 +701,15 @@ export default function Dashboard() {
           <div className="grid grid-cols-2 gap-2 md:gap-4">
             <MetricCard icon={TrendingUp}   label="Ingresos"   value={formatCOP(daySummary.income_total)}  sub="Caja del día"  color="bg-emerald-600" />
             <MetricCard icon={TrendingDown} label="Egresos"    value={formatCOP(daySummary.expense_total)} sub="Gastos del día" color="bg-red-600" />
-            <div className="col-span-2 sm:col-span-1 bg-[#131929] border border-slate-800 rounded-xl shadow-lg shadow-black/30 p-3 sm:p-3 flex flex-col gap-1.5 sm:gap-3 border border-violet-500/15 hover:border-violet-500/40 hover:bg-slate-700/60 transition-all duration-200">
+            <div className="col-span-2 sm:col-span-1 bg-[#131929] border border-slate-800 rounded-xl shadow-lg shadow-black/30 p-4 flex flex-col gap-1.5 sm:gap-3 border border-violet-500/15 hover:border-violet-500/40 hover:bg-slate-700/60 transition-all duration-200">
               <div className="flex items-center justify-between">
                 <span className="text-slate-400 text-xs font-medium mr-1">Ganancia</span>
-                <div className={`w-7 h-7 rounded-lg flex items-center justify-center flex-shrink-0 ${daySummary.net >= 0 ? 'bg-violet-600/20' : 'bg-violet-600/20'}`}>
+                <div className="w-7 h-7 rounded-lg flex items-center justify-center flex-shrink-0 bg-violet-600/20">
                   {daySummary.net >= 0 ? <TrendingUp size={18} className="text-violet-400" /> : <TrendingDown size={18} className="text-violet-400" />}
                 </div>
               </div>
               <div>
-                <p className={`text-xl sm:text-lg font-bold ${daySummary.net > 0 ? 'text-emerald-400' : daySummary.net === 0 ? 'text-white/60' : 'text-red-400'}`}>
+                <p className={`text-2xl font-bold mt-2 ${daySummary.net > 0 ? 'text-emerald-400' : daySummary.net === 0 ? 'text-white/60' : 'text-red-400'}`}>
                   {formatCOP(daySummary.net)}
                 </p>
                 <p className="text-slate-500 text-xs mt-0.5 sm:mt-1">Ingresos − egresos</p>

@@ -23,42 +23,38 @@ function periodRange(query) {
   }
 
   const period = query.period || 'month';
-  if (!['day', 'week', 'month'].includes(period)) {
-    const today = new Date().toLocaleDateString('en-CA', { timeZone: 'America/Bogota' });
-    return { start: today, end: today };
-  }
+  // Always derive today from Colombia timezone to avoid UTC offset issues
+  const todayCol = new Date().toLocaleDateString('en-CA', { timeZone: 'America/Bogota' });
 
-  let now = new Date();
-  if (query.date && /^\d{4}-\d{2}-\d{2}$/.test(query.date)) {
-    const dateObj = new Date(query.date);
-    if (!isNaN(dateObj.getTime())) {
-      now = dateObj;
-    }
+  if (!['day', 'week', 'month'].includes(period)) {
+    return { start: todayCol, end: todayCol };
   }
 
   if (period === 'day') {
-    const dayStr = dateToString(now);
+    // Use the date param as-is (frontend sends Colombia date), fallback to Colombia today
+    const dayStr = (query.date && /^\d{4}-\d{2}-\d{2}$/.test(query.date)) ? query.date : todayCol;
     return { start: dayStr, end: dayStr };
   }
+
+  // For week/month calculations, build a local Date from Colombia's today string
+  // to avoid getDay()/getDate() returning wrong values in UTC offset environments
+  const [cy, cm, cd] = todayCol.split('-').map(Number);
+  const now = new Date(cy, cm - 1, cd); // local noon avoids DST edge cases
 
   if (period === 'week') {
     const dayOfWeek = now.getDay();
     const daysToMonday = dayOfWeek === 0 ? -6 : 1 - dayOfWeek;
-    const monday = new Date(now);
-    monday.setDate(now.getDate() + daysToMonday);
-    const sunday = new Date(monday);
-    sunday.setDate(monday.getDate() + 6);
+    const monday = new Date(cy, cm - 1, cd + daysToMonday);
+    const sunday = new Date(cy, cm - 1, cd + daysToMonday + 6);
     return {
       start: dateToString(monday),
       end: dateToString(sunday),
     };
   }
 
-  const year = now.getFullYear();
-  const month = now.getMonth();
   return {
-    start: dateToString(new Date(year, month, 1)),
-    end: dateToString(new Date(year, month + 1, 0)),
+    start: `${todayCol.slice(0, 7)}-01`,
+    end: dateToString(new Date(cy, cm, 0)),
   };
 }
 

@@ -698,11 +698,11 @@ export default function Dashboard() {
         </div>
         {daySummary ? (
           <div className="grid grid-cols-3 gap-2 md:gap-4">
-            <MetricCard icon={TrendingUp}   label="Ingresos de hoy"   value={formatCOP(daySummary.income_total)}  sub="Caja del día"        color="bg-emerald-600" />
-            <MetricCard icon={TrendingDown} label="Egresos de hoy"    value={formatCOP(daySummary.expense_total)} sub="Gastos del día"       color="bg-red-600" />
+            <MetricCard icon={TrendingUp}   label="Ingresos"   value={formatCOP(daySummary.income_total)}  sub="Caja del día"  color="bg-emerald-600" />
+            <MetricCard icon={TrendingDown} label="Egresos"    value={formatCOP(daySummary.expense_total)} sub="Gastos del día" color="bg-red-600" />
             <div className="bg-[#131929] border border-slate-800 rounded-xl shadow-lg shadow-black/30 p-3 sm:p-3 flex flex-col gap-1.5 sm:gap-3 border border-violet-500/15 hover:border-violet-500/40 hover:bg-slate-700/60 transition-all duration-200">
               <div className="flex items-center justify-between">
-                <span className="text-slate-400 text-xs sm:text-sm font-medium">Ganancia neta hoy</span>
+                <span className="text-slate-400 text-[10px] leading-tight font-medium">Ganancia</span>
                 <div className={`w-7 h-7 rounded-lg flex items-center justify-center flex-shrink-0 ${daySummary.net >= 0 ? 'bg-violet-600/20' : 'bg-violet-600/20'}`}>
                   {daySummary.net >= 0 ? <TrendingUp size={18} className="text-violet-400" /> : <TrendingDown size={18} className="text-violet-400" />}
                 </div>

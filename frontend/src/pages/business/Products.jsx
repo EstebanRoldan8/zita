@@ -682,7 +682,7 @@ function CatalogoTab({ products, clients, showInactive, onShowInactiveChange, so
 
                 <div className="flex gap-2 mt-auto">
                   <button onClick={() => setSellProduct(p)} disabled={displayStock === 0 || !p.is_active}
-                    className="w-full py-2 text-sm bg-violet-600 hover:bg-violet-500 text-white rounded-lg transition-colors flex items-center justify-center gap-2 disabled:opacity-40">
+                    className="w-full bg-violet-600 hover:bg-violet-700 text-white py-2 text-sm font-medium rounded-lg flex items-center justify-center gap-2 transition disabled:opacity-40">
                     <ShoppingCart size={13} /> Vender
                   </button>
                   <div className="ml-auto flex gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
@@ -1028,55 +1028,66 @@ function InventarioTab({ products, sales, sortBy, onSortChange }) {
                 </button>
                 {expandedProducts[p.nombre] && (
                   <div className="bg-[#131929]/50 border-t border-slate-800">
-                    <div className="overflow-x-auto">
-                      {(() => {
+                    {/* Mobile: cards */}
+                    <div className="md:hidden divide-y divide-slate-800/50">
+                      {(p.ventas || []).map((v, idx) => {
+                        const costo    = costPrice != null ? costPrice * v.cantidad : null;
+                        const ganancia = costo != null ? v.total - costo : null;
                         return (
-                          <table className="w-full text-sm min-w-[320px]">
-                            <thead className="bg-[#131929]">
-                              <tr className="border-b border-slate-800">
-                                {[
-                                  { label: 'Fecha',    cls: '' },
-                                  { label: 'Cantidad', cls: '' },
-                                  { label: 'Total',    cls: '' },
-                                  { label: 'Costo',    cls: 'hidden md:table-cell' },
-                                  { label: 'Ganancia', cls: 'hidden md:table-cell' },
-                                  { label: 'Canal',    cls: '' },
-                                ].map(({ label, cls }) => (
-                                  <th key={label} className={`text-left text-slate-500 font-medium px-4 py-2 text-xs ${cls}`}>{label}</th>
-                                ))}
-                              </tr>
-                            </thead>
-                            <tbody>
-                              {(p.ventas || []).map((v, idx) => {
-                                const costo   = costPrice != null ? costPrice * v.cantidad : null;
-                                const ganancia = costo != null ? v.total - costo : null;
-                                return (
-                                  <tr key={idx} className="border-b border-slate-800/30">
-                                    <td className="px-4 py-2 text-slate-400 text-xs">{v.fecha}</td>
-                                    <td className="px-4 py-2 text-slate-300">{v.cantidad}</td>
-                                    <td className="px-4 py-2 text-emerald-400 font-medium">{formatCOP(v.total)}</td>
-                                    <td className="hidden md:table-cell px-4 py-2 text-orange-400">{costo != null ? formatCOP(costo) : <span className="text-slate-600">—</span>}</td>
-                                    <td className="hidden md:table-cell px-4 py-2 font-medium">
-                                      {ganancia != null
-                                        ? <span className={ganancia >= 0 ? 'text-emerald-400' : 'text-red-400'}>{formatCOP(ganancia)}</span>
-                                        : <span className="text-slate-600">—</span>}
-                                    </td>
-                                    <td className="px-4 py-2">
-                                      <span className={`text-xs border px-2 py-0.5 rounded-full ${
-                                        v.canal === 'whatsapp'
-                                          ? 'text-green-400 bg-green-500/20 border-green-500/30'
-                                          : 'text-indigo-400 bg-indigo-500/20 border-indigo-500/30'
-                                      }`}>
-                                        {v.canal === 'whatsapp' ? 'WhatsApp' : 'Presencial'}
-                                      </span>
-                                    </td>
-                                  </tr>
-                                );
-                              })}
-                            </tbody>
-                          </table>
+                          <div key={idx} className="px-4 py-3 space-y-1.5">
+                            <div className="flex items-center justify-between">
+                              <span className="text-slate-400 text-xs">{v.fecha}</span>
+                              <span className={`text-xs border px-2 py-0.5 rounded-full ${v.canal === 'whatsapp' ? 'text-green-400 bg-green-500/20 border-green-500/30' : 'text-indigo-400 bg-indigo-500/20 border-indigo-500/30'}`}>
+                                {v.canal === 'whatsapp' ? 'WhatsApp' : 'Presencial'}
+                              </span>
+                            </div>
+                            <div className="flex items-center justify-between">
+                              <span className="text-slate-400 text-xs">{v.cantidad} unid.</span>
+                              <span className="text-emerald-400 font-semibold text-sm">{formatCOP(v.total)}</span>
+                            </div>
+                            {ganancia != null && (
+                              <div className="flex items-center justify-between">
+                                <span className="text-slate-500 text-xs">Ganancia</span>
+                                <span className={`text-xs font-medium ${ganancia >= 0 ? 'text-emerald-400' : 'text-red-400'}`}>{formatCOP(ganancia)}</span>
+                              </div>
+                            )}
+                          </div>
                         );
-                      })()}
+                      })}
+                    </div>
+                    {/* Desktop: table */}
+                    <div className="hidden md:block overflow-x-auto">
+                      <table className="w-full text-sm">
+                        <thead className="bg-[#131929]">
+                          <tr className="border-b border-slate-800">
+                            {['Fecha','Cantidad','Total','Costo','Ganancia','Canal'].map((h) => (
+                              <th key={h} className="text-left text-slate-500 font-medium px-4 py-2 text-xs">{h}</th>
+                            ))}
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {(p.ventas || []).map((v, idx) => {
+                            const costo    = costPrice != null ? costPrice * v.cantidad : null;
+                            const ganancia = costo != null ? v.total - costo : null;
+                            return (
+                              <tr key={idx} className="border-b border-slate-800/30">
+                                <td className="px-4 py-2 text-slate-400 text-xs">{v.fecha}</td>
+                                <td className="px-4 py-2 text-slate-300">{v.cantidad}</td>
+                                <td className="px-4 py-2 text-emerald-400 font-medium">{formatCOP(v.total)}</td>
+                                <td className="px-4 py-2 text-orange-400">{costo != null ? formatCOP(costo) : <span className="text-slate-600">—</span>}</td>
+                                <td className="px-4 py-2 font-medium">
+                                  {ganancia != null ? <span className={ganancia >= 0 ? 'text-emerald-400' : 'text-red-400'}>{formatCOP(ganancia)}</span> : <span className="text-slate-600">—</span>}
+                                </td>
+                                <td className="px-4 py-2">
+                                  <span className={`text-xs border px-2 py-0.5 rounded-full ${v.canal === 'whatsapp' ? 'text-green-400 bg-green-500/20 border-green-500/30' : 'text-indigo-400 bg-indigo-500/20 border-indigo-500/30'}`}>
+                                    {v.canal === 'whatsapp' ? 'WhatsApp' : 'Presencial'}
+                                  </span>
+                                </td>
+                              </tr>
+                            );
+                          })}
+                        </tbody>
+                      </table>
                     </div>
                   </div>
                 )}

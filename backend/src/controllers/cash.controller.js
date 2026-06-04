@@ -429,34 +429,39 @@ async function deleteExpense(req, res) {
 async function exportPdf(req, res) {
   try {
     const userClient = createUserClient(req.headers.authorization);
-    const month = req.query.month || new Date().toISOString().slice(0, 7);
+    const month  = req.query.month || new Date().toISOString().slice(0, 7);
     const [yr, mo] = month.split('-').map(Number);
-    const start = `${month}-01`;
-    const end = new Date(yr, mo, 0).toISOString().slice(0, 10);
+    const start  = `${month}-01`;
+    const end    = new Date(yr, mo, 0).toISOString().slice(0, 10);
     const startTS = `${start}T00:00:00-05:00`;
-    const endTS = `${end}T23:59:59-05:00`;
-    const MONTHS = ['Enero','Febrero','Marzo','Abril','Mayo','Junio','Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre'];
+    const endTS   = `${end}T23:59:59-05:00`;
+    const MONTHS  = ['Enero','Febrero','Marzo','Abril','Mayo','Junio','Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre'];
     const monthLabel = `${MONTHS[mo-1]} ${yr}`;
     const today = new Date().toLocaleDateString('es-CO', { timeZone: 'America/Bogota' });
 
-    const [{ data: incomeData }, { data: expenseData }, { data: apptData }, { data: biz }] = await Promise.all([
+    const [{ data: incomeData }, { data: allExpensesData }, { data: apptData }, { data: biz }] = await Promise.all([
       userClient.from('income').select('amount,category,description,date,clients(name)').eq('business_id', req.businessId).gte('date', start).lte('date', end).order('date'),
       userClient.from('expenses').select('amount,category,description,date').eq('business_id', req.businessId).gte('date', start).lte('date', end).order('date'),
       userClient.from('appointments').select('price,scheduled_at,clients(name),services(name)').eq('business_id', req.businessId).eq('status', 'completed').gte('scheduled_at', startTS).lt('scheduled_at', endTS),
       userClient.from('businesses').select('name').eq('id', req.businessId).single(),
     ]);
 
+    const costExpenses = (allExpensesData || []).filter(r => r.category === 'costo_producto');
+    const opExpenses   = (allExpensesData || []).filter(r => r.category !== 'costo_producto');
+
     const allIncome = [
-      ...(incomeData || []).map(r => ({ date: r.date, desc: r.description || r.category, client: r.clients?.name || '—', cat: r.category || 'servicios', amount: Number(r.amount) })),
-      ...(apptData || []).filter(r => Number(r.price || 0) > 0).map(r => ({ date: r.scheduled_at.slice(0,10), desc: r.services?.name || 'Servicio', client: r.clients?.name || '—', cat: 'Servicios', amount: Number(r.price) })),
+      ...(incomeData || []).map(r => ({ date: r.date, desc: r.description || r.category, cat: r.category || 'otro', amount: Number(r.amount) })),
+      ...(apptData || []).filter(r => Number(r.price || 0) > 0).map(r => ({ date: r.scheduled_at.slice(0,10), desc: r.services?.name || 'Servicio', cat: 'servicios', amount: Number(r.price) })),
     ].sort((a,b) => a.date.localeCompare(b.date));
 
-    const CAT_LABELS = { nomina:'Nómina', materias_primas:'Materias primas', servicios:'Servicios', arriendo:'Arriendo', otro:'Otro' };
-    const allExpenses = (expenseData || []).map(r => ({ date: r.date, cat: CAT_LABELS[r.category] || r.category, desc: r.description || '—', amount: Number(r.amount) }));
+    const CAT_LABELS = { nomina:'Nómina', materias_primas:'Materias primas', servicios:'Servicios', arriendo:'Arriendo', otro:'Otro', costo_producto:'Costo producto' };
 
-    const incomeTotal = allIncome.reduce((s,r) => s + r.amount, 0);
-    const expenseTotal = allExpenses.reduce((s,r) => s + r.amount, 0);
-    const net = incomeTotal - expenseTotal;
+    const totalIngresos     = allIncome.reduce((s,r) => s + r.amount, 0);
+    const costoVentas       = costExpenses.reduce((s,r) => s + Number(r.amount), 0);
+    const margenBruto       = totalIngresos - costoVentas;
+    const egresosOperativos = opExpenses.reduce((s,r) => s + Number(r.amount), 0);
+    const utilidadNeta      = margenBruto - egresosOperativos;
+    const pctMargen         = totalIngresos > 0 ? (utilidadNeta / totalIngresos * 100) : 0;
 
     const doc = new PDFDocument({ margin: 0, size: 'A4' });
     res.setHeader('Content-Type', 'application/pdf');
@@ -465,133 +470,181 @@ async function exportPdf(req, res) {
 
     const PAGE_W = 595;
     const MARGIN = 40;
-    const CONTENT_W = PAGE_W - MARGIN * 2;
-
-    const drawHeader = () => {
-      doc.rect(0, 0, PAGE_W, 70).fill('#7c3aed');
-      doc.fontSize(22).fillColor('#ffffff').font('Helvetica-Bold').text('ZITA', MARGIN, 18);
-      doc.fontSize(11).fillColor('#e9d5ff').font('Helvetica').text('Libro de Caja', MARGIN, 44);
-      doc.fontSize(11).fillColor('#ffffff').font('Helvetica-Bold').text(biz?.name || 'Mi negocio', 0, 18, { align: 'right', width: PAGE_W - MARGIN });
-      doc.fontSize(9).fillColor('#e9d5ff').font('Helvetica').text(`${monthLabel} · Generado: ${today}`, 0, 44, { align: 'right', width: PAGE_W - MARGIN });
-      doc.y = 85;
-    };
+    const CW = PAGE_W - MARGIN * 2;
 
     const drawFooter = () => {
       doc.fontSize(7).fillColor('#94a3b8').font('Helvetica')
-        .text('Documento generado por ZITA · No reemplaza documentos contables oficiales', MARGIN, doc.page.height - 25, { align: 'center', width: CONTENT_W });
+        .text('Documento generado por ZITA · No reemplaza documentos contables oficiales',
+          MARGIN, doc.page.height - 22, { align: 'center', width: CW });
     };
 
-    const checkPage = (height = 15) => {
-      if (doc.y + height > doc.page.height - 40) {
+    const checkPage = (h = 15) => {
+      if (doc.y + h > doc.page.height - 45) {
         drawFooter();
         doc.addPage({ margin: 0 });
         doc.y = 20;
       }
     };
 
-    drawHeader();
-    doc.y = 90;
-
     const sectionTitle = (title) => {
       checkPage(30);
-      const ty = doc.y;
-      doc.rect(MARGIN, ty, CONTENT_W, 24).fill('#7c3aed');
-      doc.fontSize(11).fillColor('#ffffff').font('Helvetica-Bold')
-        .text(title, MARGIN + 8, ty + 6, { lineBreak: false });
-      doc.y = ty + 30;
+      const ty = doc.y + 6;
+      doc.rect(MARGIN, ty, CW, 22).fill('#7c3aed');
+      doc.fontSize(10).fillColor('#ffffff').font('Helvetica-Bold')
+        .text(title, MARGIN + 10, ty + 6, { lineBreak: false });
+      doc.y = ty + 28;
     };
 
-    sectionTitle('Resumen Financiero');
-
-    const summaryRows = [
-      { label: 'Ingresos por servicios (citas)', amount: (apptData||[]).filter(r=>Number(r.price||0)>0).reduce((s,r)=>s+Number(r.price),0), color: '#059669' },
-      { label: 'Ingresos manuales', amount: (incomeData||[]).reduce((s,r)=>s+Number(r.amount),0), color: '#059669' },
-      { label: 'Total ingresos', amount: incomeTotal, color: '#059669', bold: true },
-    ];
-
-    const expBycat = {};
-    allExpenses.forEach(r => { expBycat[r.cat] = (expBycat[r.cat]||0) + r.amount; });
-    Object.entries(expBycat).forEach(([cat, amt]) => summaryRows.push({ label: `Egresos - ${cat}`, amount: amt, color: '#dc2626' }));
-    summaryRows.push({ label: 'Total egresos', amount: expenseTotal, color: '#dc2626', bold: true });
-    summaryRows.push({ label: 'Saldo neto del período', amount: net, color: net >= 0 ? '#059669' : '#dc2626', bold: true });
-
-    summaryRows.forEach((row, i) => {
+    const tableHeader = (cols) => {
       const rowY = doc.y;
-      const bg = i % 2 === 0 ? '#f1f5f9' : '#ffffff';
-      doc.rect(MARGIN, rowY, CONTENT_W, 16).fill(bg);
-      const font = row.bold ? 'Helvetica-Bold' : 'Helvetica';
-      doc.fontSize(9).fillColor('#334155').font(font).text(row.label, MARGIN + 8, rowY + 3, { width: CONTENT_W - 100, lineBreak: false });
-      doc.fillColor(row.color).font(font).text(fmtCOP(row.amount), MARGIN, rowY + 3, { width: CONTENT_W - 8, align: 'right' });
+      doc.rect(MARGIN, rowY, CW, 15).fill('#e2e8f0');
+      doc.fontSize(7.5).fillColor('#475569').font('Helvetica-Bold');
+      cols.forEach(c => doc.text(c.label, MARGIN + c.x, rowY + 4, { width: c.w, align: c.align || 'left', lineBreak: false }));
+      doc.y = rowY + 15;
+    };
+
+    const tableRow = (cols, i) => {
+      checkPage(14);
+      const rowY = doc.y;
+      doc.rect(MARGIN, rowY, CW, 13).fill(i % 2 === 0 ? '#f8fafc' : '#ffffff');
+      doc.fontSize(7.5).font('Helvetica');
+      cols.forEach(c => {
+        doc.fillColor(c.color || '#334155');
+        doc.text(String(c.val ?? '—'), MARGIN + c.x, rowY + 3, { width: c.w, align: c.align || 'left', lineBreak: false });
+      });
+      doc.y = rowY + 13;
+    };
+
+    const totalRow = (label, amount, color) => {
+      checkPage(16);
+      const rowY = doc.y;
+      doc.rect(MARGIN, rowY, CW, 16).fill('#f1f5f9');
+      doc.fontSize(8.5).font('Helvetica-Bold').fillColor('#334155')
+        .text(label, MARGIN + 5, rowY + 4, { width: CW - 110, lineBreak: false });
+      doc.fillColor(color || '#334155')
+        .text(fmtCOP(amount), MARGIN, rowY + 4, { width: CW - 5, align: 'right' });
       doc.y = rowY + 16;
-    });
+    };
 
+    // ── HEADER ──────────────────────────────────────────────────────
+    doc.rect(0, 0, PAGE_W, 75).fill('#7c3aed');
+    doc.fontSize(26).fillColor('#ffffff').font('Helvetica-Bold').text('ZITA', MARGIN, 14);
+    doc.fontSize(10).fillColor('#e9d5ff').font('Helvetica').text('Libro de Caja', MARGIN, 44);
+    doc.fontSize(11).fillColor('#ffffff').font('Helvetica-Bold')
+      .text(biz?.name || 'Mi negocio', 0, 14, { align: 'right', width: PAGE_W - MARGIN });
+    doc.fontSize(9).fillColor('#e9d5ff').font('Helvetica')
+      .text(`${monthLabel} · Generado: ${today}`, 0, 32, { align: 'right', width: PAGE_W - MARGIN });
+    doc.fontSize(8).fillColor('#ddd6fe')
+      .text(`Período: ${start} al ${end}`, 0, 50, { align: 'right', width: PAGE_W - MARGIN });
+    doc.y = 92;
+
+    // ── RESUMEN EJECUTIVO (6 KPIs, 2 filas × 3) ──────────────────────
+    const kpis = [
+      { label: 'Total Ingresos',     val: fmtCOP(totalIngresos),     color: '#059669', bg: '#f0fdf4' },
+      { label: 'Costo de Ventas',    val: fmtCOP(costoVentas),       color: '#d97706', bg: '#fffbeb' },
+      { label: 'Margen Bruto',       val: fmtCOP(margenBruto),       color: margenBruto >= 0 ? '#059669' : '#dc2626', bg: '#f0fdf4' },
+      { label: 'Egresos Operativos', val: fmtCOP(egresosOperativos), color: '#dc2626', bg: '#fef2f2' },
+      { label: 'Utilidad Neta',      val: fmtCOP(utilidadNeta),      color: utilidadNeta >= 0 ? '#059669' : '#dc2626', bg: utilidadNeta >= 0 ? '#f0fdf4' : '#fef2f2' },
+      { label: '% Margen',           val: pctMargen.toFixed(1) + '%', color: pctMargen >= 0 ? '#7c3aed' : '#dc2626', bg: '#f5f3ff' },
+    ];
+    const boxW = Math.floor((CW - 10) / 3);
+    const boxH = 52;
+    const startY = doc.y;
+    kpis.forEach((k, i) => {
+      const col = i % 3;
+      const row = Math.floor(i / 3);
+      const bx = MARGIN + col * (boxW + 5);
+      const by = startY + row * (boxH + 5);
+      doc.rect(bx, by, boxW, boxH).fill(k.bg);
+      doc.rect(bx, by, 3, boxH).fill(k.color);
+      doc.fontSize(7.5).fillColor('#64748b').font('Helvetica')
+        .text(k.label, bx + 8, by + 8, { width: boxW - 12, lineBreak: false });
+      doc.fontSize(12).fillColor(k.color).font('Helvetica-Bold')
+        .text(k.val, bx + 8, by + 22, { width: boxW - 12, lineBreak: false });
+    });
+    doc.y = startY + 2 * (boxH + 5) + 12;
+
+    // ── INGRESOS ─────────────────────────────────────────────────────
     sectionTitle('Ingresos Detallados');
+    tableHeader([
+      { label: 'Fecha',       x: 0,   w: 65  },
+      { label: 'Descripción', x: 70,  w: 265 },
+      { label: 'Categoría',   x: 340, w: 90  },
+      { label: 'Monto',       x: 430, w: 85, align: 'right' },
+    ]);
+    allIncome.forEach((r, i) => tableRow([
+      { val: r.date,  x: 0,   w: 65 },
+      { val: r.desc,  x: 70,  w: 265 },
+      { val: r.cat.charAt(0).toUpperCase() + r.cat.slice(1), x: 340, w: 90 },
+      { val: fmtCOP(r.amount), x: 430, w: 85, align: 'right', color: '#059669' },
+    ], i));
+    totalRow('Total Ingresos', totalIngresos, '#059669');
 
-    const IC = { fecha: MARGIN, desc: MARGIN+70, cliente: MARGIN+270, cat: MARGIN+370, monto: MARGIN+450 };
-    const headerIncomeY = doc.y;
-    doc.rect(MARGIN, headerIncomeY, CONTENT_W, 16).fill('#e2e8f0');
-    doc.fontSize(8).fillColor('#475569').font('Helvetica-Bold');
-    doc.text('Fecha',      IC.fecha,   headerIncomeY+3, { width: 65,  lineBreak: false });
-    doc.text('Descripción',IC.desc,    headerIncomeY+3, { width: 195, lineBreak: false });
-    doc.text('Cliente',    IC.cliente, headerIncomeY+3, { width: 95,  lineBreak: false });
-    doc.text('Categoría',  IC.cat,     headerIncomeY+3, { width: 75,  lineBreak: false });
-    doc.text('Monto',      IC.monto,   headerIncomeY+3, { width: 65,  align: 'right' });
-    doc.y = headerIncomeY + 16;
+    // ── COSTO DE VENTAS ───────────────────────────────────────────────
+    if (costExpenses.length > 0) {
+      doc.y += 8;
+      sectionTitle('Costo de Ventas');
+      tableHeader([
+        { label: 'Fecha',       x: 0,   w: 65  },
+        { label: 'Descripción', x: 70,  w: 360 },
+        { label: 'Monto',       x: 430, w: 85, align: 'right' },
+      ]);
+      costExpenses.forEach((r, i) => tableRow([
+        { val: r.date,              x: 0,   w: 65 },
+        { val: r.description || '—', x: 70,  w: 360 },
+        { val: fmtCOP(r.amount),    x: 430, w: 85, align: 'right', color: '#d97706' },
+      ], i));
+      totalRow('Total Costo de Ventas', costoVentas, '#d97706');
 
-    allIncome.forEach((r, i) => {
       checkPage(16);
-      const rowY = doc.y;
-      const bg = i % 2 === 0 ? '#f1f5f9' : '#ffffff';
-      doc.rect(MARGIN, rowY, CONTENT_W, 15).fill(bg);
-      const catLabel = r.cat ? r.cat.charAt(0).toUpperCase() + r.cat.slice(1) : 'Otro';
-      doc.fontSize(8).fillColor('#334155').font('Helvetica');
-      doc.text(r.date,   IC.fecha,   rowY + 3, { width: 65,  lineBreak: false });
-      doc.text(r.desc,   IC.desc,    rowY + 3, { width: 195, lineBreak: false });
-      doc.text(r.client, IC.cliente, rowY + 3, { width: 95,  lineBreak: false });
-      doc.text(catLabel, IC.cat,     rowY + 3, { width: 75,  lineBreak: false });
-      doc.fillColor('#059669').text(fmtCOP(r.amount), IC.monto, rowY + 3, { width: 65, align: 'right', lineBreak: false });
-      doc.y = rowY + 15;
-    });
+      const mby = doc.y + 4;
+      doc.rect(MARGIN, mby, CW, 14).fill('#ecfdf5');
+      doc.fontSize(8).font('Helvetica-Bold').fillColor('#059669')
+        .text('Margen Bruto (Ingresos − Costo de Ventas):', MARGIN + 6, mby + 3, { width: CW - 110, lineBreak: false });
+      doc.text(fmtCOP(margenBruto), MARGIN, mby + 3, { width: CW - 5, align: 'right' });
+      doc.y = mby + 18;
+    }
 
-    const totalIncomeY = doc.y;
-    doc.rect(MARGIN, totalIncomeY, CONTENT_W, 18).fill('#dcfce7');
-    doc.fontSize(9).fillColor('#059669').font('Helvetica-Bold');
-    doc.text('Total Ingresos', IC.fecha, totalIncomeY + 3, { width: 350, lineBreak: false });
-    doc.text(fmtCOP(incomeTotal), IC.monto, totalIncomeY + 3, { width: 65, align: 'right' });
-    doc.y = totalIncomeY + 18;
+    // ── EGRESOS OPERATIVOS ────────────────────────────────────────────
+    doc.y += 8;
+    sectionTitle('Egresos Operativos');
+    if (opExpenses.length === 0) {
+      checkPage(20);
+      doc.fontSize(8).fillColor('#94a3b8').font('Helvetica')
+        .text('Sin egresos operativos en el período.', MARGIN + 6, doc.y + 4);
+      doc.y += 18;
+    } else {
+      tableHeader([
+        { label: 'Fecha',       x: 0,   w: 65  },
+        { label: 'Descripción', x: 70,  w: 240 },
+        { label: 'Categoría',   x: 315, w: 115 },
+        { label: 'Monto',       x: 430, w: 85, align: 'right' },
+      ]);
+      opExpenses.forEach((r, i) => tableRow([
+        { val: r.date,                              x: 0,   w: 65  },
+        { val: r.description || '—',                x: 70,  w: 240 },
+        { val: CAT_LABELS[r.category] || r.category, x: 315, w: 115 },
+        { val: fmtCOP(r.amount),                    x: 430, w: 85, align: 'right', color: '#dc2626' },
+      ], i));
+    }
+    totalRow('Total Egresos Operativos', egresosOperativos, '#dc2626');
 
-    doc.y += 20;
-    sectionTitle('Egresos Detallados');
-
-    const EC = { fecha: MARGIN, cat: MARGIN+70, desc: MARGIN+180, monto: MARGIN+450 };
-    const headerExpenseY = doc.y;
-    doc.rect(MARGIN, headerExpenseY, CONTENT_W, 16).fill('#e2e8f0');
-    doc.fontSize(8).fillColor('#475569').font('Helvetica-Bold');
-    doc.text('Fecha',     EC.fecha, headerExpenseY+3, { width: 65,  lineBreak: false });
-    doc.text('Categoría', EC.cat,   headerExpenseY+3, { width: 105, lineBreak: false });
-    doc.text('Descripción',EC.desc, headerExpenseY+3, { width: 265, lineBreak: false });
-    doc.text('Monto',     EC.monto, headerExpenseY+3, { width: 65,  align: 'right' });
-    doc.y = headerExpenseY + 16;
-
-    allExpenses.forEach((r, i) => {
-      checkPage(16);
-      const rowY = doc.y;
-      const bg = i % 2 === 0 ? '#f1f5f9' : '#ffffff';
-      doc.rect(MARGIN, rowY, CONTENT_W, 15).fill(bg);
-      doc.fontSize(8).fillColor('#334155').font('Helvetica');
-      doc.text(r.date, EC.fecha, rowY + 3, { width: 65,  lineBreak: false });
-      doc.text(r.cat,  EC.cat,   rowY + 3, { width: 105, lineBreak: false });
-      doc.text(r.desc, EC.desc,  rowY + 3, { width: 265, lineBreak: false });
-      doc.fillColor('#dc2626').text(fmtCOP(r.amount), EC.monto, rowY + 3, { width: 65, align: 'right', lineBreak: false });
-      doc.y = rowY + 15;
-    });
-
-    const totalExpenseY = doc.y;
-    doc.rect(MARGIN, totalExpenseY, CONTENT_W, 18).fill('#fee2e2');
-    doc.fontSize(9).fillColor('#dc2626').font('Helvetica-Bold');
-    doc.text('Total Egresos', EC.fecha, totalExpenseY + 3, { width: 350, lineBreak: false });
-    doc.text(fmtCOP(expenseTotal), EC.monto, totalExpenseY + 3, { width: 65, align: 'right' });
-    doc.y = totalExpenseY + 18;
+    // ── RESULTADO FINAL ───────────────────────────────────────────────
+    doc.y += 10;
+    checkPage(46);
+    const finalColor = utilidadNeta >= 0 ? '#059669' : '#dc2626';
+    const fy = doc.y;
+    doc.rect(MARGIN, fy, CW, 40).fill(utilidadNeta >= 0 ? '#f0fdf4' : '#fef2f2');
+    doc.rect(MARGIN, fy, 4, 40).fill(finalColor);
+    doc.fontSize(9).fillColor('#334155').font('Helvetica-Bold')
+      .text('UTILIDAD NETA DEL PERÍODO', MARGIN + 12, fy + 7, { lineBreak: false });
+    doc.fontSize(8).fillColor('#64748b').font('Helvetica')
+      .text(`Margen Bruto ${fmtCOP(margenBruto)} − Egresos Operativos ${fmtCOP(egresosOperativos)}`,
+        MARGIN + 12, fy + 20, { lineBreak: false, width: CW - 120 });
+    doc.fontSize(14).fillColor(finalColor).font('Helvetica-Bold')
+      .text(`${fmtCOP(utilidadNeta)}  (${pctMargen.toFixed(1)}%)`,
+        MARGIN, fy + 10, { width: CW - 8, align: 'right' });
+    doc.y = fy + 40;
 
     drawFooter();
     doc.end();
@@ -608,147 +661,169 @@ async function exportPdf(req, res) {
 async function getExcel(req, res) {
   try {
     const userClient = createUserClient(req.headers.authorization);
-    const month = req.query.month || new Date().toISOString().slice(0, 7);
+    const month  = req.query.month || new Date().toISOString().slice(0, 7);
     const [yr, mo] = month.split('-').map(Number);
-    const start = `${month}-01`;
-    const end = new Date(yr, mo, 0).toISOString().slice(0, 10);
+    const start  = `${month}-01`;
+    const end    = new Date(yr, mo, 0).toISOString().slice(0, 10);
     const startTS = `${start}T00:00:00-05:00`;
-    const endTS = `${end}T23:59:59-05:00`;
-    const MONTHS = ['Enero','Febrero','Marzo','Abril','Mayo','Junio','Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre'];
+    const endTS   = `${end}T23:59:59-05:00`;
+    const MONTHS  = ['Enero','Febrero','Marzo','Abril','Mayo','Junio','Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre'];
     const monthLabel = `${MONTHS[mo - 1]} ${yr}`;
-    const today = new Date().toLocaleDateString('es-CO', { timeZone: 'America/Bogota' });
+    const today  = new Date().toLocaleDateString('es-CO', { timeZone: 'America/Bogota' });
 
-    const [{ data: incomeData }, { data: expenseData }, { data: apptData }, { data: biz }] = await Promise.all([
+    const [{ data: incomeData }, { data: allExpensesData }, { data: apptData }, { data: biz }] = await Promise.all([
       userClient.from('income').select('amount,category,description,date,clients(name)').eq('business_id', req.businessId).gte('date', start).lte('date', end).order('date'),
       userClient.from('expenses').select('amount,category,description,date').eq('business_id', req.businessId).gte('date', start).lte('date', end).order('date'),
       userClient.from('appointments').select('price,scheduled_at,clients(name),services(name)').eq('business_id', req.businessId).eq('status', 'completed').gte('scheduled_at', startTS).lt('scheduled_at', endTS),
       userClient.from('businesses').select('name').eq('id', req.businessId).single(),
     ]);
 
-    const CAT = { nomina: 'Nómina', materias_primas: 'Materias primas', servicios: 'Servicios', arriendo: 'Arriendo', otro: 'Otro' };
+    const CAT = { nomina:'Nómina', materias_primas:'Materias primas', servicios:'Servicios', arriendo:'Arriendo', otro:'Otro', costo_producto:'Costo producto' };
+
     const allIncome = [
       ...(incomeData || []).map(r => ({ date: r.date, desc: r.description || r.category, client: r.clients?.name || '—', cat: r.category ? r.category.charAt(0).toUpperCase() + r.category.slice(1) : 'Otro', source: 'Manual', amount: Number(r.amount) })),
       ...(apptData || []).filter(r => Number(r.price || 0) > 0).map(r => ({ date: r.scheduled_at.slice(0, 10), desc: r.services?.name || 'Servicio', client: r.clients?.name || '—', cat: 'Servicios', source: 'Cita', amount: Number(r.price) })),
     ].sort((a, b) => a.date.localeCompare(b.date));
 
-    const allExpenses = (expenseData || []).map(r => ({ date: r.date, cat: CAT[r.category] || r.category, desc: r.description || '—', amount: Number(r.amount) }));
-    const incomeTotal = allIncome.reduce((s, r) => s + r.amount, 0);
-    const expenseTotal = allExpenses.reduce((s, r) => s + r.amount, 0);
-    const net = incomeTotal - expenseTotal;
+    const costExpenses = (allExpensesData || []).filter(r => r.category === 'costo_producto')
+      .map(r => ({ date: r.date, desc: r.description || '—', amount: Number(r.amount) }));
+    const opExpenses = (allExpensesData || []).filter(r => r.category !== 'costo_producto')
+      .map(r => ({ date: r.date, cat: CAT[r.category] || r.category, desc: r.description || '—', amount: Number(r.amount) }));
+
+    const totalIngresos     = allIncome.reduce((s, r) => s + r.amount, 0);
+    const costoVentas       = costExpenses.reduce((s, r) => s + r.amount, 0);
+    const margenBruto       = totalIngresos - costoVentas;
+    const egresosOperativos = opExpenses.reduce((s, r) => s + r.amount, 0);
+    const utilidadNeta      = margenBruto - egresosOperativos;
+    const pctMargen         = totalIngresos > 0 ? (utilidadNeta / totalIngresos * 100) : 0;
 
     const wb = new ExcelJS.Workbook();
-    const VIOLET = 'FF7C3AED';
-    const GREEN = 'FF059669';
-    const RED = 'FFDC2626';
-    const WHITE = 'FFFFFFFF';
-    const LIGHT_GRAY = 'FFF1F5F9';
+    wb.creator = 'ZITA'; wb.created = new Date();
 
-    const headerStyle = (color = VIOLET) => ({
+    const VIOLET = 'FF7C3AED'; const GREEN = 'FF059669'; const RED = 'FFDC2626';
+    const ORANGE = 'FFD97706'; const WHITE = 'FFFFFFFF'; const LGRAY = 'FFF8FAFC';
+    const DGRAY  = 'FF475569';
+
+    const hdrStyle = (argb = VIOLET) => ({
       font: { bold: true, color: { argb: WHITE }, size: 10 },
-      fill: { type: 'pattern', pattern: 'solid', fgColor: { argb: color } },
-      alignment: { vertical: 'middle', horizontal: 'center' },
-      border: { bottom: { style: 'thin', color: { argb: 'FFE2E8F0' } } }
+      fill: { type: 'pattern', pattern: 'solid', fgColor: { argb } },
+      alignment: { vertical: 'middle', horizontal: 'center', wrapText: false },
+      border: { bottom: { style: 'thin', color: { argb: 'FFE2E8F0' } } },
     });
 
-    const applyHeader = (row, color = VIOLET) => {
-      row.eachCell(cell => Object.assign(cell, headerStyle(color)));
+    const applyHdr = (row, argb = VIOLET) => {
+      row.eachCell(cell => Object.assign(cell, hdrStyle(argb)));
       row.height = 22;
     };
 
-    // HOJA RESUMEN
-    const ws1 = wb.addWorksheet('Resumen');
-    ws1.columns = [{ width: 35 }, { width: 20 }, { width: 15 }, { width: 15 }];
-    const titleRow = ws1.addRow(['ZITA - Libro de Caja']);
-    titleRow.getCell(1).font = { bold: true, size: 16, color: { argb: VIOLET } };
-    titleRow.height = 30;
-    ws1.addRow([biz?.name || 'Mi negocio']).getCell(1).font = { bold: true, size: 12 };
-    ws1.addRow([`${monthLabel} · Generado: ${today}`]).getCell(1).font = { color: { argb: 'FF64748B' } };
-    ws1.addRow([]);
-    const sh = ws1.addRow(['Concepto', 'Monto']);
-    applyHeader(sh);
-
-    let summaryRowIndex = 0;
-    const addSummaryRow = (label, amount, color, bold = false) => {
-      const r = ws1.addRow([label, amount]);
-      if (summaryRowIndex % 2 === 0) r.eachCell(c => { c.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: LIGHT_GRAY } }; });
-      r.getCell(1).font = { bold, size: 10 };
-      r.getCell(2).font = { bold, color: { argb: color }, size: 10 };
-      r.getCell(2).numFmt = '$#,##0';
-      r.getCell(2).alignment = { horizontal: 'right' };
-      summaryRowIndex++;
+    const stripe = (row, i) => {
+      if (i % 2 === 0) row.eachCell(c => { c.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: LGRAY } }; });
     };
 
-    const apptIncome = (apptData || []).filter(r => Number(r.price || 0) > 0).reduce((s, r) => s + Number(r.price), 0);
-    const manualIncome = (incomeData || []).reduce((s, r) => s + Number(r.amount), 0);
-    addSummaryRow('Ingresos por servicios (citas)', apptIncome, GREEN);
-    addSummaryRow('Ingresos manuales', manualIncome, GREEN);
-    addSummaryRow('Total ingresos', incomeTotal, GREEN, true);
-    ws1.addRow([]);
-    summaryRowIndex++;
-    const expByCat = {};
-    allExpenses.forEach(r => { expByCat[r.cat] = (expByCat[r.cat] || 0) + r.amount; });
-    Object.entries(expByCat).forEach(([cat, amt]) => addSummaryRow(`Egresos - ${cat}`, amt, RED));
-    addSummaryRow('Total egresos', expenseTotal, RED, true);
-    ws1.addRow([]);
-    summaryRowIndex++;
-    addSummaryRow('Saldo neto del período', net, net >= 0 ? GREEN : RED, true);
+    const moneyCell = (row, col, argb) => {
+      const c = row.getCell(col);
+      c.numFmt = '$#,##0';
+      c.alignment = { horizontal: 'right' };
+      if (argb) c.font = { ...(c.font || {}), color: { argb } };
+    };
 
-    // HOJA INGRESOS
+    // ── HOJA 1: RESUMEN EJECUTIVO ─────────────────────────────────────
+    const ws1 = wb.addWorksheet('Resumen');
+    ws1.columns = [{ width: 32 }, { width: 22 }];
+
+    const t1 = ws1.addRow(['ZITA — Libro de Caja']);
+    t1.getCell(1).font = { bold: true, size: 18, color: { argb: VIOLET } };
+    t1.height = 32;
+    ws1.addRow([biz?.name || 'Mi negocio']).getCell(1).font = { bold: true, size: 12, color: { argb: DGRAY } };
+    ws1.addRow([`${monthLabel}   ·   Generado: ${today}`]).getCell(1).font = { size: 9, color: { argb: DGRAY }, italic: true };
+    ws1.addRow([`Período: ${start} al ${end}`]).getCell(1).font = { size: 9, color: { argb: DGRAY }, italic: true };
+    ws1.addRow([]);
+
+    const sh = ws1.addRow(['Concepto', 'Monto']);
+    applyHdr(sh);
+
+    const kpiRows = [
+      ['Total Ingresos',     totalIngresos,     GREEN,  true],
+      ['Costo de Ventas',    costoVentas,        ORANGE, false],
+      ['Margen Bruto',       margenBruto,        margenBruto >= 0 ? GREEN : RED, true],
+      ['Egresos Operativos', egresosOperativos,  RED,    false],
+      ['Utilidad Neta',      utilidadNeta,       utilidadNeta >= 0 ? GREEN : RED, true],
+      ['% Margen sobre Ingresos', pctMargen.toFixed(2) + '%', VIOLET, true],
+    ];
+    kpiRows.forEach(([label, val, color, bold], i) => {
+      const r = ws1.addRow([label, typeof val === 'number' ? val : val]);
+      stripe(r, i);
+      r.getCell(1).font = { bold, size: 10 };
+      r.getCell(2).font = { bold, color: { argb: color }, size: 11 };
+      if (typeof val === 'number') {
+        r.getCell(2).numFmt = '$#,##0';
+        r.getCell(2).alignment = { horizontal: 'right' };
+      }
+    });
+
+    ws1.addRow([]);
+    const note = ws1.addRow(['Documento generado por ZITA. No reemplaza documentos contables oficiales.']);
+    note.getCell(1).font = { size: 8, color: { argb: DGRAY }, italic: true };
+
+    // ── HOJA 2: INGRESOS ──────────────────────────────────────────────
     const ws2 = wb.addWorksheet('Ingresos');
-    ws2.columns = [{ width: 14 }, { width: 35 }, { width: 22 }, { width: 14 }, { width: 10 }, { width: 14 }];
+    ws2.columns = [{ width: 13 }, { width: 36 }, { width: 22 }, { width: 14 }, { width: 10 }, { width: 16 }];
     const ih = ws2.addRow(['Fecha', 'Descripción', 'Cliente', 'Categoría', 'Fuente', 'Monto']);
-    applyHeader(ih);
+    applyHdr(ih, GREEN);
+
+    const incFirstRow = 2;
     allIncome.forEach((r, i) => {
       const row = ws2.addRow([r.date, r.desc, r.client, r.cat, r.source, r.amount]);
-      if (i % 2 === 0) row.eachCell(c => { c.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: LIGHT_GRAY } }; });
-      row.getCell(6).numFmt = '$#,##0';
-      row.getCell(6).font = { color: { argb: GREEN } };
-      row.getCell(6).alignment = { horizontal: 'right' };
+      stripe(row, i);
+      moneyCell(row, 6, GREEN);
     });
-    const it = ws2.addRow(['', '', '', '', 'Total', incomeTotal]);
-    it.getCell(5).font = { bold: true };
-    it.getCell(6).font = { bold: true, color: { argb: GREEN } };
-    it.getCell(6).numFmt = '$#,##0';
+    const incTotalRow = allIncome.length + 2;
+    const it = ws2.addRow(['', '', '', '', 'TOTAL', { formula: `SUM(F${incFirstRow}:F${incTotalRow - 1})` }]);
+    it.getCell(5).font = { bold: true, size: 10 };
+    moneyCell(it, 6, GREEN);
+    it.getCell(6).font = { bold: true, color: { argb: GREEN }, size: 11 };
 
-    // HOJA EGRESOS
-    const ws3 = wb.addWorksheet('Egresos');
-    ws3.columns = [{ width: 14 }, { width: 18 }, { width: 35 }, { width: 14 }];
-    const eh = ws3.addRow(['Fecha', 'Categoría', 'Descripción', 'Monto']);
-    applyHeader(eh);
-    allExpenses.forEach((r, i) => {
-      const row = ws3.addRow([r.date, r.cat, r.desc, r.amount]);
-      if (i % 2 === 0) row.eachCell(c => { c.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: LIGHT_GRAY } }; });
-      row.getCell(4).numFmt = '$#,##0';
-      row.getCell(4).font = { color: { argb: RED } };
-      row.getCell(4).alignment = { horizontal: 'right' };
-    });
-    const et = ws3.addRow(['', '', 'Total', expenseTotal]);
-    et.getCell(3).font = { bold: true };
-    et.getCell(4).font = { bold: true, color: { argb: RED } };
-    et.getCell(4).numFmt = '$#,##0';
+    // ── HOJA 3: COSTO DE VENTAS ───────────────────────────────────────
+    const ws3 = wb.addWorksheet('Costo de Ventas');
+    ws3.columns = [{ width: 13 }, { width: 50 }, { width: 16 }];
+    const ch3 = ws3.addRow(['Fecha', 'Descripción', 'Monto']);
+    applyHdr(ch3, ORANGE);
 
-    // HOJA POR CATEGORÍA
-    const ws4 = wb.addWorksheet('Por Categoría');
-    ws4.columns = [{ width: 25 }, { width: 15 }];
-    const ch = ws4.addRow(['Ingresos por Categoría', 'Total']);
-    applyHeader(ch, GREEN);
-    const incByCat = {};
-    allIncome.forEach(r => { incByCat[r.cat] = (incByCat[r.cat] || 0) + r.amount; });
-    Object.entries(incByCat).forEach(([cat, amt], i) => {
-      const r = ws4.addRow([cat, amt]);
-      if (i % 2 === 0) r.eachCell(c => { c.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: LIGHT_GRAY } }; });
-      r.getCell(2).numFmt = '$#,##0';
-      r.getCell(2).font = { color: { argb: GREEN } };
+    const costFirstRow = 2;
+    costExpenses.forEach((r, i) => {
+      const row = ws3.addRow([r.date, r.desc, r.amount]);
+      stripe(row, i);
+      moneyCell(row, 3, ORANGE);
     });
-    ws4.addRow([]);
-    const ch2 = ws4.addRow(['Egresos por Categoría', 'Total']);
-    applyHeader(ch2, RED);
-    Object.entries(expByCat).forEach(([cat, amt], i) => {
-      const r = ws4.addRow([cat, amt]);
-      if (i % 2 === 0) r.eachCell(c => { c.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: LIGHT_GRAY } }; });
-      r.getCell(2).numFmt = '$#,##0';
-      r.getCell(2).font = { color: { argb: RED } };
+    if (costExpenses.length === 0) {
+      ws3.addRow(['Sin datos', 'No se registraron costos de venta en este período', 0]);
+    }
+    const costTotalRow = costExpenses.length + 2;
+    const ct = ws3.addRow(['', 'TOTAL', { formula: `SUM(C${costFirstRow}:C${costTotalRow - 1})` }]);
+    ct.getCell(2).font = { bold: true, size: 10 };
+    moneyCell(ct, 3, ORANGE);
+    ct.getCell(3).font = { bold: true, color: { argb: ORANGE }, size: 11 };
+
+    // ── HOJA 4: EGRESOS OPERATIVOS ────────────────────────────────────
+    const ws4 = wb.addWorksheet('Egresos Operativos');
+    ws4.columns = [{ width: 13 }, { width: 36 }, { width: 20 }, { width: 16 }];
+    const eh = ws4.addRow(['Fecha', 'Descripción', 'Categoría', 'Monto']);
+    applyHdr(eh, RED);
+
+    const opFirstRow = 2;
+    opExpenses.forEach((r, i) => {
+      const row = ws4.addRow([r.date, r.desc, r.cat, r.amount]);
+      stripe(row, i);
+      moneyCell(row, 4, RED);
     });
+    if (opExpenses.length === 0) {
+      ws4.addRow(['Sin datos', 'No se registraron egresos operativos en este período', '', 0]);
+    }
+    const opTotalRow = opExpenses.length + 2;
+    const et = ws4.addRow(['', '', 'TOTAL', { formula: `SUM(D${opFirstRow}:D${opTotalRow - 1})` }]);
+    et.getCell(3).font = { bold: true, size: 10 };
+    moneyCell(et, 4, RED);
+    et.getCell(4).font = { bold: true, color: { argb: RED }, size: 11 };
 
     res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
     res.setHeader('Content-Disposition', `attachment; filename="libro-caja-${month}.xlsx"`);

@@ -698,10 +698,10 @@ export default function Dashboard() {
           </Link>
         </div>
         {daySummary ? (
-          <div className="grid grid-cols-2 gap-2 md:gap-4">
+          <div className="grid grid-cols-2 md:grid-cols-3 gap-2 md:gap-4">
             <MetricCard icon={TrendingUp}   label="Ingresos"   value={formatCOP(daySummary.income_total)}  sub="Caja del día"  color="bg-emerald-600" />
             <MetricCard icon={TrendingDown} label="Egresos"    value={formatCOP(daySummary.expense_total)} sub="Gastos del día" color="bg-red-600" />
-            <div className="col-span-2 sm:col-span-1 bg-[#131929] border border-slate-800 rounded-xl shadow-lg shadow-black/30 p-4 flex flex-col gap-1.5 sm:gap-3 border border-violet-500/15 hover:border-violet-500/40 hover:bg-slate-700/60 transition-all duration-200">
+            <div className="col-span-2 md:col-span-1 bg-[#131929] border border-slate-800 rounded-xl shadow-lg shadow-black/30 p-4 flex flex-col gap-1.5 md:gap-3 border border-violet-500/15 hover:border-violet-500/40 hover:bg-slate-700/60 transition-all duration-200">
               <div className="flex items-center justify-between">
                 <span className="text-slate-400 text-xs font-medium mr-1">Ganancia</span>
                 <div className="w-7 h-7 rounded-lg flex items-center justify-center flex-shrink-0 bg-violet-600/20">

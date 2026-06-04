@@ -205,6 +205,46 @@ function SummaryTab({ month, period, onPeriodChange, dayDate, onDayDateChange })
         </div>
       </div>
 
+      {/* Margen / Costo de ventas — solo si hay datos de costo */}
+      {(periodData?.costo_ventas > 0 || periodData?.margen_bruto != null) && (
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 min-w-0">
+          <div className="min-w-0 bg-[#131929] border border-violet-500/15 hover:border-violet-500/35 rounded-xl shadow-lg shadow-black/30 p-5 transition-all duration-200">
+            <div className="flex items-center justify-between mb-3">
+              <p className="whitespace-nowrap text-sm text-slate-400">Margen Bruto</p>
+              <div className="w-8 h-8 bg-emerald-700 rounded-lg flex items-center justify-center flex-shrink-0">
+                <TrendingUp size={15} className="text-white" />
+              </div>
+            </div>
+            <p className={`text-lg sm:text-xl font-bold ${(periodData?.margen_bruto ?? 0) >= 0 ? 'text-emerald-400' : 'text-red-400'}`}>
+              {formatCOP(periodData?.margen_bruto)}
+            </p>
+            <p className="text-slate-600 text-xs mt-1">Ingresos − costo de ventas</p>
+          </div>
+          <div className="min-w-0 bg-[#131929] border border-violet-500/15 hover:border-violet-500/35 rounded-xl shadow-lg shadow-black/30 p-5 transition-all duration-200">
+            <div className="flex items-center justify-between mb-3">
+              <p className="whitespace-nowrap text-sm text-slate-400">Costo de Ventas</p>
+              <div className="w-8 h-8 bg-orange-700 rounded-lg flex items-center justify-center flex-shrink-0">
+                <TrendingDown size={15} className="text-white" />
+              </div>
+            </div>
+            <p className="text-lg sm:text-xl font-bold text-orange-400">{formatCOP(periodData?.costo_ventas)}</p>
+            <p className="text-slate-600 text-xs mt-1">Egreso automático por productos vendidos</p>
+          </div>
+          <div className="min-w-0 bg-[#131929] border border-violet-500/15 hover:border-violet-500/35 rounded-xl shadow-lg shadow-black/30 p-5 transition-all duration-200">
+            <div className="flex items-center justify-between mb-3">
+              <p className="whitespace-nowrap text-sm text-slate-400">Utilidad Neta</p>
+              <div className={`w-8 h-8 rounded-lg flex items-center justify-center flex-shrink-0 ${(periodData?.utilidad_neta ?? 0) >= 0 ? 'bg-emerald-600' : 'bg-red-600'}`}>
+                {(periodData?.utilidad_neta ?? 0) >= 0 ? <TrendingUp size={15} className="text-white" /> : <TrendingDown size={15} className="text-white" />}
+              </div>
+            </div>
+            <p className={`text-lg sm:text-xl font-bold ${(periodData?.utilidad_neta ?? 0) >= 0 ? 'text-emerald-400' : 'text-red-400'}`}>
+              {formatCOP(periodData?.utilidad_neta)}
+            </p>
+            <p className="text-slate-600 text-xs mt-1">Margen bruto − egresos operativos</p>
+          </div>
+        </div>
+      )}
+
       {/* Chart + Goal - móvil: apilados verticalmente */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
         {/* Bar chart */}

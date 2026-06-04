@@ -23,7 +23,7 @@ const STOCK_STATUS = (stock, min_stock) => {
   return { label: 'OK', cls: 'text-emerald-400 bg-emerald-500/10 border-emerald-500/20' };
 };
 
-const emptyForm = { name: '', description: '', price: '', stock: '0', min_stock: '5', category: '' };
+const emptyForm = { name: '', description: '', price: '', stock: '0', min_stock: '5', category: '', cost_price: '' };
 
 // ── Sell Modal ──────────────────────────────────────────────────────────────
 function SellModal({ product, clients, onClose, onSuccess }) {
@@ -316,6 +316,7 @@ function ProductModal({ initial, onClose, onSave, isTienda }) {
         min_stock: Number(form.min_stock),
         category: form.category.trim() || null,
         has_variants: hasVariants,
+        cost_price: form.cost_price !== '' && form.cost_price !== null ? Number(form.cost_price) : null,
       };
 
       if (isEdit) {
@@ -423,6 +424,19 @@ function ProductModal({ initial, onClose, onSave, isTienda }) {
               {field('Stock mínimo', 'min_stock', 'number', { min: '0' })}
             </div>
           )}
+
+          {/* Cost price */}
+          <div>
+            <label className="block text-slate-400 text-sm mb-1.5">Precio de costo (opcional)</label>
+            <input
+              type="number" min="0" step="100"
+              value={form.cost_price}
+              onChange={(e) => setForm({ ...form, cost_price: e.target.value })}
+              placeholder="0"
+              className="w-full bg-[#131929] border border-slate-700 text-white rounded-lg px-4 py-2.5 text-sm focus:outline-none focus:border-violet-500 transition"
+            />
+            <p className="text-slate-600 text-xs mt-1">Si lo defines, se registrará un egreso automático al vender</p>
+          </div>
 
           {/* Variants section */}
           {isTienda && hasVariants && isEdit && (
@@ -636,14 +650,25 @@ function CatalogoTab({ products, clients, showInactive, onShowInactiveChange, so
                     <p className="text-slate-500 text-xs">Precio</p>
                     <p className="text-white font-bold">{formatCOP(p.price)}</p>
                   </div>
-                  {!p.has_variants && (
+                  {p.cost_price != null ? (
+                    <div className="text-right">
+                      <p className="text-slate-500 text-xs">Margen</p>
+                      <p className={`font-bold text-sm ${
+                        ((p.price - p.cost_price) / p.price * 100) > 40 ? 'text-emerald-400' :
+                        ((p.price - p.cost_price) / p.price * 100) >= 20 ? 'text-yellow-400' :
+                        'text-red-400'
+                      }`}>
+                        {((p.price - p.cost_price) / p.price * 100).toFixed(0)}%
+                      </p>
+                    </div>
+                  ) : !p.has_variants ? (
                     <div className="text-right">
                       <p className="text-slate-500 text-xs">Stock</p>
                       <p className={`font-bold ${p.stock === 0 ? 'text-red-400' : p.stock <= p.min_stock ? 'text-yellow-400' : 'text-white'}`}>
                         {p.stock} <span className="text-slate-500 text-xs font-normal">/ mín {p.min_stock}</span>
                       </p>
                     </div>
-                  )}
+                  ) : null}
                 </div>
 
                 <div className="flex gap-2">
@@ -875,9 +900,10 @@ function InventarioTab({ products, sales, sortBy, onSortChange }) {
               <table className="w-full text-sm border-collapse">
                 <thead>
                   <tr className="bg-[#0d1420]">
-                    <th className="w-[35%] text-left text-white/40 font-medium px-4 py-3 text-xs uppercase tracking-wider">Producto</th>
-                    <th className="w-[15%] text-center text-white/40 font-medium px-4 py-3 text-xs uppercase tracking-wider">Categoría</th>
-                    <th className="w-[15%] text-left text-white/40 font-medium px-4 py-3 text-xs uppercase tracking-wider">Precio</th>
+                    <th className="w-[30%] text-left text-white/40 font-medium px-4 py-3 text-xs uppercase tracking-wider">Producto</th>
+                    <th className="w-[12%] text-center text-white/40 font-medium px-4 py-3 text-xs uppercase tracking-wider">Categoría</th>
+                    <th className="w-[13%] text-left text-white/40 font-medium px-4 py-3 text-xs uppercase tracking-wider">Precio</th>
+                    <th className="w-[10%] text-center text-white/40 font-medium px-4 py-3 text-xs uppercase tracking-wider">Margen</th>
                     <th className="w-[10%] text-center text-white/40 font-medium px-4 py-3 text-xs uppercase tracking-wider">Stock actual</th>
                     <th className="w-[10%] text-center text-white/40 font-medium px-4 py-3 text-xs uppercase tracking-wider">Stock mín.</th>
                     <th className="w-[15%] text-left text-white/40 font-medium px-4 py-3 text-xs uppercase tracking-wider">Estado</th>
@@ -891,6 +917,17 @@ function InventarioTab({ products, sales, sortBy, onSortChange }) {
                         <td className="px-4 py-3 text-white font-medium">{p.name}</td>
                         <td className="px-4 py-3 text-center text-slate-400">{p.category || '—'}</td>
                         <td className="px-4 py-3 text-slate-300">{formatCOP(p.price)}</td>
+                        <td className="px-4 py-3 text-center">
+                          {p.cost_price != null ? (
+                            <span className={`text-xs font-semibold ${
+                              ((p.price - p.cost_price) / p.price * 100) > 40 ? 'text-emerald-400' :
+                              ((p.price - p.cost_price) / p.price * 100) >= 20 ? 'text-yellow-400' :
+                              'text-red-400'
+                            }`}>
+                              {((p.price - p.cost_price) / p.price * 100).toFixed(0)}%
+                            </span>
+                          ) : <span className="text-slate-600 text-xs">—</span>}
+                        </td>
                         <td className="px-4 py-3 text-center">
                           <span className={(p.stock ?? 0) === 0 ? 'text-red-400 font-bold' : (p.stock ?? 0) <= (p.min_stock ?? 0) ? 'text-amber-400 font-semibold' : 'text-white'}>
                             {p.stock ?? 0}

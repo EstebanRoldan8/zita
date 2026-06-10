@@ -229,4 +229,166 @@ async function adminGeneratePaymentLink(req, res) {
   }
 }
 
-module.exports = { createSession, handleWebhook, getHistory, getStatus, adminGeneratePaymentLink };
+async function calculatePayment(req, res) {
+  try {
+    const { plan, period = 'monthly' } = req.body;
+    const businessId = req.businessId;
+
+    if (!PLAN_PRICES_BY_PERIOD[plan]) {
+      return res.status(400).json({ success: false, error: 'Plan inválido.' });
+    }
+
+    const { data: business } = await supabaseAdmin
+      .from('businesses')
+      .select('plan, plan_expires_at, trial_ends_at')
+      .eq('id', businessId)
+      .single();
+
+    const ahora = new Date();
+    const planActual = business?.plan || 'estandar';
+    const planExpiresAt = business?.plan_expires_at;
+    const trialEndsAt = business?.trial_ends_at;
+    const tienePlanPagadoActivo = planExpiresAt && new Date(planExpiresAt) > ahora;
+    const estaEnTrial = trialEndsAt && new Date(trialEndsAt) > ahora;
+
+    const ORDEN_PLANES = { lite: 0, estandar: 1, pro: 2 };
+    const esUpgrade = ORDEN_PLANES[plan] > ORDEN_PLANES[planActual];
+    const esMismoPlan = plan === planActual;
+    const esDowngrade = ORDEN_PLANES[plan] < ORDEN_PLANES[planActual];
+
+    const costoCompleto = PLAN_PRICES_BY_PERIOD[plan][period];
+    let amountInCents = costoCompleto;
+    let tipo;
+    let diasRestantes = 0;
+    let credito = 0;
+
+    if (esDowngrade) {
+      const fechaVencimiento = planExpiresAt
+        ? new Date(planExpiresAt).toLocaleDateString('es-CO')
+        : null;
+      return res.json({
+        success: true,
+        data: {
+          tipo: 'downgrade',
+          planActual,
+          planNuevo: plan,
+          fechaVencimiento,
+          requierePago: false,
+          mensaje: fechaVencimiento
+            ? `El cambio a Plan ${plan} aplicará el ${fechaVencimiento} cuando venza tu plan actual. Sin cobro adicional.`
+            : 'El cambio aplicará cuando venza tu plan actual. Sin cobro adicional.'
+        }
+      });
+    }
+
+    const PRECIOS_DIA = {
+      lite:     6000000  / 30,
+      estandar: 10000000 / 30,
+      pro:      15000000 / 30
+    };
+
+    if (!tienePlanPagadoActivo || estaEnTrial) {
+      tipo = estaEnTrial ? 'trial_to_paid' : 'nuevo';
+      amountInCents = costoCompleto;
+      diasRestantes = 0;
+      credito = 0;
+    } else if (esMismoPlan) {
+      tipo = 'renovacion';
+      amountInCents = costoCompleto;
+      const expira = new Date(planExpiresAt);
+      diasRestantes = Math.ceil((expira - ahora) / (1000 * 60 * 60 * 24));
+      credito = 0;
+    } else if (esUpgrade) {
+      tipo = 'upgrade';
+      const expira = new Date(planExpiresAt);
+      diasRestantes = Math.ceil((expira - ahora) / (1000 * 60 * 60 * 24));
+      credito = Math.floor(PRECIOS_DIA[planActual] * diasRestantes);
+      const costoNuevo = Math.floor(PRECIOS_DIA[plan] * diasRestantes);
+      amountInCents = Math.max(costoNuevo - credito, 100);
+    }
+
+    const diasTrialRestantes = estaEnTrial
+      ? Math.ceil((new Date(trialEndsAt) - ahora) / (1000 * 60 * 60 * 24))
+      : 0;
+
+    const mensajes = {
+      trial_to_paid: `Tienes ${diasTrialRestantes} días de trial restantes. Al pagar, tu plan se activa y los días de trial se respetan.`,
+      nuevo: `Activa tu plan por ${period === 'monthly' ? '1 mes' : period === 'biannual' ? '6 meses' : '1 año'}.`,
+      renovacion: `Tu plan vence en ${diasRestantes} días. Al pagar ahora, se extiende ${period === 'monthly' ? '30 días' : period === 'biannual' ? '6 meses' : '1 año'} desde esa fecha.`,
+      upgrade: `Tienes ${diasRestantes} días restantes de tu plan actual. Se aplica un crédito de $${Math.round(credito / 100).toLocaleString('es-CO')} y pagas solo la diferencia.`
+    };
+
+    return res.json({
+      success: true,
+      data: {
+        tipo,
+        planActual,
+        planNuevo: plan,
+        period,
+        amountInCents,
+        amountCOP: Math.round(amountInCents / 100),
+        costoCompletoCOP: Math.round(costoCompleto / 100),
+        creditoCOP: Math.round(credito / 100),
+        diasRestantes,
+        requierePago: true,
+        estaEnTrial,
+        mensaje: mensajes[tipo] || ''
+      }
+    });
+  } catch (err) {
+    logger.error('payment.calculatePayment error:', { message: err.message });
+    return res.status(500).json({ success: false, error: 'Error al calcular pago.' });
+  }
+}
+
+async function scheduleDowngrade(req, res) {
+  try {
+    const { plan } = req.body;
+    const businessId = req.businessId;
+
+    const ORDEN_PLANES = { lite: 0, estandar: 1, pro: 2 };
+
+    const { data: business } = await supabaseAdmin
+      .from('businesses')
+      .select('plan, plan_expires_at')
+      .eq('id', businessId)
+      .single();
+
+    if (!business) {
+      return res.status(404).json({ success: false, error: 'Negocio no encontrado.' });
+    }
+
+    if (ORDEN_PLANES[plan] >= ORDEN_PLANES[business.plan]) {
+      return res.status(400).json({ success: false, error: 'Solo puedes programar un downgrade a un plan inferior.' });
+    }
+
+    await supabaseAdmin
+      .from('scheduled_downgrades')
+      .upsert({
+        business_id: businessId,
+        new_plan: plan,
+        applies_at: business.plan_expires_at,
+        created_at: new Date().toISOString()
+      }, { onConflict: 'business_id' });
+
+    return res.json({
+      success: true,
+      data: {
+        message: `Tu plan cambiará a ${plan} el ${new Date(business.plan_expires_at).toLocaleDateString('es-CO')}.`
+      }
+    });
+  } catch (err) {
+    logger.error('payment.scheduleDowngrade error:', { message: err.message });
+    return res.status(500).json({ success: false, error: 'Error al programar cambio de plan.' });
+  }
+}
+
+module.exports = {
+  createSession,
+  handleWebhook,
+  getHistory,
+  getStatus,
+  adminGeneratePaymentLink,
+  calculatePayment,
+  scheduleDowngrade
+};

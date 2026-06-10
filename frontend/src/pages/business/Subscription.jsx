@@ -89,6 +89,11 @@ export default function Subscription() {
   const [upgradeModal, setUpgradeModal] = useState(null);
   const [paymentLoading, setPaymentLoading] = useState(false);
   const [paymentBanner, setPaymentBanner] = useState(null); // 'success' | 'error' | null
+  const [paymentPreview, setPaymentPreview] = useState(null);
+  const [previewLoading, setPreviewLoading] = useState(false);
+  const [downgradeModal, setDowngradeModal] = useState(null);
+  const [downgradeLoading, setDowngradeLoading] = useState(false);
+  const [downgradeSuccess, setDowngradeSuccess] = useState(null);
 
   const fetchSub = async () => {
     try {
@@ -137,10 +142,39 @@ export default function Subscription() {
     }
   };
 
+  const fetchPaymentPreview = async (plan, period) => {
+    setPreviewLoading(true);
+    setPaymentPreview(null);
+    try {
+      const res = await api.post('/api/payments/calculate', { plan, period });
+      if (res.data.success) setPaymentPreview(res.data.data);
+    } catch (err) {
+      console.error('Preview error:', err);
+    } finally {
+      setPreviewLoading(false);
+    }
+  };
+
+  const handleOpenModal = async (planKey) => {
+    const ORDEN_PLANES = { lite: 0, estandar: 1, pro: 2 };
+    const esDowngrade = ORDEN_PLANES[planKey] < ORDEN_PLANES[sub.plan];
+    if (esDowngrade) {
+      setDowngradeModal(planKey);
+      return;
+    }
+    setUpgradeModal(planKey);
+    setBillingPeriod('monthly');
+    await fetchPaymentPreview(planKey, 'monthly');
+  };
+
+  const handlePeriodChange = async (newPeriod) => {
+    setBillingPeriod(newPeriod);
+    if (upgradeModal) await fetchPaymentPreview(upgradeModal, newPeriod);
+  };
+
   if (loading) return <div className="p-6 text-slate-400">Cargando...</div>;
   if (!sub) return <div className="p-6 text-red-400">Error al cargar suscripción</div>;
 
-  console.log('plan actual:', sub?.plan, 'estado:', sub?.estado);
   const currentPlanOrder = PLAN_ORDER[sub.plan] ?? 0;
   const nextPlanKey = Object.keys(PLAN_ORDER).find(k => PLAN_ORDER[k] === currentPlanOrder + 1) || 'pro';
   if (selectedPlanTab === null) setSelectedPlanTab(nextPlanKey);
@@ -340,27 +374,7 @@ export default function Subscription() {
         </div>
       )}
 
-      {/* SECCIÓN 3 — Selector de período de facturación */}
-      <div className="mb-6 pt-6">
-        <h2 className="text-slate-300 text-sm font-semibold mb-3 text-center md:text-left">Período de facturación</h2>
-        <div className="flex gap-3 mb-6 justify-center md:justify-start">
-          {Object.entries(BILLING_PERIODS).map(([key, period]) => (
-            <button
-              key={key}
-              onClick={() => setBillingPeriod(key)}
-              className={`px-4 py-2 rounded-lg text-sm font-semibold transition-all ${
-                billingPeriod === key
-                  ? 'bg-violet-600 text-white shadow-lg shadow-violet-500/30'
-                  : 'bg-slate-800 text-slate-300 hover:bg-slate-700'
-              }`}
-            >
-              {period.label}
-            </button>
-          ))}
-        </div>
-      </div>
-
-      {/* SECCIÓN 4 — Comparativo de planes */}
+      {/* SECCIÓN 3 — Comparativo de planes */}
       <div className="mb-6 pt-6">
         <h2 className="text-slate-300 text-sm font-semibold mb-4 text-center md:text-left">Planes disponibles</h2>
         <div>
@@ -512,17 +526,21 @@ export default function Subscription() {
 
                     if (cardOrder === currentOrder) {
                       return (
-                        <button disabled
-                          className="w-full py-2.5 rounded-xl bg-gray-700/50 text-gray-400 text-sm font-medium cursor-default">
-                          ✓ Tu plan actual
+                        <button
+                          onClick={() => handleOpenModal(plan.key)}
+                          className="w-full py-2.5 rounded-xl bg-violet-600/20 hover:bg-violet-600/40 border border-violet-500/30 text-violet-300 text-sm font-medium transition-all"
+                        >
+                          💳 Renovar / Pagar por adelantado
                         </button>
                       );
                     }
                     if (cardOrder < currentOrder) {
                       return (
-                        <button disabled
-                          className="w-full py-2.5 rounded-xl bg-gray-800/50 text-gray-600 text-sm cursor-default">
-                          Ya tienes mejor plan
+                        <button
+                          onClick={() => handleOpenModal(plan.key)}
+                          className="w-full py-2.5 rounded-xl bg-slate-800/50 hover:bg-slate-700/50 border border-slate-600/30 text-slate-400 hover:text-slate-300 text-sm transition-all"
+                        >
+                          Cambiar a {plan.name} →
                         </button>
                       );
                     }
@@ -535,7 +553,7 @@ export default function Subscription() {
                         <p className="text-xs text-center text-gray-500 mb-2">
                           Precio de lanzamiento — garantizado mientras sigas activo
                         </p>
-                        <button onClick={() => setUpgradeModal(plan.key)} className={btnClass}>
+                        <button onClick={() => handleOpenModal(plan.key)} className={btnClass}>
                           Mejorar a {planNames[plan.key]}
                         </button>
                       </div>
@@ -608,38 +626,142 @@ export default function Subscription() {
         </div>
       )}
 
-      {/* Modal de upgrade */}
       {upgradeModal && (
-        <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50 px-4 py-4 sm:py-0">
+        <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50 px-4 py-4">
           <div className="bg-[#131929] border border-slate-800 rounded-2xl w-full max-w-md p-6 shadow-xl">
             <h3 className="text-white font-semibold text-lg mb-1">
-              Activar Plan {sub.todos_los_planes[upgradeModal].name}
+              {paymentPreview?.tipo === 'renovacion' ? 'Renovar plan' :
+               paymentPreview?.tipo === 'upgrade' ? `Mejorar a ${sub.todos_los_planes[upgradeModal]?.name}` :
+               `Activar Plan ${sub.todos_los_planes[upgradeModal]?.name}`}
             </h3>
-            <p className="text-slate-400 text-sm mb-2">
-              ${(PLAN_PRICES[upgradeModal][billingPeriod] / 1000).toFixed(0)}k COP {billingPeriod === 'monthly' ? '/ mes' : `${BILLING_PERIODS[billingPeriod].multiplier} meses`}
-            </p>
-            {billingPeriod !== 'monthly' && (
-              <p className="text-xs text-emerald-400 mb-5 font-semibold">
-                Ahorras ${((PLAN_PRICES[upgradeModal]['monthly'] * BILLING_PERIODS[billingPeriod].multiplier - PLAN_PRICES[upgradeModal][billingPeriod]) / 1000).toFixed(0)}k
-              </p>
-            )}
-            {billingPeriod === 'monthly' && <div className="mb-5" />}
+
+            <div className="flex gap-2 mt-4 mb-5">
+              {Object.entries(BILLING_PERIODS).map(([key, period]) => (
+                <button
+                  key={key}
+                  onClick={() => handlePeriodChange(key)}
+                  disabled={previewLoading}
+                  className={`flex-1 py-2 rounded-lg text-xs font-semibold transition-all ${
+                    billingPeriod === key
+                      ? 'bg-violet-600 text-white'
+                      : 'bg-slate-800 text-slate-400 hover:bg-slate-700'
+                  }`}
+                >
+                  {period.label}
+                </button>
+              ))}
+            </div>
+
+            {previewLoading ? (
+              <div className="flex items-center justify-center py-6">
+                <Loader2 size={20} className="animate-spin text-violet-400" />
+                <span className="ml-2 text-slate-400 text-sm">Calculando...</span>
+              </div>
+            ) : paymentPreview ? (
+              <div className="bg-slate-800/50 rounded-xl p-4 mb-5 space-y-2">
+                <p className="text-slate-300 text-sm mb-3">{paymentPreview.mensaje}</p>
+
+                {paymentPreview.tipo === 'upgrade' && paymentPreview.creditoCOP > 0 && (
+                  <>
+                    <div className="flex justify-between text-sm">
+                      <span className="text-slate-400">Precio completo Plan {sub.todos_los_planes[upgradeModal]?.name}</span>
+                      <span className="text-slate-300">${paymentPreview.costoCompletoCOP.toLocaleString('es-CO')}</span>
+                    </div>
+                    <div className="flex justify-between text-sm">
+                      <span className="text-slate-400">Crédito por {paymentPreview.diasRestantes} días restantes</span>
+                      <span className="text-emerald-400">-${paymentPreview.creditoCOP.toLocaleString('es-CO')}</span>
+                    </div>
+                    <hr className="border-slate-700 my-1" />
+                  </>
+                )}
+
+                {billingPeriod !== 'monthly' && paymentPreview.tipo !== 'upgrade' && (
+                  <div className="flex justify-between text-sm">
+                    <span className="text-slate-400">Descuento {billingPeriod === 'biannual' ? '10%' : '20%'}</span>
+                    <span className="text-emerald-400">
+                      -${Math.round(paymentPreview.costoCompletoCOP * (billingPeriod === 'biannual' ? 0.1 : 0.2)).toLocaleString('es-CO')}
+                    </span>
+                  </div>
+                )}
+
+                <div className="flex justify-between text-base font-bold mt-2">
+                  <span className="text-white">Total a pagar hoy</span>
+                  <span className="text-violet-300">${paymentPreview.amountCOP.toLocaleString('es-CO')} COP</span>
+                </div>
+              </div>
+            ) : null}
 
             <button
               onClick={() => handlePayment(upgradeModal)}
-              disabled={paymentLoading}
+              disabled={paymentLoading || previewLoading || !paymentPreview}
               className="w-full flex items-center justify-center gap-2 bg-violet-600 hover:bg-violet-500 disabled:opacity-60 text-white py-3 rounded-xl text-sm font-bold transition mb-2"
             >
-              {paymentLoading ? <Loader2 size={16} className="animate-spin" /> : null}
-              {paymentLoading ? 'Redirigiendo...' : `Pagar $${(PLAN_PRICES[upgradeModal][billingPeriod] / 1000).toFixed(0)}k con Wompi`}
+              {paymentLoading
+                ? <><Loader2 size={16} className="animate-spin" /> Redirigiendo...</>
+                : `Pagar $${paymentPreview ? paymentPreview.amountCOP.toLocaleString('es-CO') : '...'} con Wompi`}
             </button>
 
             <button
-              onClick={() => setUpgradeModal(null)}
+              onClick={() => { setUpgradeModal(null); setPaymentPreview(null); }}
               disabled={paymentLoading}
               className="w-full bg-slate-800 hover:bg-slate-700 text-slate-300 py-2.5 rounded-xl text-sm font-medium transition"
             >
               Cancelar
+            </button>
+          </div>
+        </div>
+      )}
+
+      {downgradeModal && (
+        <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50 px-4 py-4">
+          <div className="bg-[#131929] border border-slate-800 rounded-2xl w-full max-w-md p-6 shadow-xl">
+            <h3 className="text-white font-semibold text-lg mb-2">
+              Cambiar a Plan {sub.todos_los_planes[downgradeModal]?.name}
+            </h3>
+
+            {downgradeSuccess ? (
+              <div className="bg-emerald-500/10 border border-emerald-500/20 rounded-xl p-4 mb-4">
+                <p className="text-emerald-400 text-sm">{downgradeSuccess}</p>
+              </div>
+            ) : (
+              <>
+                <div className="bg-yellow-500/10 border border-yellow-500/20 rounded-xl p-4 mb-5">
+                  <p className="text-yellow-300 text-sm font-medium mb-1">⚠️ Sin cobro adicional</p>
+                  <p className="text-slate-300 text-sm">
+                    Tu plan actual seguirá activo hasta que venza. El cambio a{' '}
+                    <strong>{sub.todos_los_planes[downgradeModal]?.name}</strong> aplicará automáticamente
+                    {sub.plan_expires_at
+                      ? ` el ${new Date(sub.plan_expires_at).toLocaleDateString('es-CO')}.`
+                      : ' cuando venza tu plan actual.'}
+                  </p>
+                </div>
+
+                <button
+                  onClick={async () => {
+                    setDowngradeLoading(true);
+                    try {
+                      const res = await api.post('/api/payments/schedule-downgrade', { plan: downgradeModal });
+                      if (res.data.success) setDowngradeSuccess(res.data.data.message);
+                    } catch (err) {
+                      console.error('Downgrade error:', err);
+                    } finally {
+                      setDowngradeLoading(false);
+                    }
+                  }}
+                  disabled={downgradeLoading}
+                  className="w-full flex items-center justify-center gap-2 bg-yellow-600/20 hover:bg-yellow-600/30 border border-yellow-500/30 text-yellow-300 py-3 rounded-xl text-sm font-bold transition mb-2"
+                >
+                  {downgradeLoading ? <Loader2 size={16} className="animate-spin" /> : null}
+                  {downgradeLoading ? 'Procesando...' : 'Confirmar cambio de plan'}
+                </button>
+              </>
+            )}
+
+            <button
+              onClick={() => { setDowngradeModal(null); setDowngradeSuccess(null); }}
+              className="w-full bg-slate-800 hover:bg-slate-700 text-slate-300 py-2.5 rounded-xl text-sm font-medium transition"
+            >
+              {downgradeSuccess ? 'Cerrar' : 'Cancelar'}
             </button>
           </div>
         </div>

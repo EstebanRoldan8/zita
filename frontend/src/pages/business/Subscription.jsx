@@ -180,7 +180,7 @@ export default function Subscription() {
   if (selectedPlanTab === null) setSelectedPlanTab(nextPlanKey);
   const getStateText = () => {
     if (sub.estado === 'trial') {
-      return `🎁 Trial activo — ${sub.dias_restantes} días restantes`;
+      return `🎁 Período de prueba activo — ${sub.dias_restantes} días restantes`;
     } else if (sub.estado === 'active') {
       return `✅ Plan activo — vence el ${new Date(sub.plan_expires_at).toLocaleDateString('es-CO')}`;
     } else if (sub.estado === 'grace') {

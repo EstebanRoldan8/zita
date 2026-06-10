@@ -340,7 +340,7 @@ async function calculatePayment(req, res) {
       : 0;
 
     const mensajes = {
-      trial_to_paid: `Tienes ${diasTrialRestantes} días de trial restantes. Al pagar, tu plan se activa y los días de trial se respetan.`,
+      trial_to_paid: `Tienes ${diasTrialRestantes} días de período de prueba restantes. Al pagar, tu plan se activa y los días de período de prueba se respetan.`,
       nuevo: `Activa tu plan por ${period === 'monthly' ? '1 mes' : period === 'biannual' ? '6 meses' : '1 año'}.`,
       renovacion: `Tu plan vence en ${diasRestantes} días. Al pagar ahora, se extiende ${period === 'monthly' ? '30 días' : period === 'biannual' ? '6 meses' : '1 año'} desde esa fecha.`,
       upgrade: `Tienes ${diasRestantes} días restantes de tu plan actual. Se aplica un crédito de $${Math.round(credito / 100).toLocaleString('es-CO')} y pagas solo la diferencia.`

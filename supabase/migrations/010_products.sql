@@ -56,3 +56,5 @@ DROP POLICY IF EXISTS "owner_products_own" ON products;
 CREATE POLICY "owner_products_own" ON products
   FOR ALL
   USING (business_id = get_business_id_for_user(auth.uid()));
+
+  

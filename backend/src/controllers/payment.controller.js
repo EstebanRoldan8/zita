@@ -3,9 +3,21 @@ const { getPaymentProvider, PLAN_PRICES_COP } = require('../config/payments');
 const { generateIntegritySignature, validateWebhookSignature } = require('../services/wompi.service');
 const logger = require('../utils/logger');
 
+const PLAN_PRICES_BY_PERIOD = {
+  lite: { monthly: 6000000, biannual: 32400000, annual: 57600000 },
+  estandar: { monthly: 10000000, biannual: 54000000, annual: 96000000 },
+  pro: { monthly: 15000000, biannual: 81000000, annual: 144000000 }
+};
+
+const PERIOD_DAYS = {
+  monthly: 30,
+  biannual: 180,
+  annual: 365
+};
+
 async function createSession(req, res) {
   try {
-    const { plan, payment_method_type } = req.body;
+    const { plan, period = 'monthly', payment_method_type } = req.body;
     const businessId = req.businessId;
 
     if (!PLAN_PRICES_COP[plan]) {
@@ -20,7 +32,7 @@ async function createSession(req, res) {
 
     const country = business?.country || 'colombia';
     const provider = getPaymentProvider(country);
-    const amountInCents = PLAN_PRICES_COP[plan];
+    const amountInCents = PLAN_PRICES_BY_PERIOD[plan][period] || PLAN_PRICES_COP[plan];
     const currency = 'COP';
     const reference = `ZITA-${businessId.slice(0, 8)}-${Date.now()}`;
     const integritySignature = generateIntegritySignature(
@@ -33,6 +45,7 @@ async function createSession(req, res) {
     await supabaseAdmin.from('payments').insert({
       business_id: businessId,
       plan,
+      period,
       amount: amountInCents,
       currency,
       status: 'pending',
@@ -79,7 +92,7 @@ async function handleWebhook(req, res) {
 
       const { data: payment } = await supabaseAdmin
         .from('payments')
-        .select('id, business_id, plan')
+        .select('id, business_id, plan, period')
         .eq('wompi_reference', tx.reference)
         .single();
 
@@ -101,15 +114,27 @@ async function handleWebhook(req, res) {
         .eq('id', payment.id);
 
       if (newStatus === 'approved') {
-        const expiresAt = new Date();
-        expiresAt.setDate(expiresAt.getDate() + 30);
+        const { data: business } = await supabaseAdmin
+          .from('businesses')
+          .select('plan_expires_at')
+          .eq('id', payment.business_id)
+          .single();
+
+        const period = payment.period || 'monthly';
+        const days = PERIOD_DAYS[period] || 30;
+        const baseDate = business?.plan_expires_at && new Date(business.plan_expires_at) > new Date()
+          ? new Date(business.plan_expires_at)
+          : new Date();
+
+        const expiresAt = new Date(baseDate);
+        expiresAt.setDate(expiresAt.getDate() + days);
 
         await supabaseAdmin
           .from('businesses')
           .update({ plan: payment.plan, plan_expires_at: expiresAt.toISOString() })
           .eq('id', payment.business_id);
 
-        logger.info(`Plan activado: business=${payment.business_id} plan=${payment.plan}`);
+        logger.info(`Plan activado: business=${payment.business_id} plan=${payment.plan} period=${period}`);
       }
     }
 

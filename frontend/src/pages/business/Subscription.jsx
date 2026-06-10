@@ -10,6 +10,18 @@ const PLAN_COLORS = {
   pro: 'bg-yellow-500/10 text-yellow-400 border-yellow-500/20'
 };
 
+const BILLING_PERIODS = {
+  monthly: { label: 'Mensual', multiplier: 1, discount: 0 },
+  biannual: { label: 'Semestral (-10%)', multiplier: 6, discount: 0.1 },
+  annual: { label: 'Anual (-20%)', multiplier: 12, discount: 0.2 }
+};
+
+const PLAN_PRICES = {
+  lite: { monthly: 60000, biannual: 324000, annual: 576000 },
+  estandar: { monthly: 100000, biannual: 540000, annual: 960000 },
+  pro: { monthly: 150000, biannual: 810000, annual: 1440000 }
+};
+
 const PLAN_ORDER = { lite: 0, estandar: 1, pro: 2 };
 
 const PLAN_DESCRIPTIONS = {
@@ -72,6 +84,7 @@ export default function Subscription() {
   const typeConfig = BUSINESS_TYPE_CONFIG[business?.business_type] || DEFAULT_TYPE_CONFIG;
   const [sub, setSub] = useState(null);
   const [selectedPlanTab, setSelectedPlanTab] = useState(null);
+  const [billingPeriod, setBillingPeriod] = useState('monthly');
   const [loading, setLoading] = useState(true);
   const [upgradeModal, setUpgradeModal] = useState(null);
   const [paymentLoading, setPaymentLoading] = useState(false);
@@ -106,7 +119,7 @@ export default function Subscription() {
   const handlePayment = async (plan) => {
     setPaymentLoading(true);
     try {
-      const res = await api.post('/api/payments/create-session', { plan, payment_method_type: 'manual' });
+      const res = await api.post('/api/payments/create-session', { plan, period: billingPeriod, payment_method_type: 'manual' });
       if (!res.data.success) throw new Error(res.data.error);
       const { reference, publicKey, amountInCents, currency, integritySignature, redirectUrl } = res.data.data;
       const checkoutUrl =
@@ -327,7 +340,27 @@ export default function Subscription() {
         </div>
       )}
 
-      {/* SECCIÓN 3 — Comparativo de planes */}
+      {/* SECCIÓN 3 — Selector de período de facturación */}
+      <div className="mb-6 pt-6">
+        <h2 className="text-slate-300 text-sm font-semibold mb-3 text-center md:text-left">Período de facturación</h2>
+        <div className="flex gap-3 mb-6 justify-center md:justify-start">
+          {Object.entries(BILLING_PERIODS).map(([key, period]) => (
+            <button
+              key={key}
+              onClick={() => setBillingPeriod(key)}
+              className={`px-4 py-2 rounded-lg text-sm font-semibold transition-all ${
+                billingPeriod === key
+                  ? 'bg-violet-600 text-white shadow-lg shadow-violet-500/30'
+                  : 'bg-slate-800 text-slate-300 hover:bg-slate-700'
+              }`}
+            >
+              {period.label}
+            </button>
+          ))}
+        </div>
+      </div>
+
+      {/* SECCIÓN 4 — Comparativo de planes */}
       <div className="mb-6 pt-6">
         <h2 className="text-slate-300 text-sm font-semibold mb-4 text-center md:text-left">Planes disponibles</h2>
         <div>
@@ -401,9 +434,22 @@ export default function Subscription() {
                       {plan.name}
                     </p>
                     <div className="flex items-end justify-center gap-1 mt-1">
-                      <span className="text-5xl font-black text-white">${(plan.price / 1000).toFixed(0)}k</span>
-                      <span className="text-sm text-gray-400 mb-2">/mes</span>
+                      <span className="text-5xl font-black text-white">
+                        ${(PLAN_PRICES[plan.key][billingPeriod] / 1000).toFixed(0)}k
+                      </span>
+                      {billingPeriod === 'monthly' && <span className="text-sm text-gray-400 mb-2">/mes</span>}
+                      {billingPeriod !== 'monthly' && <span className="text-sm text-gray-400 mb-2">/mes</span>}
                     </div>
+                    {billingPeriod !== 'monthly' && (
+                      <>
+                        <p className="text-xs text-gray-500 text-center mt-1">
+                          ${(PLAN_PRICES[plan.key][billingPeriod] / 1000).toFixed(0)}k total
+                        </p>
+                        <p className="text-xs text-emerald-400 text-center font-semibold mt-0.5">
+                          Ahorras ${((PLAN_PRICES[plan.key]['monthly'] * BILLING_PERIODS[billingPeriod].multiplier - PLAN_PRICES[plan.key][billingPeriod]) / 1000).toFixed(0)}k
+                        </p>
+                      </>
+                    )}
                   </div>
                   <p className="text-xs text-gray-500 mt-1 text-center">{PLAN_DESCRIPTIONS[plan.key]}</p>
                 </div>
@@ -569,9 +615,15 @@ export default function Subscription() {
             <h3 className="text-white font-semibold text-lg mb-1">
               Activar Plan {sub.todos_los_planes[upgradeModal].name}
             </h3>
-            <p className="text-slate-400 text-sm mb-5">
-              ${sub.todos_los_planes[upgradeModal].price.toLocaleString('es-CO')} COP / mes · renovación manual
+            <p className="text-slate-400 text-sm mb-2">
+              ${(PLAN_PRICES[upgradeModal][billingPeriod] / 1000).toFixed(0)}k COP {billingPeriod === 'monthly' ? '/ mes' : `${BILLING_PERIODS[billingPeriod].multiplier} meses`}
             </p>
+            {billingPeriod !== 'monthly' && (
+              <p className="text-xs text-emerald-400 mb-5 font-semibold">
+                Ahorras ${((PLAN_PRICES[upgradeModal]['monthly'] * BILLING_PERIODS[billingPeriod].multiplier - PLAN_PRICES[upgradeModal][billingPeriod]) / 1000).toFixed(0)}k
+              </p>
+            )}
+            {billingPeriod === 'monthly' && <div className="mb-5" />}
 
             <button
               onClick={() => handlePayment(upgradeModal)}
@@ -579,7 +631,7 @@ export default function Subscription() {
               className="w-full flex items-center justify-center gap-2 bg-violet-600 hover:bg-violet-500 disabled:opacity-60 text-white py-3 rounded-xl text-sm font-bold transition mb-2"
             >
               {paymentLoading ? <Loader2 size={16} className="animate-spin" /> : null}
-              {paymentLoading ? 'Redirigiendo...' : `Pagar $${(sub.todos_los_planes[upgradeModal].price / 1000).toFixed(0)}k con Wompi`}
+              {paymentLoading ? 'Redirigiendo...' : `Pagar $${(PLAN_PRICES[upgradeModal][billingPeriod] / 1000).toFixed(0)}k con Wompi`}
             </button>
 
             <button

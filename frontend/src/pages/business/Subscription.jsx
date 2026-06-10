@@ -84,7 +84,7 @@ export default function Subscription() {
   const typeConfig = BUSINESS_TYPE_CONFIG[business?.business_type] || DEFAULT_TYPE_CONFIG;
   const [sub, setSub] = useState(null);
   const [selectedPlanTab, setSelectedPlanTab] = useState(null);
-  const [billingPeriod, setBillingPeriod] = useState('monthly');
+  const [modalPeriod, setModalPeriod] = useState('monthly');
   const [loading, setLoading] = useState(true);
   const [upgradeModal, setUpgradeModal] = useState(null);
   const [paymentLoading, setPaymentLoading] = useState(false);
@@ -124,7 +124,7 @@ export default function Subscription() {
   const handlePayment = async (plan) => {
     setPaymentLoading(true);
     try {
-      const res = await api.post('/api/payments/create-session', { plan, period: billingPeriod, payment_method_type: 'manual' });
+      const res = await api.post('/api/payments/create-session', { plan, period: modalPeriod, payment_method_type: 'manual' });
       if (!res.data.success) throw new Error(res.data.error);
       const { reference, publicKey, amountInCents, currency, integritySignature, redirectUrl } = res.data.data;
       const checkoutUrl =
@@ -163,12 +163,12 @@ export default function Subscription() {
       return;
     }
     setUpgradeModal(planKey);
-    setBillingPeriod('monthly');
+    setModalPeriod('monthly');
     await fetchPaymentPreview(planKey, 'monthly');
   };
 
   const handlePeriodChange = async (newPeriod) => {
-    setBillingPeriod(newPeriod);
+    setModalPeriod(newPeriod);
     if (upgradeModal) await fetchPaymentPreview(upgradeModal, newPeriod);
   };
 
@@ -449,21 +449,10 @@ export default function Subscription() {
                     </p>
                     <div className="flex items-end justify-center gap-1 mt-1">
                       <span className="text-5xl font-black text-white">
-                        ${(PLAN_PRICES[plan.key][billingPeriod] / 1000).toFixed(0)}k
+                        ${(PLAN_PRICES[plan.key]['monthly'] / 1000).toFixed(0)}k
                       </span>
-                      {billingPeriod === 'monthly' && <span className="text-sm text-gray-400 mb-2">/mes</span>}
-                      {billingPeriod !== 'monthly' && <span className="text-sm text-gray-400 mb-2">/mes</span>}
+                      <span className="text-sm text-gray-400 mb-2">/mes</span>
                     </div>
-                    {billingPeriod !== 'monthly' && (
-                      <>
-                        <p className="text-xs text-gray-500 text-center mt-1">
-                          ${(PLAN_PRICES[plan.key][billingPeriod] / 1000).toFixed(0)}k total
-                        </p>
-                        <p className="text-xs text-emerald-400 text-center font-semibold mt-0.5">
-                          Ahorras ${((PLAN_PRICES[plan.key]['monthly'] * BILLING_PERIODS[billingPeriod].multiplier - PLAN_PRICES[plan.key][billingPeriod]) / 1000).toFixed(0)}k
-                        </p>
-                      </>
-                    )}
                   </div>
                   <p className="text-xs text-gray-500 mt-1 text-center">{PLAN_DESCRIPTIONS[plan.key]}</p>
                 </div>
@@ -642,7 +631,7 @@ export default function Subscription() {
                   onClick={() => handlePeriodChange(key)}
                   disabled={previewLoading}
                   className={`flex-1 py-2 rounded-lg text-xs font-semibold transition-all ${
-                    billingPeriod === key
+                    modalPeriod === key
                       ? 'bg-violet-600 text-white'
                       : 'bg-slate-800 text-slate-400 hover:bg-slate-700'
                   }`}
@@ -675,11 +664,11 @@ export default function Subscription() {
                   </>
                 )}
 
-                {billingPeriod !== 'monthly' && paymentPreview.tipo !== 'upgrade' && (
+                {modalPeriod !== 'monthly' && paymentPreview.tipo !== 'upgrade' && (
                   <div className="flex justify-between text-sm">
-                    <span className="text-slate-400">Descuento {billingPeriod === 'biannual' ? '10%' : '20%'}</span>
+                    <span className="text-slate-400">Descuento {modalPeriod === 'biannual' ? '10%' : '20%'}</span>
                     <span className="text-emerald-400">
-                      -${Math.round(paymentPreview.costoCompletoCOP * (billingPeriod === 'biannual' ? 0.1 : 0.2)).toLocaleString('es-CO')}
+                      -${Math.round(paymentPreview.costoCompletoCOP * (modalPeriod === 'biannual' ? 0.1 : 0.2)).toLocaleString('es-CO')}
                     </span>
                   </div>
                 )}

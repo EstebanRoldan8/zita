@@ -26,13 +26,36 @@ async function createSession(req, res) {
 
     const { data: business } = await supabaseAdmin
       .from('businesses')
-      .select('country')
+      .select('plan, plan_expires_at, trial_ends_at, country')
       .eq('id', businessId)
       .single();
 
     const country = business?.country || 'colombia';
     const provider = getPaymentProvider(country);
-    const amountInCents = PLAN_PRICES_BY_PERIOD[plan][period] || PLAN_PRICES_COP[plan];
+
+    const ahora = new Date();
+    const planActual = business?.plan || 'estandar';
+    const planExpiresAt = business?.plan_expires_at;
+    const trialEndsAt = business?.trial_ends_at;
+    const tienePlanPagadoActivo = planExpiresAt && new Date(planExpiresAt) > ahora;
+    const estaEnTrial = trialEndsAt && new Date(trialEndsAt) > ahora;
+    const ORDEN_PLANES = { lite: 0, estandar: 1, pro: 2 };
+    const esUpgrade = ORDEN_PLANES[plan] > ORDEN_PLANES[planActual];
+
+    let amountInCents = PLAN_PRICES_BY_PERIOD[plan][period] || PLAN_PRICES_COP[plan];
+
+    if (tienePlanPagadoActivo && !estaEnTrial && esUpgrade) {
+      const expira = new Date(planExpiresAt);
+      const diasRestantes = Math.ceil((expira - ahora) / (1000 * 60 * 60 * 24));
+      const PRECIOS_DIA = {
+        lite:     6000000  / 30,
+        estandar: 10000000 / 30,
+        pro:      15000000 / 30
+      };
+      const credito = Math.floor(PRECIOS_DIA[planActual] * diasRestantes);
+      const costoNuevo = Math.floor(PRECIOS_DIA[plan] * diasRestantes);
+      amountInCents = Math.max(costoNuevo - credito, 100);
+    }
     const currency = 'COP';
     const reference = `ZITA-${businessId.slice(0, 8)}-${Date.now()}`;
     const integritySignature = generateIntegritySignature(
@@ -133,6 +156,11 @@ async function handleWebhook(req, res) {
           .from('businesses')
           .update({ plan: payment.plan, plan_expires_at: expiresAt.toISOString() })
           .eq('id', payment.business_id);
+
+        await supabaseAdmin
+          .from('scheduled_downgrades')
+          .delete()
+          .eq('business_id', payment.business_id);
 
         logger.info(`Plan activado: business=${payment.business_id} plan=${payment.plan} period=${period}`);
       }

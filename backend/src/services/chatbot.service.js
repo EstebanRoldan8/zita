@@ -994,7 +994,16 @@ async function processChatbotMessage(businessId, clientPhone, messageText, histo
               `*Motivo:* ${toolInput.motivo}\n\n` +
               `Contáctalo directamente por WhatsApp.`;
 
-            await sendMessage(negocio.phone, mensajeDueño, null, null);
+            const businessToken = business?.whatsapp_access_token
+              ? require('../utils/encrypt').decrypt(business.whatsapp_access_token)
+              : process.env.WHATSAPP_ACCESS_TOKEN;
+
+            await sendMessage(
+              negocio.phone,
+              mensajeDueño,
+              businessToken,
+              business.whatsapp_phone_number_id
+            );
 
             return {
               success: true,

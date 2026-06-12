@@ -303,6 +303,35 @@ AL PRESENTAR ANÁLISIS FINANCIERO:
 - Nunca muestres IDs ni datos técnicos
 - Si los datos son de este mes y hay pocos días, aclara que es una proyección temprana
 </analytics>
+
+<gestion_avanzada>
+GESTIÓN DE EMPLEADOS Y SERVICIOS:
+- "Agrega un empleado llamado X con comisión Y%" → crear_empleado
+- "Cambia la comisión de X a Y%" → buscar_empleado → actualizar_empleado
+- "Desactiva al empleado X" → buscar_empleado → actualizar_empleado con is_active: false
+- "Crea el servicio X por $Y en Z minutos" → crear_servicio
+
+EGRESOS:
+- "Registra un gasto de $X por Y" → registrar_egreso
+- "¿Cuánto gasté esta semana?" → ver_egresos con period: 'week'
+- Categorías válidas: arriendo, nomina, servicios, insumos, otro
+
+CONFIGURACIÓN:
+- "Cambia el nombre del negocio a X" → actualizar_configuracion tipo=perfil
+- "Pon la meta del mes en $X" → actualizar_configuracion tipo=meta_mensual
+- "El lunes abre a las 9am y cierra a las 7pm" → actualizar_configuracion tipo=horario
+- "El domingo estamos cerrados" → actualizar_configuracion tipo=horario con is_open: false
+- SIEMPRE confirma el cambio al usuario después de ejecutarlo
+
+RECORDATORIOS A CLIENTES EN RIESGO:
+- SOLO puedes enviar recordatorios a clientes identificados como "en riesgo" (30-90 días sin visita)
+- Primero usa clientes_riesgo para obtener la lista
+- Luego usa enviar_recordatorio_riesgo con confirmar: false para mostrar preview
+- Espera confirmación del dueño antes de enviar con confirmar: true
+- Informa siempre cuántos mensajes quedan disponibles hoy
+- Si el dueño quiere enviar a otros segmentos → "Para campañas masivas necesitas el Plan Pro"
+- Si el dueño quiere agregar foto → "El mensaje se enviará con la foto configurada en Configuración → Recordatorio"
+</gestion_avanzada>
 `;
 
 // FunciÃ³n para calcular similitud entre strings
@@ -707,6 +736,116 @@ const tools = [
       properties: {
         meta: { type: 'number', description: 'Meta en COP. Si no se especifica, usa la configurada en el negocio o $2.000.000 por defecto.' }
       }
+    }
+  },
+  {
+    name: 'crear_empleado',
+    description: 'Crea un nuevo empleado en el negocio.',
+    input_schema: {
+      type: 'object',
+      properties: {
+        name: { type: 'string', description: 'Nombre completo del empleado' },
+        phone: { type: 'string', description: 'Teléfono opcional' },
+        email: { type: 'string', description: 'Email opcional' },
+        commission_percent: { type: 'number', description: 'Porcentaje de comisión opcional' }
+      },
+      required: ['name']
+    }
+  },
+  {
+    name: 'actualizar_empleado',
+    description: 'Actualiza datos de un empleado existente.',
+    input_schema: {
+      type: 'object',
+      properties: {
+        employee_id: { type: 'string' },
+        name: { type: 'string' },
+        phone: { type: 'string' },
+        commission_percent: { type: 'number' },
+        is_active: { type: 'boolean' }
+      },
+      required: ['employee_id']
+    }
+  },
+  {
+    name: 'crear_servicio',
+    description: 'Crea un nuevo servicio en el negocio.',
+    input_schema: {
+      type: 'object',
+      properties: {
+        name: { type: 'string' },
+        price: { type: 'number' },
+        duration_minutes: { type: 'number' },
+        description: { type: 'string' }
+      },
+      required: ['name', 'price', 'duration_minutes']
+    }
+  },
+  {
+    name: 'registrar_egreso',
+    description: 'Registra un egreso o gasto del negocio.',
+    input_schema: {
+      type: 'object',
+      properties: {
+        amount: { type: 'number', description: 'Monto en COP' },
+        description: { type: 'string', description: 'Descripción del gasto' },
+        category: { type: 'string', description: 'Categoría: arriendo, nomina, servicios, insumos, otro' },
+        date: { type: 'string', description: 'Fecha YYYY-MM-DD. Si no se especifica usa hoy.' }
+      },
+      required: ['amount', 'description', 'category']
+    }
+  },
+  {
+    name: 'ver_egresos',
+    description: 'Ver egresos del negocio por período.',
+    input_schema: {
+      type: 'object',
+      properties: {
+        period: { type: 'string', enum: ['today', 'week', 'month'], description: 'Período a consultar' }
+      },
+      required: ['period']
+    }
+  },
+  {
+    name: 'actualizar_configuracion',
+    description: 'Actualiza configuraciones del negocio: nombre, teléfono, dirección, meta mensual, horarios.',
+    input_schema: {
+      type: 'object',
+      properties: {
+        tipo: {
+          type: 'string',
+          enum: ['perfil', 'meta_mensual', 'horario'],
+          description: 'Qué configuración actualizar'
+        },
+        nombre: { type: 'string', description: 'Nuevo nombre del negocio (solo para tipo=perfil)' },
+        telefono: { type: 'string', description: 'Nuevo teléfono (solo para tipo=perfil)' },
+        direccion: { type: 'string', description: 'Nueva dirección (solo para tipo=perfil)' },
+        meta: { type: 'number', description: 'Meta mensual en COP (solo para tipo=meta_mensual)' },
+        dia_semana: { type: 'number', description: 'Día de la semana 0=Dom, 1=Lun...6=Sab (solo para tipo=horario)' },
+        hora_apertura: { type: 'string', description: 'Hora apertura HH:mm (solo para tipo=horario)' },
+        hora_cierre: { type: 'string', description: 'Hora cierre HH:mm (solo para tipo=horario)' },
+        is_open: { type: 'boolean', description: 'Si ese día está abierto (solo para tipo=horario)' }
+      },
+      required: ['tipo']
+    }
+  },
+  {
+    name: 'enviar_recordatorio_riesgo',
+    description: 'Envía el mensaje de recordatorio configurado a clientes en riesgo (sin visita 30-90 días). Solo funciona con clientes que tienen teléfono registrado. Máximo 10 por día en plan Estándar.',
+    input_schema: {
+      type: 'object',
+      properties: {
+        client_ids: {
+          type: 'array',
+          items: { type: 'string' },
+          description: 'Lista de IDs de clientes a los que enviar el recordatorio. Máximo 10.'
+        },
+        confirmar: {
+          type: 'boolean',
+          description: 'Debe ser true para ejecutar el envío. Si es false, solo muestra preview.'
+        }
+      },
+      required: ['client_ids', 'confirmar']
     }
   }
 ];
@@ -1866,6 +2005,237 @@ async function executeTool(toolName, toolInput, businessId) {
         mensaje: vaALlegar
           ? `🟢 Vas bien! Con tu ritmo actual llegarás a $${Math.round(proyeccion).toLocaleString('es-CO')}`
           : `🔴 Necesitas $${necesarioPorDia.toLocaleString('es-CO')} diarios para llegar a la meta`
+      };
+    }
+
+    case 'crear_empleado': {
+      const { data, error } = await supabaseAdmin
+        .from('employees')
+        .insert({
+          business_id: businessId,
+          name: formatName(toolInput.name),
+          phone: toolInput.phone || null,
+          email: toolInput.email || null,
+          commission_percent: toolInput.commission_percent || null,
+          is_active: true
+        })
+        .select('id, name')
+        .single();
+      if (error) return { success: false, error: error.message };
+      return { success: true, empleado: data };
+    }
+
+    case 'actualizar_empleado': {
+      const updateData = {};
+      if (toolInput.name !== undefined) updateData.name = formatName(toolInput.name);
+      if (toolInput.phone !== undefined) updateData.phone = toolInput.phone;
+      if (toolInput.commission_percent !== undefined) updateData.commission_percent = toolInput.commission_percent;
+      if (toolInput.is_active !== undefined) updateData.is_active = toolInput.is_active;
+      const { error } = await supabaseAdmin
+        .from('employees')
+        .update(updateData)
+        .eq('id', toolInput.employee_id)
+        .eq('business_id', businessId);
+      return { success: !error, error: error?.message };
+    }
+
+    case 'crear_servicio': {
+      const { data, error } = await supabaseAdmin
+        .from('services')
+        .insert({
+          business_id: businessId,
+          name: toolInput.name,
+          price: toolInput.price,
+          duration_minutes: toolInput.duration_minutes,
+          description: toolInput.description || null,
+          active: true
+        })
+        .select('id, name, price')
+        .single();
+      if (error) return { success: false, error: error.message };
+      return { success: true, servicio: data };
+    }
+
+    case 'registrar_egreso': {
+      const bogota = { timeZone: 'America/Bogota' };
+      const hoy = new Date().toLocaleDateString('en-CA', bogota);
+      const { error } = await supabaseAdmin
+        .from('expenses')
+        .insert({
+          business_id: businessId,
+          amount: toolInput.amount,
+          description: toolInput.description,
+          category: toolInput.category,
+          date: toolInput.date || hoy
+        });
+      return { success: !error, error: error?.message };
+    }
+
+    case 'ver_egresos': {
+      const bogota = { timeZone: 'America/Bogota' };
+      const hoy = new Date().toLocaleDateString('en-CA', bogota);
+      const inicios = {
+        today: hoy,
+        week: new Date(Date.now() - 7*86400000).toLocaleDateString('en-CA', bogota),
+        month: hoy.slice(0,7) + '-01'
+      };
+      const { data } = await supabaseAdmin
+        .from('expenses')
+        .select('amount, description, category, date')
+        .eq('business_id', businessId)
+        .gte('date', inicios[toolInput.period])
+        .lte('date', hoy)
+        .order('date', { ascending: false });
+
+      const total = (data || []).reduce((s,e) => s + Number(e.amount), 0);
+      const porCategoria = {};
+      (data || []).forEach(e => {
+        porCategoria[e.category] = (porCategoria[e.category] || 0) + Number(e.amount);
+      });
+
+      return { egresos: data || [], total, por_categoria: porCategoria, period: toolInput.period };
+    }
+
+    case 'actualizar_configuracion': {
+      const { tipo } = toolInput;
+
+      if (tipo === 'perfil') {
+        const patch = {};
+        if (toolInput.nombre) patch.name = toolInput.nombre.trim();
+        if (toolInput.telefono !== undefined) patch.phone = toolInput.telefono?.trim() || null;
+        if (toolInput.direccion !== undefined) patch.address = toolInput.direccion?.trim() || null;
+        if (Object.keys(patch).length === 0) return { success: false, error: 'No hay datos para actualizar.' };
+        const { error } = await supabaseAdmin.from('businesses').update(patch).eq('id', businessId);
+        return { success: !error, error: error?.message };
+      }
+
+      if (tipo === 'meta_mensual') {
+        if (!toolInput.meta || toolInput.meta <= 0) return { success: false, error: 'Meta inválida.' };
+        const now = new Date();
+        const month = `${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,'0')}-01`;
+        const { error } = await supabaseAdmin
+          .from('monthly_goals')
+          .upsert({ business_id: businessId, month, income_goal: toolInput.meta }, { onConflict: 'business_id,month' });
+        return { success: !error, meta: toolInput.meta, error: error?.message };
+      }
+
+      if (tipo === 'horario') {
+        if (toolInput.dia_semana === undefined) return { success: false, error: 'Falta el día de la semana.' };
+        const patch = { business_id: businessId, day_of_week: toolInput.dia_semana };
+        if (toolInput.hora_apertura) patch.open_time = toolInput.hora_apertura;
+        if (toolInput.hora_cierre) patch.close_time = toolInput.hora_cierre;
+        if (toolInput.is_open !== undefined) patch.is_open = toolInput.is_open;
+        const { error } = await supabaseAdmin
+          .from('business_hours')
+          .upsert(patch, { onConflict: 'business_id,day_of_week' });
+        return { success: !error, error: error?.message };
+      }
+
+      return { success: false, error: 'Tipo de configuración no reconocido.' };
+    }
+
+    case 'enviar_recordatorio_riesgo': {
+      if (!toolInput.confirmar) {
+        const { data: clientes } = await supabaseAdmin
+          .from('clients')
+          .select('id, name, phone')
+          .in('id', toolInput.client_ids.slice(0,10));
+
+        const conTelefono = (clientes || []).filter(c => c.phone);
+        const sinTelefono = (clientes || []).filter(c => !c.phone);
+
+        const { data: biz } = await supabaseAdmin
+          .from('businesses')
+          .select('recall_message, recall_image_url, name')
+          .eq('id', businessId)
+          .single();
+
+        const mensajeEjemplo = conTelefono[0]
+          ? (biz?.recall_message || 'Hola {nombre} 👋 Te esperamos en {negocio}!')
+              .replace('{nombre}', conTelefono[0].name)
+              .replace('{negocio}', biz?.name || 'el negocio')
+          : null;
+
+        return {
+          preview: true,
+          clientes_con_telefono: conTelefono.length,
+          clientes_sin_telefono: sinTelefono.length,
+          sin_telefono_nombres: sinTelefono.map(c => c.name),
+          tiene_imagen: !!biz?.recall_image_url,
+          mensaje_ejemplo: mensajeEjemplo,
+          mensaje: `Se enviarán ${conTelefono.length} mensajes. ¿Confirmas el envío?`
+        };
+      }
+
+      const { data: biz } = await supabaseAdmin
+        .from('businesses')
+        .select('plan, recall_message, recall_image_url, name, whatsapp_access_token, whatsapp_phone_number_id')
+        .eq('id', businessId)
+        .single();
+
+      const plan = biz?.plan || 'estandar';
+      const LIMITE_DIARIO = plan === 'pro' ? Infinity : 10;
+
+      const bogota = { timeZone: 'America/Bogota' };
+      const hoy = new Date().toLocaleDateString('en-CA', bogota);
+      const { count: enviados } = await supabaseAdmin
+        .from('recall_logs')
+        .select('id', { count: 'exact', head: true })
+        .eq('business_id', businessId)
+        .eq('date', hoy);
+
+      const disponibles = Math.max(0, LIMITE_DIARIO - (enviados || 0));
+      if (disponibles === 0) {
+        return {
+          success: false,
+          error: plan === 'estandar'
+            ? 'Alcanzaste el límite de 10 recordatorios diarios. Mejora a Plan Pro para envíos ilimitados.'
+            : 'Límite diario alcanzado.'
+        };
+      }
+
+      const idsAEnviar = toolInput.client_ids.slice(0, Math.min(disponibles, 10));
+
+      const { data: clientes } = await supabaseAdmin
+        .from('clients')
+        .select('id, name, phone')
+        .in('id', idsAEnviar)
+        .not('phone', 'is', null);
+
+      const { sendMessage } = require('../config/whatsapp');
+      const { decrypt } = require('../utils/encrypt');
+      const businessToken = biz?.whatsapp_access_token ? decrypt(biz.whatsapp_access_token) : null;
+      const phoneNumberId = biz?.whatsapp_phone_number_id;
+
+      const resultados = [];
+      for (const cliente of (clientes || [])) {
+        try {
+          const mensaje = (biz?.recall_message || 'Hola {nombre} 👋 Te esperamos en {negocio}!')
+            .replace('{nombre}', cliente.name)
+            .replace('{negocio}', biz?.name || 'el negocio');
+
+          await sendMessage(cliente.phone, mensaje, businessToken, phoneNumberId);
+
+          await supabaseAdmin.from('recall_logs').insert({
+            business_id: businessId,
+            client_id: cliente.id,
+            date: hoy,
+            sent_at: new Date().toISOString()
+          });
+
+          resultados.push({ nombre: cliente.name, success: true });
+        } catch(e) {
+          resultados.push({ nombre: cliente.name, success: false, error: e.message });
+        }
+      }
+
+      const exitosos = resultados.filter(r => r.success).length;
+      return {
+        success: exitosos > 0,
+        enviados: exitosos,
+        fallidos: resultados.filter(r => !r.success).length,
+        resultados,
+        disponibles_hoy: disponibles - exitosos
       };
     }
 

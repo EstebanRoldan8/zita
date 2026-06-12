@@ -88,6 +88,30 @@ function getBusinessSystemPrompt(business, clientInfo = null, businessHours = nu
   const now = new Date().toLocaleString('es-CO', { timeZone: 'America/Bogota' });
   const hoyFecha = new Date().toLocaleDateString('en-CA', { timeZone: 'America/Bogota' });
   const mañanaFecha = new Date(Date.now() + 86400000).toLocaleDateString('en-CA', { timeZone: 'America/Bogota' });
+
+  const diasSemana = ['Domingo','Lunes','Martes','Miércoles','Jueves','Viernes','Sábado'];
+  const nowColombia = new Date().toLocaleString('en-CA', { timeZone: 'America/Bogota', hour12: false });
+  const horaColombia = nowColombia.split(', ')[1]?.slice(0,5) || '00:00';
+
+  // Calcular fechas de los próximos 7 días en Colombia
+  const proximosDias = {};
+  for (let i = 0; i <= 7; i++) {
+    const d = new Date();
+    d.setDate(d.getDate() + i);
+    const fechaStr = d.toLocaleDateString('en-CA', { timeZone: 'America/Bogota' });
+    const diaNombre = diasSemana[d.toLocaleDateString('en-US', { timeZone: 'America/Bogota', weekday: 'long' }) === 'Sunday' ? 0 :
+      d.toLocaleDateString('en-US', { timeZone: 'America/Bogota', weekday: 'long' }) === 'Monday' ? 1 :
+      d.toLocaleDateString('en-US', { timeZone: 'America/Bogota', weekday: 'long' }) === 'Tuesday' ? 2 :
+      d.toLocaleDateString('en-US', { timeZone: 'America/Bogota', weekday: 'long' }) === 'Wednesday' ? 3 :
+      d.toLocaleDateString('en-US', { timeZone: 'America/Bogota', weekday: 'long' }) === 'Thursday' ? 4 :
+      d.toLocaleDateString('en-US', { timeZone: 'America/Bogota', weekday: 'long' }) === 'Friday' ? 5 : 6];
+    proximosDias[diaNombre] = fechaStr;
+  }
+
+  const calendarioTexto = Object.entries(proximosDias)
+    .map(([dia, fecha]) => `  • ${dia} = ${fecha}`)
+    .join('\n');
+
   const tipo = (business.business_type || 'barberia').toLowerCase().replace(/[áàä]/g, 'a');
 
   const clientGreeting = clientInfo?.name && clientInfo.name !== 'Cliente WhatsApp'
@@ -110,6 +134,15 @@ Fecha de hoy en Colombia: ${hoyFecha}
 Fecha de mañana en Colombia: ${mañanaFecha}
 Cuando el cliente diga 'hoy' usa EXACTAMENTE ${hoyFecha}
 Cuando el cliente diga 'mañana' usa EXACTAMENTE ${mañanaFecha}
+Hora actual en Colombia: ${horaColombia}
+IMPORTANTE: Si el cliente pide una cita para HOY a una hora que ya pasó (antes de ${horaColombia}),
+responde: "Esa hora ya pasó hoy 😅 ¿Te agendo más tarde? Tengo disponible desde las ${horaColombia}"
+
+Fechas de los próximos días (ÚSALAS EXACTAMENTE cuando el cliente diga un día de la semana):
+${calendarioTexto}
+Ejemplo: Si el cliente dice "el martes" → usa la fecha de Martes del calendario de arriba
+Si hoy ES martes y el cliente dice "el martes" → pregunta: "¿Es para hoy o para el próximo martes [fecha]?"
+
 ${clientGreeting}
 Idioma: responde SIEMPRE en el mismo idioma que use el cliente.
 
@@ -409,6 +442,24 @@ async function processChatbotMessage(businessId, clientPhone, messageText, histo
             };
           }
 
+          // Validar que la hora no haya pasado si es hoy
+          const hoyCol = new Date().toLocaleDateString('en-CA', { timeZone: 'America/Bogota' });
+          if (toolInput.fecha === hoyCol) {
+            const ahoraCol = new Date().toLocaleString('en-CA', {
+              timeZone: 'America/Bogota',
+              hour12: false
+            });
+            const horaActual = ahoraCol.split(', ')[1]?.slice(0,5) || '00:00';
+            const [haH, haM] = horaActual.split(':').map(Number);
+            const minutosAhora = haH * 60 + haM;
+            if (appointmentMinutes <= minutosAhora) {
+              return {
+                success: false,
+                error: `Esa hora ya pasó hoy. Puedes agendar desde las ${horaActual} en adelante.`
+              };
+            }
+          }
+
           let empleadoDisponible = await getAvailableEmployee(businessId, toolInput.fecha, toolInput.hora);
           if (!empleadoDisponible) {
             logger.info(`[agendar_cita] No available employee - creating appointment without employee`, {
@@ -503,7 +554,23 @@ async function processChatbotMessage(businessId, clientPhone, messageText, histo
             }
           }
 
-          return { success: true, servicio: servicio.name, precio: servicio.price, scheduled_at, empleado: empleadoDisponible.name };
+          const horaFormateada = new Date(scheduled_at).toLocaleString('es-CO', {
+            timeZone: 'America/Bogota',
+            weekday: 'long',
+            day: 'numeric',
+            month: 'long',
+            hour: '2-digit',
+            minute: '2-digit',
+            hour12: true
+          });
+          return {
+            success: true,
+            servicio: servicio.name,
+            precio: servicio.price,
+            scheduled_at,
+            hora_colombia: horaFormateada,
+            empleado: empleadoDisponible.name
+          };
         }
 
         case 'ver_mis_citas': {
@@ -525,7 +592,26 @@ async function processChatbotMessage(businessId, clientPhone, messageText, histo
             .gte('scheduled_at', hoy + 'T00:00:00-05:00')
             .order('scheduled_at');
 
-          return { citas: data || [] };
+          const citasFormateadas = (data || []).map(c => {
+            const horaCol = new Date(c.scheduled_at).toLocaleString('es-CO', {
+              timeZone: 'America/Bogota',
+              weekday: 'long',
+              year: 'numeric',
+              month: 'long',
+              day: 'numeric',
+              hour: '2-digit',
+              minute: '2-digit',
+              hour12: true
+            });
+            return {
+              id: c.id,
+              servicio: c.services?.name,
+              precio: c.services?.price,
+              fecha_hora_colombia: horaCol,
+              status: c.status
+            };
+          });
+          return { citas: citasFormateadas };
         }
 
         case 'cancelar_cita': {

@@ -974,11 +974,25 @@ async function processChatbotMessage(businessId, clientPhone, messageText, histo
 
         case 'escalar_a_humano': {
           try {
+            logger.info('=== ESCALAMIENTO INICIADO ===', {
+              businessId,
+              clientPhone,
+              motivo: toolInput.motivo,
+              businessPhone: 'pendiente',
+              phoneNumberId: business?.whatsapp_phone_number_id
+            });
+
             const { data: negocio } = await supabaseAdmin
               .from('businesses')
               .select('phone, name')
               .eq('id', businessId)
               .single();
+
+            logger.info('=== NEGOCIO PARA ESCALAMIENTO ===', {
+              negocioPhone: negocio?.phone,
+              negocioNombre: negocio?.name,
+              tienePhone: !!negocio?.phone
+            });
 
             if (!negocio?.phone) {
               return { success: false, message: 'No se pudo notificar al dueño — número no configurado.' };

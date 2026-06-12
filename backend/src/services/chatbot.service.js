@@ -64,6 +64,18 @@ PASO 2: Decide según lo que tienes:
     → Incluye employee_name en agendar_cita
     → Si está disponible → agenda con ese empleado
     → Si no está disponible → informa y pregunta si quiere con otro
+
+  SI el cliente dice "quiero hablar con el dueño", "quiero hablar con alguien",
+  "hablar con una persona", "no quiero hablar con un robot", "queja",
+  "me cobraron de más", "el empleado fue grosero":
+    → Ejecuta escalar_a_humano con el motivo
+    → Responde: "Entendido, le aviso al equipo ahora mismo para que te contacten 😊"
+    → NO intentes resolver el problema tú mismo
+
+  SI el cliente quiere cambiar el empleado de una cita existente:
+    → Usa ver_mis_citas para obtener el ID de la cita
+    → Usa actualizar_cita con appointment_id y employee_name
+    → Confirma el cambio con el nombre del nuevo empleado
 </decision_tree>`;
 
 const BOOKING_RULES_TEXT = `<booking_rules>
@@ -353,6 +365,20 @@ async function processChatbotMessage(businessId, clientPhone, messageText, histo
       }
     },
     {
+      name: 'actualizar_cita',
+      description: 'Actualizar una cita existente — cambiar empleado, hora o fecha',
+      input_schema: {
+        type: 'object',
+        properties: {
+          appointment_id: { type: 'string', description: 'ID de la cita a actualizar' },
+          employee_name: { type: 'string', description: 'Nuevo empleado (opcional)' },
+          nueva_fecha: { type: 'string', description: 'Nueva fecha YYYY-MM-DD (opcional)' },
+          nueva_hora: { type: 'string', description: 'Nueva hora HH:mm (opcional)' }
+        },
+        required: ['appointment_id']
+      }
+    },
+    {
       name: 'ver_productos',
       description: 'Ver productos disponibles en el negocio para venta',
       input_schema: { type: 'object', properties: {} }
@@ -366,6 +392,17 @@ async function processChatbotMessage(businessId, clientPhone, messageText, histo
       name: 'ver_empleados',
       description: 'Ver empleados disponibles para que el cliente pueda escoger con quién quiere su cita',
       input_schema: { type: 'object', properties: {} }
+    },
+    {
+      name: 'escalar_a_humano',
+      description: 'Notificar al dueño del negocio cuando el cliente quiere hablar con un humano, tiene una queja o un problema grave',
+      input_schema: {
+        type: 'object',
+        properties: {
+          motivo: { type: 'string', description: 'Motivo del escalamiento — qué dijo el cliente' }
+        },
+        required: ['motivo']
+      }
     }
   ];
 
@@ -859,6 +896,116 @@ async function processChatbotMessage(businessId, clientPhone, messageText, histo
           return { empleados: empleados || [] };
         }
 
+        case 'actualizar_cita': {
+          const updateData = {};
+
+          if (toolInput.employee_name) {
+            const { data: empData } = await supabaseAdmin
+              .from('employees')
+              .select('id, name')
+              .eq('business_id', businessId)
+              .eq('is_active', true)
+              .ilike('name', `%${toolInput.employee_name}%`)
+              .maybeSingle();
+
+            if (!empData) {
+              return { success: false, error: `No encontré ningún empleado con ese nombre.` };
+            }
+
+            // Verificar disponibilidad del empleado en el horario de la cita
+            const { data: citaActual } = await supabaseAdmin
+              .from('appointments')
+              .select('scheduled_at, services(duration_minutes)')
+              .eq('id', toolInput.appointment_id)
+              .single();
+
+            if (citaActual) {
+              const horaReservadaMs = new Date(citaActual.scheduled_at).getTime();
+              const fechaCita = citaActual.scheduled_at.slice(0, 10);
+              const { data: citasEmp } = await supabaseAdmin
+                .from('appointments')
+                .select('scheduled_at, services(duration_minutes)')
+                .eq('business_id', businessId)
+                .eq('employee_id', empData.id)
+                .neq('id', toolInput.appointment_id)
+                .in('status', ['confirmed', 'pending'])
+                .gte('scheduled_at', `${fechaCita}T00:00:00-05:00`)
+                .lte('scheduled_at', `${fechaCita}T23:59:59-05:00`);
+
+              const ocupado = citasEmp?.some(c => {
+                const inicio = new Date(c.scheduled_at).getTime();
+                const duracion = (c.services?.duration_minutes || 30) * 60 * 1000;
+                return horaReservadaMs >= inicio && horaReservadaMs < (inicio + duracion);
+              });
+
+              if (ocupado) {
+                return {
+                  success: false,
+                  error: `${empData.name} no está disponible en ese horario. ¿Quieres con otro empleado?`
+                };
+              }
+            }
+
+            updateData.employee_id = empData.id;
+          }
+
+          if (toolInput.nueva_fecha && toolInput.nueva_hora) {
+            updateData.scheduled_at = `${toolInput.nueva_fecha}T${toolInput.nueva_hora}:00-05:00`;
+          }
+
+          if (Object.keys(updateData).length === 0) {
+            return { success: false, error: 'No hay cambios que aplicar.' };
+          }
+
+          const { error } = await supabaseAdmin
+            .from('appointments')
+            .update(updateData)
+            .eq('id', toolInput.appointment_id)
+            .eq('business_id', businessId);
+
+          if (error) return { success: false, error: error.message };
+
+          const empleadoNombre = toolInput.employee_name || null;
+          return {
+            success: true,
+            message: `Cita actualizada correctamente${empleadoNombre ? ` — ahora con ${empleadoNombre}` : ''}.`
+          };
+        }
+
+        case 'escalar_a_humano': {
+          try {
+            const { data: negocio } = await supabaseAdmin
+              .from('businesses')
+              .select('phone, name')
+              .eq('id', businessId)
+              .single();
+
+            if (!negocio?.phone) {
+              return { success: false, message: 'No se pudo notificar al dueño — número no configurado.' };
+            }
+
+            const { sendMessage } = require('../config/whatsapp');
+            const clientNombre = clientInfo?.name && clientInfo.name !== 'Cliente WhatsApp'
+              ? clientInfo.name
+              : 'Un cliente';
+
+            const mensajeDueño = `⚠️ *Atención requerida en ${negocio.name}*\n\n` +
+              `Tu cliente *${clientNombre}* (${clientPhone}) quiere hablar contigo.\n\n` +
+              `*Motivo:* ${toolInput.motivo}\n\n` +
+              `Contáctalo directamente por WhatsApp.`;
+
+            await sendMessage(negocio.phone, mensajeDueño, null, null);
+
+            return {
+              success: true,
+              message: 'Dueño notificado correctamente.'
+            };
+          } catch(e) {
+            logger.error('Error escalando a humano:', e.message);
+            return { success: false, message: 'No se pudo notificar al dueño.' };
+          }
+        }
+
         default:
           return { error: 'Función no disponible' };
       }
@@ -1037,4 +1184,4 @@ async function processWhatsAppMessage({ from, phoneNumberId, messageText, messag
   }
 }
 
-module.exports = { processWhatsAppMessage, processChatbotMessage, getBusinessSystemPrompt };
+module.exports = { processWhatsAppMessage, processChatbotMessage, getBusinessSystemPrompt, getBusinessByPhoneNumberId };

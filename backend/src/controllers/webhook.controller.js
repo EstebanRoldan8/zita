@@ -44,7 +44,27 @@ async function handleWebhook(req, res) {
     const messageType = message.type;
 
     if (messageType !== 'text' || !messageText) {
-      return res.sendStatus(200);
+      if (messageType === 'audio') {
+        res.sendStatus(200);
+        const { sendMessage } = require('../config/whatsapp');
+        try {
+          const business = await require('../services/chatbot.service').getBusinessByPhoneNumberId(phoneNumberId);
+          const businessToken = business?.whatsapp_access_token
+            ? require('../utils/encrypt').decrypt(business.whatsapp_access_token)
+            : null;
+          await sendMessage(
+            from,
+            'Hola 😊 No puedo escuchar notas de voz, pero con gusto te ayudo por texto. ¿En qué te puedo colaborar?',
+            businessToken,
+            phoneNumberId
+          );
+        } catch(e) {
+          logger.error('Error respondiendo nota de voz:', e.message);
+        }
+      } else {
+        res.sendStatus(200);
+      }
+      return;
     }
 
     res.sendStatus(200);

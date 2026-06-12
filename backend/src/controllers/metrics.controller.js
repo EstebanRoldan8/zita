@@ -407,7 +407,8 @@ async function getRetention(req, res) {
 
     const trendMap = {};
     for (let i = 5; i >= 0; i--) {
-      const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
+      const nowDate = new Date();
+      const d = new Date(nowDate.getFullYear(), nowDate.getMonth() - i, 1);
       const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
       trendMap[key] = { month: key, new_clients: new Set(), returning: new Set() };
     }

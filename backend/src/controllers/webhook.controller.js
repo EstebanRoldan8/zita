@@ -16,12 +16,6 @@ function verifyWebhook(req, res) {
 
 async function handleWebhook(req, res) {
   try {
-    const token = req.query['hub.verify_token'] || req.headers['x-verify-token'];
-    if (!token || token !== process.env.WHATSAPP_VERIFY_TOKEN) {
-      logger.warn('Webhook llamado sin token válido');
-      return res.sendStatus(403);
-    }
-
     const body = req.body;
 
     if (body.object !== 'whatsapp_business_account') {

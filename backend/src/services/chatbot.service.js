@@ -77,6 +77,14 @@ PASO 2: Decide según lo que tienes:
     → Usa ver_mis_citas para obtener el ID de la cita
     → Usa actualizar_cita con appointment_id y employee_name
     → Confirma el cambio con el nombre del nuevo empleado
+
+  SI el cliente menciona varias personas, "grupo", "varios", números como "3 personas", "somos 5":
+    → Esto es una cita grupal
+    → Usa gestionar_grupo con accion='leer_progreso' para ver si hay un grupo en progreso
+    → Si el cliente da todos los datos de una → usa agregar_persona para cada una → luego confirmar_todas
+    → Si el cliente va dando datos uno por uno → usa agregar_persona por cada persona → cuando el cliente diga "listo" o "eso es todo" → usa confirmar_todas
+    → SIEMPRE confirma el resumen antes de confirmar_todas: lista nombres, servicios y horas
+    → Si un horario no está disponible → informa y sugiere el siguiente slot disponible
 </decision_tree>`;
 
 const BOOKING_RULES_TEXT = `<booking_rules>
@@ -88,6 +96,11 @@ const BOOKING_RULES_TEXT = `<booking_rules>
 - Confirmación de cita SIEMPRE incluye precio: "Listo ✅ [servicio] el [fecha] a las [hora] - $[precio]"
 - Máximo 2 mensajes para completar un agendamiento
 - Si el horario está ocupado → propón alternativas, nunca digas "error" ni "el sistema"
+
+CITAS GRUPALES:
+- El nombre de cada persona va como nota en la cita, la cita queda a nombre del cliente principal
+- Máximo 5 citas por bloque — si son más, confirma las primeras 5 y luego continúa
+- Siempre muestra resumen final con todos los agendamientos exitosos y fallidos
 </booking_rules>`;
 
 async function getBusinessByPhoneNumberId(phoneNumberId) {
@@ -298,7 +311,7 @@ async function saveConversationHistory(businessId, clientPhone, messages) {
     .upsert({
       business_id: businessId,
       client_phone: clientPhone,
-      messages: mensajesLimpios.slice(-4)
+      messages: mensajesLimpios.slice(-6)
     }, { onConflict: 'business_id,client_phone' });
 
   if (error) logger.error('Error guardando historial:', error.message);
@@ -403,6 +416,31 @@ async function processChatbotMessage(businessId, clientPhone, messageText, histo
           motivo: { type: 'string', description: 'Motivo del escalamiento — qué dijo el cliente' }
         },
         required: ['motivo']
+      }
+    },
+    {
+      name: 'gestionar_grupo',
+      description: 'Gestionar citas grupales — guardar progreso, agregar personas al grupo y agendar todas las citas cuando estén completas',
+      input_schema: {
+        type: 'object',
+        properties: {
+          accion: {
+            type: 'string',
+            enum: ['leer_progreso', 'agregar_persona', 'confirmar_todas', 'limpiar'],
+            description: 'leer_progreso: ver estado actual del grupo | agregar_persona: agregar una persona al grupo | confirmar_todas: agendar todas las citas pendientes | limpiar: cancelar el grupo'
+          },
+          persona: {
+            type: 'object',
+            description: 'Datos de la persona a agregar (solo para accion=agregar_persona)',
+            properties: {
+              nombre: { type: 'string' },
+              servicio: { type: 'string' },
+              fecha: { type: 'string', description: 'YYYY-MM-DD' },
+              hora: { type: 'string', description: 'HH:mm' }
+            }
+          }
+        },
+        required: ['accion']
       }
     }
   ];
@@ -1030,6 +1068,187 @@ async function processChatbotMessage(businessId, clientPhone, messageText, histo
           }
         }
 
+        case 'gestionar_grupo': {
+          const { accion, persona } = toolInput;
+
+          // Leer contexto actual
+          const { data: convActual } = await supabaseAdmin
+            .from('whatsapp_conversations')
+            .select('context')
+            .eq('business_id', businessId)
+            .eq('client_phone', clientPhone)
+            .maybeSingle();
+
+          const contexto = convActual?.context || {};
+          const grupo = contexto.grupo || { personas: [], confirmadas: 0 };
+
+          if (accion === 'leer_progreso') {
+            return {
+              grupo_activo: grupo.personas.length > 0,
+              personas: grupo.personas,
+              total: grupo.personas.length,
+              confirmadas: grupo.confirmadas
+            };
+          }
+
+          if (accion === 'limpiar') {
+            await supabaseAdmin
+              .from('whatsapp_conversations')
+              .update({ context: { ...contexto, grupo: null } })
+              .eq('business_id', businessId)
+              .eq('client_phone', clientPhone);
+            return { success: true, message: 'Grupo limpiado.' };
+          }
+
+          if (accion === 'agregar_persona' && persona) {
+            grupo.personas.push({
+              nombre: persona.nombre || 'Sin nombre',
+              servicio: persona.servicio,
+              fecha: persona.fecha,
+              hora: persona.hora,
+              agendada: false
+            });
+
+            await supabaseAdmin
+              .from('whatsapp_conversations')
+              .upsert({
+                business_id: businessId,
+                client_phone: clientPhone,
+                context: { ...contexto, grupo }
+              }, { onConflict: 'business_id,client_phone' });
+
+            return {
+              success: true,
+              total_en_grupo: grupo.personas.length,
+              personas: grupo.personas
+            };
+          }
+
+          if (accion === 'confirmar_todas') {
+            const resultados = [];
+            const pendientes = grupo.personas.filter(p => !p.agendada);
+
+            for (const p of pendientes) {
+              if (!p.servicio || !p.fecha || !p.hora) {
+                resultados.push({ nombre: p.nombre, success: false, error: 'Faltan datos' });
+                continue;
+              }
+
+              // Buscar servicio
+              const { data: servicios } = await supabaseAdmin
+                .from('services')
+                .select('id, name, price, duration_minutes')
+                .eq('business_id', businessId)
+                .ilike('name', `%${p.servicio}%`)
+                .eq('active', true)
+                .limit(1);
+
+              const servicio = servicios?.[0];
+              if (!servicio) {
+                resultados.push({ nombre: p.nombre, success: false, error: 'Servicio no encontrado' });
+                continue;
+              }
+
+              // Buscar empleado disponible
+              const empleado = await getAvailableEmployee(businessId, p.fecha, p.hora);
+              if (!empleado) {
+                resultados.push({ nombre: p.nombre, success: false, error: `Sin empleados disponibles a las ${p.hora}` });
+                continue;
+              }
+
+              // Obtener cliente principal (el que escribe)
+              const { data: clientePrincipal } = await supabaseAdmin
+                .from('clients')
+                .select('id, name')
+                .eq('business_id', businessId)
+                .eq('phone', clientPhone)
+                .maybeSingle();
+
+              const scheduled_at = `${p.fecha}T${p.hora}:00-05:00`;
+              const notaNombre = p.nombre && p.nombre !== 'Sin nombre'
+                ? `Para: ${p.nombre}`
+                : null;
+
+              const { data: cita, error } = await supabaseAdmin
+                .from('appointments')
+                .insert({
+                  business_id: businessId,
+                  client_id: clientePrincipal?.id || null,
+                  service_id: servicio.id,
+                  scheduled_at,
+                  status: 'confirmed',
+                  source: 'whatsapp',
+                  price: servicio.price,
+                  employee_id: empleado.id,
+                  notes: notaNombre
+                })
+                .select('id')
+                .single();
+
+              if (error) {
+                resultados.push({ nombre: p.nombre, success: false, error: error.message });
+                continue;
+              }
+
+              // Crear ingreso
+              try {
+                await supabaseAdmin.from('income').insert({
+                  business_id: businessId,
+                  amount: servicio.price,
+                  category: 'servicios',
+                  description: `${servicio.name}${notaNombre ? ' - ' + notaNombre : ''} - WhatsApp`,
+                  source: 'appointment',
+                  appointment_id: cita.id,
+                  date: p.fecha,
+                  client_id: clientePrincipal?.id || null
+                });
+              } catch(e) {
+                logger.error('Error creando ingreso grupal:', e.message);
+              }
+
+              const horaFormateada = new Date(scheduled_at).toLocaleString('es-CO', {
+                timeZone: 'America/Bogota',
+                weekday: 'long',
+                day: 'numeric',
+                month: 'long',
+                hour: '2-digit',
+                minute: '2-digit',
+                hour12: true
+              });
+
+              p.agendada = true;
+              resultados.push({
+                nombre: p.nombre,
+                success: true,
+                servicio: servicio.name,
+                hora_colombia: horaFormateada,
+                empleado: empleado.name,
+                precio: servicio.price
+              });
+            }
+
+            // Limpiar grupo del context
+            await supabaseAdmin
+              .from('whatsapp_conversations')
+              .update({ context: { ...contexto, grupo: null } })
+              .eq('business_id', businessId)
+              .eq('client_phone', clientPhone);
+
+            const exitosas = resultados.filter(r => r.success).length;
+            const fallidas = resultados.filter(r => !r.success).length;
+
+            return {
+              success: exitosas > 0,
+              total: resultados.length,
+              exitosas,
+              fallidas,
+              resultados
+            };
+          }
+
+          return { error: 'Acción no reconocida' };
+        }
+
         default:
           return { error: 'Función no disponible' };
       }
@@ -1048,7 +1267,7 @@ async function processChatbotMessage(businessId, clientPhone, messageText, histo
     cleanHistory.shift();
   }
 
-  cleanHistory = cleanHistory.slice(-4);
+  cleanHistory = cleanHistory.slice(-6);
 
   const messages = [...cleanHistory, { role: 'user', content: messageText }];
 

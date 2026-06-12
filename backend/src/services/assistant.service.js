@@ -281,6 +281,28 @@ DIFERENCIA IMPORTANTE:
 - "Utilidad Neta" = Margen Bruto − Egresos Operativos (lo que realmente ganaste)
 - NUNCA confundas ingresos con ganancia real
 </rentabilidad>
+
+<analytics>
+ANÁLISIS AVANZADO — úsalos cuando el dueño pregunte sobre el estado del negocio:
+
+"¿Cómo voy este mes?" → proyeccion_mes + meta_mensual
+"¿Cómo me fue vs el mes pasado?" → comparativo_meses
+"¿Cuál es mi mejor hora / día?" → horas_rentables
+"¿Cuál servicio me deja más?" → ticket_promedio + analizar_rentabilidad
+"¿Tengo clientes que no han vuelto?" → clientes_riesgo
+"¿Cuáles son mis mejores clientes?" → clientes_valiosos
+"¿Cuánto estoy reteniendo?" → retencion_clientes
+"Muéstrame alertas / cómo está el negocio" → alertas_negocio
+"¿Voy a llegar a mi meta?" → meta_mensual + proyeccion_mes
+
+AL PRESENTAR ANÁLISIS FINANCIERO:
+- Siempre usa formato colombiano: $1.250.000 (no $1250000)
+- Tendencia positiva: 🟢, negativa: 🔴, neutral: 🟡
+- Máximo 5-6 líneas por respuesta — sé conciso y directo
+- Termina siempre con UNA recomendación accionable
+- Nunca muestres IDs ni datos técnicos
+- Si los datos son de este mes y hay pocos días, aclara que es una proyección temprana
+</analytics>
 `;
 
 // FunciÃ³n para calcular similitud entre strings
@@ -635,6 +657,56 @@ const tools = [
         notes: { type: 'string', description: 'Notas opcionales' }
       },
       required: ['appointment_id']
+    }
+  },
+  {
+    name: 'proyeccion_mes',
+    description: 'Proyecta los ingresos del mes actual basándose en la tendencia de los días transcurridos. Úsala cuando pregunten cuánto van a ganar este mes, si van bien, o cómo va el mes.',
+    input_schema: { type: 'object', properties: {} }
+  },
+  {
+    name: 'comparativo_meses',
+    description: 'Compara el mes actual vs el mes anterior en ingresos, citas, clientes nuevos y ticket promedio.',
+    input_schema: { type: 'object', properties: {} }
+  },
+  {
+    name: 'ticket_promedio',
+    description: 'Calcula el ticket promedio por servicio y por empleado del mes actual.',
+    input_schema: { type: 'object', properties: {} }
+  },
+  {
+    name: 'horas_rentables',
+    description: 'Muestra qué días y horas generan más ingresos y citas. Úsala cuando pregunten cuándo es más concurrido el negocio o cuándo generan más.',
+    input_schema: { type: 'object', properties: {} }
+  },
+  {
+    name: 'clientes_riesgo',
+    description: 'Lista clientes que no han vuelto en 30-90 días y están en riesgo de perderse.',
+    input_schema: { type: 'object', properties: {} }
+  },
+  {
+    name: 'clientes_valiosos',
+    description: 'Muestra el top 10 clientes por total gastado y número de visitas.',
+    input_schema: { type: 'object', properties: {} }
+  },
+  {
+    name: 'retencion_clientes',
+    description: 'Calcula la tasa de retención real: cuántos clientes del mes pasado volvieron este mes.',
+    input_schema: { type: 'object', properties: {} }
+  },
+  {
+    name: 'alertas_negocio',
+    description: 'Genera alertas automáticas: stock bajo, días sin citas, empleados sin actividad, meta mensual.',
+    input_schema: { type: 'object', properties: {} }
+  },
+  {
+    name: 'meta_mensual',
+    description: 'Muestra el progreso hacia la meta mensual de ingresos, cuánto falta y qué se necesita para llegar.',
+    input_schema: {
+      type: 'object',
+      properties: {
+        meta: { type: 'number', description: 'Meta en COP. Si no se especifica, usa la configurada en el negocio o $2.000.000 por defecto.' }
+      }
     }
   }
 ];
@@ -1368,6 +1440,433 @@ async function executeTool(toolName, toolInput, businessId) {
         .eq('business_id', businessId);
 
       return { success: !error, error: error?.message };
+    }
+
+    case 'proyeccion_mes': {
+      const bogota = { timeZone: 'America/Bogota' };
+      const hoy = new Date().toLocaleDateString('en-CA', bogota);
+      const inicioMes = hoy.slice(0, 7) + '-01';
+      const diaActual = parseInt(hoy.split('-')[2]);
+      const diasEnMes = new Date(
+        parseInt(hoy.split('-')[0]),
+        parseInt(hoy.split('-')[1]),
+        0
+      ).getDate();
+
+      const [{ data: ingresosMes }, { data: citasMes }] = await Promise.all([
+        supabaseAdmin.from('income').select('amount, date')
+          .eq('business_id', businessId)
+          .gte('date', inicioMes).lte('date', hoy),
+        supabaseAdmin.from('appointments').select('scheduled_at, price')
+          .eq('business_id', businessId)
+          .in('status', ['confirmed', 'completed'])
+          .gte('scheduled_at', inicioMes + 'T00:00:00-05:00')
+          .lte('scheduled_at', hoy + 'T23:59:59-05:00')
+      ]);
+
+      const ingresoAcumulado = (ingresosMes || []).reduce((s, i) => s + Number(i.amount), 0);
+      const promedioDiario = diaActual > 0 ? ingresoAcumulado / diaActual : 0;
+      const diasRestantes = diasEnMes - diaActual;
+      const proyeccionTotal = ingresoAcumulado + (promedioDiario * diasRestantes);
+      const citasAcumuladas = citasMes?.length || 0;
+      const promedioCitasDia = diaActual > 0 ? citasAcumuladas / diaActual : 0;
+      const proyeccionCitas = Math.round(citasAcumuladas + (promedioCitasDia * diasRestantes));
+
+      return {
+        ingreso_acumulado: Math.round(ingresoAcumulado),
+        promedio_diario: Math.round(promedioDiario),
+        dias_transcurridos: diaActual,
+        dias_restantes: diasRestantes,
+        proyeccion_total_mes: Math.round(proyeccionTotal),
+        citas_acumuladas: citasAcumuladas,
+        proyeccion_citas_mes: proyeccionCitas,
+        porcentaje_mes_transcurrido: Math.round((diaActual / diasEnMes) * 100)
+      };
+    }
+
+    case 'comparativo_meses': {
+      const bogota = { timeZone: 'America/Bogota' };
+      const hoy = new Date().toLocaleDateString('en-CA', bogota);
+      const [year, month] = hoy.split('-').map(Number);
+      const inicioMesActual = `${year}-${String(month).padStart(2,'0')}-01`;
+      const mesAnterior = month === 1 ? 12 : month - 1;
+      const yearAnterior = month === 1 ? year - 1 : year;
+      const inicioMesAnterior = `${yearAnterior}-${String(mesAnterior).padStart(2,'0')}-01`;
+      const finMesAnterior = `${year}-${String(month).padStart(2,'0')}-01`;
+
+      const [
+        { data: ingActual }, { data: ingAnterior },
+        { data: citasActual }, { data: citasAnterior },
+        { data: clientesActual }, { data: clientesAnterior }
+      ] = await Promise.all([
+        supabaseAdmin.from('income').select('amount').eq('business_id', businessId).gte('date', inicioMesActual).lte('date', hoy),
+        supabaseAdmin.from('income').select('amount').eq('business_id', businessId).gte('date', inicioMesAnterior).lt('date', finMesAnterior),
+        supabaseAdmin.from('appointments').select('price').eq('business_id', businessId).in('status',['confirmed','completed']).gte('scheduled_at', inicioMesActual + 'T00:00:00-05:00').lte('scheduled_at', hoy + 'T23:59:59-05:00'),
+        supabaseAdmin.from('appointments').select('price').eq('business_id', businessId).in('status',['confirmed','completed']).gte('scheduled_at', inicioMesAnterior + 'T00:00:00-05:00').lt('scheduled_at', finMesAnterior + 'T00:00:00-05:00'),
+        supabaseAdmin.from('clients').select('id').eq('business_id', businessId).gte('created_at', inicioMesActual + 'T00:00:00-05:00'),
+        supabaseAdmin.from('clients').select('id').eq('business_id', businessId).gte('created_at', inicioMesAnterior + 'T00:00:00-05:00').lt('created_at', finMesAnterior + 'T00:00:00-05:00')
+      ]);
+
+      const totalActual = (ingActual || []).reduce((s,i) => s + Number(i.amount), 0);
+      const totalAnterior = (ingAnterior || []).reduce((s,i) => s + Number(i.amount), 0);
+      const crecimiento = totalAnterior > 0 ? ((totalActual - totalAnterior) / totalAnterior * 100).toFixed(1) : null;
+
+      const ticketActual = citasActual?.length > 0 ? totalActual / citasActual.length : 0;
+      const ticketAnterior = citasAnterior?.length > 0 ? totalAnterior / citasAnterior.length : 0;
+
+      return {
+        mes_actual: {
+          ingresos: Math.round(totalActual),
+          citas: citasActual?.length || 0,
+          clientes_nuevos: clientesActual?.length || 0,
+          ticket_promedio: Math.round(ticketActual)
+        },
+        mes_anterior: {
+          ingresos: Math.round(totalAnterior),
+          citas: citasAnterior?.length || 0,
+          clientes_nuevos: clientesAnterior?.length || 0,
+          ticket_promedio: Math.round(ticketAnterior)
+        },
+        crecimiento_ingresos_pct: crecimiento ? Number(crecimiento) : null,
+        tendencia: crecimiento > 0 ? 'creciendo' : crecimiento < 0 ? 'bajando' : 'estable'
+      };
+    }
+
+    case 'ticket_promedio': {
+      const bogota = { timeZone: 'America/Bogota' };
+      const hoy = new Date().toLocaleDateString('en-CA', bogota);
+      const inicioMes = hoy.slice(0,7) + '-01';
+
+      const { data: citas } = await supabaseAdmin
+        .from('appointments')
+        .select('price, services(name), employees(name)')
+        .eq('business_id', businessId)
+        .eq('status', 'completed')
+        .gte('scheduled_at', inicioMes + 'T00:00:00-05:00')
+        .lte('scheduled_at', hoy + 'T23:59:59-05:00');
+
+      const porServicio = {};
+      const porEmpleado = {};
+
+      (citas || []).forEach(c => {
+        const servicio = c.services?.name || 'Sin servicio';
+        const empleado = c.employees?.name || 'Sin asignar';
+        const precio = Number(c.price || 0);
+
+        if (!porServicio[servicio]) porServicio[servicio] = { total: 0, count: 0 };
+        porServicio[servicio].total += precio;
+        porServicio[servicio].count++;
+
+        if (!porEmpleado[empleado]) porEmpleado[empleado] = { total: 0, count: 0 };
+        porEmpleado[empleado].total += precio;
+        porEmpleado[empleado].count++;
+      });
+
+      const ticketPorServicio = Object.entries(porServicio)
+        .map(([nombre, d]) => ({ nombre, ticket_promedio: Math.round(d.total / d.count), total_citas: d.count, ingresos_total: d.total }))
+        .sort((a,b) => b.ticket_promedio - a.ticket_promedio);
+
+      const ticketPorEmpleado = Object.entries(porEmpleado)
+        .map(([nombre, d]) => ({ nombre, ticket_promedio: Math.round(d.total / d.count), total_citas: d.count, ingresos_total: d.total }))
+        .sort((a,b) => b.ingresos_total - a.ingresos_total);
+
+      const totalGeneral = (citas || []).reduce((s,c) => s + Number(c.price || 0), 0);
+      const ticketGeneral = citas?.length > 0 ? Math.round(totalGeneral / citas.length) : 0;
+
+      return { ticket_general: ticketGeneral, por_servicio: ticketPorServicio, por_empleado: ticketPorEmpleado, total_citas: citas?.length || 0 };
+    }
+
+    case 'horas_rentables': {
+      const bogota = { timeZone: 'America/Bogota' };
+      const hoy = new Date().toLocaleDateString('en-CA', bogota);
+      const hace30 = new Date(Date.now() - 30 * 86400000).toLocaleDateString('en-CA', bogota);
+
+      const { data: citas } = await supabaseAdmin
+        .from('appointments')
+        .select('scheduled_at, price')
+        .eq('business_id', businessId)
+        .eq('status', 'completed')
+        .gte('scheduled_at', hace30 + 'T00:00:00-05:00')
+        .lte('scheduled_at', hoy + 'T23:59:59-05:00');
+
+      const diasSemana = ['Domingo','Lunes','Martes','Miércoles','Jueves','Viernes','Sábado'];
+      const porDia = {};
+      const porHora = {};
+
+      (citas || []).forEach(c => {
+        const fecha = new Date(c.scheduled_at);
+        const dia = diasSemana[fecha.toLocaleDateString('en-US', { timeZone: 'America/Bogota', weekday: 'short' }) === 'Sun' ? 0 : fecha.getDay()];
+        const hora = new Date(c.scheduled_at).toLocaleString('en-CA', { timeZone: 'America/Bogota', hour: '2-digit', hour12: false });
+        const precio = Number(c.price || 0);
+
+        if (!porDia[dia]) porDia[dia] = { citas: 0, ingresos: 0 };
+        porDia[dia].citas++;
+        porDia[dia].ingresos += precio;
+
+        if (!porHora[hora]) porHora[hora] = { citas: 0, ingresos: 0 };
+        porHora[hora].citas++;
+        porHora[hora].ingresos += precio;
+      });
+
+      const rankingDias = Object.entries(porDia)
+        .map(([dia, d]) => ({ dia, ...d }))
+        .sort((a,b) => b.ingresos - a.ingresos);
+
+      const rankingHoras = Object.entries(porHora)
+        .map(([hora, d]) => ({ hora: hora + ':00', ...d }))
+        .sort((a,b) => b.ingresos - a.ingresos)
+        .slice(0, 5);
+
+      return {
+        dias_mas_rentables: rankingDias,
+        horas_mas_rentables: rankingHoras,
+        periodo: 'últimos 30 días'
+      };
+    }
+
+    case 'clientes_riesgo': {
+      const bogota = { timeZone: 'America/Bogota' };
+      const hoy = new Date().toLocaleDateString('en-CA', bogota);
+      const hace30 = new Date(Date.now() - 30 * 86400000).toLocaleDateString('en-CA', bogota);
+      const hace90 = new Date(Date.now() - 90 * 86400000).toLocaleDateString('en-CA', bogota);
+
+      const { data: citasVentana } = await supabaseAdmin
+        .from('appointments')
+        .select('client_id, scheduled_at')
+        .eq('business_id', businessId)
+        .eq('status', 'completed')
+        .gte('scheduled_at', hace90 + 'T00:00:00-05:00')
+        .lte('scheduled_at', hace30 + 'T23:59:59-05:00');
+
+      const { data: citasRecientes } = await supabaseAdmin
+        .from('appointments')
+        .select('client_id')
+        .eq('business_id', businessId)
+        .eq('status', 'completed')
+        .gte('scheduled_at', hace30 + 'T00:00:00-05:00');
+
+      const idsRecientes = new Set((citasRecientes || []).map(c => c.client_id));
+      const idsEnRiesgo = [...new Set(
+        (citasVentana || [])
+          .filter(c => c.client_id && !idsRecientes.has(c.client_id))
+          .map(c => c.client_id)
+      )].slice(0, 20);
+
+      if (idsEnRiesgo.length === 0) {
+        return { clientes_en_riesgo: [], mensaje: 'No hay clientes en riesgo actualmente 🎉' };
+      }
+
+      const { data: clientes } = await supabaseAdmin
+        .from('clients')
+        .select('id, name, phone')
+        .in('id', idsEnRiesgo);
+
+      const clientesConFecha = (clientes || []).map(c => {
+        const ultimaCita = citasVentana
+          .filter(a => a.client_id === c.id)
+          .sort((a,b) => new Date(b.scheduled_at) - new Date(a.scheduled_at))[0];
+        const diasSinVisita = ultimaCita
+          ? Math.floor((new Date() - new Date(ultimaCita.scheduled_at)) / 86400000)
+          : null;
+        return { ...c, dias_sin_visita: diasSinVisita, ultima_visita: ultimaCita?.scheduled_at?.slice(0,10) };
+      }).sort((a,b) => (b.dias_sin_visita || 0) - (a.dias_sin_visita || 0));
+
+      return {
+        clientes_en_riesgo: clientesConFecha,
+        total: clientesConFecha.length,
+        mensaje: `${clientesConFecha.length} clientes no han vuelto en 30-90 días`
+      };
+    }
+
+    case 'clientes_valiosos': {
+      const { data: citas } = await supabaseAdmin
+        .from('appointments')
+        .select('client_id, price, clients(name, phone)')
+        .eq('business_id', businessId)
+        .eq('status', 'completed')
+        .not('client_id', 'is', null);
+
+      const resumen = {};
+      (citas || []).forEach(c => {
+        if (!c.client_id) return;
+        if (!resumen[c.client_id]) {
+          resumen[c.client_id] = {
+            nombre: c.clients?.name || 'Sin nombre',
+            phone: c.clients?.phone,
+            visitas: 0,
+            total_gastado: 0
+          };
+        }
+        resumen[c.client_id].visitas++;
+        resumen[c.client_id].total_gastado += Number(c.price || 0);
+      });
+
+      const top10 = Object.values(resumen)
+        .sort((a,b) => b.total_gastado - a.total_gastado)
+        .slice(0, 10);
+
+      return { top_clientes: top10, total_analizados: Object.keys(resumen).length };
+    }
+
+    case 'retencion_clientes': {
+      const bogota = { timeZone: 'America/Bogota' };
+      const hoy = new Date().toLocaleDateString('en-CA', bogota);
+      const [year, month] = hoy.split('-').map(Number);
+      const inicioMesActual = `${year}-${String(month).padStart(2,'0')}-01`;
+      const mesAnterior = month === 1 ? 12 : month - 1;
+      const yearAnterior = month === 1 ? year - 1 : year;
+      const inicioMesAnterior = `${yearAnterior}-${String(mesAnterior).padStart(2,'0')}-01`;
+      const finMesAnterior = inicioMesActual;
+
+      const [{ data: citasAnterior }, { data: citasActual }] = await Promise.all([
+        supabaseAdmin.from('appointments').select('client_id').eq('business_id', businessId).eq('status','completed').gte('scheduled_at', inicioMesAnterior + 'T00:00:00-05:00').lt('scheduled_at', finMesAnterior + 'T00:00:00-05:00').not('client_id','is',null),
+        supabaseAdmin.from('appointments').select('client_id').eq('business_id', businessId).eq('status','completed').gte('scheduled_at', inicioMesActual + 'T00:00:00-05:00').lte('scheduled_at', hoy + 'T23:59:59-05:00').not('client_id','is',null)
+      ]);
+
+      const idsAnterior = new Set((citasAnterior || []).map(c => c.client_id));
+      const idsActual = new Set((citasActual || []).map(c => c.client_id));
+      const volvieron = [...idsAnterior].filter(id => idsActual.has(id)).length;
+      const nuevos = [...idsActual].filter(id => !idsAnterior.has(id)).length;
+      const perdidos = [...idsAnterior].filter(id => !idsActual.has(id)).length;
+      const tasaRetencion = idsAnterior.size > 0 ? Math.round((volvieron / idsAnterior.size) * 100) : 0;
+
+      return {
+        clientes_mes_anterior: idsAnterior.size,
+        clientes_mes_actual: idsActual.size,
+        volvieron,
+        nuevos,
+        perdidos,
+        tasa_retencion_pct: tasaRetencion,
+        interpretacion: tasaRetencion >= 70 ? 'Excelente retención 🟢' : tasaRetencion >= 50 ? 'Retención aceptable 🟡' : 'Retención baja — hay que trabajar en fidelización 🔴'
+      };
+    }
+
+    case 'alertas_negocio': {
+      const bogota = { timeZone: 'America/Bogota' };
+      const hoy = new Date().toLocaleDateString('en-CA', bogota);
+      const hace7 = new Date(Date.now() - 7 * 86400000).toLocaleDateString('en-CA', bogota);
+      const hace30 = new Date(Date.now() - 30 * 86400000).toLocaleDateString('en-CA', bogota);
+      const hace90 = new Date(Date.now() - 90 * 86400000).toLocaleDateString('en-CA', bogota);
+      const inicioMes = hoy.slice(0,7) + '-01';
+
+      const [
+        { data: productosBajoStock },
+        { data: citasUltimos7 },
+        { data: empleados },
+        { data: citasEmpleados },
+        { data: ingresosActual },
+        { data: ingresosAnterior },
+        { data: citasRiesgo },
+        { data: citasRecientes }
+      ] = await Promise.all([
+        supabaseAdmin.from('products').select('name, stock, min_stock').eq('business_id', businessId).eq('is_active', true).filter('stock', 'lte', 'min_stock'),
+        supabaseAdmin.from('appointments').select('scheduled_at').eq('business_id', businessId).gte('scheduled_at', hace7 + 'T00:00:00-05:00').lte('scheduled_at', hoy + 'T23:59:59-05:00'),
+        supabaseAdmin.from('employees').select('id, name').eq('business_id', businessId).eq('is_active', true),
+        supabaseAdmin.from('appointments').select('employee_id').eq('business_id', businessId).eq('status','completed').gte('scheduled_at', hace7 + 'T00:00:00-05:00'),
+        supabaseAdmin.from('income').select('amount').eq('business_id', businessId).gte('date', inicioMes),
+        supabaseAdmin.from('income').select('amount').eq('business_id', businessId).gte('date', hoy.slice(0,4) + '-' + String(parseInt(hoy.split('-')[1]) === 1 ? 12 : parseInt(hoy.split('-')[1]) - 1).padStart(2,'0') + '-01').lt('date', inicioMes),
+        supabaseAdmin.from('appointments').select('client_id').eq('business_id', businessId).eq('status','completed').gte('scheduled_at', hace90 + 'T00:00:00-05:00').lte('scheduled_at', hace30 + 'T23:59:59-05:00').not('client_id','is',null),
+        supabaseAdmin.from('appointments').select('client_id').eq('business_id', businessId).eq('status','completed').gte('scheduled_at', hace30 + 'T00:00:00-05:00').not('client_id','is',null)
+      ]);
+
+      const alertas = [];
+
+      if (productosBajoStock?.length > 0) {
+        alertas.push({
+          tipo: 'stock_bajo',
+          prioridad: 'alta',
+          mensaje: `⚠️ ${productosBajoStock.length} producto(s) con stock bajo`,
+          detalle: productosBajoStock.map(p => `${p.name}: ${p.stock} unidades (mínimo: ${p.min_stock})`)
+        });
+      }
+
+      const empleadosActivos = new Set((citasEmpleados || []).map(c => c.employee_id));
+      const empleadosSinActividad = (empleados || []).filter(e => !empleadosActivos.has(e.id));
+      if (empleadosSinActividad.length > 0) {
+        alertas.push({
+          tipo: 'empleados_inactivos',
+          prioridad: 'media',
+          mensaje: `👤 ${empleadosSinActividad.length} empleado(s) sin citas esta semana`,
+          detalle: empleadosSinActividad.map(e => e.name)
+        });
+      }
+
+      const totalActual = (ingresosActual || []).reduce((s,i) => s + Number(i.amount), 0);
+      const totalAnterior = (ingresosAnterior || []).reduce((s,i) => s + Number(i.amount), 0);
+      const diaActual = parseInt(hoy.split('-')[2]);
+      const diasMes = new Date(parseInt(hoy.split('-')[0]), parseInt(hoy.split('-')[1]), 0).getDate();
+      const proyeccion = diaActual > 0 ? (totalActual / diaActual) * diasMes : 0;
+      if (totalAnterior > 0 && proyeccion < totalAnterior * 0.8) {
+        alertas.push({
+          tipo: 'ingresos_bajos',
+          prioridad: 'alta',
+          mensaje: `📉 Proyección del mes está ${Math.round(((totalAnterior - proyeccion) / totalAnterior) * 100)}% por debajo del mes anterior`,
+          detalle: [`Mes anterior: $${totalAnterior.toLocaleString('es-CO')}`, `Proyección actual: $${Math.round(proyeccion).toLocaleString('es-CO')}`]
+        });
+      }
+
+      const idsRiesgo = new Set((citasRiesgo || []).map(c => c.client_id));
+      const idsRecientes = new Set((citasRecientes || []).map(c => c.client_id));
+      const enRiesgo = [...idsRiesgo].filter(id => !idsRecientes.has(id)).length;
+      if (enRiesgo > 0) {
+        alertas.push({
+          tipo: 'clientes_riesgo',
+          prioridad: 'media',
+          mensaje: `👥 ${enRiesgo} cliente(s) no han vuelto en más de 30 días`,
+          detalle: ['Considera enviarles un mensaje para recuperarlos']
+        });
+      }
+
+      const citasHoy = (citasUltimos7 || []).filter(c => c.scheduled_at?.slice(0,10) === hoy).length;
+      if (citasHoy === 0) {
+        alertas.push({
+          tipo: 'sin_citas_hoy',
+          prioridad: 'baja',
+          mensaje: '📅 No hay citas registradas para hoy',
+          detalle: ['Puedes registrar citas manualmente o verificar la agenda']
+        });
+      }
+
+      return {
+        alertas,
+        total_alertas: alertas.length,
+        resumen: alertas.length === 0 ? 'Todo está en orden 🎉' : `Tienes ${alertas.length} alerta(s) que atender`
+      };
+    }
+
+    case 'meta_mensual': {
+      const bogota = { timeZone: 'America/Bogota' };
+      const hoy = new Date().toLocaleDateString('en-CA', bogota);
+      const inicioMes = hoy.slice(0,7) + '-01';
+      const diaActual = parseInt(hoy.split('-')[2]);
+      const diasMes = new Date(parseInt(hoy.split('-')[0]), parseInt(hoy.split('-')[1]), 0).getDate();
+      const meta = toolInput.meta || 2000000;
+
+      const { data: ingresos } = await supabaseAdmin
+        .from('income').select('amount').eq('business_id', businessId).gte('date', inicioMes).lte('date', hoy);
+
+      const acumulado = (ingresos || []).reduce((s,i) => s + Number(i.amount), 0);
+      const falta = Math.max(0, meta - acumulado);
+      const porcentaje = Math.round((acumulado / meta) * 100);
+      const promedioDiario = diaActual > 0 ? acumulado / diaActual : 0;
+      const diasRestantes = diasMes - diaActual;
+      const necesarioPorDia = diasRestantes > 0 ? Math.round(falta / diasRestantes) : 0;
+      const proyeccion = acumulado + (promedioDiario * diasRestantes);
+      const vaALlegar = proyeccion >= meta;
+
+      return {
+        meta,
+        acumulado: Math.round(acumulado),
+        falta: Math.round(falta),
+        porcentaje_completado: porcentaje,
+        dias_restantes: diasRestantes,
+        necesario_por_dia: necesarioPorDia,
+        proyeccion_final: Math.round(proyeccion),
+        va_a_llegar: vaALlegar,
+        mensaje: vaALlegar
+          ? `🟢 Vas bien! Con tu ritmo actual llegarás a $${Math.round(proyeccion).toLocaleString('es-CO')}`
+          : `🔴 Necesitas $${necesarioPorDia.toLocaleString('es-CO')} diarios para llegar a la meta`
+      };
     }
 
     default:

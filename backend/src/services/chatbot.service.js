@@ -59,6 +59,11 @@ PASO 2: Decide según lo que tienes:
     → Ejecuta ver_servicios
     → Muestra lista clara con precio
     → Pregunta cuál le interesa
+
+  SI el cliente menciona un empleado específico ("con Carlos", "quiero con Andrés"):
+    → Incluye employee_name en agendar_cita
+    → Si está disponible → agenda con ese empleado
+    → Si no está disponible → informa y pregunta si quiere con otro
 </decision_tree>`;
 
 const BOOKING_RULES_TEXT = `<booking_rules>
@@ -325,7 +330,8 @@ async function processChatbotMessage(businessId, clientPhone, messageText, histo
           service_name: { type: 'string' },
           fecha: { type: 'string', description: 'YYYY-MM-DD' },
           hora: { type: 'string', description: 'HH:mm' },
-          client_name: { type: 'string', description: 'Nombre del cliente (opcional)' }
+          client_name: { type: 'string', description: 'Nombre del cliente (opcional)' },
+          employee_name: { type: 'string', description: 'Nombre del empleado preferido por el cliente (opcional)' }
         },
         required: ['service_name', 'fecha', 'hora']
       }
@@ -355,6 +361,11 @@ async function processChatbotMessage(businessId, clientPhone, messageText, histo
       name: 'ver_mi_fidelizacion',
       description: 'Ver visitas acumuladas y progreso hacia recompensa del cliente',
       input_schema: { type: 'object', properties: {} }
+    },
+    {
+      name: 'ver_empleados',
+      description: 'Ver empleados disponibles para que el cliente pueda escoger con quién quiere su cita',
+      input_schema: { type: 'object', properties: {} }
     }
   ];
 
@@ -382,17 +393,141 @@ async function processChatbotMessage(businessId, clientPhone, messageText, histo
         }
 
         case 'verificar_disponibilidad': {
-          const { data } = await supabaseAdmin
-            .from('appointments')
-            .select('scheduled_at')
+          const { data: horariosNegocio } = await supabaseAdmin
+            .from('business_hours')
+            .select('open_time, close_time, is_open, day_of_week')
+            .eq('business_id', businessId);
+
+          const fechaDate = new Date(toolInput.fecha + 'T12:00:00-05:00');
+          const diaSemana = fechaDate.getDay();
+          const horarioDia = horariosNegocio?.find(h => h.day_of_week === diaSemana);
+
+          if (!horarioDia?.is_open) {
+            return {
+              disponible: false,
+              cerrado: true,
+              mensaje: 'El negocio está cerrado ese día'
+            };
+          }
+
+          const { data: empleados } = await supabaseAdmin
+            .from('employees')
+            .select('id, name')
             .eq('business_id', businessId)
-            .eq('status', 'confirmed')
+            .eq('is_active', true);
+
+          if (!empleados?.length) {
+            return { disponible: false, mensaje: 'No hay empleados disponibles' };
+          }
+
+          const { data: citasDia } = await supabaseAdmin
+            .from('appointments')
+            .select('employee_id, scheduled_at, services(duration_minutes)')
+            .eq('business_id', businessId)
+            .in('status', ['confirmed', 'pending'])
             .gte('scheduled_at', toolInput.fecha + 'T00:00:00-05:00')
             .lte('scheduled_at', toolInput.fecha + 'T23:59:59-05:00');
 
-          const horasOcupadas = data?.map(a => a.scheduled_at.slice(11,16)) || [];
-          const disponible = !horasOcupadas.includes(toolInput.hora);
-          return { disponible, horasOcupadas, fecha: toolInput.fecha, hora: toolInput.hora };
+          // Calcular slots ocupados por empleado
+          const [aperturaH, aperturaM] = horarioDia.open_time.split(':').map(Number);
+          const [cierreH, cierreM] = horarioDia.close_time.split(':').map(Number);
+          const aperturaMin = aperturaH * 60 + aperturaM;
+          const cierreMin = cierreH * 60 + cierreM;
+
+          // Generar todos los slots del día cada 30 min
+          const todosSlots = [];
+          for (let m = aperturaMin; m < cierreMin; m += 30) {
+            const h = Math.floor(m / 60).toString().padStart(2, '0');
+            const min = (m % 60).toString().padStart(2, '0');
+            todosSlots.push(`${h}:${min}`);
+          }
+
+          // Si el cliente especificó hora, verificar esa hora específica
+          if (toolInput.hora) {
+            const [horaH, horaM] = toolInput.hora.split(':').map(Number);
+            const horaMin = horaH * 60 + horaM;
+
+            if (horaMin < aperturaMin || horaMin >= cierreMin) {
+              return {
+                disponible: false,
+                fuera_horario: true,
+                mensaje: `Fuera de horario. Atendemos de ${horarioDia.open_time} a ${horarioDia.close_time}.`
+              };
+            }
+
+            const horaReservadaMs = new Date(`${toolInput.fecha}T${toolInput.hora}:00-05:00`).getTime();
+            const ocupados = new Set(
+              citasDia?.filter(c => {
+                const inicio = new Date(c.scheduled_at).getTime();
+                const duracion = (c.services?.duration_minutes || 30) * 60 * 1000;
+                return horaReservadaMs >= inicio && horaReservadaMs < (inicio + duracion);
+              }).map(c => c.employee_id)
+            );
+
+            const hayDisponible = empleados.some(e => !ocupados.has(e.id));
+
+            if (hayDisponible) {
+              return { disponible: true, fecha: toolInput.fecha, hora: toolInput.hora };
+            } else {
+              // Buscar próximos slots disponibles
+              const slotsLibres = [];
+              for (const slot of todosSlots) {
+                if (slot <= toolInput.hora) continue;
+                const slotMs = new Date(`${toolInput.fecha}T${slot}:00-05:00`).getTime();
+                const ocupadosSlot = new Set(
+                  citasDia?.filter(c => {
+                    const inicio = new Date(c.scheduled_at).getTime();
+                    const duracion = (c.services?.duration_minutes || 30) * 60 * 1000;
+                    return slotMs >= inicio && slotMs < (inicio + duracion);
+                  }).map(c => c.employee_id)
+                );
+                if (empleados.some(e => !ocupadosSlot.has(e.id))) {
+                  slotsLibres.push(slot);
+                }
+                if (slotsLibres.length >= 3) break;
+              }
+              return {
+                disponible: false,
+                slots_alternativos: slotsLibres,
+                mensaje: `Ese horario está ocupado. Alternativas: ${slotsLibres.join(', ')}`
+              };
+            }
+          }
+
+          // Sin hora específica: analizar disponibilidad del día completo
+          const horasOcupadasPorTodos = [];
+          for (const slot of todosSlots) {
+            const slotMs = new Date(`${toolInput.fecha}T${slot}:00-05:00`).getTime();
+            const ocupadosSlot = new Set(
+              citasDia?.filter(c => {
+                const inicio = new Date(c.scheduled_at).getTime();
+                const duracion = (c.services?.duration_minutes || 30) * 60 * 1000;
+                return slotMs >= inicio && slotMs < (inicio + duracion);
+              }).map(c => c.employee_id)
+            );
+            const todosOcupados = empleados.every(e => ocupadosSlot.has(e.id));
+            if (todosOcupados) horasOcupadasPorTodos.push(slot);
+          }
+
+          if (horasOcupadasPorTodos.length === 0) {
+            return {
+              disponible: true,
+              dia_libre: true,
+              horario: `${horarioDia.open_time} a ${horarioDia.close_time}`,
+              mensaje: `Todo el día está disponible de ${horarioDia.open_time} a ${horarioDia.close_time}`
+            };
+          }
+
+          const slotsLibresDia = todosSlots.filter(s => !horasOcupadasPorTodos.includes(s));
+          return {
+            disponible: slotsLibresDia.length > 0,
+            horario: `${horarioDia.open_time} a ${horarioDia.close_time}`,
+            horas_no_disponibles: horasOcupadasPorTodos,
+            horas_disponibles: slotsLibresDia,
+            mensaje: slotsLibresDia.length > 0
+              ? `Hay disponibilidad. No podemos a las: ${horasOcupadasPorTodos.join(', ')}`
+              : 'No hay disponibilidad ese día'
+          };
         }
 
         case 'agendar_cita': {
@@ -460,13 +595,50 @@ async function processChatbotMessage(businessId, clientPhone, messageText, histo
             }
           }
 
-          let empleadoDisponible = await getAvailableEmployee(businessId, toolInput.fecha, toolInput.hora);
+          // Si el cliente pidió un empleado específico, intentar asignarlo
+          let empleadoDisponible = null;
+          if (toolInput.employee_name) {
+            const { data: empPref } = await supabaseAdmin
+              .from('employees')
+              .select('id, name')
+              .eq('business_id', businessId)
+              .eq('is_active', true)
+              .ilike('name', `%${toolInput.employee_name}%`)
+              .single();
+
+            if (empPref) {
+              // Verificar si está disponible en ese horario
+              const horaReservadaMs = new Date(`${toolInput.fecha}T${toolInput.hora}:00-05:00`).getTime();
+              const { data: citasEmp } = await supabaseAdmin
+                .from('appointments')
+                .select('scheduled_at, services(duration_minutes)')
+                .eq('business_id', businessId)
+                .eq('employee_id', empPref.id)
+                .in('status', ['confirmed', 'pending'])
+                .gte('scheduled_at', `${toolInput.fecha}T00:00:00-05:00`)
+                .lte('scheduled_at', `${toolInput.fecha}T23:59:59-05:00`);
+
+              const ocupado = citasEmp?.some(c => {
+                const inicio = new Date(c.scheduled_at).getTime();
+                const duracion = (c.services?.duration_minutes || 30) * 60 * 1000;
+                return horaReservadaMs >= inicio && horaReservadaMs < (inicio + duracion);
+              });
+
+              if (!ocupado) {
+                empleadoDisponible = empPref;
+              } else {
+                return {
+                  success: false,
+                  error: `${empPref.name} no está disponible a esa hora. ¿Quieres con otro empleado disponible?`
+                };
+              }
+            }
+          }
+
           if (!empleadoDisponible) {
-            logger.info(`[agendar_cita] No available employee - creating appointment without employee`, {
-              businessId,
-              fecha: toolInput.fecha,
-              hora: toolInput.hora
-            });
+            empleadoDisponible = await getAvailableEmployee(businessId, toolInput.fecha, toolInput.hora);
+          }
+          if (!empleadoDisponible) {
             empleadoDisponible = { id: null, name: 'Sin asignar' };
           }
 
@@ -675,6 +847,16 @@ async function processChatbotMessage(businessId, clientPhone, messageText, histo
             recompensa: servicio_gratis,
             listo_para_canjear: faltan === 0
           };
+        }
+
+        case 'ver_empleados': {
+          const { data: empleados } = await supabaseAdmin
+            .from('employees')
+            .select('id, name')
+            .eq('business_id', businessId)
+            .eq('is_active', true);
+
+          return { empleados: empleados || [] };
         }
 
         default:

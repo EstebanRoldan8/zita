@@ -975,25 +975,11 @@ async function processChatbotMessage(businessId, clientPhone, messageText, histo
 
         case 'escalar_a_humano': {
           try {
-            logger.info('=== ESCALAMIENTO INICIADO ===', {
-              businessId,
-              clientPhone,
-              motivo: toolInput.motivo,
-              businessPhone: 'pendiente',
-              phoneNumberId: business?.whatsapp_phone_number_id
-            });
-
             const { data: negocio } = await supabaseAdmin
               .from('businesses')
               .select('phone, name')
               .eq('id', businessId)
               .single();
-
-            logger.info('=== NEGOCIO PARA ESCALAMIENTO ===', {
-              negocioPhone: negocio?.phone,
-              negocioNombre: negocio?.name,
-              tienePhone: !!negocio?.phone
-            });
 
             if (!negocio?.phone) {
               return { success: false, message: 'No se pudo notificar al dueño — número no configurado.' };
@@ -1019,6 +1005,20 @@ async function processChatbotMessage(businessId, clientPhone, messageText, histo
               businessToken,
               business.whatsapp_phone_number_id
             );
+
+            // Pausar el bot por 3 horas
+            const pausadoHasta = new Date();
+            pausadoHasta.setHours(pausadoHasta.getHours() + 3);
+
+            await supabaseAdmin
+              .from('whatsapp_conversations')
+              .upsert({
+                business_id: businessId,
+                client_phone: clientPhone,
+                bot_paused_until: pausadoHasta.toISOString()
+              }, { onConflict: 'business_id,client_phone' });
+
+            logger.info('Bot pausado por 3 horas para cliente:', { clientPhone, hasta: pausadoHasta });
 
             return {
               success: true,

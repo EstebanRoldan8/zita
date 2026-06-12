@@ -40,6 +40,26 @@ async function handleWebhook(req, res) {
     const message = value.messages[0];
     const phoneNumberId = value.metadata?.phone_number_id;
     const from = message.from;
+
+    // Verificar si el bot está pausado para este cliente
+    const business = await require('../services/chatbot.service')
+      .getBusinessByPhoneNumberId(phoneNumberId);
+
+    if (business) {
+      const { data: conv } = await require('../config/supabase').supabaseAdmin
+        .from('whatsapp_conversations')
+        .select('bot_paused_until')
+        .eq('business_id', business.id)
+        .eq('client_phone', from)
+        .maybeSingle();
+
+      if (conv?.bot_paused_until && new Date(conv.bot_paused_until) > new Date()) {
+        // Bot pausado — no procesar mensaje
+        logger.info('Bot pausado para cliente:', { from, hasta: conv.bot_paused_until });
+        return;
+      }
+    }
+
     const messageText = message.text?.body;
     const messageType = message.type;
 

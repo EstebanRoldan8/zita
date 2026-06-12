@@ -1,0 +1,2 @@
+ALTER TABLE whatsapp_conversations
+ADD COLUMN IF NOT EXISTS bot_paused_until TIMESTAMPTZ DEFAULT NULL;

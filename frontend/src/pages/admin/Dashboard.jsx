@@ -64,10 +64,10 @@ export default function AdminDashboard() {
 
   const m = metricsData || {};
   const total = m.total_businesses || 0;
-  const activos = m.active_businesses || 0;
-  const trial = m.trial_businesses || 0;
-  const suspendidos = m.suspended_businesses || 0;
-  const citasHoy = m.appointments_today || 0;
+  const activos = m.active || 0;
+  const trial = m.trial || 0;
+  const suspendidos = m.suspended || 0;
+  const citasHoy = m.today_appointments || 0;
   const fallos = notifData?.filter(n => n.type === 'assistant_fail') || [];
 
   return (

@@ -2,6 +2,7 @@ import { useState, useRef, useEffect } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { Bot, X, Send, Loader2, Zap } from 'lucide-react';
 import { useLockBodyScroll } from '../../hooks/useLockBodyScroll';
+import { useAuth } from '../../context/AuthContext';
 import api from '../../lib/api';
 
 const WELCOME = '¡Hola! Soy el asistente de ZITA. Puedo crear citas, consultar métricas, registrar ventas y más. ¿En qué te ayudo?';
@@ -119,7 +120,9 @@ export default function AIAssistant() {
     if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); send(); }
   };
 
-  if (sub?.plan === 'lite') return null;
+  const { user: authData } = useAuth ? useAuth() : {};
+  const isSuperadmin = authData?.email === import.meta.env.VITE_SUPERADMIN_EMAIL;
+  if (sub?.plan === 'lite' && !isSuperadmin) return null;
 
   return (
     <>

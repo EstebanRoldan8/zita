@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { Outlet, NavLink, useNavigate } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
+import AIAssistant from './AIAssistant';
 import {
   LayoutDashboard, Building2, HeadphonesIcon, Bell,
   LogOut, Menu, X, ChevronRight, Zap, DollarSign,
@@ -12,7 +13,6 @@ const navItems = [
   { to: '/admin/negocios', label: 'Negocios', icon: Building2 },
   { to: '/admin/caja', label: 'Caja ZITA', icon: DollarSign },
   { to: '/admin/leads', label: 'Leads', icon: TrendingUp },
-  { to: '/admin/asistente', label: 'Asistente IA', icon: Zap },
   { to: '/admin/soporte', label: 'Soporte', icon: HeadphonesIcon },
   { to: '/admin/notificaciones', label: 'Notificaciones', icon: Bell },
 ];
@@ -128,6 +128,7 @@ export default function AdminLayout() {
           <Outlet />
         </main>
       </div>
+      <AIAssistant />
     </div>
   );
 }

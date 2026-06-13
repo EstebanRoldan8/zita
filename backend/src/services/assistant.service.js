@@ -2387,6 +2387,26 @@ Cuando diga "mañana" usar: ${mananaISO}
       tools: tools,
       messages: apiMessages
     });
+
+    // Si Claude no generó texto después de ejecutar tools, forzar respuesta
+    if (response.stop_reason === 'end_turn') {
+      const tieneTexto = response.content.some(b => b.type === 'text' && b.text?.trim());
+      if (!tieneTexto) {
+        const ultimasTools = actionsExecuted.slice(-3).join(', ');
+        apiMessages.push({ role: 'assistant', content: response.content });
+        apiMessages.push({
+          role: 'user',
+          content: 'Confirma brevemente al usuario lo que acabas de hacer en español colombiano informal.'
+        });
+        response = await callClaudeWithRetry({
+          model: 'claude-haiku-4-5-20251001',
+          max_tokens: 200,
+          system: dynamicSystemPrompt,
+          tools: tools,
+          messages: apiMessages
+        });
+      }
+    }
   }
 
   const finalText = response.content

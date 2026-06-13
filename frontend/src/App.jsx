@@ -33,6 +33,8 @@ import Businesses from './pages/admin/Businesses';
 import BusinessDetail from './pages/admin/BusinessDetail';
 import AdminSupport from './pages/admin/Support';
 import AdminNotifications from './pages/admin/Notifications';
+import CajaAdmin from './pages/admin/CajaAdmin';
+import LeadsAdmin from './pages/admin/LeadsAdmin';
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -94,6 +96,8 @@ export default function App() {
               <Route index element={<AdminDashboard />} />
               <Route path="negocios" element={<Businesses />} />
               <Route path="negocios/:id" element={<BusinessDetail />} />
+              <Route path="caja" element={<CajaAdmin />} />
+              <Route path="leads" element={<LeadsAdmin />} />
               <Route path="soporte" element={<AdminSupport />} />
               <Route path="notificaciones" element={<AdminNotifications />} />
             </Route>

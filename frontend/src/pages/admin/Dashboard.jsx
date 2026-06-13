@@ -1,134 +1,163 @@
 import { useQuery } from '@tanstack/react-query';
-import { Building2, CalendarCheck, TrendingUp, AlertTriangle, Zap, AlertCircle } from 'lucide-react';
+import {
+  Building2, TrendingUp, DollarSign, Users,
+  AlertTriangle, CheckCircle2, Clock, Zap,
+  ArrowUp, ArrowDown, Activity
+} from 'lucide-react';
 import api from '../../lib/api';
 
-function MetricCard({ label, value, sub, icon: Icon, accent = 'violet' }) {
+function KPICard({ title, value, subtitle, icon: Icon, color = 'violet', trend }) {
   const colors = {
-    violet: 'text-violet-400 bg-violet-500/10',
-    emerald: 'text-emerald-400 bg-emerald-500/10',
-    blue:    'text-blue-400 bg-blue-500/10',
-    red:     'text-red-400 bg-red-500/10',
+    violet: 'bg-violet-500/10 text-violet-400 border-violet-500/20',
+    emerald: 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20',
+    yellow: 'bg-yellow-500/10 text-yellow-400 border-yellow-500/20',
+    red: 'bg-red-500/10 text-red-400 border-red-500/20',
+    blue: 'bg-blue-500/10 text-blue-400 border-blue-500/20',
   };
+
   return (
-    <div className="bg-slate-900 border border-slate-800 rounded-xl p-5">
-      <div className="flex items-center justify-between mb-4">
-        <p className="text-slate-400 text-sm">{label}</p>
-        <div className={`p-2 rounded-lg ${colors[accent]}`}>
-          <Icon size={18} className={colors[accent].split(' ')[0]} />
+    <div className="bg-[#131929] border border-white/10 rounded-2xl p-5">
+      <div className="flex items-start justify-between mb-4">
+        <div className={`w-10 h-10 rounded-xl border flex items-center justify-center ${colors[color]}`}>
+          <Icon size={18} />
         </div>
+        {trend !== undefined && (
+          <div className={`flex items-center gap-1 text-xs font-medium ${trend >= 0 ? 'text-emerald-400' : 'text-red-400'}`}>
+            {trend >= 0 ? <ArrowUp size={12} /> : <ArrowDown size={12} />}
+            {Math.abs(trend)}%
+          </div>
+        )}
       </div>
-      <p className="text-white text-3xl font-bold">{value ?? '—'}</p>
-      {sub && <p className="text-slate-500 text-xs mt-1">{sub}</p>}
+      <p className="text-2xl font-bold text-white mb-1">{value}</p>
+      <p className="text-slate-400 text-sm font-medium">{title}</p>
+      {subtitle && <p className="text-slate-500 text-xs mt-1">{subtitle}</p>}
     </div>
   );
 }
 
-function SkeletonCard() {
-  return <div className="h-28 bg-slate-900 border border-slate-800 rounded-xl animate-pulse" />;
+function StatusBadge({ status }) {
+  const map = {
+    trial: 'bg-yellow-500/10 text-yellow-400 border-yellow-500/20',
+    active: 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20',
+    expired: 'bg-red-500/10 text-red-400 border-red-500/20',
+    suspended: 'bg-red-500/10 text-red-400 border-red-500/20',
+  };
+  const labels = { trial: 'Trial', active: 'Activo', expired: 'Vencido', suspended: 'Suspendido' };
+  return (
+    <span className={`px-2 py-0.5 rounded-full text-xs font-medium border ${map[status] || map.trial}`}>
+      {labels[status] || status}
+    </span>
+  );
 }
 
 export default function AdminDashboard() {
-  const { data: metrics, isLoading } = useQuery({
+  const { data: metricsData, isLoading } = useQuery({
     queryKey: ['admin-metrics'],
-    queryFn: () => api.get('/api/admin/metrics').then((r) => r.data.data),
+    queryFn: () => api.get('/api/admin/metrics').then(r => r.data.data),
+    refetchInterval: 30000
   });
 
-  const { data: assistantFailures } = useQuery({
-    queryKey: ['admin-assistant-failures'],
-    queryFn: () => api.get('/api/admin/notifications?type=assistant_fail').then((r) => r.data.data),
-    refetchInterval: 30000,
+  const { data: notifData } = useQuery({
+    queryKey: ['admin-notifications'],
+    queryFn: () => api.get('/api/admin/notifications').then(r => r.data.data),
   });
+
+  const m = metricsData || {};
+  const total = m.total_businesses || 0;
+  const activos = m.active_businesses || 0;
+  const trial = m.trial_businesses || 0;
+  const suspendidos = m.suspended_businesses || 0;
+  const citasHoy = m.appointments_today || 0;
+  const fallos = notifData?.filter(n => n.type === 'assistant_fail') || [];
 
   return (
-    <div className="p-4 sm:p-6 md:p-8">
-      <div className="mb-6 sm:mb-8">
-        <h1 className="text-white text-xl sm:text-2xl font-bold">Dashboard</h1>
-        <p className="text-slate-400 text-xs sm:text-sm mt-1">Visión global de la plataforma ZITA</p>
+    <div className="p-6 max-w-7xl mx-auto">
+      {/* Header */}
+      <div className="mb-8">
+        <h1 className="text-2xl font-bold text-white">Dashboard</h1>
+        <p className="text-slate-400 text-sm mt-1">Visión global de la plataforma ZITA</p>
       </div>
 
-      {isLoading ? (
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-          {Array.from({ length: 4 }).map((_, i) => <SkeletonCard key={i} />)}
-        </div>
-      ) : (
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-          <MetricCard
-            label="Total negocios"
-            value={metrics?.total_businesses}
-            sub={`${metrics?.trial ?? 0} en trial`}
-            icon={Building2}
-            accent="violet"
-          />
-          <MetricCard
-            label="Citas hoy (plataforma)"
-            value={metrics?.today_appointments}
-            sub="En todos los negocios"
-            icon={CalendarCheck}
-            accent="blue"
-          />
-          <MetricCard
-            label="Negocios activos"
-            value={metrics?.active}
-            sub="Estado: active"
-            icon={TrendingUp}
-            accent="emerald"
-          />
-          <MetricCard
-            label="Suspendidos"
-            value={metrics?.suspended}
-            sub="Requieren atención"
-            icon={AlertTriangle}
-            accent="red"
-          />
-        </div>
-      )}
+      {/* KPIs */}
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
+        <KPICard
+          title="Total negocios"
+          value={total}
+          subtitle={`${trial} en período de prueba`}
+          icon={Building2}
+          color="violet"
+        />
+        <KPICard
+          title="Negocios activos"
+          value={activos}
+          subtitle="Con plan pagado"
+          icon={CheckCircle2}
+          color="emerald"
+        />
+        <KPICard
+          title="Citas hoy"
+          value={citasHoy}
+          subtitle="En toda la plataforma"
+          icon={Activity}
+          color="blue"
+        />
+        <KPICard
+          title="Suspendidos"
+          value={suspendidos}
+          subtitle="Requieren atención"
+          icon={AlertTriangle}
+          color={suspendidos > 0 ? 'red' : 'violet'}
+        />
+      </div>
 
-      {!isLoading && metrics && (
-        <div className="mt-6 sm:mt-8 bg-slate-900 border border-slate-800 rounded-xl p-4 sm:p-6">
-          <h2 className="text-white font-semibold text-sm sm:text-base mb-4">Distribución por estado</h2>
-          <div className="flex flex-col sm:flex-row gap-4 sm:gap-6">
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        {/* Distribución por estado */}
+        <div className="lg:col-span-2 bg-[#131929] border border-white/10 rounded-2xl p-6">
+          <h2 className="text-white font-semibold mb-5">Distribución por estado</h2>
+          <div className="space-y-4">
             {[
-              { label: 'Trial', value: metrics.trial, color: 'bg-yellow-500' },
-              { label: 'Activo', value: metrics.active, color: 'bg-emerald-500' },
-              { label: 'Suspendido', value: metrics.suspended, color: 'bg-red-500' },
-            ].map(({ label, value, color }) => {
-              const total = metrics.total_businesses || 1;
-              const pct = Math.round((value / total) * 100);
-              return (
-                <div key={label} className="flex-1">
-                  <div className="flex justify-between text-sm mb-1.5">
-                    <span className="text-slate-400">{label}</span>
-                    <span className="text-white font-medium">{value}</span>
-                  </div>
-                  <div className="h-2 bg-slate-800 rounded-full overflow-hidden">
-                    <div className={`h-full ${color} rounded-full`} style={{ width: `${pct}%` }} />
-                  </div>
+              { label: 'Período de prueba', value: trial, total, color: 'bg-yellow-400' },
+              { label: 'Activos', value: activos, total, color: 'bg-emerald-400' },
+              { label: 'Suspendidos', value: suspendidos, total, color: 'bg-red-400' },
+            ].map(({ label, value, total, color }) => (
+              <div key={label}>
+                <div className="flex justify-between text-sm mb-1.5">
+                  <span className="text-slate-300">{label}</span>
+                  <span className="text-slate-400">{value} / {total}</span>
                 </div>
-              );
-            })}
-          </div>
-        </div>
-      )}
-
-      {assistantFailures && assistantFailures.length > 0 && (
-        <div className="mt-6 sm:mt-8 bg-slate-900 border border-slate-800 rounded-xl p-4 sm:p-6">
-          <div className="flex items-center gap-2 mb-4">
-            <AlertCircle size={18} className="text-orange-400" />
-            <h2 className="text-white font-semibold text-sm sm:text-base">Limitaciones del asistente</h2>
-          </div>
-          <div className="space-y-3">
-            {assistantFailures.slice(0, 5).map((failure) => (
-              <div key={failure.id} className="bg-slate-800/50 border border-slate-700/50 rounded-lg p-3">
-                <div className="flex justify-between items-start gap-2 mb-1">
-                  <span className="text-slate-300 text-xs sm:text-sm font-medium">{failure.business_name}</span>
-                  <span className="text-slate-500 text-xs">{new Date(failure.created_at).toLocaleDateString()}</span>
+                <div className="h-2 bg-white/5 rounded-full overflow-hidden">
+                  <div
+                    className={`h-full ${color} rounded-full transition-all`}
+                    style={{ width: total > 0 ? `${(value/total)*100}%` : '0%' }}
+                  />
                 </div>
-                <p className="text-slate-400 text-xs sm:text-sm">{failure.message}</p>
               </div>
             ))}
           </div>
         </div>
-      )}
+
+        {/* Fallos del asistente */}
+        <div className="bg-[#131929] border border-white/10 rounded-2xl p-6">
+          <h2 className="text-white font-semibold mb-5">Fallos del asistente</h2>
+          {fallos.length === 0 ? (
+            <div className="flex flex-col items-center justify-center h-32 text-center">
+              <CheckCircle2 size={32} className="text-emerald-400 mb-2" />
+              <p className="text-slate-400 text-sm">Sin fallos recientes</p>
+            </div>
+          ) : (
+            <div className="space-y-3">
+              {fallos.slice(0, 4).map((n, i) => (
+                <div key={i} className="bg-red-500/5 border border-red-500/10 rounded-xl p-3">
+                  <p className="text-slate-300 text-xs line-clamp-2">{n.message}</p>
+                  <p className="text-slate-500 text-xs mt-1">
+                    {new Date(n.created_at).toLocaleDateString('es-CO')}
+                  </p>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      </div>
     </div>
   );
 }

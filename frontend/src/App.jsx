@@ -35,6 +35,7 @@ import AdminSupport from './pages/admin/Support';
 import AdminNotifications from './pages/admin/Notifications';
 import CajaAdmin from './pages/admin/CajaAdmin';
 import LeadsAdmin from './pages/admin/LeadsAdmin';
+import AsistenteAdmin from './pages/admin/AsistenteAdmin';
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -98,6 +99,7 @@ export default function App() {
               <Route path="negocios/:id" element={<BusinessDetail />} />
               <Route path="caja" element={<CajaAdmin />} />
               <Route path="leads" element={<LeadsAdmin />} />
+              <Route path="asistente" element={<AsistenteAdmin />} />
               <Route path="soporte" element={<AdminSupport />} />
               <Route path="notificaciones" element={<AdminNotifications />} />
             </Route>

@@ -1791,14 +1791,27 @@ async function executeTool(toolName, toolInput, businessId) {
           .map(c => c.client_id)
       )].slice(0, 20);
 
-      if (idsEnRiesgo.length === 0) {
-        return { clientes_en_riesgo: [], mensaje: 'No hay clientes en riesgo actualmente 🎉' };
+      // Excluir clientes que ya recibieron recordatorio en los últimos 15 días
+      const hace15 = new Date(Date.now() - 15 * 86400000)
+        .toLocaleDateString('en-CA', { timeZone: 'America/Bogota' });
+
+      const { data: recallRecientes } = await supabaseAdmin
+        .from('recall_logs')
+        .select('client_id')
+        .eq('business_id', businessId)
+        .gte('date', hace15);
+
+      const idsRecallReciente = new Set((recallRecientes || []).map(r => r.client_id));
+      const idsEnRiesgoFiltrados = idsEnRiesgo.filter(id => !idsRecallReciente.has(id));
+
+      if (idsEnRiesgoFiltrados.length === 0) {
+        return { clientes_en_riesgo: [], mensaje: 'No hay clientes en riesgo actualmente 🎉', ya_contactados_15_dias: idsEnRiesgo.length };
       }
 
       const { data: clientes } = await supabaseAdmin
         .from('clients')
         .select('id, name, phone')
-        .in('id', idsEnRiesgo);
+        .in('id', idsEnRiesgoFiltrados);
 
       const clientesConFecha = (clientes || []).map(c => {
         const ultimaCita = citasVentana
@@ -1813,7 +1826,8 @@ async function executeTool(toolName, toolInput, businessId) {
       return {
         clientes_en_riesgo: clientesConFecha,
         total: clientesConFecha.length,
-        mensaje: `${clientesConFecha.length} clientes no han vuelto en 30-90 días`
+        mensaje: `${clientesConFecha.length} clientes no han vuelto en 30-90 días`,
+        ya_contactados_15_dias: idsEnRiesgo.length - idsEnRiesgoFiltrados.length
       };
     }
 

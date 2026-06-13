@@ -332,6 +332,18 @@ RECORDATORIOS A CLIENTES EN RIESGO:
 - Si el dueño quiere enviar a otros segmentos → "Para campañas masivas necesitas el Plan Pro"
 - Si el dueño quiere agregar foto → "El mensaje se enviará con la foto configurada en Configuración → Recordatorio"
 </gestion_avanzada>
+
+<testing>
+TESTING DEL SISTEMA — SOLO SUPERADMIN:
+- "Haz un test del sistema" → test_sistema con modulo: 'todos'
+- "Prueba WhatsApp" → test_sistema con modulo: 'whatsapp'
+- "Prueba la conexión a Supabase" → test_sistema con modulo: 'supabase'
+- "Prueba Wompi" → test_sistema con modulo: 'pagos'
+- "Cómo está el sistema?" → test_sistema con modulo: 'todos'
+- Si el usuario no es superadmin la tool retorna error de permisos automáticamente
+- Presenta los resultados de forma clara con emojis de estado por módulo
+- Siempre muestra el score general y el estado global
+</testing>
 `;
 
 // FunciÃ³n para calcular similitud entre strings
@@ -846,6 +858,21 @@ const tools = [
         }
       },
       required: ['client_ids', 'confirmar']
+    }
+  },
+  {
+    name: 'test_sistema',
+    description: 'SOLO SUPERADMIN. Ejecuta pruebas de funcionamiento del sistema y retorna reporte de salud.',
+    input_schema: {
+      type: 'object',
+      properties: {
+        modulo: {
+          type: 'string',
+          enum: ['todos', 'supabase', 'whatsapp', 'anthropic', 'pagos', 'scheduler'],
+          description: 'Módulo a testear'
+        }
+      },
+      required: ['modulo']
     }
   }
 ];
@@ -2250,6 +2277,122 @@ async function executeTool(toolName, toolInput, businessId) {
         fallidos: resultados.filter(r => !r.success).length,
         resultados,
         disponibles_hoy: disponibles - exitosos
+      };
+    }
+
+    case 'test_sistema': {
+      const { data: bizData } = await supabaseAdmin
+        .from('businesses')
+        .select('owner_email')
+        .eq('id', businessId)
+        .single();
+
+      if (bizData?.owner_email !== process.env.SUPERADMIN_EMAIL) {
+        return { error: 'No tienes permisos para ejecutar pruebas del sistema.' };
+      }
+
+      const resultados = {};
+      const modulo = toolInput.modulo;
+
+      if (modulo === 'todos' || modulo === 'supabase') {
+        try {
+          const inicio = Date.now();
+          const { data, error } = await supabaseAdmin
+            .from('businesses')
+            .select('id')
+            .limit(1);
+          resultados.supabase = {
+            ok: !error,
+            latencia_ms: Date.now() - inicio,
+            error: error?.message || null
+          };
+        } catch(e) {
+          resultados.supabase = { ok: false, error: e.message };
+        }
+      }
+
+      if (modulo === 'todos' || modulo === 'anthropic') {
+        try {
+          const inicio = Date.now();
+          const testClient = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
+          await testClient.messages.create({
+            model: 'claude-haiku-4-5-20251001',
+            max_tokens: 10,
+            messages: [{ role: 'user', content: 'di ok' }]
+          });
+          resultados.anthropic = {
+            ok: true,
+            latencia_ms: Date.now() - inicio,
+            modelo: 'claude-haiku-4-5-20251001'
+          };
+        } catch(e) {
+          resultados.anthropic = { ok: false, error: e.message };
+        }
+      }
+
+      if (modulo === 'todos' || modulo === 'whatsapp') {
+        try {
+          const axios = require('axios');
+          const inicio = Date.now();
+          const response = await axios.get(
+            `https://graph.facebook.com/${process.env.WHATSAPP_API_VERSION}/${process.env.WHATSAPP_PHONE_NUMBER_ID}`,
+            { headers: { Authorization: `Bearer ${process.env.WHATSAPP_ACCESS_TOKEN}` }, timeout: 5000 }
+          );
+          resultados.whatsapp = {
+            ok: response.status === 200,
+            latencia_ms: Date.now() - inicio,
+            numero: response.data?.display_phone_number || 'N/A'
+          };
+        } catch(e) {
+          resultados.whatsapp = { ok: false, error: e.response?.data?.error?.message || e.message };
+        }
+      }
+
+      if (modulo === 'todos' || modulo === 'pagos') {
+        try {
+          const axios = require('axios');
+          const inicio = Date.now();
+          const wompiUrl = process.env.WOMPI_API_URL || 'https://sandbox.wompi.co/v1';
+          const response = await axios.get(
+            `${wompiUrl}/merchants/${process.env.WOMPI_PUBLIC_KEY_CO}`,
+            { timeout: 5000 }
+          );
+          resultados.wompi = {
+            ok: response.status === 200,
+            latencia_ms: Date.now() - inicio,
+            ambiente: wompiUrl.includes('sandbox') ? 'sandbox' : 'producción'
+          };
+        } catch(e) {
+          resultados.wompi = { ok: false, error: e.response?.data?.error || e.message };
+        }
+      }
+
+      if (modulo === 'todos') {
+        const varsRequeridas = [
+          'SUPABASE_URL', 'SUPABASE_SERVICE_ROLE_KEY',
+          'ANTHROPIC_API_KEY', 'WHATSAPP_ACCESS_TOKEN',
+          'WHATSAPP_PHONE_NUMBER_ID', 'WOMPI_PUBLIC_KEY_CO',
+          'WOMPI_INTEGRITY_SECRET_CO', 'ENCRYPT_SECRET',
+          'RESEND_API_KEY', 'FRONTEND_URL'
+        ];
+        const faltantes = varsRequeridas.filter(v => !process.env[v]);
+        resultados.variables_entorno = {
+          ok: faltantes.length === 0,
+          total: varsRequeridas.length,
+          configuradas: varsRequeridas.length - faltantes.length,
+          faltantes
+        };
+      }
+
+      const totalOk = Object.values(resultados).filter(r => r.ok).length;
+      const totalTests = Object.keys(resultados).length;
+
+      return {
+        timestamp: new Date().toISOString(),
+        resumen: `${totalOk}/${totalTests} pruebas exitosas`,
+        score: Math.round((totalOk / totalTests) * 100),
+        resultados,
+        estado_general: totalOk === totalTests ? '🟢 Todo funciona' : totalOk >= totalTests * 0.7 ? '🟡 Funcionando con advertencias' : '🔴 Problemas críticos detectados'
       };
     }
 

@@ -1,285 +1,283 @@
 import { useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { ArrowLeft, Users, Scissors, CalendarCheck, CheckCircle, XCircle, CreditCard, Link, Copy, Check } from 'lucide-react';
+import {
+  ArrowLeft, Building2, Users, Scissors, Calendar,
+  CreditCard, Link, CheckCircle2, XCircle, AlertTriangle,
+  Clock, Phone, Mail, MapPin, ExternalLink
+} from 'lucide-react';
 import api from '../../lib/api';
 
-function formatCOP(v) {
-  return new Intl.NumberFormat('es-CO', { style: 'currency', currency: 'COP', maximumFractionDigits: 0 }).format(v ?? 0);
-}
-
-function formatTime(iso) {
-  return new Date(iso).toLocaleString('es-CO', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit', hour12: false });
-}
-
-const STATUS_COLOR = {
-  pending:   'text-yellow-400',
-  confirmed: 'text-blue-400',
-  completed: 'text-emerald-400',
-  cancelled: 'text-slate-500',
-};
-const STATUS_LABEL = { pending: 'Pendiente', confirmed: 'Confirmada', completed: 'Completada', cancelled: 'Cancelada' };
-
 const STATUS_CONFIG = {
-  active:    { label: 'Activo',     color: 'text-emerald-400 bg-emerald-500/10 border-emerald-500/20' },
-  trial:     { label: 'Trial',      color: 'text-yellow-400 bg-yellow-500/10 border-yellow-500/20' },
-  suspended: { label: 'Suspendido', color: 'text-red-400 bg-red-500/10 border-red-500/20' },
+  trial: { label: 'Período de prueba', color: 'text-yellow-400 bg-yellow-500/10 border-yellow-500/20', icon: Clock },
+  active: { label: 'Activo', color: 'text-emerald-400 bg-emerald-500/10 border-emerald-500/20', icon: CheckCircle2 },
+  suspended: { label: 'Suspendido', color: 'text-red-400 bg-red-500/10 border-red-500/20', icon: XCircle },
+  expired: { label: 'Vencido', color: 'text-red-400 bg-red-500/10 border-red-500/20', icon: AlertTriangle },
 };
+
+const PLAN_LABELS = { lite: 'Lite', estandar: 'Estándar', pro: 'Pro' };
+const PLAN_COLORS = {
+  lite: 'text-slate-300',
+  estandar: 'text-violet-400',
+  pro: 'text-yellow-400'
+};
+
+function formatCOP(amount) {
+  return new Intl.NumberFormat('es-CO', { style: 'currency', currency: 'COP', minimumFractionDigits: 0 }).format(amount);
+}
 
 export default function BusinessDetail() {
   const { id } = useParams();
   const navigate = useNavigate();
-  const qc = useQueryClient();
-  const [selectedPlan, setSelectedPlan] = useState(null);
-  const [paymentLinkModal, setPaymentLinkModal] = useState(false);
-  const [paymentLinkPlan, setPaymentLinkPlan] = useState('estandar');
-  const [paymentLinkUrl, setPaymentLinkUrl] = useState('');
-  const [paymentLinkLoading, setPaymentLinkLoading] = useState(false);
-  const [copied, setCopied] = useState(false);
-
-  const generatePaymentLink = async () => {
-    setPaymentLinkLoading(true);
-    setPaymentLinkUrl('');
-    try {
-      const res = await api.post(`/api/admin/businesses/${id}/payment-link`, { plan: paymentLinkPlan });
-      if (res.data.success) setPaymentLinkUrl(res.data.data.checkoutUrl);
-    } catch (err) {
-      console.error('Error generando link:', err);
-    } finally {
-      setPaymentLinkLoading(false);
-    }
-  };
-
-  const copyLink = () => {
-    navigator.clipboard.writeText(paymentLinkUrl);
-    setCopied(true);
-    setTimeout(() => setCopied(false), 2000);
-  };
+  const queryClient = useQueryClient();
+  const [selectedPlan, setSelectedPlan] = useState('');
+  const [paymentModal, setPaymentModal] = useState(false);
+  const [paymentLink, setPaymentLink] = useState('');
 
   const { data, isLoading } = useQuery({
     queryKey: ['admin-business', id],
-    queryFn: () => api.get(`/api/admin/businesses/${id}`).then((r) => r.data.data),
-    enabled: !!id,
+    queryFn: () => api.get(`/api/admin/businesses/${id}`).then(r => r.data.data),
+    onSuccess: (d) => setSelectedPlan(d?.plan || 'estandar')
   });
 
-  const updateMutation = useMutation({
-    mutationFn: (status) => api.patch(`/api/admin/businesses/${id}`, { status }),
-    onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ['admin-business', id] });
-      qc.invalidateQueries({ queryKey: ['admin-businesses'] });
-    },
+  const statusMutation = useMutation({
+    mutationFn: (status) => api.patch(`/api/admin/businesses/${id}/status`, { status }),
+    onSuccess: () => queryClient.invalidateQueries(['admin-business', id]),
   });
 
-  const changePlanMutation = useMutation({
+  const planMutation = useMutation({
     mutationFn: (plan) => api.patch(`/api/admin/businesses/${id}/plan`, { plan }),
-    onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ['admin-business', id] });
-      qc.invalidateQueries({ queryKey: ['admin-businesses'] });
-      setSelectedPlan(null);
-    },
+    onSuccess: () => queryClient.invalidateQueries(['admin-business', id]),
   });
 
-  if (isLoading) {
-    return (
-      <div className="p-4 sm:p-6 md:p-8 space-y-4">
-        <div className="h-8 w-48 bg-slate-800 rounded-lg animate-pulse" />
-        <div className="h-32 bg-slate-900 border border-slate-800 rounded-xl animate-pulse" />
-        <div className="h-64 bg-slate-900 border border-slate-800 rounded-xl animate-pulse" />
-      </div>
-    );
-  }
+  const generateLink = async () => {
+    try {
+      const res = await api.post(`/api/admin/businesses/${id}/payment-link`, { plan: selectedPlan });
+      setPaymentLink(res.data.data.checkoutUrl);
+      setPaymentModal(true);
+    } catch(e) {
+      console.error(e);
+    }
+  };
 
-  if (!data) return null;
+  if (isLoading) return (
+    <div className="p-6 space-y-4">
+      {[1,2,3].map(i => <div key={i} className="h-32 bg-[#131929] rounded-2xl animate-pulse" />)}
+    </div>
+  );
 
-  const { stats, recent_appointments: appointments, ...biz } = data;
-  const statusCfg = STATUS_CONFIG[biz.status] || STATUS_CONFIG.trial;
+  if (!data) return (
+    <div className="p-6 text-center text-slate-400">Negocio no encontrado</div>
+  );
+
+  const StatusIcon = STATUS_CONFIG[data.status]?.icon || Clock;
+  const isActive = data.status === 'active';
 
   return (
-    <div className="p-4 sm:p-6 md:p-8">
+    <div className="p-6 max-w-5xl mx-auto">
       {/* Header */}
-      <div className="flex flex-col sm:flex-row sm:items-center gap-3 mb-6 sm:mb-8">
-        <button onClick={() => navigate('/admin/negocios')}
-          className="text-slate-400 hover:text-white p-1.5 rounded-lg hover:bg-slate-800 transition">
-          <ArrowLeft size={18} />
-        </button>
-        <div className="flex-1">
-          <div className="flex items-center gap-3">
-            <h1 className="text-white text-2xl font-bold">{biz.name}</h1>
-            <span className={`text-xs font-medium border px-2.5 py-0.5 rounded-full ${statusCfg.color}`}>
-              {statusCfg.label}
-            </span>
+      <div className="flex items-start justify-between mb-6">
+        <div className="flex items-center gap-4">
+          <button
+            onClick={() => navigate('/admin/negocios')}
+            className="w-9 h-9 rounded-xl bg-white/5 hover:bg-white/10 flex items-center justify-center text-slate-400 hover:text-white transition-all"
+          >
+            <ArrowLeft size={18} />
+          </button>
+          <div>
+            <div className="flex items-center gap-3">
+              <h1 className="text-2xl font-bold text-white">{data.name}</h1>
+              <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium border ${STATUS_CONFIG[data.status]?.color}`}>
+                <StatusIcon size={11} />
+                {STATUS_CONFIG[data.status]?.label}
+              </span>
+            </div>
+            <p className="text-slate-500 text-sm mt-0.5">{data.owner_email}</p>
           </div>
-          <p className="text-slate-400 text-sm mt-0.5">{biz.owner_email}</p>
         </div>
         <button
-          onClick={() => updateMutation.mutate(biz.status === 'suspended' ? 'active' : 'suspended')}
-          disabled={updateMutation.isPending}
-          className={`flex items-center gap-2 text-sm font-medium px-4 py-2 rounded-lg transition ${
-            biz.status === 'suspended'
-              ? 'bg-emerald-600/20 text-emerald-400 hover:bg-emerald-600/30 border border-emerald-500/30'
-              : 'bg-red-600/20 text-red-400 hover:bg-red-600/30 border border-red-500/30'
+          onClick={() => statusMutation.mutate(isActive ? 'suspended' : 'active')}
+          disabled={statusMutation.isPending}
+          className={`px-4 py-2 rounded-xl text-sm font-medium transition-all border ${
+            isActive
+              ? 'bg-red-500/10 border-red-500/20 text-red-400 hover:bg-red-500/20'
+              : 'bg-emerald-500/10 border-emerald-500/20 text-emerald-400 hover:bg-emerald-500/20'
           }`}
         >
-          {biz.status === 'suspended' ? <CheckCircle size={15} /> : <XCircle size={15} />}
-          {biz.status === 'suspended' ? 'Activar negocio' : 'Suspender negocio'}
+          {isActive ? 'Suspender' : 'Activar'}
         </button>
       </div>
 
-      {/* Info + Stats */}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 mb-6">
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         {/* Info */}
-        <div className="lg:col-span-1 bg-slate-900 border border-slate-800 rounded-xl p-5 space-y-3">
-          <h2 className="text-white font-semibold text-sm mb-2">Información</h2>
-          {[
-            ['Tipo', biz.business_type],
-            ['Teléfono', biz.phone || '—'],
-            ['Dirección', biz.address || '—'],
-            ['Registro', new Date(biz.created_at).toLocaleDateString('es-CO')],
-          ].map(([label, value]) => (
-            <div key={label} className="flex justify-between text-sm">
-              <span className="text-slate-500">{label}</span>
-              <span className="text-slate-300">{value}</span>
-            </div>
-          ))}
-        </div>
-
-        {/* Stats */}
-        {[
-          { label: 'Clientes', value: stats?.clients, icon: Users, color: 'text-violet-400 bg-violet-500/10' },
-          { label: 'Servicios activos', value: stats?.services, icon: Scissors, color: 'text-blue-400 bg-blue-500/10' },
-          { label: 'Total citas', value: stats?.appointments, icon: CalendarCheck, color: 'text-emerald-400 bg-emerald-500/10' },
-        ].map(({ label, value, icon: Icon, color }) => (
-          <div key={label} className="bg-slate-900 border border-slate-800 rounded-xl p-5 flex items-center gap-4">
-            <div className={`p-3 rounded-xl ${color}`}>
-              <Icon size={22} className={color.split(' ')[0]} />
-            </div>
-            <div>
-              <p className="text-white text-2xl font-bold">{value ?? 0}</p>
-              <p className="text-slate-500 text-sm">{label}</p>
+        <div className="lg:col-span-2 space-y-4">
+          {/* Datos del negocio */}
+          <div className="bg-[#131929] border border-white/10 rounded-2xl p-5">
+            <h2 className="text-white font-semibold mb-4">Información</h2>
+            <div className="grid grid-cols-2 gap-4">
+              {[
+                { label: 'Tipo', value: data.business_type, icon: Building2 },
+                { label: 'Teléfono', value: data.phone || '—', icon: Phone },
+                { label: 'Email', value: data.owner_email, icon: Mail },
+                { label: 'Dirección', value: data.address || '—', icon: MapPin },
+              ].map(({ label, value, icon: Icon }) => (
+                <div key={label}>
+                  <div className="flex items-center gap-1.5 mb-1">
+                    <Icon size={13} className="text-slate-500" />
+                    <span className="text-slate-500 text-xs">{label}</span>
+                  </div>
+                  <p className="text-slate-200 text-sm">{value}</p>
+                </div>
+              ))}
             </div>
           </div>
-        ))}
-      </div>
 
-      {/* Plan y suscripción */}
-      <div className="bg-slate-900 border border-slate-800 rounded-xl p-5 mb-6">
-        <div className="flex items-center gap-2 mb-4">
-          <CreditCard size={18} className="text-violet-400" />
-          <h2 className="text-white font-semibold">Plan y suscripción</h2>
-        </div>
-        <div className="flex items-center gap-4">
-          <div>
-            <p className="text-slate-500 text-sm mb-1">Plan actual</p>
-            <p className="text-white font-semibold text-lg capitalize">{data?.plan || 'estandar'}</p>
+          {/* Stats */}
+          <div className="grid grid-cols-3 gap-3">
+            {[
+              { label: 'Clientes', value: data.clients_count || 0, icon: Users, color: 'text-blue-400' },
+              { label: 'Servicios', value: data.services_count || 0, icon: Scissors, color: 'text-violet-400' },
+              { label: 'Total citas', value: data.appointments_count || 0, icon: Calendar, color: 'text-emerald-400' },
+            ].map(({ label, value, icon: Icon, color }) => (
+              <div key={label} className="bg-[#131929] border border-white/10 rounded-xl p-4 text-center">
+                <Icon size={20} className={`${color} mx-auto mb-2`} />
+                <p className="text-2xl font-bold text-white">{value}</p>
+                <p className="text-slate-500 text-xs mt-0.5">{label}</p>
+              </div>
+            ))}
           </div>
-          <div className="flex-1" />
-          <div className="flex items-center gap-2">
-            <select
-              value={selectedPlan ?? data?.plan ?? 'estandar'}
-              onChange={(e) => setSelectedPlan(e.target.value)}
-              className="bg-slate-800 border border-slate-700 text-white rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-violet-500"
-            >
-              <option value="lite">Lite</option>
-              <option value="estandar">Estándar</option>
-              <option value="pro">Pro</option>
-            </select>
+
+          {/* Citas recientes */}
+          <div className="bg-[#131929] border border-white/10 rounded-2xl p-5">
+            <h2 className="text-white font-semibold mb-4">Citas recientes</h2>
+            {!data.recent_appointments?.length ? (
+              <p className="text-slate-500 text-sm text-center py-6">Sin citas recientes</p>
+            ) : (
+              <div className="space-y-2">
+                {data.recent_appointments.map((a, i) => (
+                  <div key={i} className="flex items-center justify-between py-2 border-b border-white/5 last:border-0">
+                    <div>
+                      <p className="text-slate-200 text-sm">{a.clients?.name || 'Cliente'}</p>
+                      <p className="text-slate-500 text-xs">{a.services?.name}</p>
+                    </div>
+                    <div className="text-right">
+                      <p className="text-slate-300 text-sm">{formatCOP(a.price || 0)}</p>
+                      <span className={`text-xs font-medium ${
+                        a.status === 'completed' ? 'text-emerald-400' :
+                        a.status === 'cancelled' ? 'text-red-400' : 'text-violet-400'
+                      }`}>{a.status}</span>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        </div>
+
+        {/* Plan */}
+        <div className="space-y-4">
+          <div className="bg-[#131929] border border-white/10 rounded-2xl p-5">
+            <h2 className="text-white font-semibold mb-4">Plan y suscripción</h2>
+
+            <div className="mb-4">
+              <p className="text-slate-500 text-xs mb-1">Plan actual</p>
+              <p className={`text-xl font-bold ${PLAN_COLORS[data.plan] || 'text-white'}`}>
+                {PLAN_LABELS[data.plan] || data.plan}
+              </p>
+              {data.plan_expires_at && (
+                <p className="text-slate-500 text-xs mt-1">
+                  Vence: {new Date(data.plan_expires_at).toLocaleDateString('es-CO')}
+                </p>
+              )}
+              {data.trial_ends_at && data.status === 'trial' && (
+                <p className="text-yellow-400 text-xs mt-1">
+                  Trial hasta: {new Date(data.trial_ends_at).toLocaleDateString('es-CO')}
+                </p>
+              )}
+            </div>
+
+            <div className="space-y-2 mb-4">
+              <p className="text-slate-500 text-xs mb-2">Cambiar plan</p>
+              {['lite', 'estandar', 'pro'].map(p => (
+                <button
+                  key={p}
+                  onClick={() => setSelectedPlan(p)}
+                  className={`w-full px-3 py-2 rounded-xl text-sm font-medium transition-all border text-left ${
+                    selectedPlan === p
+                      ? 'bg-violet-600/20 border-violet-500/50 text-violet-300'
+                      : 'bg-white/5 border-white/10 text-slate-400 hover:border-white/20'
+                  }`}
+                >
+                  {PLAN_LABELS[p]}
+                  {p === data.plan && <span className="ml-2 text-xs opacity-60">(actual)</span>}
+                </button>
+              ))}
+            </div>
+
             <button
-              onClick={() => selectedPlan && changePlanMutation.mutate(selectedPlan)}
-              disabled={!selectedPlan || changePlanMutation.isPending || selectedPlan === data?.plan}
-              className="bg-violet-600 hover:bg-violet-500 disabled:bg-slate-800 disabled:text-slate-500 text-white px-4 py-2 rounded-lg text-sm font-medium transition"
+              onClick={() => planMutation.mutate(selectedPlan)}
+              disabled={planMutation.isPending || selectedPlan === data.plan}
+              className="w-full py-2 rounded-xl bg-violet-600 hover:bg-violet-500 disabled:opacity-40 text-white text-sm font-medium transition-all mb-2"
             >
-              Cambiar plan
+              Aplicar cambio
             </button>
+
             <button
-              onClick={() => { setPaymentLinkModal(true); setPaymentLinkUrl(''); }}
-              className="flex items-center gap-1.5 bg-emerald-600/20 hover:bg-emerald-600/30 text-emerald-400 border border-emerald-500/30 px-4 py-2 rounded-lg text-sm font-medium transition"
+              onClick={generateLink}
+              className="w-full py-2 rounded-xl bg-white/5 hover:bg-white/10 border border-white/10 text-slate-300 text-sm font-medium transition-all flex items-center justify-center gap-2"
             >
-              <Link size={14} /> Generar link de pago
+              <Link size={14} />
+              Generar link de pago
             </button>
+          </div>
+
+          {/* Registro */}
+          <div className="bg-[#131929] border border-white/10 rounded-2xl p-5">
+            <h2 className="text-white font-semibold mb-3">Registro</h2>
+            <p className="text-slate-400 text-sm">
+              {new Date(data.created_at).toLocaleDateString('es-CO', {
+                year: 'numeric', month: 'long', day: 'numeric'
+              })}
+            </p>
           </div>
         </div>
       </div>
 
       {/* Modal link de pago */}
-      {paymentLinkModal && (
+      {paymentModal && (
         <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50 px-4">
-          <div className="bg-[#131929] border border-slate-800 rounded-2xl w-full max-w-md p-6 shadow-xl">
-            <h3 className="text-white font-semibold text-lg mb-4">Generar link de pago</h3>
-            <div className="flex gap-2 mb-4">
-              {['lite', 'estandar', 'pro'].map((p) => (
-                <button
-                  key={p}
-                  onClick={() => { setPaymentLinkPlan(p); setPaymentLinkUrl(''); }}
-                  className={`flex-1 py-2 rounded-lg text-sm font-medium transition border ${paymentLinkPlan === p ? 'bg-violet-600 border-violet-500 text-white' : 'bg-slate-800 border-slate-700 text-slate-400'}`}
-                >
-                  {p === 'lite' ? 'Lite' : p === 'estandar' ? 'Estándar' : 'Pro'}
-                </button>
-              ))}
+          <div className="bg-[#131929] border border-white/10 rounded-2xl p-6 w-full max-w-md">
+            <h3 className="text-white font-semibold mb-3">Link de pago generado</h3>
+            <div className="bg-black/30 rounded-xl p-3 mb-4">
+              <p className="text-slate-300 text-xs break-all">{paymentLink}</p>
             </div>
-            <button
-              onClick={generatePaymentLink}
-              disabled={paymentLinkLoading}
-              className="w-full bg-emerald-600 hover:bg-emerald-500 disabled:opacity-60 text-white py-2.5 rounded-lg text-sm font-bold transition mb-3"
-            >
-              {paymentLinkLoading ? 'Generando...' : 'Generar link'}
-            </button>
-            {paymentLinkUrl && (
-              <div className="bg-slate-800/50 border border-slate-700 rounded-xl p-3 mb-3">
-                <p className="text-xs text-slate-400 mb-2">Link de pago generado:</p>
-                <p className="text-xs text-slate-300 break-all font-mono mb-3">{paymentLinkUrl}</p>
-                <button
-                  onClick={copyLink}
-                  className="w-full flex items-center justify-center gap-2 bg-violet-600 hover:bg-violet-500 text-white py-2 rounded-lg text-xs font-medium transition"
-                >
-                  {copied ? <Check size={14} /> : <Copy size={14} />}
-                  {copied ? '¡Copiado!' : 'Copiar link'}
-                </button>
-              </div>
-            )}
-            <button
-              onClick={() => setPaymentLinkModal(false)}
-              className="w-full bg-slate-800 hover:bg-slate-700 text-slate-300 py-2.5 rounded-lg text-sm font-medium transition"
-            >
-              Cerrar
-            </button>
+            <div className="flex gap-2">
+              <button
+                onClick={() => { navigator.clipboard.writeText(paymentLink); }}
+                className="flex-1 py-2 rounded-xl bg-violet-600 hover:bg-violet-500 text-white text-sm font-medium transition-all"
+              >
+                Copiar link
+              </button>
+
+              <a
+                href={paymentLink}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="flex items-center justify-center gap-1 px-4 py-2 rounded-xl bg-white/5 hover:bg-white/10 border border-white/10 text-slate-300 text-sm transition-all"
+              >
+                <ExternalLink size={14} />
+                Abrir
+              </a>
+              <button
+                onClick={() => setPaymentModal(false)}
+                className="px-4 py-2 rounded-xl bg-white/5 text-slate-400 text-sm transition-all"
+              >
+                Cerrar
+              </button>
+            </div>
           </div>
         </div>
       )}
-
-      {/* Recent appointments */}
-      <div className="bg-slate-900 border border-slate-800 rounded-xl overflow-hidden">
-        <div className="px-5 py-4 border-b border-slate-800">
-          <h2 className="text-white font-semibold">Citas recientes</h2>
-        </div>
-        {!appointments?.length ? (
-          <p className="text-slate-500 text-sm p-5">Sin citas registradas</p>
-        ) : (
-          <table className="w-full text-sm">
-            <thead>
-              <tr className="border-b border-slate-800">
-                {['Fecha', 'Cliente', 'Servicio', 'Precio', 'Estado'].map((h) => (
-                  <th key={h} className="text-left text-slate-500 font-medium px-4 py-3">{h}</th>
-                ))}
-              </tr>
-            </thead>
-            <tbody>
-              {appointments.map((a) => (
-                <tr key={a.id} className="border-b border-slate-800/50 hover:bg-slate-800/30 transition">
-                  <td className="px-4 py-3 text-slate-300">{formatTime(a.scheduled_at)}</td>
-                  <td className="px-4 py-3 text-slate-300">{a.clients?.name || '—'}</td>
-                  <td className="px-4 py-3 text-slate-300">{a.services?.name || '—'}</td>
-                  <td className="px-4 py-3 text-slate-400">{formatCOP(a.price)}</td>
-                  <td className="px-4 py-3">
-                    <span className={`text-xs font-medium ${STATUS_COLOR[a.status]}`}>
-                      {STATUS_LABEL[a.status]}
-                    </span>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        )}
-      </div>
     </div>
   );
 }

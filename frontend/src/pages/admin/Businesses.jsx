@@ -1,173 +1,140 @@
+import { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useNavigate } from 'react-router-dom';
-import { Building2, ChevronRight, CheckCircle, XCircle, Clock } from 'lucide-react';
+import { Building2, ChevronRight, Search, Filter, CheckCircle2, AlertTriangle, Clock, XCircle } from 'lucide-react';
 import api from '../../lib/api';
 
-const STATUS_CONFIG = {
-  active:    { label: 'Activo',     color: 'text-emerald-400 bg-emerald-500/10 border-emerald-500/20' },
-  trial:     { label: 'Trial',      color: 'text-yellow-400 bg-yellow-500/10 border-yellow-500/20' },
-  suspended: { label: 'Suspendido', color: 'text-red-400 bg-red-500/10 border-red-500/20' },
+const BUSINESS_TYPE_LABELS = {
+  barberia: 'Barbería', spa: 'Spa', veterinaria: 'Veterinaria',
+  salud: 'Salud', tienda: 'Tienda', gym: 'Gym', dentista: 'Dentista'
 };
 
-const TYPE_LABEL = {
-  barberia:   'Barbería',
-  spa:        'Spa',
-  veterinaria:'Veterinaria',
-  dentista:   'Dentista',
-  otro:       'Otro',
+const STATUS_CONFIG = {
+  trial: { label: 'Período de prueba', color: 'bg-yellow-500/10 text-yellow-400 border-yellow-500/20', icon: Clock },
+  active: { label: 'Activo', color: 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20', icon: CheckCircle2 },
+  suspended: { label: 'Suspendido', color: 'bg-red-500/10 text-red-400 border-red-500/20', icon: XCircle },
+  expired: { label: 'Vencido', color: 'bg-red-500/10 text-red-400 border-red-500/20', icon: AlertTriangle },
 };
 
 function StatusBadge({ status }) {
   const cfg = STATUS_CONFIG[status] || STATUS_CONFIG.trial;
+  const Icon = cfg.icon;
   return (
-    <span className={`text-xs font-medium border px-2.5 py-0.5 rounded-full ${cfg.color}`}>
+    <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium border ${cfg.color}`}>
+      <Icon size={11} />
       {cfg.label}
     </span>
   );
 }
 
 export default function Businesses() {
-  const qc = useQueryClient();
   const navigate = useNavigate();
+  const queryClient = useQueryClient();
+  const [search, setSearch] = useState('');
+  const [filterStatus, setFilterStatus] = useState('all');
 
-  const { data: businesses = [], isLoading } = useQuery({
+  const { data, isLoading } = useQuery({
     queryKey: ['admin-businesses'],
-    queryFn: () => api.get('/api/admin/businesses').then((r) => r.data.data),
+    queryFn: () => api.get('/api/admin/businesses').then(r => r.data.data),
   });
 
-  const updateMutation = useMutation({
-    mutationFn: ({ id, status }) => api.patch(`/api/admin/businesses/${id}`, { status }),
-    onSuccess: () => qc.invalidateQueries({ queryKey: ['admin-businesses'] }),
+  const toggleMutation = useMutation({
+    mutationFn: ({ id, status }) => api.patch(`/api/admin/businesses/${id}/status`, { status }),
+    onSuccess: () => queryClient.invalidateQueries(['admin-businesses']),
   });
 
-  const toggleStatus = (biz) => {
-    const next = biz.status === 'suspended' ? 'active' : 'suspended';
-    updateMutation.mutate({ id: biz.id, status: next });
-  };
+  const businesses = (data || []).filter(b => {
+    const matchSearch = !search ||
+      b.name?.toLowerCase().includes(search.toLowerCase()) ||
+      b.owner_email?.toLowerCase().includes(search.toLowerCase());
+    const matchStatus = filterStatus === 'all' || b.status === filterStatus;
+    return matchSearch && matchStatus;
+  });
 
   return (
-    <div className="p-4 sm:p-6 md:p-8">
-      <div className="mb-6 sm:mb-8">
-        <h1 className="text-white text-xl sm:text-2xl font-bold">Negocios</h1>
-        <p className="text-slate-400 text-xs sm:text-sm mt-1">{businesses.length} negocios registrados</p>
+    <div className="p-6 max-w-7xl mx-auto">
+      {/* Header */}
+      <div className="mb-6">
+        <h1 className="text-2xl font-bold text-white">Negocios</h1>
+        <p className="text-slate-400 text-sm mt-1">{data?.length || 0} negocios registrados</p>
       </div>
 
+      {/* Filtros */}
+      <div className="flex flex-col sm:flex-row gap-3 mb-6">
+        <div className="relative flex-1">
+          <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-500" />
+          <input
+            type="text"
+            placeholder="Buscar por nombre o email..."
+            value={search}
+            onChange={e => setSearch(e.target.value)}
+            className="w-full pl-9 pr-4 py-2.5 bg-[#131929] border border-white/10 rounded-xl text-white text-sm placeholder-slate-500 focus:outline-none focus:border-violet-500/50"
+          />
+        </div>
+        <div className="flex gap-2">
+          {['all', 'trial', 'active', 'suspended'].map(s => (
+            <button
+              key={s}
+              onClick={() => setFilterStatus(s)}
+              className={`px-3 py-2 rounded-xl text-xs font-medium transition-all border ${
+                filterStatus === s
+                  ? 'bg-violet-600 text-white border-violet-500'
+                  : 'bg-[#131929] text-slate-400 border-white/10 hover:border-white/20'
+              }`}
+            >
+              {s === 'all' ? 'Todos' : STATUS_CONFIG[s]?.label}
+            </button>
+          ))}
+        </div>
+      </div>
+
+      {/* Lista */}
       {isLoading ? (
         <div className="space-y-3">
-          {Array.from({ length: 5 }).map((_, i) => (
-            <div key={i} className="h-16 bg-slate-900 border border-slate-800 rounded-xl animate-pulse" />
+          {[1,2,3].map(i => (
+            <div key={i} className="h-20 bg-[#131929] rounded-2xl animate-pulse" />
           ))}
         </div>
       ) : businesses.length === 0 ? (
-        <div className="text-center py-20 text-slate-500">
-          <Building2 size={40} className="mx-auto mb-3 opacity-30" />
-          <p>No hay negocios registrados</p>
+        <div className="flex flex-col items-center justify-center py-20 text-center">
+          <Building2 size={40} className="text-slate-600 mb-3" />
+          <p className="text-slate-400">No hay negocios que coincidan</p>
         </div>
       ) : (
-        <>
-          {/* Desktop table */}
-          <div className="hidden md:block bg-slate-900 border border-slate-800 rounded-xl overflow-hidden">
-            <table className="w-full text-sm">
-              <thead>
-                <tr className="border-b border-slate-800">
-                  {['Negocio', 'Tipo', 'Email', 'Registro', 'Estado', 'Acciones'].map((h) => (
-                    <th key={h} className="text-left text-slate-500 font-medium px-4 py-3">{h}</th>
-                  ))}
-                </tr>
-              </thead>
-              <tbody>
-                {businesses.map((biz) => (
-                  <tr key={biz.id} className="border-b border-slate-800/50 hover:bg-slate-800/30 transition">
-                    <td className="px-4 py-3">
-                      <p className="text-white font-medium">{biz.name}</p>
-                      {biz.phone && <p className="text-slate-500 text-xs">{biz.phone}</p>}
-                    </td>
-                    <td className="px-4 py-3 text-slate-400">{TYPE_LABEL[biz.business_type] || biz.business_type}</td>
-                    <td className="px-4 py-3 text-slate-400">{biz.owner_email}</td>
-                    <td className="px-4 py-3 text-slate-500">
-                      {new Date(biz.created_at).toLocaleDateString('es-CO')}
-                    </td>
-                    <td className="px-4 py-3">
-                      <StatusBadge status={biz.status} />
-                    </td>
-                    <td className="px-4 py-3">
-                      <div className="flex items-center gap-1">
-                        <button
-                          onClick={() => toggleStatus(biz)}
-                          disabled={updateMutation.isPending}
-                          title={biz.status === 'suspended' ? 'Activar' : 'Suspender'}
-                          className={`p-1.5 rounded-lg transition ${
-                            biz.status === 'suspended'
-                              ? 'text-slate-500 hover:text-emerald-400 hover:bg-emerald-500/10'
-                              : 'text-slate-500 hover:text-red-400 hover:bg-red-500/10'
-                          }`}
-                        >
-                          {biz.status === 'suspended' ? <CheckCircle size={15} /> : <XCircle size={15} />}
-                        </button>
-                        <button
-                          onClick={() => navigate(`/admin/negocios/${biz.id}`)}
-                          className="p-1.5 text-slate-500 hover:text-white rounded-lg hover:bg-slate-700/50 transition"
-                          title="Ver detalle"
-                        >
-                          <ChevronRight size={15} />
-                        </button>
-                      </div>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-
-          {/* Mobile cards */}
-          <div className="md:hidden space-y-3">
-            {businesses.map((biz) => (
-              <div key={biz.id} className="bg-slate-900 border border-slate-800 rounded-xl p-4">
-                <div className="flex items-start justify-between mb-3">
-                  <div className="flex-1 min-w-0">
-                    <p className="text-white font-medium text-sm truncate">{biz.name}</p>
-                    {biz.phone && <p className="text-slate-500 text-xs mt-0.5">{biz.phone}</p>}
+        <div className="space-y-3">
+          {businesses.map(b => (
+            <div
+              key={b.id}
+              onClick={() => navigate(`/admin/negocios/${b.id}`)}
+              className="bg-[#131929] border border-white/10 hover:border-violet-500/30 rounded-2xl p-4 cursor-pointer transition-all group"
+            >
+              <div className="flex items-center gap-4">
+                <div className="w-10 h-10 rounded-xl bg-violet-600/10 border border-violet-500/20 flex items-center justify-center shrink-0">
+                  <Building2 size={18} className="text-violet-400" />
+                </div>
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-center gap-2 mb-1">
+                    <p className="text-white font-semibold truncate">{b.name}</p>
+                    <span className="text-slate-600 text-xs hidden sm:block">
+                      {BUSINESS_TYPE_LABELS[b.business_type] || b.business_type}
+                    </span>
                   </div>
-                  <StatusBadge status={biz.status} />
+                  <div className="flex items-center gap-3">
+                    <p className="text-slate-500 text-xs truncate">{b.owner_email}</p>
+                    {b.phone && <p className="text-slate-600 text-xs hidden md:block">{b.phone}</p>}
+                  </div>
                 </div>
-                <div className="space-y-2 mb-3 text-xs">
-                  <p className="text-slate-400"><span className="text-slate-500">Tipo:</span> {TYPE_LABEL[biz.business_type] || biz.business_type}</p>
-                  <p className="text-slate-400"><span className="text-slate-500">Email:</span> {biz.owner_email}</p>
-                  <p className="text-slate-400"><span className="text-slate-500">Registro:</span> {new Date(biz.created_at).toLocaleDateString('es-CO')}</p>
-                </div>
-                <div className="flex items-center gap-2">
-                  <button
-                    onClick={() => toggleStatus(biz)}
-                    disabled={updateMutation.isPending}
-                    className={`flex-1 flex items-center justify-center gap-2 py-2 px-3 rounded-lg text-xs font-medium transition ${
-                      biz.status === 'suspended'
-                        ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20'
-                        : 'bg-red-500/10 text-red-400 border border-red-500/20'
-                    }`}
-                  >
-                    {biz.status === 'suspended' ? (
-                      <>
-                        <CheckCircle size={14} />
-                        Activar
-                      </>
-                    ) : (
-                      <>
-                        <XCircle size={14} />
-                        Suspender
-                      </>
-                    )}
-                  </button>
-                  <button
-                    onClick={() => navigate(`/admin/negocios/${biz.id}`)}
-                    className="py-2 px-3 rounded-lg text-slate-500 hover:text-white hover:bg-slate-700/50 transition border border-slate-700 text-xs font-medium"
-                  >
-                    Detalle
-                  </button>
+                <div className="flex items-center gap-3 shrink-0">
+                  <StatusBadge status={b.status} />
+                  <span className="text-xs text-slate-600 hidden md:block">
+                    {new Date(b.created_at).toLocaleDateString('es-CO')}
+                  </span>
+                  <ChevronRight size={16} className="text-slate-600 group-hover:text-violet-400 transition-colors" />
                 </div>
               </div>
-            ))}
-          </div>
-        </>
+            </div>
+          ))}
+        </div>
       )}
     </div>
   );

@@ -1,11 +1,12 @@
-import { useState } from 'react';
+import { useState, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useMutation } from '@tanstack/react-query';
-import { ChevronLeft, ChevronRight, X, Zap, Clock, MessageSquare, CheckCircle2 } from 'lucide-react';
+import { ChevronLeft, ChevronRight, X, Zap, Clock, MessageSquare, CheckCircle2, Check } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
 import api from '../../lib/api';
 
 const steps = ['Bienvenida', 'Servicios', 'Horarios', 'Asistente IA', 'Listo'];
+const dayLabels = { lunes: 'Lun', martes: 'Mar', miercoles: 'Mié', jueves: 'Jue', viernes: 'Vie', sabado: 'Sáb', domingo: 'Dom' };
 
 export default function Onboarding() {
   const navigate = useNavigate();
@@ -19,6 +20,8 @@ export default function Onboarding() {
     open: '09:00',
     close: '18:00'
   });
+  const openTimeRef = useRef(null);
+  const closeTimeRef = useRef(null);
 
   const skipMutation = useMutation({
     mutationFn: () => api.patch('/api/businesses/onboarding', { action: 'skip' }),
@@ -79,6 +82,30 @@ export default function Onboarding() {
     });
   };
 
+  const handleTimeClick = (inputRef) => {
+    if (inputRef.current) {
+      inputRef.current.focus();
+      if (inputRef.current.showPicker) {
+        try {
+          inputRef.current.showPicker();
+        } catch (e) {}
+      }
+    }
+  };
+
+  const formatTime = (time) => {
+    const [hours, minutes] = time.split(':');
+    const h = parseInt(hours);
+    const period = h >= 12 ? 'p.m.' : 'a.m.';
+    const displayHour = h > 12 ? h - 12 : (h === 0 ? 12 : h);
+    return `${displayHour}:${minutes} ${period}`;
+  };
+
+  const activeDays = Object.entries(schedule.days)
+    .filter(([_, active]) => active)
+    .map(([day, _]) => dayLabels[day])
+    .join(', ');
+
   return (
     <div className="min-h-screen bg-[#0a0a0f] text-white overflow-hidden">
       {/* Progress bar */}
@@ -88,13 +115,6 @@ export default function Onboarding() {
           style={{ width: `${((step + 1) / steps.length) * 100}%` }}
         />
       </div>
-
-      {/* Error message */}
-      {error && (
-        <div className="fixed top-4 left-4 right-4 max-w-2xl mx-auto bg-red-500/20 border border-red-500/30 rounded-lg p-4 text-red-300 text-sm z-40">
-          {error}
-        </div>
-      )}
 
       {/* Header con dots de progreso */}
       <div className="pt-12 px-4 pb-8 relative z-40">
@@ -113,20 +133,29 @@ export default function Onboarding() {
             </button>
           )}
         </div>
+
+        {/* Error message - positioned below header */}
+        {error && (
+          <div className="mt-6 max-w-2xl mx-auto">
+            <div className="bg-red-500/20 border border-red-500/30 rounded-lg p-4 text-red-300 text-sm animate-fade-slide-up">
+              {error}
+            </div>
+          </div>
+        )}
       </div>
 
       {/* Main content */}
-      <div className="flex-1 flex items-center justify-center px-4 pb-20 min-h-[calc(100vh-120px)]">
+      <div className="flex-1 flex items-center justify-center px-4 pb-20 min-h-[calc(100vh-180px)]">
         <div className="w-full max-w-2xl animate-fade-slide-up">
           {/* Step 1: Bienvenida */}
           {step === 0 && (
-            <div className="text-center space-y-8">
+            <div className="text-center space-y-6">
+              <div className="w-20 h-20 bg-violet-500/10 rounded-2xl flex items-center justify-center mx-auto">
+                <Zap size={40} className="text-violet-400" />
+              </div>
               <div>
-                <div className="w-20 h-20 bg-violet-600/20 rounded-2xl flex items-center justify-center mx-auto mb-6">
-                  <Zap size={40} className="text-violet-400" />
-                </div>
-                <h2 className="text-4xl font-bold mb-4">¡Hola {business?.name}!</h2>
-                <p className="text-xl text-slate-400">Configuremos tu negocio en 5 minutos para que estés listo a usar ZITA</p>
+                <h2 className="text-4xl font-bold mb-3">¡Hola {business?.name}!</h2>
+                <p className="text-lg text-slate-400">Configuremos tu negocio en 5 minutos para que estés listo a usar ZITA</p>
               </div>
               <button
                 onClick={nextStep}
@@ -141,6 +170,9 @@ export default function Onboarding() {
           {step === 1 && (
             <div className="space-y-6">
               <div>
+                <div className="w-14 h-14 bg-violet-500/10 rounded-2xl flex items-center justify-center mb-4">
+                  <Clock size={28} className="text-violet-400" />
+                </div>
                 <h2 className="text-2xl font-bold mb-2">Tus servicios</h2>
                 <p className="text-slate-400">Agrega 1 o 2 servicios para empezar. Puedes agregar más después.</p>
               </div>
@@ -218,6 +250,9 @@ export default function Onboarding() {
           {step === 2 && (
             <div className="space-y-6">
               <div>
+                <div className="w-14 h-14 bg-violet-500/10 rounded-2xl flex items-center justify-center mb-4">
+                  <Clock size={28} className="text-violet-400" />
+                </div>
                 <h2 className="text-2xl font-bold mb-2">Horarios de atención</h2>
                 <p className="text-slate-400">¿Qué días trabajas y a qué horas?</p>
               </div>
@@ -228,13 +263,14 @@ export default function Onboarding() {
                     <button
                       key={day}
                       onClick={() => toggleDay(day)}
-                      className={`px-4 py-2 rounded-lg font-medium transition capitalize ${
+                      className={`px-4 py-3 rounded-lg font-medium transition capitalize flex items-center justify-center gap-2 ${
                         schedule.days[day]
-                          ? 'bg-violet-600 text-white'
-                          : 'bg-white/5 text-slate-400 hover:bg-white/10'
+                          ? 'bg-violet-600 text-white border border-violet-500 shadow-lg shadow-violet-500/20'
+                          : 'bg-[#131929] text-slate-400 border border-white/10 hover:border-violet-500/30'
                       }`}
                     >
-                      {day.slice(0, 3)}
+                      {dayLabels[day]}
+                      {schedule.days[day] && <Check size={16} />}
                     </button>
                   ))}
                 </div>
@@ -242,21 +278,33 @@ export default function Onboarding() {
                 <div className="border-t border-white/10 pt-4 space-y-3">
                   <div>
                     <label className="text-sm text-slate-400 block mb-2">Abre a las</label>
-                    <input
-                      type="time"
-                      value={schedule.open}
-                      onChange={(e) => setSchedule({ ...schedule, open: e.target.value })}
-                      className="w-full bg-[#0f172a] border border-white/10 rounded-lg px-4 py-2 text-white focus:outline-none focus:border-violet-500"
-                    />
+                    <div
+                      onClick={() => handleTimeClick(openTimeRef)}
+                      className="w-full bg-[#0f172a] border border-white/10 rounded-lg px-4 py-2 text-white focus-within:outline-none focus-within:border-violet-500 cursor-pointer hover:border-violet-500/30 transition"
+                    >
+                      <input
+                        ref={openTimeRef}
+                        type="time"
+                        value={schedule.open}
+                        onChange={(e) => setSchedule({ ...schedule, open: e.target.value })}
+                        className="w-full bg-transparent outline-none"
+                      />
+                    </div>
                   </div>
                   <div>
                     <label className="text-sm text-slate-400 block mb-2">Cierra a las</label>
-                    <input
-                      type="time"
-                      value={schedule.close}
-                      onChange={(e) => setSchedule({ ...schedule, close: e.target.value })}
-                      className="w-full bg-[#0f172a] border border-white/10 rounded-lg px-4 py-2 text-white focus:outline-none focus:border-violet-500"
-                    />
+                    <div
+                      onClick={() => handleTimeClick(closeTimeRef)}
+                      className="w-full bg-[#0f172a] border border-white/10 rounded-lg px-4 py-2 text-white focus-within:outline-none focus-within:border-violet-500 cursor-pointer hover:border-violet-500/30 transition"
+                    >
+                      <input
+                        ref={closeTimeRef}
+                        type="time"
+                        value={schedule.close}
+                        onChange={(e) => setSchedule({ ...schedule, close: e.target.value })}
+                        className="w-full bg-transparent outline-none"
+                      />
+                    </div>
                   </div>
                 </div>
               </div>
@@ -282,8 +330,11 @@ export default function Onboarding() {
           {step === 3 && (
             <div className="space-y-6">
               <div>
+                <div className="w-14 h-14 bg-violet-500/10 rounded-2xl flex items-center justify-center mb-4">
+                  <Zap size={28} className="text-violet-400" />
+                </div>
                 <h2 className="text-2xl font-bold mb-2">Tu Asistente IA</h2>
-                <p className="text-slate-400 mb-6">Puede hacer esto y mucho más. Simplemente escríbele desde el panel</p>
+                <p className="text-slate-400 mb-4">Puede hacer esto y mucho más. Simplemente escríbele desde el panel</p>
 
                 <div className="bg-[#1e293b] rounded-xl p-6 space-y-4 max-h-96 overflow-y-auto">
                   {/* Message 1 */}
@@ -343,20 +394,50 @@ export default function Onboarding() {
 
           {/* Step 5: Listo */}
           {step === 4 && (
-            <div className="text-center space-y-8">
+            <div className="text-center space-y-6">
               <div>
-                <div className="w-20 h-20 bg-emerald-600/20 rounded-2xl flex items-center justify-center mx-auto mb-6">
+                <div className="w-20 h-20 bg-emerald-500/10 rounded-2xl flex items-center justify-center mx-auto mb-4">
                   <CheckCircle2 size={40} className="text-emerald-400" />
                 </div>
-                <h2 className="text-4xl font-bold mb-2">¡Todo listo!</h2>
+                <h2 className="text-4xl font-bold mb-3">¡Todo listo!</h2>
                 <p className="text-lg text-slate-400">Ya configuraste tu negocio. Ahora puedes empezar a usar ZITA al máximo</p>
               </div>
+
+              {/* Summary card */}
+              {(services.length > 0 || activeDays) && (
+                <div className="bg-[#1e293b] rounded-xl p-4 space-y-3 text-left">
+                  {services.length > 0 && (
+                    <div className="flex items-center gap-3">
+                      <div className="w-8 h-8 bg-violet-500/20 rounded-lg flex items-center justify-center">
+                        <Clock size={16} className="text-violet-400" />
+                      </div>
+                      <div>
+                        <p className="text-sm text-slate-400">Servicios</p>
+                        <p className="font-semibold">{services.length} {services.length === 1 ? 'servicio' : 'servicios'}</p>
+                      </div>
+                    </div>
+                  )}
+                  {activeDays && (
+                    <div className="flex items-center gap-3">
+                      <div className="w-8 h-8 bg-violet-500/20 rounded-lg flex items-center justify-center">
+                        <Clock size={16} className="text-violet-400" />
+                      </div>
+                      <div>
+                        <p className="text-sm text-slate-400">Horarios</p>
+                        <p className="font-semibold">{formatTime(schedule.open)} - {formatTime(schedule.close)}</p>
+                        <p className="text-xs text-slate-400 mt-0.5">{activeDays}</p>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              )}
+
               <button
                 onClick={handleComplete}
                 disabled={completeMutation.isPending}
                 className="w-full py-3 bg-gradient-to-r from-violet-600 to-violet-700 hover:from-violet-700 hover:to-violet-800 disabled:opacity-50 rounded-lg font-semibold transition"
               >
-                Ir al Dashboard
+                {completeMutation.isPending ? 'Guardando...' : 'Ir al Dashboard'}
               </button>
             </div>
           )}

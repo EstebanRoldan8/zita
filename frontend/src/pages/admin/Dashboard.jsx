@@ -16,7 +16,7 @@ function KPICard({ title, value, subtitle, icon: Icon, color = 'violet', trend }
   };
 
   return (
-    <div className="bg-[#131929] border border-white/10 rounded-2xl p-5">
+    <div className="bg-[#131929] border border-white/10 rounded-2xl p-5 transition-all duration-300 hover:border-violet-500/30 hover:-translate-y-1 hover:shadow-lg hover:shadow-violet-500/10 animate-fade-slide-up">
       <div className="flex items-start justify-between mb-4">
         <div className={`w-10 h-10 rounded-xl border flex items-center justify-center ${colors[color]}`}>
           <Icon size={18} />
@@ -80,39 +80,47 @@ export default function AdminDashboard() {
 
       {/* KPIs */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
-        <KPICard
-          title="Total negocios"
-          value={total}
-          subtitle={`${trial} en período de prueba`}
-          icon={Building2}
-          color="violet"
-        />
-        <KPICard
-          title="Negocios activos"
-          value={activos}
-          subtitle="Con plan pagado"
-          icon={CheckCircle2}
-          color="emerald"
-        />
-        <KPICard
-          title="Citas hoy"
-          value={citasHoy}
-          subtitle="En toda la plataforma"
-          icon={Activity}
-          color="blue"
-        />
-        <KPICard
-          title="Suspendidos"
-          value={suspendidos}
-          subtitle="Requieren atención"
-          icon={AlertTriangle}
-          color={suspendidos > 0 ? 'red' : 'violet'}
-        />
+        <div style={{ animationDelay: '0ms' }}>
+          <KPICard
+            title="Total negocios"
+            value={total}
+            subtitle={`${trial} en período de prueba`}
+            icon={Building2}
+            color="violet"
+          />
+        </div>
+        <div style={{ animationDelay: '50ms' }}>
+          <KPICard
+            title="Negocios activos"
+            value={activos}
+            subtitle="Con plan pagado"
+            icon={CheckCircle2}
+            color="emerald"
+          />
+        </div>
+        <div style={{ animationDelay: '100ms' }}>
+          <KPICard
+            title="Citas hoy"
+            value={citasHoy}
+            subtitle="En toda la plataforma"
+            icon={Activity}
+            color="blue"
+          />
+        </div>
+        <div style={{ animationDelay: '150ms' }}>
+          <KPICard
+            title="Suspendidos"
+            value={suspendidos}
+            subtitle="Requieren atención"
+            icon={AlertTriangle}
+            color={suspendidos > 0 ? 'red' : 'violet'}
+          />
+        </div>
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         {/* Distribución por estado */}
-        <div className="lg:col-span-2 bg-[#131929] border border-white/10 rounded-2xl p-6">
+        <div className="lg:col-span-2 bg-[#131929] border border-white/10 rounded-2xl p-6 animate-fade-slide-up" style={{ animationDelay: '200ms' }}>
           <h2 className="text-white font-semibold mb-5">Distribución por estado</h2>
           <div className="space-y-4">
             {[
@@ -137,7 +145,7 @@ export default function AdminDashboard() {
         </div>
 
         {/* Fallos del asistente */}
-        <div className="bg-[#131929] border border-white/10 rounded-2xl p-6">
+        <div className="bg-[#131929] border border-white/10 rounded-2xl p-6 animate-fade-slide-up" style={{ animationDelay: '200ms' }}>
           <h2 className="text-white font-semibold mb-5">Fallos del asistente</h2>
           {fallos.length === 0 ? (
             <div className="flex flex-col items-center justify-center h-32 text-center">

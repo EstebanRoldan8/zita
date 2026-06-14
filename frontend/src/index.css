@@ -155,3 +155,17 @@
   scrollbar-width: thin;
   scrollbar-color: rgba(124,58,237,0.5) rgba(255,255,255,0.05);
 }
+
+@keyframes fadeSlideUp {
+  from { opacity: 0; transform: translateY(12px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes growBar {
+  from { height: 0%; }
+  to { height: var(--target-height); }
+}
+
+.animate-fade-slide-up {
+  animation: fadeSlideUp 0.4s ease-out forwards;
+}

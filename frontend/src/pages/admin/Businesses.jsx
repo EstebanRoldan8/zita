@@ -102,11 +102,12 @@ export default function Businesses() {
         </div>
       ) : (
         <div className="space-y-3">
-          {businesses.map(b => (
+          {businesses.map((b, idx) => (
             <div
               key={b.id}
               onClick={() => navigate(`/admin/negocios/${b.id}`)}
-              className="bg-[#131929] border border-white/10 hover:border-violet-500/30 rounded-2xl p-4 cursor-pointer transition-all group"
+              style={{ animationDelay: `${idx * 40}ms` }}
+              className="bg-[#131929] border border-white/10 hover:border-violet-500/30 rounded-2xl p-4 cursor-pointer transition-all group animate-fade-slide-up"
             >
               <div className="flex items-center gap-4">
                 <div className="w-10 h-10 rounded-xl bg-violet-600/10 border border-violet-500/20 flex items-center justify-center shrink-0">

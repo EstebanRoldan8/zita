@@ -20,7 +20,7 @@ function KPICard({ title, value, subtitle, icon: Icon, color = 'violet' }) {
     blue: 'bg-blue-500/10 text-blue-400 border-blue-500/20',
   };
   return (
-    <div className="bg-[#131929] border border-white/10 rounded-2xl p-5">
+    <div className="bg-[#131929] border border-white/10 rounded-2xl p-5 transition-all duration-300 hover:border-violet-500/30 hover:-translate-y-1 hover:shadow-lg hover:shadow-violet-500/10 animate-fade-slide-up">
       <div className={`w-10 h-10 rounded-xl border flex items-center justify-center mb-4 ${colors[color]}`}>
         <Icon size={18} />
       </div>
@@ -84,26 +84,34 @@ export default function CajaAdmin() {
 
       {/* KPIs */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
-        <KPICard title="MRR" value={formatCOP(d.mrr || 0)} subtitle={`${d.negocios_activos || 0} negocios activos`} icon={Wallet} color="violet" />
-        <KPICard title="Ingresos del mes" value={formatCOP(d.ingresos_mes || 0)} subtitle="Pagos aprobados" icon={ArrowUpRight} color="emerald" />
-        <KPICard title="Egresos del mes" value={formatCOP(d.egresos_mes || 0)} subtitle="Costos operativos" icon={ArrowDownRight} color="red" />
-        <KPICard
-          title="Utilidad del mes"
-          value={formatCOP(d.utilidad_mes || 0)}
-          subtitle={d.utilidad_mes >= 0 ? '🟢 Positivo' : '🔴 Negativo'}
-          icon={d.utilidad_mes >= 0 ? TrendingUp : TrendingDown}
-          color={d.utilidad_mes >= 0 ? 'emerald' : 'red'}
-        />
+        <div style={{ animationDelay: '0ms' }}>
+          <KPICard title="MRR" value={formatCOP(d.mrr || 0)} subtitle={`${d.negocios_activos || 0} negocios activos`} icon={Wallet} color="violet" />
+        </div>
+        <div style={{ animationDelay: '50ms' }}>
+          <KPICard title="Ingresos del mes" value={formatCOP(d.ingresos_mes || 0)} subtitle="Pagos aprobados" icon={ArrowUpRight} color="emerald" />
+        </div>
+        <div style={{ animationDelay: '100ms' }}>
+          <KPICard title="Egresos del mes" value={formatCOP(d.egresos_mes || 0)} subtitle="Costos operativos" icon={ArrowDownRight} color="red" />
+        </div>
+        <div style={{ animationDelay: '150ms' }}>
+          <KPICard
+            title="Utilidad del mes"
+            value={formatCOP(d.utilidad_mes || 0)}
+            subtitle={d.utilidad_mes >= 0 ? '🟢 Positivo' : '🔴 Negativo'}
+            icon={d.utilidad_mes >= 0 ? TrendingUp : TrendingDown}
+            color={d.utilidad_mes >= 0 ? 'emerald' : 'red'}
+          />
+        </div>
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         {/* Tendencia */}
-        <div className="lg:col-span-2 bg-[#131929] border border-white/10 rounded-2xl p-6">
+        <div className="lg:col-span-2 bg-[#131929] border border-white/10 rounded-2xl p-6 animate-fade-slide-up" style={{ animationDelay: '200ms' }}>
           <h2 className="text-white font-semibold mb-5">Ingresos últimos 6 meses</h2>
           <div className="flex items-end gap-2 h-40">
             {(d.trend || []).map(t => (
               <div key={t.month} className="flex-1 flex flex-col items-center gap-2">
-                <div className="w-full bg-violet-500/20 hover:bg-violet-500/30 rounded-t-lg transition-all relative group"
+                <div className="w-full bg-violet-500/20 hover:bg-violet-500/30 rounded-t-lg transition-all duration-700 ease-out relative group"
                      style={{ height: `${(t.ingresos / maxIngresos) * 100}%`, minHeight: '4px' }}>
                   <div className="absolute -top-7 left-1/2 -translate-x-1/2 bg-[#0a0a0f] border border-white/10 rounded-lg px-2 py-1 text-xs text-white opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap">
                     {formatCOP(t.ingresos)}
@@ -116,7 +124,7 @@ export default function CajaAdmin() {
         </div>
 
         {/* Pagos recientes */}
-        <div className="bg-[#131929] border border-white/10 rounded-2xl p-6">
+        <div className="bg-[#131929] border border-white/10 rounded-2xl p-6 animate-fade-slide-up" style={{ animationDelay: '200ms' }}>
           <h2 className="text-white font-semibold mb-4">Pagos recientes</h2>
           {!d.pagos_recientes?.length ? (
             <p className="text-slate-500 text-sm text-center py-6">Sin pagos registrados</p>
@@ -137,7 +145,7 @@ export default function CajaAdmin() {
       </div>
 
       {/* Egresos */}
-      <div className="mt-6 bg-[#131929] border border-white/10 rounded-2xl p-6">
+      <div className="mt-6 bg-[#131929] border border-white/10 rounded-2xl p-6 animate-fade-slide-up" style={{ animationDelay: '200ms' }}>
         <div className="flex items-center justify-between mb-4">
           <h2 className="text-white font-semibold">Egresos operativos</h2>
           <p className="text-slate-500 text-xs">Recurrentes mensuales: {formatCOP(d.egresos_recurrentes_mes || 0)}</p>

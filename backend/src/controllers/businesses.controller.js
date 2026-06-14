@@ -6,7 +6,7 @@ async function getMe(req, res) {
     const sb = createUserClient(req.headers.authorization);
     const { data, error } = await sb
       .from('businesses')
-      .select('id, name, business_type, status, owner_email, phone, address, country, plan, trial_ends_at, plan_expires_at, ai_messages_today, ai_messages_date, whatsapp_phone_number_id, modules, created_at')
+      .select('id, name, business_type, status, owner_email, phone, address, country, plan, trial_ends_at, plan_expires_at, ai_messages_today, ai_messages_date, whatsapp_phone_number_id, modules, onboarding_completed, onboarding_skipped, created_at')
       .eq('id', req.businessId)
       .single();
 

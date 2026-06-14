@@ -1,11 +1,25 @@
-import { Outlet } from 'react-router-dom';
+import { useEffect } from 'react';
+import { Outlet, useNavigate, useLocation } from 'react-router-dom';
 import { Bell } from 'lucide-react';
+import { useAuth } from '../../context/AuthContext';
 import Sidebar from './Sidebar';
 import AlertsPanel from './AlertsPanel';
 import AIAssistant from './AIAssistant';
 import SubscriptionWarning from './SubscriptionWarning';
 
 export default function Layout() {
+  const navigate = useNavigate();
+  const location = useLocation();
+  const { business } = useAuth();
+
+  useEffect(() => {
+    if (business && business.onboarding_completed === false && business.onboarding_skipped === false) {
+      if (location.pathname !== '/onboarding') {
+        navigate('/onboarding', { replace: true });
+      }
+    }
+  }, [business, location.pathname, navigate]);
+
   return (
     <div className="flex min-h-screen bg-[#080d18]">
       <Sidebar />

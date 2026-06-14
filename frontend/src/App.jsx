@@ -36,6 +36,7 @@ import AdminNotifications from './pages/admin/Notifications';
 import CajaAdmin from './pages/admin/CajaAdmin';
 import LeadsAdmin from './pages/admin/LeadsAdmin';
 import AsistenteAdmin from './pages/admin/AsistenteAdmin';
+import Onboarding from './pages/business/Onboarding';
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -62,6 +63,16 @@ export default function App() {
             <Route path="/privacidad" element={<PrivacyPolicy />} />
             <Route path="/terminos" element={<Terms />} />
             <Route path="/eliminar-datos" element={<DataDeletion />} />
+
+            {/* Onboarding */}
+            <Route
+              path="/onboarding"
+              element={
+                <ProtectedRoute>
+                  <Onboarding />
+                </ProtectedRoute>
+              }
+            />
 
             {/* Panel de negocio */}
             <Route

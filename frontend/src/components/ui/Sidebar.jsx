@@ -19,6 +19,7 @@ import {
   ShoppingBag,
   CreditCard,
   Bell,
+  Compass,
 } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
 import { useLockBodyScroll } from '../../hooks/useLockBodyScroll';
@@ -249,6 +250,18 @@ export default function Sidebar() {
           <CreditCard size={17} />
           Mi suscripción
         </NavLink>
+        {sub?.estado === 'trial' && (
+          <button
+            onClick={() => {
+              navigate('/onboarding');
+              closeSidebar();
+            }}
+            className="flex items-center gap-3 w-full px-3 py-2 rounded-lg text-sm text-violet-400 hover:text-violet-300 hover:bg-violet-500/10 transition-colors"
+          >
+            <Compass size={17} />
+            Configurar negocio
+          </button>
+        )}
         <button
           onClick={() => {
             setContactOpen(true);

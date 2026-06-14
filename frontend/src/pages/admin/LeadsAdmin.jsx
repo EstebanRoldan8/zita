@@ -12,6 +12,9 @@ const SERVICIO_LABELS = {
   demo: 'Demo',
   partners: 'Partners',
   partner_registro: 'Registro Partner',
+  lite: 'Demo (Lite)',
+  estandar: 'Demo (Estándar)',
+  pro: 'Demo (Pro)',
 };
 
 const STATUS_CONFIG = {
@@ -33,7 +36,7 @@ function timeAgo(date) {
   return new Date(date).toLocaleDateString('es-CO');
 }
 
-function StatCard({ label, value, color, icon: Icon }) {
+function StatCard({ label, value, color, icon: Icon, delay = 0 }) {
   const colors = {
     yellow: 'bg-yellow-500/10 text-yellow-400 border-yellow-500/20',
     blue: 'bg-blue-500/10 text-blue-400 border-blue-500/20',
@@ -42,7 +45,7 @@ function StatCard({ label, value, color, icon: Icon }) {
     violet: 'bg-violet-500/10 text-violet-400 border-violet-500/20',
   };
   return (
-    <div className="bg-[#131929] border border-white/10 rounded-2xl p-4">
+    <div className="bg-[#131929] border border-white/10 rounded-2xl p-4 transition-all duration-300 hover:border-violet-500/30 hover:-translate-y-1 animate-fade-slide-up" style={{ animationDelay: `${delay}ms` }}>
       <div className={`w-9 h-9 rounded-xl border flex items-center justify-center mb-3 ${colors[color]}`}>
         <Icon size={16} />
       </div>
@@ -91,10 +94,10 @@ export default function LeadsAdmin() {
 
       {/* Stats */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 mb-6">
-        <StatCard label="Nuevos" value={stats.pending || 0} color="yellow" icon={Clock} />
-        <StatCard label="Contactados" value={stats.contacted || 0} color="blue" icon={PhoneCall} />
-        <StatCard label="Cerrados" value={stats.closed || 0} color="emerald" icon={CheckCircle2} />
-        <StatCard label="Perdidos" value={stats.lost || 0} color="red" icon={XCircle} />
+        <StatCard label="Nuevos" value={stats.pending || 0} color="yellow" icon={Clock} delay={0} />
+        <StatCard label="Contactados" value={stats.contacted || 0} color="blue" icon={PhoneCall} delay={50} />
+        <StatCard label="Cerrados" value={stats.closed || 0} color="emerald" icon={CheckCircle2} delay={100} />
+        <StatCard label="Perdidos" value={stats.lost || 0} color="red" icon={XCircle} delay={150} />
       </div>
 
       {/* Filtros */}
@@ -205,21 +208,23 @@ export default function LeadsAdmin() {
                   </div>
                 )}
 
-                <div className="flex gap-2">
-                  {Object.entries(STATUS_CONFIG).map(([key, cfg2]) => (
-                    <button
-                      key={key}
-                      onClick={() => updateStatus.mutate({ id: l.id, status: key })}
-                      disabled={l.status === key || updateStatus.isPending}
-                      className={`px-3 py-1.5 rounded-xl text-xs font-medium transition-all border ${
-                        l.status === key
-                          ? `${cfg2.color} opacity-50 cursor-default`
-                          : 'bg-white/5 border-white/10 text-slate-400 hover:border-white/20 hover:text-white'
-                      }`}
+                <div className="flex items-center justify-between">
+                  <p className="text-slate-600 text-xs">
+                    {new Date(l.created_at).toLocaleDateString('es-CO', { day: 'numeric', month: 'long', year: 'numeric', hour: '2-digit', minute: '2-digit' })}
+                  </p>
+                  <div className="flex items-center gap-2">
+                    <span className="text-slate-500 text-xs">Cambiar estado:</span>
+                    <select
+                      value={l.status}
+                      onChange={e => updateStatus.mutate({ id: l.id, status: e.target.value })}
+                      disabled={updateStatus.isPending}
+                      className="bg-white/5 border border-white/10 rounded-xl px-3 py-1.5 text-xs text-white focus:outline-none focus:border-violet-500/50 cursor-pointer"
                     >
-                      {cfg2.label}
-                    </button>
-                  ))}
+                      {Object.entries(STATUS_CONFIG).map(([key, cfg2]) => (
+                        <option key={key} value={key} className="bg-[#131929]">{cfg2.label}</option>
+                      ))}
+                    </select>
+                  </div>
                 </div>
               </div>
             );

@@ -58,7 +58,7 @@ export default function Contacto() {
     ciudad: '',
     whatsapp: '',
     email: '',
-    servicio: '',
+    plan_interes: 'no_seguro',
     mensaje: '',
   });
   const [loading, setLoading] = useState(false);
@@ -74,15 +74,42 @@ export default function Contacto() {
     setMessage(null);
 
     try {
+      const PLAN_LABELS_MAP = {
+        lite: 'Plan Lite',
+        estandar: 'Plan Estándar',
+        pro: 'Plan Pro',
+        enterprise: 'Enterprise / Multi-sede',
+        demo: 'Demo',
+        partners: 'Programa de Partners',
+        no_seguro: 'Aún no está seguro',
+      };
+
+      let servicioCategoria = 'general';
+      if (form.plan_interes === 'enterprise') servicioCategoria = 'enterprise';
+      else if (form.plan_interes === 'demo') servicioCategoria = 'demo';
+      else if (form.plan_interes === 'partners') servicioCategoria = 'partners';
+
+      const mensajeConPlan = `[Interés: ${PLAN_LABELS_MAP[form.plan_interes] || 'No especificado'}]\n\n${form.mensaje}`;
+
+      const payload = {
+        nombre: form.nombre,
+        tipo_negocio: form.tipo_negocio,
+        ciudad: form.ciudad,
+        whatsapp: form.whatsapp,
+        email: form.email,
+        servicio: servicioCategoria,
+        mensaje: mensajeConPlan,
+      };
+
       const res = await fetch(`${import.meta.env.VITE_API_URL}/api/contact`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(form),
+        body: JSON.stringify(payload),
       });
 
       if (res.ok) {
         setMessage({ type: 'success', text: '✅ Recibimos tu solicitud. Te contactamos pronto por WhatsApp.' });
-        setForm({ nombre: '', tipo_negocio: '', ciudad: '', whatsapp: '', email: '', servicio: '', mensaje: '' });
+        setForm({ nombre: '', tipo_negocio: '', ciudad: '', whatsapp: '', email: '', plan_interes: 'no_seguro', mensaje: '' });
       } else {
         setMessage({ type: 'error', text: 'Error al enviar la solicitud. Intenta de nuevo.' });
       }
@@ -234,21 +261,20 @@ export default function Contacto() {
             </div>
 
             <div>
-              <label className="block text-sm font-semibold mb-2">Servicio de interés</label>
+              <label className="block text-sm font-semibold mb-2">Plan de interés</label>
               <select
-                name="servicio"
-                value={form.servicio}
+                name="plan_interes"
+                value={form.plan_interes}
                 onChange={handleChange}
                 className="w-full bg-slate-900 border border-slate-700 text-white rounded-lg px-4 py-3 focus:outline-none focus:border-violet-500"
               >
-                <option value="">Selecciona una opción</option>
                 <option value="lite">Plan Lite</option>
                 <option value="estandar">Plan Estándar</option>
                 <option value="pro">Plan Pro</option>
-                <option value="enterprise">Enterprise</option>
-                <option value="demo">Demo personalizada</option>
-                <option value="partners">Partners</option>
-                <option value="otro">Otro</option>
+                <option value="enterprise">Enterprise / Multi-sede</option>
+                <option value="demo">Quiero una demo</option>
+                <option value="partners">Programa de Partners</option>
+                <option value="no_seguro">Aún no estoy seguro</option>
               </select>
             </div>
 

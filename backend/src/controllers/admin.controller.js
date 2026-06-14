@@ -242,6 +242,140 @@ async function changePlan(req, res) {
   }
 }
 
+async function getCaja(req, res) {
+  try {
+    const bogota = { timeZone: 'America/Bogota' };
+    const hoy = new Date().toLocaleDateString('en-CA', bogota);
+    const inicioMes = hoy.slice(0,7) + '-01';
+    const inicioAño = hoy.slice(0,4) + '-01-01';
+
+    const [
+      { data: pagosAprobados },
+      { data: pagosMes },
+      { data: pagosAño },
+      { data: businesses },
+      { data: egresos },
+      { data: egresosMes },
+    ] = await Promise.all([
+      supabaseAdmin.from('payments').select('amount, plan, created_at, business_id, businesses(name)').eq('status', 'approved').order('created_at', { ascending: false }),
+      supabaseAdmin.from('payments').select('amount').eq('status', 'approved').gte('created_at', inicioMes),
+      supabaseAdmin.from('payments').select('amount, created_at').eq('status', 'approved').gte('created_at', inicioAño),
+      supabaseAdmin.from('businesses').select('id, name, plan, status').eq('status', 'active'),
+      supabaseAdmin.from('zita_expenses').select('*').order('date', { ascending: false }),
+      supabaseAdmin.from('zita_expenses').select('amount, currency').gte('date', inicioMes),
+    ]);
+
+    const { PLANS } = require('../config/plans');
+
+    // MRR: suma de precios de planes de negocios activos
+    const mrr = (businesses || []).reduce((sum, b) => {
+      const precio = PLANS[b.plan]?.price || 0;
+      return sum + precio;
+    }, 0);
+
+    const ingresosTotal = (pagosAprobados || []).reduce((s, p) => s + Number(p.amount), 0) / 100;
+    const ingresosMes = (pagosMes || []).reduce((s, p) => s + Number(p.amount), 0) / 100;
+
+    // Egresos del mes (convertir todo a COP, asumir 1 USD = 4000 COP para simplicidad)
+    const TASA_USD = 4000;
+    const egresosMesTotal = (egresosMes || []).reduce((s, e) => {
+      const amount = Number(e.amount);
+      return s + (e.currency === 'USD' ? amount * TASA_USD : amount);
+    }, 0);
+
+    const utilidadMes = ingresosMes - egresosMesTotal;
+
+    // Histórico mensual (últimos 6 meses)
+    const trendMap = {};
+    for (let i = 5; i >= 0; i--) {
+      const d = new Date();
+      d.setMonth(d.getMonth() - i);
+      const key = `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}`;
+      trendMap[key] = { month: key, ingresos: 0 };
+    }
+    (pagosAño || []).forEach(p => {
+      const key = p.created_at.slice(0,7);
+      if (trendMap[key]) trendMap[key].ingresos += Number(p.amount) / 100;
+    });
+
+    // Egresos totales recurrentes mensuales (para proyección)
+    const egresosRecurrentes = (egresos || [])
+      .filter(e => e.recurring)
+      .reduce((s, e) => {
+        const amount = Number(e.amount);
+        return s + (e.currency === 'USD' ? amount * TASA_USD : amount);
+      }, 0);
+
+    return res.json({
+      success: true,
+      data: {
+        mrr,
+        ingresos_total: Math.round(ingresosTotal),
+        ingresos_mes: Math.round(ingresosMes),
+        egresos_mes: Math.round(egresosMesTotal),
+        egresos_recurrentes_mes: Math.round(egresosRecurrentes),
+        utilidad_mes: Math.round(utilidadMes),
+        negocios_activos: businesses?.length || 0,
+        trend: Object.values(trendMap),
+        pagos_recientes: (pagosAprobados || []).slice(0, 15).map(p => ({
+          business_name: p.businesses?.name || 'Desconocido',
+          plan: p.plan,
+          amount: Math.round(Number(p.amount) / 100),
+          created_at: p.created_at
+        })),
+        egresos: (egresos || []).map(e => ({
+          ...e,
+          amount_cop: e.currency === 'USD' ? Math.round(Number(e.amount) * TASA_USD) : Number(e.amount)
+        }))
+      }
+    });
+  } catch (err) {
+    logger.error(`admin.getCaja: ${err.message}`);
+    return res.status(500).json({ success: false, error: 'Error interno del servidor.' });
+  }
+}
+
+async function createExpense(req, res) {
+  try {
+    const { category, description, amount, currency, recurring, date } = req.body;
+
+    if (!category || !amount || amount <= 0) {
+      return res.status(400).json({ success: false, error: 'Categoría y monto son requeridos.' });
+    }
+
+    const { data, error } = await supabaseAdmin
+      .from('zita_expenses')
+      .insert({
+        category,
+        description: description || null,
+        amount,
+        currency: currency || 'USD',
+        recurring: !!recurring,
+        date: date || new Date().toLocaleDateString('en-CA', { timeZone: 'America/Bogota' })
+      })
+      .select()
+      .single();
+
+    if (error) throw error;
+    return res.status(201).json({ success: true, data });
+  } catch (err) {
+    logger.error(`admin.createExpense: ${err.message}`);
+    return res.status(500).json({ success: false, error: 'Error interno del servidor.' });
+  }
+}
+
+async function deleteExpense(req, res) {
+  try {
+    const { id } = req.params;
+    const { error } = await supabaseAdmin.from('zita_expenses').delete().eq('id', id);
+    if (error) throw error;
+    return res.json({ success: true });
+  } catch (err) {
+    logger.error(`admin.deleteExpense: ${err.message}`);
+    return res.status(500).json({ success: false, error: 'Error interno del servidor.' });
+  }
+}
+
 module.exports = {
   getMetrics,
   getBusinesses,
@@ -251,4 +385,7 @@ module.exports = {
   getNotifications,
   markNotificationRead,
   changePlan,
+  getCaja,
+  createExpense,
+  deleteExpense,
 };

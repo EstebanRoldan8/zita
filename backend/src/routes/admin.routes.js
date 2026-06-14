@@ -8,6 +8,9 @@ const {
   getNotifications,
   markNotificationRead,
   changePlan,
+  getCaja,
+  createExpense,
+  deleteExpense,
 } = require('../controllers/admin.controller');
 const { getAll: getSupportConversations, replyAsAdmin } = require('../controllers/support.controller');
 const { adminGeneratePaymentLink } = require('../controllers/payment.controller');
@@ -30,5 +33,9 @@ router.post('/support/reply', replyAsAdmin);
 
 router.get('/notifications', getNotifications);
 router.patch('/notifications/:id/read', markNotificationRead);
+
+router.get('/caja', getCaja);
+router.post('/caja/expenses', createExpense);
+router.delete('/caja/expenses/:id', deleteExpense);
 
 module.exports = router;

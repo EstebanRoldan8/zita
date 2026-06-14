@@ -65,4 +65,34 @@ async function updateRecallSettings(req, res) {
   }
 }
 
-module.exports = { getMe, updateModules, updateRecallSettings };
+async function updateOnboarding(req, res) {
+  try {
+    const { action } = req.body;
+    if (!['complete', 'skip'].includes(action)) {
+      return res.status(400).json({ success: false, error: 'Acción inválida.' });
+    }
+
+    const sb = createUserClient(req.headers.authorization);
+    const updates = {};
+    if (action === 'complete') {
+      updates.onboarding_completed = true;
+    } else if (action === 'skip') {
+      updates.onboarding_skipped = true;
+    }
+
+    const { data, error } = await sb
+      .from('businesses')
+      .update(updates)
+      .eq('id', req.businessId)
+      .select('onboarding_completed, onboarding_skipped')
+      .single();
+
+    if (error) throw error;
+    return res.json({ success: true, data });
+  } catch (err) {
+    logger.error('businesses.updateOnboarding: ' + err.message);
+    return res.status(500).json({ success: false, error: 'Error al actualizar onboarding.' });
+  }
+}
+
+module.exports = { getMe, updateModules, updateRecallSettings, updateOnboarding };

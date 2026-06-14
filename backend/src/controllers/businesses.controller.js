@@ -68,6 +68,8 @@ async function updateRecallSettings(req, res) {
 async function updateOnboarding(req, res) {
   try {
     const { action } = req.body;
+    logger.info(`Onboarding action: ${action} for business: ${req.businessId}`);
+
     if (!['complete', 'skip'].includes(action)) {
       return res.status(400).json({ success: false, error: 'Acción inválida.' });
     }
@@ -87,10 +89,14 @@ async function updateOnboarding(req, res) {
       .select('onboarding_completed, onboarding_skipped')
       .single();
 
-    if (error) throw error;
+    if (error) {
+      logger.error(`updateOnboarding error for ${req.businessId}:`, error.message);
+      throw error;
+    }
+    logger.info(`Onboarding updated successfully for ${req.businessId}`, data);
     return res.json({ success: true, data });
   } catch (err) {
-    logger.error('businesses.updateOnboarding: ' + err.message);
+    logger.error(`businesses.updateOnboarding error: ${err.message}`, { businessId: req.businessId, action: req.body?.action });
     return res.status(500).json({ success: false, error: 'Error al actualizar onboarding.' });
   }
 }

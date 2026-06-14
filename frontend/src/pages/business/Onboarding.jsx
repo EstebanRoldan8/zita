@@ -9,8 +9,9 @@ const steps = ['Bienvenida', 'Servicios', 'Horarios', 'Asistente IA', 'Listo'];
 
 export default function Onboarding() {
   const navigate = useNavigate();
-  const { business } = useAuth();
+  const { business, setBusiness } = useAuth();
   const [step, setStep] = useState(0);
+  const [error, setError] = useState('');
   const [services, setServices] = useState([]);
   const [serviceForm, setServiceForm] = useState({ name: '', price: '', duration_minutes: 30 });
   const [schedule, setSchedule] = useState({
@@ -21,16 +22,42 @@ export default function Onboarding() {
 
   const skipMutation = useMutation({
     mutationFn: () => api.patch('/api/businesses/onboarding', { action: 'skip' }),
-    onSuccess: () => navigate('/dashboard'),
+    onSuccess: (res) => {
+      if (res.data?.success) {
+        setBusiness({ ...business, onboarding_skipped: true });
+        navigate('/dashboard');
+      } else {
+        setError('Error al omitir onboarding. Intenta de nuevo.');
+      }
+    },
+    onError: (err) => {
+      setError(err.response?.data?.error || 'Error de conexión');
+    }
   });
 
   const completeMutation = useMutation({
     mutationFn: () => api.patch('/api/businesses/onboarding', { action: 'complete' }),
-    onSuccess: () => navigate('/dashboard'),
+    onSuccess: (res) => {
+      if (res.data?.success) {
+        setBusiness({ ...business, onboarding_completed: true });
+        navigate('/dashboard');
+      } else {
+        setError('Error al completar onboarding. Intenta de nuevo.');
+      }
+    },
+    onError: (err) => {
+      setError(err.response?.data?.error || 'Error de conexión');
+    }
   });
 
-  const handleSkip = () => skipMutation.mutate();
-  const handleComplete = () => completeMutation.mutate();
+  const handleSkip = () => {
+    setError('');
+    skipMutation.mutate();
+  };
+  const handleComplete = () => {
+    setError('');
+    completeMutation.mutate();
+  };
   const nextStep = () => { if (step < steps.length - 1) setStep(step + 1); };
   const prevStep = () => { if (step > 0) setStep(step - 1); };
 
@@ -62,6 +89,13 @@ export default function Onboarding() {
         />
       </div>
 
+      {/* Error message */}
+      {error && (
+        <div className="fixed top-4 left-4 right-4 max-w-2xl mx-auto bg-red-500/20 border border-red-500/30 rounded-lg p-4 text-red-300 text-sm z-40">
+          {error}
+        </div>
+      )}
+
       {/* Header con dots de progreso */}
       <div className="pt-12 px-4 pb-8 relative z-40">
         <div className="max-w-2xl mx-auto flex items-center justify-between">
@@ -73,9 +107,9 @@ export default function Onboarding() {
             <button
               onClick={handleSkip}
               disabled={skipMutation.isPending}
-              className="text-slate-400 hover:text-white text-sm transition"
+              className="text-slate-400 hover:text-white text-sm transition disabled:opacity-50"
             >
-              Omitir
+              {skipMutation.isPending ? 'Omitiendo...' : 'Omitir'}
             </button>
           )}
         </div>

@@ -1,4 +1,4 @@
-import { useEffect } from 'react';
+import { useEffect, useRef } from 'react';
 import { Outlet, useNavigate, useLocation } from 'react-router-dom';
 import { Bell } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
@@ -11,14 +11,14 @@ export default function Layout() {
   const navigate = useNavigate();
   const location = useLocation();
   const { business } = useAuth();
+  const redirectCheckedRef = useRef(false);
 
   useEffect(() => {
-    if (business && business.onboarding_completed === false && business.onboarding_skipped === false) {
-      if (location.pathname !== '/onboarding') {
-        navigate('/onboarding', { replace: true });
-      }
+    if (business && !redirectCheckedRef.current && business.onboarding_completed === false && business.onboarding_skipped === false) {
+      redirectCheckedRef.current = true;
+      navigate('/onboarding', { replace: true });
     }
-  }, [business, location.pathname, navigate]);
+  }, [business, navigate]);
 
   return (
     <div className="flex min-h-screen bg-[#080d18]">

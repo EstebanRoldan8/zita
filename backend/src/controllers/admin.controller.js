@@ -423,6 +423,56 @@ async function updateZitaGoal(req, res) {
   }
 }
 
+async function getLeads(req, res) {
+  try {
+    const { data, error } = await supabaseAdmin
+      .from('contact_requests')
+      .select('*')
+      .order('created_at', { ascending: false });
+
+    if (error) throw error;
+
+    const leads = data || [];
+    const stats = {
+      total: leads.length,
+      pending: leads.filter(l => l.status === 'pending').length,
+      contacted: leads.filter(l => l.status === 'contacted').length,
+      closed: leads.filter(l => l.status === 'closed').length,
+      lost: leads.filter(l => l.status === 'lost').length,
+    };
+
+    return res.json({ success: true, data: { leads, stats } });
+  } catch (err) {
+    logger.error(`admin.getLeads: ${err.message}`);
+    return res.status(500).json({ success: false, error: 'Error interno del servidor.' });
+  }
+}
+
+async function updateLeadStatus(req, res) {
+  try {
+    const { id } = req.params;
+    const { status } = req.body;
+
+    const validStatuses = ['pending', 'contacted', 'closed', 'lost'];
+    if (!validStatuses.includes(status)) {
+      return res.status(400).json({ success: false, error: 'Estado no válido.' });
+    }
+
+    const { data, error } = await supabaseAdmin
+      .from('contact_requests')
+      .update({ status })
+      .eq('id', id)
+      .select()
+      .single();
+
+    if (error) throw error;
+    return res.json({ success: true, data });
+  } catch (err) {
+    logger.error(`admin.updateLeadStatus: ${err.message}`);
+    return res.status(500).json({ success: false, error: 'Error interno del servidor.' });
+  }
+}
+
 module.exports = {
   getMetrics,
   getBusinesses,
@@ -436,4 +486,6 @@ module.exports = {
   createExpense,
   deleteExpense,
   updateZitaGoal,
+  getLeads,
+  updateLeadStatus,
 };

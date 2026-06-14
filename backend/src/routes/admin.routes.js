@@ -12,6 +12,8 @@ const {
   createExpense,
   deleteExpense,
   updateZitaGoal,
+  getLeads,
+  updateLeadStatus,
 } = require('../controllers/admin.controller');
 const { getAll: getSupportConversations, replyAsAdmin } = require('../controllers/support.controller');
 const { adminGeneratePaymentLink } = require('../controllers/payment.controller');
@@ -39,5 +41,8 @@ router.get('/caja', getCaja);
 router.post('/caja/expenses', createExpense);
 router.delete('/caja/expenses/:id', deleteExpense);
 router.patch('/caja/goal', updateZitaGoal);
+
+router.get('/leads', getLeads);
+router.patch('/leads/:id/status', updateLeadStatus);
 
 module.exports = router;

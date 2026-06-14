@@ -36,6 +36,8 @@ const CATEGORIAS = ['Railway', 'Supabase', 'Anthropic API', 'Resend', 'WhatsApp/
 export default function CajaAdmin() {
   const queryClient = useQueryClient();
   const [showExpenseModal, setShowExpenseModal] = useState(false);
+  const [editingGoal, setEditingGoal] = useState(false);
+  const [goalInput, setGoalInput] = useState('');
   const [form, setForm] = useState({ category: 'Railway', description: '', amount: '', currency: 'USD', recurring: true, date: new Date().toISOString().slice(0,10) });
 
   const { data, isLoading } = useQuery({
@@ -55,6 +57,14 @@ export default function CajaAdmin() {
   const deleteExpense = useMutation({
     mutationFn: (id) => api.delete(`/api/admin/caja/expenses/${id}`),
     onSuccess: () => queryClient.invalidateQueries(['admin-caja']),
+  });
+
+  const updateGoal = useMutation({
+    mutationFn: (amount) => api.patch('/api/admin/caja/goal', { amount }),
+    onSuccess: () => {
+      queryClient.invalidateQueries(['admin-caja']);
+      setEditingGoal(false);
+    }
   });
 
   if (isLoading) return (
@@ -102,6 +112,44 @@ export default function CajaAdmin() {
             color={d.utilidad_mes >= 0 ? 'emerald' : 'red'}
           />
         </div>
+      </div>
+
+      {/* Meta mensual */}
+      <div className="bg-[#131929] border border-white/10 rounded-2xl p-5 mb-6 animate-fade-slide-up" style={{ animationDelay: '180ms' }}>
+        <div className="flex items-center justify-between mb-3">
+          <h2 className="text-white font-semibold">Meta mensual</h2>
+          {editingGoal ? (
+            <div className="flex items-center gap-2">
+              <input
+                type="number"
+                value={goalInput}
+                onChange={e => setGoalInput(e.target.value)}
+                autoFocus
+                className="w-32 px-2 py-1 bg-[#0a0a0f] border border-violet-500/30 rounded-lg text-white text-sm focus:outline-none"
+              />
+              <button onClick={() => updateGoal.mutate(Number(goalInput))} className="text-emerald-400 text-xs font-medium">Guardar</button>
+              <button onClick={() => setEditingGoal(false)} className="text-slate-500 text-xs">Cancelar</button>
+            </div>
+          ) : (
+            <button onClick={() => { setGoalInput(String(d.meta_mensual || 10000000)); setEditingGoal(true); }} className="text-violet-400 text-xs hover:text-violet-300">
+              Editar meta
+            </button>
+          )}
+        </div>
+        <div className="flex justify-between text-sm mb-2">
+          <span className="text-slate-300">{formatCOP(d.ingresos_mes || 0)}</span>
+          <span className="text-slate-500">de {formatCOP(d.meta_mensual || 10000000)}</span>
+        </div>
+        <div className="h-3 bg-white/5 rounded-full overflow-hidden">
+          <div
+            className="h-full bg-gradient-to-r from-violet-500 to-emerald-400 rounded-full transition-all duration-700"
+            style={{ width: `${Math.min(((d.ingresos_mes || 0) / (d.meta_mensual || 10000000)) * 100, 100)}%` }}
+          />
+        </div>
+        <p className="text-slate-500 text-xs mt-2">
+          {Math.round(((d.ingresos_mes || 0) / (d.meta_mensual || 10000000)) * 100)}% de la meta ·
+          {d.ingresos_mes >= (d.meta_mensual || 10000000) ? ' 🎉 ¡Meta alcanzada!' : ` faltan ${formatCOP((d.meta_mensual || 10000000) - (d.ingresos_mes || 0))}`}
+        </p>
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">

@@ -256,6 +256,7 @@ async function getCaja(req, res) {
       { data: businesses },
       { data: egresos },
       { data: egresosMes },
+      { data: goalData },
     ] = await Promise.all([
       supabaseAdmin.from('payments').select('amount, plan, created_at, business_id, businesses(name)').eq('status', 'approved').order('created_at', { ascending: false }),
       supabaseAdmin.from('payments').select('amount').eq('status', 'approved').gte('created_at', inicioMes),
@@ -263,6 +264,7 @@ async function getCaja(req, res) {
       supabaseAdmin.from('businesses').select('id, name, plan, status').eq('status', 'active'),
       supabaseAdmin.from('zita_expenses').select('*').order('date', { ascending: false }),
       supabaseAdmin.from('zita_expenses').select('amount, currency').gte('date', inicioMes),
+      supabaseAdmin.from('zita_settings').select('value').eq('key', 'monthly_goal').maybeSingle(),
     ]);
 
     const { PLANS } = require('../config/plans');
@@ -316,6 +318,7 @@ async function getCaja(req, res) {
         egresos_recurrentes_mes: Math.round(egresosRecurrentes),
         utilidad_mes: Math.round(utilidadMes),
         negocios_activos: businesses?.length || 0,
+        meta_mensual: goalData?.value?.amount || 10000000,
         trend: Object.values(trendMap),
         pagos_recientes: (pagosAprobados || []).slice(0, 15).map(p => ({
           business_name: p.businesses?.name || 'Desconocido',
@@ -376,6 +379,23 @@ async function deleteExpense(req, res) {
   }
 }
 
+async function updateZitaGoal(req, res) {
+  try {
+    const { amount } = req.body;
+    if (!amount || amount <= 0) {
+      return res.status(400).json({ success: false, error: 'Meta inválida.' });
+    }
+    const { error } = await supabaseAdmin
+      .from('zita_settings')
+      .upsert({ key: 'monthly_goal', value: { amount }, updated_at: new Date().toISOString() }, { onConflict: 'key' });
+    if (error) throw error;
+    return res.json({ success: true, data: { amount } });
+  } catch (err) {
+    logger.error(`admin.updateZitaGoal: ${err.message}`);
+    return res.status(500).json({ success: false, error: 'Error interno del servidor.' });
+  }
+}
+
 module.exports = {
   getMetrics,
   getBusinesses,
@@ -388,4 +408,5 @@ module.exports = {
   getCaja,
   createExpense,
   deleteExpense,
+  updateZitaGoal,
 };

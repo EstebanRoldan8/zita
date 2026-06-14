@@ -249,6 +249,13 @@ async function getCaja(req, res) {
     const inicioMes = hoy.slice(0,7) + '-01';
     const inicioAño = hoy.slice(0,4) + '-01-01';
 
+    const mesConsulta = req.query.month || hoy.slice(0,7);
+    const inicioMesConsulta = mesConsulta + '-01';
+    const [yC, mC] = mesConsulta.split('-').map(Number);
+    const finMesConsulta = mC === 12
+      ? `${yC+1}-01-01`
+      : `${yC}-${String(mC+1).padStart(2,'0')}-01`;
+
     const [
       { data: pagosAprobados },
       { data: pagosMes },
@@ -257,6 +264,8 @@ async function getCaja(req, res) {
       { data: egresos },
       { data: egresosMes },
       { data: goalData },
+      { data: pagosMesConsulta },
+      { data: egresosMesConsulta },
     ] = await Promise.all([
       supabaseAdmin.from('payments').select('amount, plan, created_at, business_id, businesses(name)').eq('status', 'approved').order('created_at', { ascending: false }),
       supabaseAdmin.from('payments').select('amount').eq('status', 'approved').gte('created_at', inicioMes),
@@ -265,6 +274,8 @@ async function getCaja(req, res) {
       supabaseAdmin.from('zita_expenses').select('*').order('date', { ascending: false }),
       supabaseAdmin.from('zita_expenses').select('amount, currency').gte('date', inicioMes),
       supabaseAdmin.from('zita_settings').select('value').eq('key', 'monthly_goal').maybeSingle(),
+      supabaseAdmin.from('payments').select('amount, plan, created_at, business_id, businesses(name)').eq('status', 'approved').gte('created_at', inicioMesConsulta).lt('created_at', finMesConsulta).order('created_at', { ascending: false }),
+      supabaseAdmin.from('zita_expenses').select('*').gte('date', inicioMesConsulta).lt('date', finMesConsulta).order('date', { ascending: false }),
     ]);
 
     const { PLANS } = require('../config/plans');
@@ -329,7 +340,23 @@ async function getCaja(req, res) {
         egresos: (egresos || []).map(e => ({
           ...e,
           amount_cop: e.currency === 'USD' ? Math.round(Number(e.amount) * TASA_USD) : Number(e.amount)
-        }))
+        })),
+        mes_consultado: mesConsulta,
+        ingresos_mes_consultado: Math.round((pagosMesConsulta || []).reduce((s,p) => s + Number(p.amount), 0) / 100),
+        pagos_mes_consultado: (pagosMesConsulta || []).map(p => ({
+          business_name: p.businesses?.name || 'Desconocido',
+          plan: p.plan,
+          amount: Math.round(Number(p.amount) / 100),
+          created_at: p.created_at
+        })),
+        egresos_mes_consultado: (egresosMesConsulta || []).map(e => ({
+          ...e,
+          amount_cop: e.currency === 'USD' ? Math.round(Number(e.amount) * 4000) : Number(e.amount)
+        })),
+        egresos_total_mes_consultado: Math.round((egresosMesConsulta || []).reduce((s,e) => {
+          const amount = Number(e.amount);
+          return s + (e.currency === 'USD' ? amount * 4000 : amount);
+        }, 0)),
       }
     });
   } catch (err) {

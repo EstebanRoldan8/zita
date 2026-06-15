@@ -151,7 +151,7 @@ export default function Onboarding() {
           {step === 0 && (
             <div className="text-center space-y-6">
               <div className="w-20 h-20 bg-violet-500/10 rounded-2xl flex items-center justify-center mx-auto">
-                <Zap size={40} className="text-violet-400" />
+                <img src="/logo.png" alt="ZITA" className="w-12 h-12 object-contain" />
               </div>
               <div>
                 <h2 className="text-4xl font-bold mb-3">¡Hola {business?.name}!</h2>

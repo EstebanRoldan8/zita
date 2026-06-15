@@ -1,7 +1,7 @@
 import { useState, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useMutation } from '@tanstack/react-query';
-import { ChevronLeft, ChevronRight, X, Zap, Clock, MessageSquare, CheckCircle2, Check } from 'lucide-react';
+import { ChevronLeft, ChevronRight, X, Zap, Clock, CheckCircle2, Check } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
 import api from '../../lib/api';
 
@@ -137,7 +137,7 @@ export default function Onboarding() {
         {/* Error message - positioned below header */}
         {error && (
           <div className="mt-6 max-w-2xl mx-auto">
-            <div className="bg-red-500/20 border border-red-500/30 rounded-lg p-4 text-red-300 text-sm animate-fade-slide-up">
+            <div className="bg-red-500/10 border border-red-500/20 rounded-lg p-4 text-red-300 text-sm animate-fade-slide-up">
               {error}
             </div>
           </div>
@@ -159,7 +159,7 @@ export default function Onboarding() {
               </div>
               <button
                 onClick={nextStep}
-                className="w-full py-3 bg-gradient-to-r from-violet-600 to-violet-700 hover:from-violet-700 hover:to-violet-800 rounded-lg font-semibold transition"
+                className="w-full py-3 bg-violet-600 hover:bg-violet-500 text-white rounded-lg font-semibold transition"
               >
                 Empezar
               </button>
@@ -177,13 +177,13 @@ export default function Onboarding() {
                 <p className="text-slate-400">Agrega 1 o 2 servicios para empezar. Puedes agregar más después.</p>
               </div>
 
-              <div className="bg-[#1e293b] rounded-xl p-4 space-y-4">
+              <div className="bg-slate-900 border border-slate-800 rounded-2xl p-4 space-y-4">
                 <input
                   type="text"
                   placeholder="Nombre del servicio"
                   value={serviceForm.name}
                   onChange={(e) => setServiceForm({ ...serviceForm, name: e.target.value })}
-                  className="w-full bg-[#0f172a] border border-white/10 rounded-lg px-4 py-2 text-white placeholder-slate-500 focus:outline-none focus:border-violet-500"
+                  className="w-full bg-slate-900 border border-slate-700 text-white rounded-lg px-4 py-2 text-sm placeholder-slate-500 focus:outline-none focus:border-violet-500 transition"
                 />
                 <div className="grid grid-cols-2 gap-4">
                   <input
@@ -191,20 +191,20 @@ export default function Onboarding() {
                     placeholder="Precio"
                     value={serviceForm.price}
                     onChange={(e) => setServiceForm({ ...serviceForm, price: e.target.value })}
-                    className="bg-[#0f172a] border border-white/10 rounded-lg px-4 py-2 text-white placeholder-slate-500 focus:outline-none focus:border-violet-500"
+                    className="bg-slate-900 border border-slate-700 text-white rounded-lg px-4 py-2 text-sm placeholder-slate-500 focus:outline-none focus:border-violet-500 transition"
                   />
                   <input
                     type="number"
                     placeholder="Duración (min)"
                     value={serviceForm.duration_minutes}
                     onChange={(e) => setServiceForm({ ...serviceForm, duration_minutes: parseInt(e.target.value) })}
-                    className="bg-[#0f172a] border border-white/10 rounded-lg px-4 py-2 text-white placeholder-slate-500 focus:outline-none focus:border-violet-500"
+                    className="bg-slate-900 border border-slate-700 text-white rounded-lg px-4 py-2 text-sm placeholder-slate-500 focus:outline-none focus:border-violet-500 transition"
                   />
                 </div>
                 <button
                   onClick={addService}
                   disabled={!serviceForm.name.trim() || !serviceForm.price}
-                  className="w-full py-2 bg-violet-600 hover:bg-violet-700 disabled:opacity-50 rounded-lg font-medium transition"
+                  className="w-full py-2 bg-violet-600 hover:bg-violet-500 disabled:opacity-50 text-white rounded-lg font-medium transition"
                 >
                   Agregar servicio
                 </button>
@@ -213,7 +213,7 @@ export default function Onboarding() {
               {services.length > 0 && (
                 <div className="space-y-2">
                   {services.map(svc => (
-                    <div key={svc.id} className="bg-[#1e293b] rounded-lg p-4 flex items-center justify-between">
+                    <div key={svc.id} className="bg-slate-900 border border-slate-700 rounded-lg p-4 flex items-center justify-between">
                       <div>
                         <p className="font-medium">{svc.name}</p>
                         <p className="text-sm text-slate-400">${svc.price} • {svc.duration_minutes} min</p>
@@ -232,13 +232,13 @@ export default function Onboarding() {
               <div className="flex gap-4">
                 <button
                   onClick={prevStep}
-                  className="flex-1 py-3 bg-white/5 hover:bg-white/10 rounded-lg font-semibold transition flex items-center justify-center gap-2"
+                  className="flex-1 py-3 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-lg font-semibold transition flex items-center justify-center gap-2"
                 >
                   <ChevronLeft size={18} /> Atrás
                 </button>
                 <button
                   onClick={nextStep}
-                  className="flex-1 py-3 bg-violet-600 hover:bg-violet-700 rounded-lg font-semibold transition flex items-center justify-center gap-2"
+                  className="flex-1 py-3 bg-violet-600 hover:bg-violet-500 text-white rounded-lg font-semibold transition flex items-center justify-center gap-2"
                 >
                   Siguiente <ChevronRight size={18} />
                 </button>
@@ -257,7 +257,7 @@ export default function Onboarding() {
                 <p className="text-slate-400">¿Qué días trabajas y a qué horas?</p>
               </div>
 
-              <div className="bg-[#1e293b] rounded-xl p-4 space-y-4">
+              <div className="bg-slate-900 border border-slate-800 rounded-2xl p-4 space-y-4">
                 <div className="grid grid-cols-2 gap-3">
                   {Object.keys(schedule.days).map(day => (
                     <button
@@ -265,8 +265,8 @@ export default function Onboarding() {
                       onClick={() => toggleDay(day)}
                       className={`px-4 py-3 rounded-lg font-medium transition capitalize flex items-center justify-center gap-2 ${
                         schedule.days[day]
-                          ? 'bg-violet-600 text-white border border-violet-500 shadow-lg shadow-violet-500/20'
-                          : 'bg-[#131929] text-slate-400 border border-white/10 hover:border-violet-500/30'
+                          ? 'bg-violet-600 hover:bg-violet-500 text-white border border-violet-500/30 shadow-lg shadow-violet-500/20'
+                          : 'bg-slate-900 text-slate-400 border border-slate-700 hover:border-slate-600'
                       }`}
                     >
                       {dayLabels[day]}
@@ -275,19 +275,19 @@ export default function Onboarding() {
                   ))}
                 </div>
 
-                <div className="border-t border-white/10 pt-4 space-y-3">
+                <div className="border-t border-slate-700 pt-4 space-y-3">
                   <div>
                     <label className="text-sm text-slate-400 block mb-2">Abre a las</label>
                     <div
                       onClick={() => handleTimeClick(openTimeRef)}
-                      className="w-full bg-[#0f172a] border border-white/10 rounded-lg px-4 py-2 text-white focus-within:outline-none focus-within:border-violet-500 cursor-pointer hover:border-violet-500/30 transition"
+                      className="w-full bg-slate-900 border border-slate-700 rounded-lg px-4 py-2 text-white cursor-pointer hover:border-slate-600 transition"
                     >
                       <input
                         ref={openTimeRef}
                         type="time"
                         value={schedule.open}
                         onChange={(e) => setSchedule({ ...schedule, open: e.target.value })}
-                        className="w-full bg-transparent outline-none"
+                        className="w-full bg-transparent outline-none text-sm"
                       />
                     </div>
                   </div>
@@ -295,14 +295,14 @@ export default function Onboarding() {
                     <label className="text-sm text-slate-400 block mb-2">Cierra a las</label>
                     <div
                       onClick={() => handleTimeClick(closeTimeRef)}
-                      className="w-full bg-[#0f172a] border border-white/10 rounded-lg px-4 py-2 text-white focus-within:outline-none focus-within:border-violet-500 cursor-pointer hover:border-violet-500/30 transition"
+                      className="w-full bg-slate-900 border border-slate-700 rounded-lg px-4 py-2 text-white cursor-pointer hover:border-slate-600 transition"
                     >
                       <input
                         ref={closeTimeRef}
                         type="time"
                         value={schedule.close}
                         onChange={(e) => setSchedule({ ...schedule, close: e.target.value })}
-                        className="w-full bg-transparent outline-none"
+                        className="w-full bg-transparent outline-none text-sm"
                       />
                     </div>
                   </div>
@@ -312,13 +312,13 @@ export default function Onboarding() {
               <div className="flex gap-4">
                 <button
                   onClick={prevStep}
-                  className="flex-1 py-3 bg-white/5 hover:bg-white/10 rounded-lg font-semibold transition flex items-center justify-center gap-2"
+                  className="flex-1 py-3 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-lg font-semibold transition flex items-center justify-center gap-2"
                 >
                   <ChevronLeft size={18} /> Atrás
                 </button>
                 <button
                   onClick={nextStep}
-                  className="flex-1 py-3 bg-violet-600 hover:bg-violet-700 rounded-lg font-semibold transition flex items-center justify-center gap-2"
+                  className="flex-1 py-3 bg-violet-600 hover:bg-violet-500 text-white rounded-lg font-semibold transition flex items-center justify-center gap-2"
                 >
                   Siguiente <ChevronRight size={18} />
                 </button>
@@ -336,18 +336,18 @@ export default function Onboarding() {
                 <h2 className="text-2xl font-bold mb-2">Tu Asistente IA</h2>
                 <p className="text-slate-400 mb-4">Puede hacer esto y mucho más. Simplemente escríbele desde el panel</p>
 
-                <div className="bg-[#1e293b] rounded-xl p-6 space-y-4 max-h-96 overflow-y-auto">
+                <div className="bg-slate-900 border border-slate-800 rounded-2xl p-6 space-y-4 max-h-96 overflow-y-auto">
                   {/* Message 1 */}
                   <div className="flex gap-3 animate-fade-slide-up" style={{ animationDelay: '0ms' }}>
                     <div className="w-8 h-8 rounded-full bg-slate-700 flex-shrink-0" />
-                    <div className="bg-[#0f172a] rounded-lg p-3 max-w-xs">
+                    <div className="bg-slate-800/50 rounded-lg p-3 max-w-xs">
                       <p className="text-sm">Agenda una cita para Juan mañana a las 3pm con corte clásico</p>
                     </div>
                   </div>
 
                   {/* Message 2 - Bot */}
                   <div className="flex gap-3 justify-end animate-fade-slide-up" style={{ animationDelay: '100ms' }}>
-                    <div className="bg-violet-600/20 border border-violet-500/20 rounded-lg p-3 max-w-xs">
+                    <div className="bg-violet-600/20 border border-violet-500/30 rounded-lg p-3 max-w-xs">
                       <p className="text-sm">✅ Listo, cita creada para Juan mañana 3:00pm - Corte clásico</p>
                     </div>
                     <div className="w-8 h-8 rounded-full bg-violet-600 flex-shrink-0 flex items-center justify-center">
@@ -358,14 +358,14 @@ export default function Onboarding() {
                   {/* Message 3 */}
                   <div className="flex gap-3 animate-fade-slide-up" style={{ animationDelay: '200ms' }}>
                     <div className="w-8 h-8 rounded-full bg-slate-700 flex-shrink-0" />
-                    <div className="bg-[#0f172a] rounded-lg p-3 max-w-xs">
+                    <div className="bg-slate-800/50 rounded-lg p-3 max-w-xs">
                       <p className="text-sm">¿Cuánto vendí esta semana?</p>
                     </div>
                   </div>
 
                   {/* Message 4 - Bot */}
                   <div className="flex gap-3 justify-end animate-fade-slide-up" style={{ animationDelay: '300ms' }}>
-                    <div className="bg-violet-600/20 border border-violet-500/20 rounded-lg p-3 max-w-xs">
+                    <div className="bg-violet-600/20 border border-violet-500/30 rounded-lg p-3 max-w-xs">
                       <p className="text-sm">Esta semana llevas $450.000 en ingresos, 12 citas completadas</p>
                     </div>
                     <div className="w-8 h-8 rounded-full bg-violet-600 flex-shrink-0 flex items-center justify-center">
@@ -378,13 +378,13 @@ export default function Onboarding() {
               <div className="flex gap-4">
                 <button
                   onClick={prevStep}
-                  className="flex-1 py-3 bg-white/5 hover:bg-white/10 rounded-lg font-semibold transition flex items-center justify-center gap-2"
+                  className="flex-1 py-3 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-lg font-semibold transition flex items-center justify-center gap-2"
                 >
                   <ChevronLeft size={18} /> Atrás
                 </button>
                 <button
                   onClick={nextStep}
-                  className="flex-1 py-3 bg-violet-600 hover:bg-violet-700 rounded-lg font-semibold transition flex items-center justify-center gap-2"
+                  className="flex-1 py-3 bg-violet-600 hover:bg-violet-500 text-white rounded-lg font-semibold transition flex items-center justify-center gap-2"
                 >
                   Siguiente <ChevronRight size={18} />
                 </button>
@@ -405,7 +405,7 @@ export default function Onboarding() {
 
               {/* Summary card */}
               {(services.length > 0 || activeDays) && (
-                <div className="bg-[#1e293b] rounded-xl p-4 space-y-3 text-left">
+                <div className="bg-slate-900 border border-slate-800 rounded-2xl p-4 space-y-3 text-left">
                   {services.length > 0 && (
                     <div className="flex items-center gap-3">
                       <div className="w-8 h-8 bg-violet-500/20 rounded-lg flex items-center justify-center">
@@ -435,7 +435,7 @@ export default function Onboarding() {
               <button
                 onClick={handleComplete}
                 disabled={completeMutation.isPending}
-                className="w-full py-3 bg-gradient-to-r from-violet-600 to-violet-700 hover:from-violet-700 hover:to-violet-800 disabled:opacity-50 rounded-lg font-semibold transition"
+                className="w-full py-3 bg-violet-600 hover:bg-violet-500 disabled:opacity-50 text-white rounded-lg font-semibold transition"
               >
                 {completeMutation.isPending ? 'Guardando...' : 'Ir al Dashboard'}
               </button>

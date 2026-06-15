@@ -53,9 +53,20 @@ async function handleWebhook(req, res) {
         .eq('client_phone', from)
         .maybeSingle();
 
-      if (conv?.bot_paused_until && new Date(conv.bot_paused_until) > new Date()) {
-        // Bot pausado — no procesar mensaje
-        logger.info('Bot pausado para cliente:', { from, hasta: conv.bot_paused_until });
+      const ahora = new Date();
+      const pausadoHasta = conv?.bot_paused_until ? new Date(conv.bot_paused_until) : null;
+      const estaPausado = pausadoHasta && pausadoHasta > ahora;
+
+      logger.info('DEBUG - Verificación de pausa:', {
+        from,
+        bot_paused_until: conv?.bot_paused_until,
+        ahora: ahora.toISOString(),
+        estaPausado,
+        minutosFaltantes: estaPausado ? Math.round((pausadoHasta - ahora) / 60000) : null
+      });
+
+      if (estaPausado) {
+        logger.info('Bot pausado - bloqueando mensaje:', { from, pausadoHasta: pausadoHasta.toISOString() });
         return;
       }
     }

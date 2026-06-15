@@ -318,7 +318,19 @@ async function saveConversationHistory(businessId, clientPhone, messages) {
 }
 
 async function processChatbotMessage(businessId, clientPhone, messageText, history, business, clientInfo = null) {
-  logger.info('Procesando mensaje del chatbot', { businessId, clientPhone, messageLength: messageText.length });
+  const historyResumen = history.map((m, i) => ({
+    index: i,
+    role: m.role,
+    preview: m.content?.substring(0, 50) + (m.content?.length > 50 ? '...' : '')
+  }));
+
+  logger.info('DEBUG - Procesando mensaje del chatbot', {
+    businessId,
+    clientPhone,
+    messageLength: messageText.length,
+    historyLength: history.length,
+    history: historyResumen
+  });
 
   const { data: businessHours } = await supabaseAdmin
     .from('business_hours')
@@ -1044,9 +1056,9 @@ async function processChatbotMessage(businessId, clientPhone, messageText, histo
               business.whatsapp_phone_number_id
             );
 
-            // Pausar el bot por 3 horas
+            // TEMP: 2 min para debugging, revertir a +3 horas
             const pausadoHasta = new Date();
-            pausadoHasta.setHours(pausadoHasta.getHours() + 3);
+            pausadoHasta.setMinutes(pausadoHasta.getMinutes() + 2);
 
             await supabaseAdmin
               .from('whatsapp_conversations')
@@ -1056,7 +1068,7 @@ async function processChatbotMessage(businessId, clientPhone, messageText, histo
                 bot_paused_until: pausadoHasta.toISOString()
               }, { onConflict: 'business_id,client_phone' });
 
-            logger.info('Bot pausado por 3 horas para cliente:', { clientPhone, hasta: pausadoHasta });
+            logger.info('Bot pausado por 2 min (DEBUG) para cliente:', { clientPhone, hasta: pausadoHasta.toISOString() });
 
             return {
               success: true,

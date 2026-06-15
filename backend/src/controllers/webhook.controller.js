@@ -48,7 +48,7 @@ async function handleWebhook(req, res) {
     if (business) {
       const { data: conv } = await require('../config/supabase').supabaseAdmin
         .from('whatsapp_conversations')
-        .select('bot_paused_until')
+        .select('bot_paused_until, last_bot_response_at')
         .eq('business_id', business.id)
         .eq('client_phone', from)
         .maybeSingle();
@@ -57,17 +57,19 @@ async function handleWebhook(req, res) {
       const pausadoHasta = conv?.bot_paused_until ? new Date(conv.bot_paused_until) : null;
       const estaPausado = pausadoHasta && pausadoHasta > ahora;
 
-      logger.info('DEBUG - Verificación de pausa:', {
-        from,
-        bot_paused_until: conv?.bot_paused_until,
-        ahora: ahora.toISOString(),
-        estaPausado,
-        minutosFaltantes: estaPausado ? Math.round((pausadoHasta - ahora) / 60000) : null
-      });
-
       if (estaPausado) {
-        logger.info('Bot pausado - bloqueando mensaje:', { from, pausadoHasta: pausadoHasta.toISOString() });
+        logger.info('Bot pausado para cliente:', { from, hasta: conv.bot_paused_until });
         return;
+      }
+
+      // Evitar múltiples respuestas cuando cliente envió mensajes durante pausa
+      if (conv?.last_bot_response_at) {
+        const ultimaRespuesta = new Date(conv.last_bot_response_at);
+        const segundosDesdeRespuesta = (ahora - ultimaRespuesta) / 1000;
+        if (segundosDesdeRespuesta < 10) {
+          logger.info('Ignorando mensaje - bot respondió hace poco:', { from, segundos: Math.round(segundosDesdeRespuesta) });
+          return;
+        }
       }
     }
 

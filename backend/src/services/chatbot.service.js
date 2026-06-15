@@ -24,6 +24,13 @@ PASO 1: Lee el historial completo. Extrae:
   - hora_pedida: ¿mencionó a qué hora? (3pm, a las 3, 15:00, etc.)
   - nombre_cliente: ¿dijo su nombre en algún momento?
 
+PASO 1.5 - AMBIGÜEDAD AM/PM:
+  SI el cliente mencionó una hora SIN especificar am/pm explícitamente (ej: "las 8", "a las 3") Y esa hora es ambigua:
+    → DEBES preguntar: "¿A las [hora] de la mañana o de la tarde?" ANTES de verificar disponibilidad o agendar
+    → NUNCA asumas am ni pm automáticamente
+    → EXCEPCIÓN: si el contexto del negocio hace obvia la hora (ej: "las 10" en negocio 9am-6pm = 10am), puedes proceder
+    → Si el cliente ya dijo am/pm explícito (3pm, 10:30am, 15:00, etc.), procede sin preguntar
+
 PASO 2: Decide según lo que tienes:
 
   SI tienes servicio + fecha + hora → EJECUTA agendar_cita INMEDIATAMENTE
@@ -318,19 +325,7 @@ async function saveConversationHistory(businessId, clientPhone, messages) {
 }
 
 async function processChatbotMessage(businessId, clientPhone, messageText, history, business, clientInfo = null) {
-  const historyResumen = history.map((m, i) => ({
-    index: i,
-    role: m.role,
-    preview: m.content?.substring(0, 50) + (m.content?.length > 50 ? '...' : '')
-  }));
-
-  logger.info('DEBUG - Procesando mensaje del chatbot', {
-    businessId,
-    clientPhone,
-    messageLength: messageText.length,
-    historyLength: history.length,
-    history: historyResumen
-  });
+  logger.info('Procesando mensaje del chatbot', { businessId, clientPhone, messageLength: messageText.length, historyLength: history.length });
 
   const { data: businessHours } = await supabaseAdmin
     .from('business_hours')
@@ -1056,9 +1051,8 @@ async function processChatbotMessage(businessId, clientPhone, messageText, histo
               business.whatsapp_phone_number_id
             );
 
-            // TEMP: 2 min para debugging, revertir a +3 horas
             const pausadoHasta = new Date();
-            pausadoHasta.setMinutes(pausadoHasta.getMinutes() + 2);
+            pausadoHasta.setHours(pausadoHasta.getHours() + 3);
 
             await supabaseAdmin
               .from('whatsapp_conversations')

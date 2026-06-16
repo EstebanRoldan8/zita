@@ -46,14 +46,23 @@ async function handleWebhook(req, res) {
       .getBusinessByPhoneNumberId(phoneNumberId);
 
     if (business) {
-      const { data: conv } = await require('../config/supabase').supabaseAdmin
+      const { data: convData, error: convError } = await require('../config/supabase').supabaseAdmin
         .from('whatsapp_conversations')
         .select('bot_paused_until, last_bot_response_at')
         .eq('business_id', business.id)
         .eq('client_phone', from)
-        .maybeSingle();
+        .order('last_message_at', { ascending: false })
+        .limit(1);
 
-      logger.info('Pause check: ' + JSON.stringify({ bot_paused_until: conv?.bot_paused_until, conv_existe: !!conv, business_id: business?.id, from }));
+      const conv = convData?.[0] || null;
+
+      logger.info('Pause check: ' + JSON.stringify({
+        conv_existe: !!conv,
+        bot_paused_until: conv?.bot_paused_until,
+        registros_encontrados: convData?.length,
+        business_id: business?.id,
+        from
+      }));
 
       const ahora = new Date();
       const pausadoHasta = conv?.bot_paused_until ? new Date(conv.bot_paused_until) : null;

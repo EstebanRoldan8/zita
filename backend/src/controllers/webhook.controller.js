@@ -53,7 +53,7 @@ async function handleWebhook(req, res) {
         .eq('client_phone', from)
         .maybeSingle();
 
-      logger.info('DEBUG - Pausa check:', { businessId: business.id, clientPhone: from, conversacion: conv ? 'encontrada' : 'no encontrada', bot_paused_until: conv?.bot_paused_until, last_bot_response_at: conv?.last_bot_response_at });
+      logger.info('Pause check:', { bot_paused_until: conv?.bot_paused_until, business_id: business.id, from });
 
       const ahora = new Date();
       const pausadoHasta = conv?.bot_paused_until ? new Date(conv.bot_paused_until) : null;

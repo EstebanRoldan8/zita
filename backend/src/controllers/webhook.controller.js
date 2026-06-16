@@ -45,6 +45,13 @@ async function handleWebhook(req, res) {
     const business = await require('../services/chatbot.service')
       .getBusinessByPhoneNumberId(phoneNumberId);
 
+    logger.info('Business encontrado: ' + JSON.stringify({
+      business_id: business?.id,
+      business_completo: JSON.stringify(business),
+      phoneNumberId: phoneNumberId,
+      from: from
+    }));
+
     if (business) {
       const { data: convData, error: convError } = await require('../config/supabase').supabaseAdmin
         .from('whatsapp_conversations')
@@ -53,6 +60,13 @@ async function handleWebhook(req, res) {
         .eq('client_phone', from)
         .order('last_message_at', { ascending: false })
         .limit(1);
+
+      logger.info('Conv query result: ' + JSON.stringify({
+        convData: convData,
+        convError: convError?.message,
+        query_business_id: business.id,
+        query_from: from
+      }));
 
       const conv = convData?.[0] || null;
 

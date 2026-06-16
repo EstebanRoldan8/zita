@@ -1,6 +1,18 @@
 const logger = require('../utils/logger');
 const { processWhatsAppMessage } = require('../services/chatbot.service');
 
+const processingClients = new Map();
+
+// Limpiar Map periódicamente (entries más viejas de 30 segundos)
+setInterval(() => {
+  const now = Date.now();
+  for (const [key, timestamp] of processingClients) {
+    if (now - timestamp > 30000) {
+      processingClients.delete(key);
+    }
+  }
+}, 10000);
+
 function verifyWebhook(req, res) {
   const mode = req.query['hub.mode'];
   const token = req.query['hub.verify_token'];
@@ -15,6 +27,7 @@ function verifyWebhook(req, res) {
 }
 
 async function handleWebhook(req, res) {
+  let clientKey = null;
   try {
     const body = req.body;
 
@@ -51,6 +64,21 @@ async function handleWebhook(req, res) {
       phoneNumberId: phoneNumberId,
       from: from
     }));
+
+    // Race condition fix: verificar si este cliente ya está siendo procesado
+    if (business) {
+      clientKey = business.id + ':' + from;
+      const lastProcessing = processingClients.get(clientKey);
+      const now = Date.now();
+
+      if (lastProcessing && (now - lastProcessing) < 15000) {
+        logger.info('Cliente ya en procesamiento - ignorando mensaje duplicado:', { clientKey, tiempoDesdeUltimo: now - lastProcessing });
+        res.sendStatus(200);
+        return;
+      }
+
+      processingClients.set(clientKey, now);
+    }
 
     if (business) {
       const { data: convData, error: convError } = await require('../config/supabase').supabaseAdmin
@@ -106,14 +134,15 @@ async function handleWebhook(req, res) {
         // Verificar si bot está pausado antes de responder a audio
         let estaPausado = false;
         if (business) {
-          const { data: conv } = await require('../config/supabase').supabaseAdmin
+          const { data: audioConvData } = await require('../config/supabase').supabaseAdmin
             .from('whatsapp_conversations')
             .select('bot_paused_until')
             .eq('business_id', business.id)
             .eq('client_phone', from)
-            .maybeSingle();
+            .limit(1);
+          const audioConv = audioConvData?.[0] || null;
           const ahora = new Date();
-          const pausadoHasta = conv?.bot_paused_until ? new Date(conv.bot_paused_until) : null;
+          const pausadoHasta = audioConv?.bot_paused_until ? new Date(audioConv.bot_paused_until) : null;
           estaPausado = pausadoHasta && pausadoHasta > ahora;
         }
 
@@ -158,6 +187,10 @@ async function handleWebhook(req, res) {
     logger.error('webhook error:', error.message);
     if (!res.headersSent) {
       res.sendStatus(500);
+    }
+  } finally {
+    if (clientKey) {
+      processingClients.delete(clientKey);
     }
   }
 }

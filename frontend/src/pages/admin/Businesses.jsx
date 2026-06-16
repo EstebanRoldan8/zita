@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useNavigate } from 'react-router-dom';
-import { Building2, ChevronRight, Search, Filter, CheckCircle2, AlertTriangle, Clock, XCircle } from 'lucide-react';
+import { Building2, ChevronRight, Search, CheckCircle2, AlertTriangle, Clock, XCircle } from 'lucide-react';
 import api from '../../lib/api';
 
 const BUSINESS_TYPE_LABELS = {
@@ -13,7 +13,12 @@ const STATUS_CONFIG = {
   trial: { label: 'Período de prueba', color: 'bg-yellow-500/10 text-yellow-400 border-yellow-500/20', icon: Clock },
   active: { label: 'Activo', color: 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20', icon: CheckCircle2 },
   suspended: { label: 'Suspendido', color: 'bg-red-500/10 text-red-400 border-red-500/20', icon: XCircle },
-  expired: { label: 'Vencido', color: 'bg-red-500/10 text-red-400 border-red-500/20', icon: AlertTriangle },
+};
+
+const PLAN_CONFIG = {
+  lite: { label: 'Lite', color: 'text-slate-300 bg-slate-500/10 border-slate-500/20' },
+  estandar: { label: 'Estándar', color: 'text-violet-400 bg-violet-500/10 border-violet-500/20' },
+  pro: { label: 'Pro', color: 'text-yellow-400 bg-yellow-500/10 border-yellow-500/20' },
 };
 
 function StatusBadge({ status }) {
@@ -27,12 +32,21 @@ function StatusBadge({ status }) {
   );
 }
 
+function PlanBadge({ plan }) {
+  const cfg = PLAN_CONFIG[plan];
+  if (!cfg) return null;
+  return (
+    <span className={`inline-flex px-2 py-0.5 rounded-full text-xs font-medium border ${cfg.color}`}>
+      {cfg.label}
+    </span>
+  );
+}
+
 export default function Businesses() {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
   const [search, setSearch] = useState('');
-  const [filterStatus, setFilterStatus] = useState('all');
-  const [filterPlan, setFilterPlan] = useState('all');
+  const [activeTab, setActiveTab] = useState('todos');
 
   const { data, isLoading } = useQuery({
     queryKey: ['admin-businesses'],
@@ -44,100 +58,109 @@ export default function Businesses() {
     onSuccess: () => queryClient.invalidateQueries(['admin-businesses']),
   });
 
-  const planCounts = {
-    lite: (data || []).filter(b => b.plan === 'lite').length,
-    estandar: (data || []).filter(b => b.plan === 'estandar').length,
-    pro: (data || []).filter(b => b.plan === 'pro').length,
+  const getTabCount = (tab) => {
+    const allData = data || [];
+    switch(tab) {
+      case 'todos':
+        return allData.filter(b => b.status !== 'suspended').length;
+      case 'lite':
+        return allData.filter(b => b.plan === 'lite' && b.status !== 'suspended').length;
+      case 'estandar':
+        return allData.filter(b => b.plan === 'estandar' && b.status !== 'suspended').length;
+      case 'pro':
+        return allData.filter(b => b.plan === 'pro' && b.status !== 'suspended').length;
+      case 'trial':
+        return allData.filter(b => b.status === 'trial').length;
+      case 'suspendidos':
+        return allData.filter(b => b.status === 'suspended').length;
+      default:
+        return 0;
+    }
   };
 
   const businesses = (data || []).filter(b => {
     const matchSearch = !search ||
       b.name?.toLowerCase().includes(search.toLowerCase()) ||
       b.owner_email?.toLowerCase().includes(search.toLowerCase());
-    const matchStatus = filterStatus === 'all' || b.status === filterStatus;
-    const matchPlan = filterPlan === 'all' || b.plan === filterPlan;
-    return matchSearch && matchStatus && matchPlan;
+
+    let matchTab = true;
+    if (activeTab === 'todos') {
+      matchTab = b.status !== 'suspended';
+    } else if (activeTab === 'lite') {
+      matchTab = b.plan === 'lite' && b.status !== 'suspended';
+    } else if (activeTab === 'estandar') {
+      matchTab = b.plan === 'estandar' && b.status !== 'suspended';
+    } else if (activeTab === 'pro') {
+      matchTab = b.plan === 'pro' && b.status !== 'suspended';
+    } else if (activeTab === 'trial') {
+      matchTab = b.status === 'trial';
+    } else if (activeTab === 'suspendidos') {
+      matchTab = b.status === 'suspended';
+    }
+
+    return matchSearch && matchTab;
   });
+
+  const activeCount = (data || []).filter(b => b.status === 'active').length;
+  const suspendedCount = (data || []).filter(b => b.status === 'suspended').length;
+  const registeredCount = (data || []).filter(b => b.status !== 'suspended').length;
+
+  const tabs = [
+    { id: 'todos', label: 'Todos' },
+    { id: 'lite', label: 'Lite' },
+    { id: 'estandar', label: 'Estándar' },
+    { id: 'pro', label: 'Pro' },
+    { id: 'trial', label: 'Trial' },
+    { id: 'suspendidos', label: 'Suspendidos' },
+  ];
 
   return (
     <div className="p-6 max-w-7xl mx-auto">
       {/* Header */}
       <div className="mb-6">
         <h1 className="text-2xl font-bold text-white">Negocios</h1>
-        <p className="text-slate-400 text-sm mt-1">{data?.length || 0} negocios registrados</p>
+        <p className="text-slate-400 text-sm mt-1">{registeredCount} negocios registrados</p>
       </div>
 
-      {/* Filtros */}
-      <div className="flex flex-col gap-3 mb-6">
-        <div className="relative">
-          <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-500" />
-          <input
-            type="text"
-            placeholder="Buscar por nombre o email..."
-            value={search}
-            onChange={e => setSearch(e.target.value)}
-            className="w-full pl-9 pr-4 py-2.5 bg-[#131929] border border-white/10 rounded-xl text-white text-sm placeholder-slate-500 focus:outline-none focus:border-violet-500/50"
-          />
+      {/* KPI Cards */}
+      <div className="grid grid-cols-2 gap-4 mb-6">
+        <div className="bg-[#131929] border border-white/10 rounded-2xl p-4">
+          <p className="text-slate-400 text-xs mb-2">Activos</p>
+          <p className="text-3xl font-bold text-emerald-400">{activeCount}</p>
         </div>
-
-        {/* Status filters */}
-        <div className="flex gap-2 flex-wrap">
-          {['all', 'trial', 'active', 'suspended'].map(s => {
-            const statusCount = s === 'all'
-              ? data?.length || 0
-              : (data || []).filter(b => b.status === s).length;
-            return (
-              <button
-                key={s}
-                onClick={() => setFilterStatus(s)}
-                className={`px-3 py-2 rounded-xl text-xs font-medium transition-all border ${
-                  filterStatus === s
-                    ? 'bg-violet-600 text-white border-violet-500'
-                    : 'bg-[#131929] text-slate-400 border-white/10 hover:border-white/20'
-                }`}
-              >
-                {s === 'all' ? 'Todos' : STATUS_CONFIG[s]?.label} ({statusCount})
-              </button>
-            );
-          })}
+        <div className="bg-[#131929] border border-white/10 rounded-2xl p-4">
+          <p className="text-slate-400 text-xs mb-2">Suspendidos</p>
+          <p className="text-3xl font-bold text-red-400">{suspendedCount}</p>
         </div>
+      </div>
 
-        {/* Plan filters */}
-        <div className="flex gap-2 flex-wrap">
+      {/* Search */}
+      <div className="relative mb-6">
+        <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-500" />
+        <input
+          type="text"
+          placeholder="Buscar por nombre o email..."
+          value={search}
+          onChange={e => setSearch(e.target.value)}
+          className="w-full pl-9 pr-4 py-2.5 bg-[#131929] border border-white/10 rounded-xl text-white text-sm placeholder-slate-500 focus:outline-none focus:border-violet-500/50"
+        />
+      </div>
+
+      {/* Tabs */}
+      <div className="flex gap-2 mb-6 overflow-x-auto pb-2">
+        {tabs.map(tab => (
           <button
-            onClick={() => setFilterPlan('all')}
-            className={`px-3 py-2 rounded-xl text-xs font-medium transition-all border ${
-              filterPlan === 'all'
-                ? 'bg-slate-600 text-white border-slate-500'
-                : 'bg-[#131929] text-slate-400 border-white/10 hover:border-white/20'
+            key={tab.id}
+            onClick={() => setActiveTab(tab.id)}
+            className={`px-4 py-2 rounded-lg text-xs font-medium transition-all whitespace-nowrap ${
+              activeTab === tab.id
+                ? 'bg-violet-600/20 text-violet-300 border border-violet-500/50'
+                : 'bg-[#131929] text-slate-400 border border-white/10 hover:border-white/20'
             }`}
           >
-            Todos ({data?.length || 0})
+            {tab.label} ({getTabCount(tab.id)})
           </button>
-          {['lite', 'estandar', 'pro'].map(plan => (
-            <button
-              key={plan}
-              onClick={() => setFilterPlan(filterPlan === plan ? 'all' : plan)}
-              className={`px-3 py-2 rounded-xl text-xs font-medium transition-all border ${
-                filterPlan === plan
-                  ? plan === 'lite'
-                    ? 'bg-slate-500 text-slate-300 border-slate-500'
-                    : plan === 'estandar'
-                    ? 'bg-violet-500 text-violet-300 border-violet-500'
-                    : 'bg-yellow-500 text-yellow-300 border-yellow-500'
-                  : plan === 'lite'
-                  ? 'bg-[#131929] text-slate-400 border-white/10 hover:border-white/20'
-                  : plan === 'estandar'
-                  ? 'bg-[#131929] text-violet-400 border-white/10 hover:border-white/20'
-                  : 'bg-[#131929] text-yellow-400 border-white/10 hover:border-white/20'
-              }`}
-            >
-              {plan === 'lite' ? 'Lite' : plan === 'estandar' ? 'Estándar' : 'Pro'} ({
-                plan === 'lite' ? planCounts.lite : plan === 'estandar' ? planCounts.estandar : planCounts.pro
-              })
-            </button>
-          ))}
-        </div>
+        ))}
       </div>
 
       {/* Lista */}
@@ -178,7 +201,10 @@ export default function Businesses() {
                   </div>
                 </div>
                 <div className="flex items-center gap-3 shrink-0">
-                  <StatusBadge status={b.status} />
+                  <div className="flex items-center gap-2">
+                    <StatusBadge status={b.status} />
+                    <PlanBadge plan={b.plan} />
+                  </div>
                   <span className="text-xs text-slate-600 hidden md:block">
                     {new Date(b.created_at).toLocaleDateString('es-CO')}
                   </span>

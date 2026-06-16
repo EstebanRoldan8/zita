@@ -65,38 +65,11 @@ export default function Businesses() {
       <div className="mb-6">
         <h1 className="text-2xl font-bold text-white">Negocios</h1>
         <p className="text-slate-400 text-sm mt-1">{data?.length || 0} negocios registrados</p>
-
-        {/* Plan distribution badges */}
-        <div className="flex gap-2 mt-3">
-          {['lite', 'estandar', 'pro'].map(plan => (
-            <button
-              key={plan}
-              onClick={() => setFilterPlan(filterPlan === plan ? 'all' : plan)}
-              className={`px-3 py-1.5 rounded-lg text-xs font-medium border transition-all ${
-                plan === 'lite'
-                  ? filterPlan === 'lite'
-                    ? 'text-slate-300 bg-slate-500/10 border-slate-500/20'
-                    : 'text-slate-300 bg-slate-500/10 border-slate-500/20 opacity-40 hover:opacity-60'
-                  : plan === 'estandar'
-                  ? filterPlan === 'estandar'
-                    ? 'text-violet-400 bg-violet-500/10 border-violet-500/20'
-                    : 'text-violet-400 bg-violet-500/10 border-violet-500/20 opacity-40 hover:opacity-60'
-                  : filterPlan === 'pro'
-                  ? 'text-yellow-400 bg-yellow-500/10 border-yellow-500/20'
-                  : 'text-yellow-400 bg-yellow-500/10 border-yellow-500/20 opacity-40 hover:opacity-60'
-              }`}
-            >
-              {plan === 'lite' ? 'Lite' : plan === 'estandar' ? 'Estándar' : 'Pro'}: {
-                plan === 'lite' ? planCounts.lite : plan === 'estandar' ? planCounts.estandar : planCounts.pro
-              }
-            </button>
-          ))}
-        </div>
       </div>
 
       {/* Filtros */}
-      <div className="flex flex-col sm:flex-row gap-3 mb-6">
-        <div className="relative flex-1">
+      <div className="flex flex-col gap-3 mb-6">
+        <div className="relative">
           <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-500" />
           <input
             type="text"
@@ -106,18 +79,62 @@ export default function Businesses() {
             className="w-full pl-9 pr-4 py-2.5 bg-[#131929] border border-white/10 rounded-xl text-white text-sm placeholder-slate-500 focus:outline-none focus:border-violet-500/50"
           />
         </div>
-        <div className="flex gap-2">
-          {['all', 'trial', 'active', 'suspended'].map(s => (
+
+        {/* Status filters */}
+        <div className="flex gap-2 flex-wrap">
+          {['all', 'trial', 'active', 'suspended'].map(s => {
+            const statusCount = s === 'all'
+              ? data?.length || 0
+              : (data || []).filter(b => b.status === s).length;
+            return (
+              <button
+                key={s}
+                onClick={() => setFilterStatus(s)}
+                className={`px-3 py-2 rounded-xl text-xs font-medium transition-all border ${
+                  filterStatus === s
+                    ? 'bg-violet-600 text-white border-violet-500'
+                    : 'bg-[#131929] text-slate-400 border-white/10 hover:border-white/20'
+                }`}
+              >
+                {s === 'all' ? 'Todos' : STATUS_CONFIG[s]?.label} ({statusCount})
+              </button>
+            );
+          })}
+        </div>
+
+        {/* Plan filters */}
+        <div className="flex gap-2 flex-wrap">
+          <button
+            onClick={() => setFilterPlan('all')}
+            className={`px-3 py-2 rounded-xl text-xs font-medium transition-all border ${
+              filterPlan === 'all'
+                ? 'bg-slate-600 text-white border-slate-500'
+                : 'bg-[#131929] text-slate-400 border-white/10 hover:border-white/20'
+            }`}
+          >
+            Todos ({data?.length || 0})
+          </button>
+          {['lite', 'estandar', 'pro'].map(plan => (
             <button
-              key={s}
-              onClick={() => setFilterStatus(s)}
+              key={plan}
+              onClick={() => setFilterPlan(filterPlan === plan ? 'all' : plan)}
               className={`px-3 py-2 rounded-xl text-xs font-medium transition-all border ${
-                filterStatus === s
-                  ? 'bg-violet-600 text-white border-violet-500'
-                  : 'bg-[#131929] text-slate-400 border-white/10 hover:border-white/20'
+                filterPlan === plan
+                  ? plan === 'lite'
+                    ? 'bg-slate-500 text-slate-300 border-slate-500'
+                    : plan === 'estandar'
+                    ? 'bg-violet-500 text-violet-300 border-violet-500'
+                    : 'bg-yellow-500 text-yellow-300 border-yellow-500'
+                  : plan === 'lite'
+                  ? 'bg-[#131929] text-slate-400 border-white/10 hover:border-white/20'
+                  : plan === 'estandar'
+                  ? 'bg-[#131929] text-violet-400 border-white/10 hover:border-white/20'
+                  : 'bg-[#131929] text-yellow-400 border-white/10 hover:border-white/20'
               }`}
             >
-              {s === 'all' ? 'Todos' : STATUS_CONFIG[s]?.label}
+              {plan === 'lite' ? 'Lite' : plan === 'estandar' ? 'Estándar' : 'Pro'} ({
+                plan === 'lite' ? planCounts.lite : plan === 'estandar' ? planCounts.estandar : planCounts.pro
+              })
             </button>
           ))}
         </div>

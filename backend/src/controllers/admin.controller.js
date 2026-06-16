@@ -48,7 +48,7 @@ async function getBusinesses(req, res) {
   try {
     const { data, error } = await supabaseAdmin
       .from('businesses')
-      .select('id, name, owner_email, business_type, status, phone, created_at')
+      .select('id, name, owner_email, business_type, status, phone, created_at, plan')
       .order('created_at', { ascending: false });
 
     if (error) throw error;

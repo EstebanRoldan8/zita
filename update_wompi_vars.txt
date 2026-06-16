@@ -1,0 +1,9 @@
+Necesito actualizar las siguientes variables de entorno en el servicio zita (environment: production):
+
+WOMPI_PUBLIC_KEY=pub_prod_xgdHgrXYadCwm9L28DcmyS7vxOKWmNzh
+WOMPI_PRIVATE_KEY=prv_prod_490fhk5scCtEkRy0ZPY7hTRhojWAwQ8O
+WOMPI_EVENTS_SECRET=prod_events_96NAKFIiSCt3aUIiMkdReNbhjibvp2OY
+WOMPI_INTEGRITY_SECRET=prod_integrity_89NOVZI6ggDSy8LopZAk2PZ3x8nal84K
+WOMPI_API_URL=https://production.wompi.co/v1
+
+Por favor actualiza estas 5 variables. No toques ninguna otra variable.

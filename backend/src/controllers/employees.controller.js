@@ -91,13 +91,50 @@ async function update(req, res) {
 
     const { data: existing } = await userClient
       .from('employees')
-      .select('id')
+      .select('id, is_active')
       .eq('id', id)
       .eq('business_id', req.businessId)
       .single();
 
     if (!existing) {
       return res.status(404).json({ success: false, error: 'No encontrado' });
+    }
+
+    // Validar límite de empleados al reactivar
+    if (is_active === true && !existing.is_active) {
+      const { createAdminClient } = require('../config/supabase');
+      const supabaseAdmin = createAdminClient();
+      const { PLANS } = require('../config/plans');
+
+      const { data: biz } = await supabaseAdmin
+        .from('businesses')
+        .select('plan, trial_ends_at')
+        .eq('id', req.businessId)
+        .single();
+
+      const ahora = new Date();
+      const enTrial = biz.trial_ends_at && new Date(biz.trial_ends_at) > ahora;
+
+      if (!enTrial) {
+        const plan = biz.plan || 'estandar';
+        const limite = PLANS[plan].max_employees;
+
+        if (limite !== -1) {
+          const { count } = await supabaseAdmin
+            .from('employees')
+            .select('id', { count: 'exact', head: true })
+            .eq('business_id', req.businessId)
+            .eq('is_active', true);
+
+          if (count >= limite) {
+            return res.status(403).json({
+              success: false,
+              error: `Alcanzaste el límite de ${limite} empleados de tu plan ${PLANS[plan].name}. Mejora tu plan para agregar más.`,
+              code: 'EMPLOYEES_LIMIT_REACHED'
+            });
+          }
+        }
+      }
     }
 
     const updates = {};

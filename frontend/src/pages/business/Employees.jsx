@@ -26,12 +26,19 @@ function Modal({ title, onClose, children }) {
 
 const emptyForm = { name: '', email: '', phone: '', commission_percent: 0 };
 
+const PLAN_LIMITS = {
+  lite: 2,
+  estandar: 5,
+  pro: 999
+};
+
 // ─── PESTAÑA EQUIPO ───────────────────────────────────────────────────────────
 function TeamTab({ showInactive, onShowInactiveChange, showCreateModal, setShowCreateModal }) {
   const qc = useQueryClient();
   const [editing, setEditing] = useState(null);
   const [form, setForm] = useState(emptyForm);
   const [formError, setFormError] = useState('');
+  const [reactivateError, setReactivateError] = useState(null);
   const [deleteConfirm, setDeleteConfirm] = useState(null);
 
   const { data: employees = [], isLoading } = useQuery({
@@ -52,7 +59,8 @@ function TeamTab({ showInactive, onShowInactiveChange, showCreateModal, setShowC
 
   const reactivateMutation = useMutation({
     mutationFn: (id) => api.put(`/api/employees/${id}`, { is_active: true }),
-    onSuccess: () => qc.invalidateQueries({ queryKey: ['employees'] }),
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ['employees'] }); setReactivateError(null); },
+    onError: (err) => setReactivateError(err.response?.data?.error || 'Error al reactivar empleado.'),
   });
 
   const deleteMutation = useMutation({
@@ -80,7 +88,7 @@ function TeamTab({ showInactive, onShowInactiveChange, showCreateModal, setShowC
   return (
     <div>
       {/* Toggle mostrar inactivos */}
-      <div className="mb-5 flex items-center gap-3">
+      <div className="mb-5 flex flex-col gap-3">
         <label className="flex items-center gap-2 cursor-pointer">
           <input
             type="checkbox"
@@ -90,6 +98,9 @@ function TeamTab({ showInactive, onShowInactiveChange, showCreateModal, setShowC
           />
           <span className="text-slate-400 text-sm">Mostrar empleados inactivos</span>
         </label>
+        {reactivateError && (
+          <p className="text-red-400 text-sm bg-red-500/10 border border-red-500/20 px-3 py-2 rounded-lg">{reactivateError}</p>
+        )}
       </div>
 
       {isLoading ? (
@@ -503,6 +514,7 @@ export default function Employees() {
   const plan = sub?.plan || 'estandar';
   const visibleTabs = plan === 'lite' ? TABS.filter(t => t.id === 'team') : TABS;
   const activeCount = employees.filter((e) => e.is_active).length;
+  const isAtEmployeeLimit = activeCount >= PLAN_LIMITS[plan];
 
   if (subLoading) {
     return (
@@ -538,7 +550,13 @@ export default function Employees() {
         </div>
         <button
           onClick={() => { setShowCreateModal(true); setForm(emptyForm); setFormError(''); }}
-          className="flex items-center justify-center sm:justify-start gap-2 w-full sm:w-auto bg-violet-600 hover:bg-violet-500 text-white text-xs sm:text-sm font-medium px-4 py-2 rounded-lg transition whitespace-nowrap"
+          disabled={isAtEmployeeLimit}
+          title={isAtEmployeeLimit ? `Límite de ${PLAN_LIMITS[plan]} empleados alcanzado` : ''}
+          className={`flex items-center justify-center sm:justify-start gap-2 w-full sm:w-auto text-white text-xs sm:text-sm font-medium px-4 py-2 rounded-lg transition whitespace-nowrap ${
+            isAtEmployeeLimit
+              ? 'bg-slate-700 text-slate-400 cursor-not-allowed opacity-60'
+              : 'bg-violet-600 hover:bg-violet-500'
+          }`}
         >
           <UserPlus size={16} /> <span>Agregar empleado</span>
         </button>

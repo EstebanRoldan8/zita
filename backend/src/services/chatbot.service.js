@@ -110,6 +110,16 @@ CITAS GRUPALES:
 - Siempre muestra resumen final con todos los agendamientos exitosos y fallidos
 </booking_rules>`;
 
+const OFF_TOPIC_RULES = `<off_topic>
+Si el cliente pregunta algo fuera del contexto del negocio (código, preguntas generales, temas ajenos, educación, etc.):
+- Puedes responder con naturalidad y ayudar si puedes
+- SIEMPRE termina amablemente recordando tu función principal
+- Ejemplo de respuesta:
+  "Claro, [respuesta a su pregunta]... Pero recuerda que estoy aquí principalmente para ayudarte a agendar citas y resolver dudas sobre nuestros servicios 😊 ¿Necesitas algo?"
+- Mantén el tono cálido y natural, no hagas sentir mal al cliente
+- Nunca digas "No puedo ayudarte con eso" — siempre intenta ayudar pero redirige
+</off_topic>`;
+
 async function getBusinessByPhoneNumberId(phoneNumberId) {
   const { data, error } = await supabaseAdmin
     .from('businesses')
@@ -193,6 +203,8 @@ ${PERSONALITY_RULES}
 ${DECISION_TREE_RULES}
 
 ${BOOKING_RULES_TEXT}
+
+${OFF_TOPIC_RULES}
 
 <tool_results>
 CRÍTICO: Siempre lee el resultado de agendar_cita antes de responder:

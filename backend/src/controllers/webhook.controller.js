@@ -53,6 +53,8 @@ async function handleWebhook(req, res) {
         .eq('client_phone', from)
         .maybeSingle();
 
+      logger.info('DEBUG - Pausa check:', { businessId: business.id, clientPhone: from, conversacion: conv ? 'encontrada' : 'no encontrada', bot_paused_until: conv?.bot_paused_until, last_bot_response_at: conv?.last_bot_response_at });
+
       const ahora = new Date();
       const pausadoHasta = conv?.bot_paused_until ? new Date(conv.bot_paused_until) : null;
       const estaPausado = pausadoHasta && pausadoHasta > ahora;
@@ -78,6 +80,26 @@ async function handleWebhook(req, res) {
 
     if (messageType !== 'text' || !messageText) {
       if (messageType === 'audio') {
+        // Verificar si bot está pausado antes de responder a audio
+        let estaPausado = false;
+        if (business) {
+          const { data: conv } = await require('../config/supabase').supabaseAdmin
+            .from('whatsapp_conversations')
+            .select('bot_paused_until')
+            .eq('business_id', business.id)
+            .eq('client_phone', from)
+            .maybeSingle();
+          const ahora = new Date();
+          const pausadoHasta = conv?.bot_paused_until ? new Date(conv.bot_paused_until) : null;
+          estaPausado = pausadoHasta && pausadoHasta > ahora;
+        }
+
+        if (estaPausado) {
+          logger.info('Bot pausado - no respondiendo a audio:', { from });
+          res.sendStatus(200);
+          return;
+        }
+
         res.sendStatus(200);
         const { sendMessage } = require('../config/whatsapp');
         try {

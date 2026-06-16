@@ -1413,6 +1413,16 @@ async function processWhatsAppMessage({ from, phoneNumberId, messageText, messag
     try {
       await sendMessage(from, result.response, businessToken, business.whatsapp_phone_number_id);
       logger.info('Mensaje enviado al cliente');
+      // Actualizar last_bot_response_at para evitar respuestas múltiples
+      try {
+        await supabaseAdmin
+          .from('whatsapp_conversations')
+          .update({ last_bot_response_at: new Date().toISOString() })
+          .eq('business_id', business.id)
+          .eq('client_phone', from);
+      } catch(e) {
+        logger.error('Error actualizando last_bot_response_at:', e.message);
+      }
     } catch(e) {
       logger.error('Error enviando mensaje:', e.message);
     }

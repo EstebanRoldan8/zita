@@ -277,6 +277,8 @@ function PerformanceTab() {
     );
   }
 
+  const commissionLabel = viewType === 'month' ? 'Comisión del mes' : 'Comisión hoy';
+
   return (
     <div>
       <div className="mb-6 space-y-4">
@@ -334,7 +336,7 @@ function PerformanceTab() {
                 <th className="w-[30%] text-left text-slate-500 font-medium px-5 py-3">Empleado</th>
                 <th className="w-[10%] text-right text-slate-500 font-medium px-4 py-3">Citas</th>
                 <th className="w-[18%] text-right text-slate-500 font-medium px-4 py-3">Ingresos</th>
-                <th className="w-[16%] text-right text-slate-500 font-medium px-4 py-3">Comisión hoy</th>
+                <th className="w-[16%] text-right text-slate-500 font-medium px-4 py-3">{commissionLabel}</th>
                 <th className="w-[14%] text-right text-slate-500 font-medium px-4 py-3">Promedio/cita</th>
                 <th className="w-[12%] text-right text-slate-500 font-medium px-5 py-3">% del total</th>
               </tr>
@@ -364,7 +366,7 @@ function PerformanceTab() {
                       <span className="text-emerald-400 font-medium">{formatCOP(emp.income)}</span>
                     </td>
                     <td className="px-4 py-3.5 text-right">
-                      <span className="text-white/40 font-medium">{formatCOP(emp.commission_today)}</span>
+                      <span className="text-white/40 font-medium">{formatCOP(viewType === 'month' ? emp.commission_period : emp.commission_today)}</span>
                     </td>
                     <td className="px-4 py-3.5 text-right">
                       <span className="text-slate-300">{formatCOP(emp.avg_per_appt)}</span>
@@ -424,8 +426,8 @@ function PerformanceTab() {
                 </div>
 
                 <div className="bg-amber-500/10 border border-amber-500/20 rounded-lg p-3">
-                  <p className="text-amber-400 text-xs font-semibold mb-1">Comisión del día</p>
-                  <p className="text-amber-300 text-xl font-bold">{formatCOP(emp.commission_today)}</p>
+                  <p className="text-amber-400 text-xs font-semibold mb-1">{commissionLabel}</p>
+                  <p className="text-amber-300 text-xl font-bold">{formatCOP(viewType === 'month' ? emp.commission_period : emp.commission_today)}</p>
                 </div>
 
                 <div>

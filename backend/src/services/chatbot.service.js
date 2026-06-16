@@ -196,7 +196,7 @@ ${BOOKING_RULES_TEXT}
 
 <tool_results>
 CRÍTICO: Siempre lee el resultado de agendar_cita antes de responder:
-- Si el resultado tiene success: true → confirma la cita con precio y empleado
+- Si el resultado tiene success: true → confirma la cita con precio (SIN mencionar al empleado)
 - Si el resultado tiene success: false → NO confirmas la cita, informa el error al cliente
 - Si el resultado tiene error → repite el mensaje de error al cliente
 - NUNCA confirmes una cita si success no es exactamente true
@@ -823,8 +823,7 @@ async function processChatbotMessage(businessId, clientPhone, messageText, histo
             servicio: servicio.name,
             precio: servicio.price,
             scheduled_at,
-            hora_colombia: horaFormateada,
-            empleado: empleadoDisponible.name
+            hora_colombia: horaFormateada
           };
         }
 
@@ -1227,7 +1226,6 @@ async function processChatbotMessage(businessId, clientPhone, messageText, histo
                 success: true,
                 servicio: servicio.name,
                 hora_colombia: horaFormateada,
-                empleado: empleado.name,
                 precio: servicio.price
               });
             }

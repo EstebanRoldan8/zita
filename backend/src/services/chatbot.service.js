@@ -1054,14 +1054,13 @@ async function processChatbotMessage(businessId, clientPhone, messageText, histo
             const pausadoHasta = new Date();
             pausadoHasta.setHours(pausadoHasta.getHours() + 3);
 
-            await supabaseAdmin
+            const { error: updateError } = await supabaseAdmin
               .from('whatsapp_conversations')
-              .upsert({
-                business_id: businessId,
-                client_phone: clientPhone,
-                bot_paused_until: pausadoHasta.toISOString()
-              }, { onConflict: 'business_id,client_phone' });
+              .update({ bot_paused_until: pausadoHasta.toISOString() })
+              .eq('business_id', businessId)
+              .eq('client_phone', clientPhone);
 
+            logger.info('Pausa guardada en BD:', { businessId, clientPhone, pausadoHasta: pausadoHasta.toISOString(), error: updateError });
             logger.info('Bot pausado por 3 horas para cliente:', { clientPhone, hasta: pausadoHasta.toISOString() });
 
             return {

@@ -256,9 +256,10 @@ async function getProfile(req, res) {
 async function updateProfile(req, res) {
   try {
     const userClient = createUserClient(req.headers.authorization);
-    const { name, phone, address, business_type } = req.body;
+    const { owner_name, name, phone, address, business_type } = req.body;
 
     const patch = {};
+    if (owner_name    !== undefined) patch.owner_name    = owner_name?.trim() || null;
     if (name          !== undefined) patch.name          = name?.trim();
     if (phone         !== undefined) patch.phone         = phone?.trim() || null;
     if (address       !== undefined) patch.address       = address?.trim() || null;
@@ -272,7 +273,7 @@ async function updateProfile(req, res) {
       .from('businesses')
       .update(patch)
       .eq('id', req.businessId)
-      .select('id, name, business_type, owner_email, phone, address')
+      .select('id, name, business_type, owner_email, owner_name, phone, address')
       .single();
 
     if (error) throw error;

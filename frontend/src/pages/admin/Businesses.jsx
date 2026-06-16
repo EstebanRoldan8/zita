@@ -32,6 +32,7 @@ export default function Businesses() {
   const queryClient = useQueryClient();
   const [search, setSearch] = useState('');
   const [filterStatus, setFilterStatus] = useState('all');
+  const [filterPlan, setFilterPlan] = useState('all');
 
   const { data, isLoading } = useQuery({
     queryKey: ['admin-businesses'],
@@ -43,12 +44,19 @@ export default function Businesses() {
     onSuccess: () => queryClient.invalidateQueries(['admin-businesses']),
   });
 
+  const planCounts = {
+    lite: (data || []).filter(b => b.plan === 'lite').length,
+    estandar: (data || []).filter(b => b.plan === 'estandar').length,
+    pro: (data || []).filter(b => b.plan === 'pro').length,
+  };
+
   const businesses = (data || []).filter(b => {
     const matchSearch = !search ||
       b.name?.toLowerCase().includes(search.toLowerCase()) ||
       b.owner_email?.toLowerCase().includes(search.toLowerCase());
     const matchStatus = filterStatus === 'all' || b.status === filterStatus;
-    return matchSearch && matchStatus;
+    const matchPlan = filterPlan === 'all' || b.plan === filterPlan;
+    return matchSearch && matchStatus && matchPlan;
   });
 
   return (
@@ -57,6 +65,33 @@ export default function Businesses() {
       <div className="mb-6">
         <h1 className="text-2xl font-bold text-white">Negocios</h1>
         <p className="text-slate-400 text-sm mt-1">{data?.length || 0} negocios registrados</p>
+
+        {/* Plan distribution badges */}
+        <div className="flex gap-2 mt-3">
+          {['lite', 'estandar', 'pro'].map(plan => (
+            <button
+              key={plan}
+              onClick={() => setFilterPlan(filterPlan === plan ? 'all' : plan)}
+              className={`px-3 py-1.5 rounded-lg text-xs font-medium border transition-all ${
+                plan === 'lite'
+                  ? filterPlan === 'lite'
+                    ? 'text-slate-300 bg-slate-500/10 border-slate-500/20'
+                    : 'text-slate-300 bg-slate-500/10 border-slate-500/20 opacity-40 hover:opacity-60'
+                  : plan === 'estandar'
+                  ? filterPlan === 'estandar'
+                    ? 'text-violet-400 bg-violet-500/10 border-violet-500/20'
+                    : 'text-violet-400 bg-violet-500/10 border-violet-500/20 opacity-40 hover:opacity-60'
+                  : filterPlan === 'pro'
+                  ? 'text-yellow-400 bg-yellow-500/10 border-yellow-500/20'
+                  : 'text-yellow-400 bg-yellow-500/10 border-yellow-500/20 opacity-40 hover:opacity-60'
+              }`}
+            >
+              {plan === 'lite' ? 'Lite' : plan === 'estandar' ? 'Estándar' : 'Pro'}: {
+                plan === 'lite' ? planCounts.lite : plan === 'estandar' ? planCounts.estandar : planCounts.pro
+              }
+            </button>
+          ))}
+        </div>
       </div>
 
       {/* Filtros */}

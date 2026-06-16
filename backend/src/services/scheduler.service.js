@@ -135,13 +135,15 @@ cron.schedule('*/5 * * * *', async () => {
 
 // Auto-completar citas 1 hora después de la hora programada
 cron.schedule('0 * * * *', async () => {
-  const acquired = await acquireLock('auto_completar', 55);
+  const acquired = await acquireLock('auto_completar', 50);
   if (!acquired) return;
 
   logger.info('Verificando citas para auto-completar...');
 
   try {
     const unaHoraAtras = new Date(Date.now() - 60 * 60 * 1000).toISOString();
+    logger.info(`Buscando citas confirmadas antes de ${unaHoraAtras}`);
+
     const { data: toComplete, error: selectError } = await supabaseAdmin
       .from('appointments')
       .select('id, business_id, services(name, price)')
@@ -153,6 +155,8 @@ cron.schedule('0 * * * *', async () => {
       logger.error('Error obteniendo citas para auto-completar:', selectError.message);
       return;
     }
+
+    logger.info(`Encontradas ${toComplete?.length || 0} citas para auto-completar`);
 
     for (const appointment of toComplete || []) {
       const { data: existingIncome } = await supabaseAdmin

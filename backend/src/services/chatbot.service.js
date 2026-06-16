@@ -1062,7 +1062,7 @@ async function processChatbotMessage(businessId, clientPhone, messageText, histo
                 bot_paused_until: pausadoHasta.toISOString()
               }, { onConflict: 'business_id,client_phone' });
 
-            logger.info('Bot pausado por 2 min (DEBUG) para cliente:', { clientPhone, hasta: pausadoHasta.toISOString() });
+            logger.info('Bot pausado por 3 horas para cliente:', { clientPhone, hasta: pausadoHasta.toISOString() });
 
             return {
               success: true,
@@ -1302,6 +1302,7 @@ async function processChatbotMessage(businessId, clientPhone, messageText, histo
       allMessages.push({ role: 'assistant', content: assistantContent });
 
       const toolResults = [];
+      let shouldBreak = false;
       for (const block of assistantContent) {
         if (block.type === 'tool_use') {
           const result = await executeChatbotTool(block.name, block.input);
@@ -1310,7 +1311,22 @@ async function processChatbotMessage(businessId, clientPhone, messageText, histo
             tool_use_id: block.id,
             content: JSON.stringify(result)
           });
+          // Si se ejecutó escalar_a_humano exitosamente, detener el loop
+          if (block.name === 'escalar_a_humano' && result.success) {
+            shouldBreak = true;
+          }
         }
+      }
+
+      // Si se escaló a humano, retornar el mensaje de confirmación sin seguir procesando
+      if (shouldBreak) {
+        const escaladaResponse = 'Listo, le avisé al dueño. Te contactarán pronto 😊';
+        allMessages.push({ role: 'assistant', content: assistantContent });
+        allMessages.push({ role: 'assistant', content: [{ type: 'text', text: escaladaResponse }] });
+        return {
+          response: escaladaResponse,
+          history: allMessages.slice(-10)
+        };
       }
 
       allMessages.push({ role: 'user', content: toolResults });

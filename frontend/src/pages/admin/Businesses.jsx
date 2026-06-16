@@ -200,9 +200,12 @@ export default function Businesses() {
                       {BUSINESS_TYPE_LABELS[b.business_type] || b.business_type}
                     </span>
                   </div>
-                  <div className="flex items-center gap-3">
-                    <p className="text-slate-500 text-xs truncate">{b.owner_email}</p>
-                    {b.phone && <p className="text-slate-600 text-xs hidden md:block">{b.phone}</p>}
+                  <div className="flex flex-col gap-1">
+                    {b.owner_name && <p className="text-slate-400 text-xs truncate">{b.owner_name}</p>}
+                    <div className="flex items-center gap-3">
+                      <p className="text-slate-500 text-xs truncate">{b.owner_email}</p>
+                      {b.phone && <p className="text-slate-600 text-xs hidden md:block">{b.phone}</p>}
+                    </div>
                   </div>
                 </div>
                 <div className="flex items-center gap-3 shrink-0">

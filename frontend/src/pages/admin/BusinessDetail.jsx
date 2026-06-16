@@ -4,7 +4,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import {
   ArrowLeft, Building2, Users, Scissors, Calendar,
   CreditCard, Link, CheckCircle2, XCircle, AlertTriangle,
-  Clock, Phone, Mail, MapPin, ExternalLink
+  Clock, Phone, Mail, MapPin, ExternalLink, User
 } from 'lucide-react';
 import api from '../../lib/api';
 
@@ -116,17 +116,18 @@ export default function BusinessDetail() {
             <h2 className="text-white font-semibold mb-4">Información</h2>
             <div className="grid grid-cols-2 gap-4">
               {[
+                { label: 'Dueño', value: data.owner_name || 'No especificado', icon: User, isOptional: !data.owner_name },
                 { label: 'Tipo', value: data.business_type, icon: Building2 },
                 { label: 'Teléfono', value: data.phone || '—', icon: Phone },
                 { label: 'Email', value: data.owner_email, icon: Mail },
                 { label: 'Dirección', value: data.address || '—', icon: MapPin },
-              ].map(({ label, value, icon: Icon }) => (
+              ].map(({ label, value, icon: Icon, isOptional }) => (
                 <div key={label}>
                   <div className="flex items-center gap-1.5 mb-1">
                     <Icon size={13} className="text-slate-500" />
                     <span className="text-slate-500 text-xs">{label}</span>
                   </div>
-                  <p className="text-slate-200 text-sm">{value}</p>
+                  <p className={`text-sm ${isOptional ? 'text-slate-500' : 'text-slate-200'}`}>{value}</p>
                 </div>
               ))}
             </div>

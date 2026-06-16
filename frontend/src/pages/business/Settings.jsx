@@ -363,6 +363,7 @@ function ProfileTab() {
   useEffect(() => {
     if (profile && !synced.current) {
       setForm({
+        owner_name:    profile.owner_name    || '',
         name:          profile.name          || '',
         phone:         profile.phone         || '',
         address:       profile.address       || '',
@@ -398,9 +399,10 @@ function ProfileTab() {
 
       <div className="bg-[#131929] border border-violet-500/15 rounded-xl p-4 mb-3 max-w-lg space-y-3">
         {[
-          { name: 'name',    label: 'Nombre del negocio *', placeholder: 'Mi negocio' },
-          { name: 'phone',   label: 'Teléfono',             placeholder: '3001234567' },
-          { name: 'address', label: 'Dirección',            placeholder: 'Calle 45 #12-34, Cali' },
+          { name: 'owner_name', label: 'Nombre del dueño',     placeholder: 'Tu nombre completo' },
+          { name: 'name',       label: 'Nombre del negocio *', placeholder: 'Mi negocio' },
+          { name: 'phone',      label: 'Teléfono',             placeholder: '3001234567' },
+          { name: 'address',    label: 'Dirección',            placeholder: 'Calle 45 #12-34, Cali' },
         ].map(({ name, label, placeholder }) => (
           <div key={name}>
             <label className="block text-slate-400 text-sm mb-2">{label}</label>

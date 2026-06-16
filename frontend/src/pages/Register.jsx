@@ -29,6 +29,7 @@ const COUNTRIES = [
 export default function Register() {
   const navigate = useNavigate();
   const [form, setForm] = useState({
+    ownerName: '',
     name: '',
     business_type: 'barberia',
     ciudad: '',
@@ -57,7 +58,7 @@ export default function Register() {
 
   const passwordStrength = form.password.length > 0 ? getPasswordStrength(form.password) : null;
   const passwordsMatch = form.password === form.confirmPassword && form.password.length > 0;
-  const isFormValid = form.name && form.business_type && form.ciudad && form.country && form.phone && form.email && form.password && form.confirmPassword && passwordsMatch && form.password.length >= 8;
+  const isFormValid = form.ownerName && form.name && form.business_type && form.ciudad && form.country && form.phone && form.email && form.password && form.confirmPassword && passwordsMatch && form.password.length >= 8;
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -73,6 +74,7 @@ export default function Register() {
     setLoading(true);
     try {
       await api.post('/api/auth/register', {
+        ownerName: form.ownerName,
         name: form.name,
         email: form.email,
         password: form.password,
@@ -281,10 +283,24 @@ export default function Register() {
 
           {/* Form */}
           <form onSubmit={handleSubmit} className="space-y-5">
-            {/* Row 1: Business Name and Tipo (2-column grid) */}
+            {/* Row 1: Owner Name and Business Name (2-column grid) */}
             <div className="grid grid-cols-1 md:grid-cols-2 gap-3 md:gap-5">
+              {/* Owner Name */}
+              <div>
+                <label className="block text-sm text-slate-300 mb-2">Tu nombre *</label>
+                <input
+                  type="text"
+                  name="ownerName"
+                  value={form.ownerName}
+                  onChange={handleChange}
+                  required
+                  placeholder="Ej: Juan Pérez"
+                  className="w-full bg-slate-900 border border-slate-700 text-white rounded-xl px-4 py-3 placeholder-slate-500 focus:outline-none focus:border-violet-500 transition"
+                />
+              </div>
+
               {/* Business Name */}
-              <div className="md:col-span-2">
+              <div>
                 <label className="block text-sm text-slate-300 mb-2">Nombre del negocio *</label>
                 <input
                   type="text"
@@ -296,24 +312,24 @@ export default function Register() {
                   className="w-full bg-slate-900 border border-slate-700 text-white rounded-xl px-4 py-3 placeholder-slate-500 focus:outline-none focus:border-violet-500 transition"
                 />
               </div>
-
-              {/* Business Type */}
-              <div>
-                <label className="block text-sm text-slate-300 mb-2">Tipo de negocio *</label>
-                <select
-                  name="business_type"
-                  value={form.business_type}
-                  onChange={handleChange}
-                  className="w-full bg-slate-900 border border-slate-700 text-white rounded-xl px-4 py-3 focus:outline-none focus:border-violet-500 transition"
-                >
-                  {BUSINESS_TYPES.map((t) => (
-                    <option key={t.value} value={t.value}>{t.label}</option>
-                  ))}
-                </select>
-              </div>
             </div>
 
-            {/* Row 2: Ciudad and País (2-column grid) */}
+            {/* Row 2: Business Type (1-column) */}
+            <div>
+              <label className="block text-sm text-slate-300 mb-2">Tipo de negocio *</label>
+              <select
+                name="business_type"
+                value={form.business_type}
+                onChange={handleChange}
+                className="w-full bg-slate-900 border border-slate-700 text-white rounded-xl px-4 py-3 focus:outline-none focus:border-violet-500 transition"
+              >
+                {BUSINESS_TYPES.map((t) => (
+                  <option key={t.value} value={t.value}>{t.label}</option>
+                ))}
+              </select>
+            </div>
+
+            {/* Row 3: Ciudad and País (2-column grid) */}
             <div className="grid grid-cols-1 md:grid-cols-2 gap-3 md:gap-5">
               {/* City */}
               <div>
@@ -345,7 +361,7 @@ export default function Register() {
               </div>
             </div>
 
-            {/* Row 3: WhatsApp and Email (2-column grid) */}
+            {/* Row 4: WhatsApp and Email (2-column grid) */}
             <div className="grid grid-cols-1 md:grid-cols-2 gap-3 md:gap-5">
               {/* WhatsApp */}
               <div>

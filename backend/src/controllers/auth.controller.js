@@ -3,7 +3,7 @@ const logger = require('../utils/logger');
 
 async function register(req, res) {
   try {
-    const { name, email, password, business_type = 'barberia', phone, ciudad, country = 'colombia' } = req.body;
+    const { ownerName, name, email, password, business_type = 'barberia', phone, ciudad, country = 'colombia' } = req.body;
 
     const { data: authData, error: authError } = await supabaseAdmin.auth.admin.createUser({
       email,
@@ -24,7 +24,7 @@ async function register(req, res) {
       .insert({
         user_id: authData.user.id,
         name,
-        owner_name: name,
+        owner_name: ownerName || name,
         owner_email: email,
         business_type,
         phone: phone || null,

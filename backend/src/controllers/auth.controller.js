@@ -24,6 +24,7 @@ async function register(req, res) {
       .insert({
         user_id: authData.user.id,
         name,
+        owner_name: name,
         owner_email: email,
         business_type,
         phone: phone || null,

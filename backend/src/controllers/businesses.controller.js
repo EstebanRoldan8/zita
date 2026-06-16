@@ -6,7 +6,7 @@ async function getMe(req, res) {
     const sb = createUserClient(req.headers.authorization);
     const { data, error } = await sb
       .from('businesses')
-      .select('id, name, business_type, status, owner_email, phone, address, country, plan, trial_ends_at, plan_expires_at, ai_messages_today, ai_messages_date, whatsapp_phone_number_id, modules, onboarding_completed, onboarding_skipped, created_at')
+      .select('id, name, business_type, status, owner_email, owner_name, phone, address, country, plan, trial_ends_at, plan_expires_at, ai_messages_today, ai_messages_date, whatsapp_phone_number_id, modules, onboarding_completed, onboarding_skipped, created_at')
       .eq('id', req.businessId)
       .single();
 
@@ -65,6 +65,34 @@ async function updateRecallSettings(req, res) {
   }
 }
 
+async function updateProfile(req, res) {
+  try {
+    const { owner_name, phone, address } = req.body;
+    const { supabaseAdmin } = require('../config/supabase');
+    const updates = {};
+    if (owner_name !== undefined) updates.owner_name = owner_name;
+    if (phone !== undefined) updates.phone = phone;
+    if (address !== undefined) updates.address = address;
+
+    if (Object.keys(updates).length === 0) {
+      return res.status(400).json({ success: false, error: 'No hay campos para actualizar.' });
+    }
+
+    const { data, error } = await supabaseAdmin
+      .from('businesses')
+      .update(updates)
+      .eq('id', req.businessId)
+      .select()
+      .single();
+
+    if (error) throw error;
+    return res.json({ success: true, data });
+  } catch (err) {
+    logger.error('businesses.updateProfile: ' + err.message);
+    return res.status(500).json({ success: false, error: 'Error al actualizar perfil.' });
+  }
+}
+
 async function updateOnboarding(req, res) {
   try {
     const { action } = req.body;
@@ -101,4 +129,4 @@ async function updateOnboarding(req, res) {
   }
 }
 
-module.exports = { getMe, updateModules, updateRecallSettings, updateOnboarding };
+module.exports = { getMe, updateModules, updateRecallSettings, updateProfile, updateOnboarding };

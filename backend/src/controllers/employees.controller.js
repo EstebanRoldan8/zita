@@ -1,4 +1,4 @@
-const { createUserClient } = require('../config/supabase');
+const { createUserClient, supabaseAdmin } = require('../config/supabase');
 const logger = require('../utils/logger');
 
 async function getAll(req, res) {
@@ -33,8 +33,6 @@ async function create(req, res) {
       return res.status(400).json({ success: false, error: 'El nombre es obligatorio.' });
     }
 
-    const { createAdminClient } = require('../config/supabase');
-    const supabaseAdmin = createAdminClient();
     const { PLANS } = require('../config/plans');
 
     const { data: biz } = await supabaseAdmin
@@ -103,8 +101,6 @@ async function update(req, res) {
     // Validar límite de empleados al reactivar
     if (is_active === true && !existing.is_active) {
       try {
-        const { createAdminClient } = require('../config/supabase');
-        const supabaseAdmin = createAdminClient();
         const { PLANS } = require('../config/plans');
 
         const { data: biz, error: bizError } = await supabaseAdmin

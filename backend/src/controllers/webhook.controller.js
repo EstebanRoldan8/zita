@@ -83,7 +83,7 @@ async function handleWebhook(req, res) {
     if (business) {
       const { data: convData, error: convError } = await require('../config/supabase').supabaseAdmin
         .from('whatsapp_conversations')
-        .select('bot_paused_until, last_bot_response_at')
+        .select('bot_paused_until')
         .eq('business_id', business.id)
         .eq('client_phone', from)
         .order('last_message_at', { ascending: false })
@@ -115,15 +115,16 @@ async function handleWebhook(req, res) {
         return;
       }
 
+      // TODO: reactivar cuando columna last_bot_response_at exista en prod
       // Evitar múltiples respuestas cuando cliente envió mensajes durante pausa
-      if (conv?.last_bot_response_at) {
-        const ultimaRespuesta = new Date(conv.last_bot_response_at);
-        const segundosDesdeRespuesta = (ahora - ultimaRespuesta) / 1000;
-        if (segundosDesdeRespuesta < 10) {
-          logger.info('Ignorando mensaje - bot respondió hace poco:', { from, segundos: Math.round(segundosDesdeRespuesta) });
-          return;
-        }
-      }
+      // if (conv?.last_bot_response_at) {
+      //   const ultimaRespuesta = new Date(conv.last_bot_response_at);
+      //   const segundosDesdeRespuesta = (ahora - ultimaRespuesta) / 1000;
+      //   if (segundosDesdeRespuesta < 10) {
+      //     logger.info('Ignorando mensaje - bot respondió hace poco:', { from, segundos: Math.round(segundosDesdeRespuesta) });
+      //     return;
+      //   }
+      // }
     }
 
     const messageText = message.text?.body;

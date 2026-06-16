@@ -202,8 +202,9 @@ async function employeeMetrics(req, res) {
     let start, end;
     const dateParam = req.query.date;
     const monthParam = req.query.month;
+    const isViewingDay = dateParam && /^\d{4}-\d{2}-\d{2}$/.test(dateParam);
 
-    if (dateParam && /^\d{4}-\d{2}-\d{2}$/.test(dateParam)) {
+    if (isViewingDay) {
       start = `${dateParam}T00:00:00${offset}`;
       end   = `${dateParam}T23:59:59${offset}`;
     } else if (monthParam && /^\d{4}-\d{2}$/.test(monthParam)) {
@@ -218,12 +219,18 @@ async function employeeMetrics(req, res) {
     const todayStart = `${todayCol}T00:00:00${offset}`;
     const todayEnd   = `${todayCol}T23:59:59${offset}`;
 
+    const employeesQuery = userClient
+      .from('employees')
+      .select('id, name, commission_percent')
+      .eq('business_id', req.businessId)
+      .order('name');
+
+    if (isViewingDay) {
+      employeesQuery.eq('is_active', true);
+    }
+
     const [{ data: employees, error: empErr }, { data: appts, error: apptErr }, { data: todayAppts, error: todayErr }] = await Promise.all([
-      userClient
-        .from('employees')
-        .select('id, name, commission_percent')
-        .eq('business_id', req.businessId)
-        .order('name'),
+      employeesQuery,
 
       userClient
         .from('appointments')
@@ -275,13 +282,17 @@ async function employeeMetrics(req, res) {
       }
     }
 
-    const data = Object.values(empMap).map((e) => ({
+    let resultData = Object.values(empMap).map((e) => ({
       ...e,
       avg_per_appt: e.count > 0 ? e.income / e.count : 0,
       pct_of_total: totalIncome > 0 ? (e.income / totalIncome) * 100 : 0,
     }));
 
-    return res.json({ success: true, data });
+    if (!isViewingDay) {
+      resultData = resultData.filter((e) => e.count > 0);
+    }
+
+    return res.json({ success: true, data: resultData });
   } catch (err) {
     logger.error(`metrics.employeeMetrics: ${err.message}`);
     return res.status(500).json({ success: false, error: 'Error interno del servidor.' });

@@ -37,31 +37,26 @@ async function create(req, res) {
 
     const { data: biz } = await supabaseAdmin
       .from('businesses')
-      .select('plan, trial_ends_at')
+      .select('plan')
       .eq('id', req.businessId)
       .single();
 
-    const ahora = new Date();
-    const enTrial = biz.trial_ends_at && new Date(biz.trial_ends_at) > ahora;
+    const plan = biz.plan || 'estandar';
+    const limite = PLANS[plan].max_employees;
 
-    if (!enTrial) {
-      const plan = biz.plan || 'estandar';
-      const limite = PLANS[plan].max_employees;
+    if (limite !== -1) {
+      const { count } = await supabaseAdmin
+        .from('employees')
+        .select('id', { count: 'exact', head: true })
+        .eq('business_id', req.businessId)
+        .eq('is_active', true);
 
-      if (limite !== -1) {
-        const { count } = await supabaseAdmin
-          .from('employees')
-          .select('id', { count: 'exact', head: true })
-          .eq('business_id', req.businessId)
-          .eq('is_active', true);
-
-        if (count >= limite) {
-          return res.status(403).json({
-            success: false,
-            error: `Alcanzaste el límite de ${limite} empleados de tu plan ${PLANS[plan].name}. Mejora tu plan para agregar más.`,
-            code: 'EMPLOYEES_LIMIT_REACHED'
-          });
-        }
+      if (count >= limite) {
+        return res.status(403).json({
+          success: false,
+          error: `Alcanzaste el límite de ${limite} empleados de tu plan ${PLANS[plan].name}. Mejora tu plan para agregar más.`,
+          code: 'EMPLOYEES_LIMIT_REACHED'
+        });
       }
     }
 
@@ -105,36 +100,31 @@ async function update(req, res) {
 
         const { data: biz, error: bizError } = await supabaseAdmin
           .from('businesses')
-          .select('plan, trial_ends_at')
+          .select('plan')
           .eq('id', req.businessId)
           .single();
 
         if (bizError) throw bizError;
 
-        const ahora = new Date();
-        const enTrial = biz.trial_ends_at && new Date(biz.trial_ends_at) > ahora;
+        const plan = biz.plan || 'estandar';
+        const limite = PLANS[plan].max_employees;
 
-        if (!enTrial) {
-          const plan = biz.plan || 'estandar';
-          const limite = PLANS[plan].max_employees;
+        if (limite !== -1) {
+          const { count, error: countError } = await supabaseAdmin
+            .from('employees')
+            .select('id', { count: 'exact', head: true })
+            .eq('business_id', req.businessId)
+            .eq('is_active', true)
+            .neq('id', id);
 
-          if (limite !== -1) {
-            const { count, error: countError } = await supabaseAdmin
-              .from('employees')
-              .select('id', { count: 'exact', head: true })
-              .eq('business_id', req.businessId)
-              .eq('is_active', true)
-              .neq('id', id);
+          if (countError) throw countError;
 
-            if (countError) throw countError;
-
-            if (count >= limite) {
-              return res.status(403).json({
-                success: false,
-                error: `Alcanzaste el límite de ${limite} empleados de tu plan ${PLANS[plan].name}. Mejora tu plan para agregar más.`,
-                code: 'EMPLOYEES_LIMIT_REACHED'
-              });
-            }
+          if (count >= limite) {
+            return res.status(403).json({
+              success: false,
+              error: `Alcanzaste el límite de ${limite} empleados de tu plan ${PLANS[plan].name}. Mejora tu plan para agregar más.`,
+              code: 'EMPLOYEES_LIMIT_REACHED'
+            });
           }
         }
       } catch (validationErr) {

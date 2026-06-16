@@ -58,13 +58,6 @@ async function handleWebhook(req, res) {
     const business = await require('../services/chatbot.service')
       .getBusinessByPhoneNumberId(phoneNumberId);
 
-    logger.info('Business encontrado: ' + JSON.stringify({
-      business_id: business?.id,
-      business_completo: JSON.stringify(business),
-      phoneNumberId: phoneNumberId,
-      from: from
-    }));
-
     // Race condition fix: verificar si este cliente ya está siendo procesado
     if (business) {
       clientKey = business.id + ':' + from;
@@ -81,30 +74,14 @@ async function handleWebhook(req, res) {
     }
 
     if (business) {
-      const { data: convData, error: convError } = await require('../config/supabase').supabaseAdmin
+      const { data: convData } = await require('../config/supabase').supabaseAdmin
         .from('whatsapp_conversations')
         .select('bot_paused_until')
         .eq('business_id', business.id)
         .eq('client_phone', from)
-        .order('last_message_at', { ascending: false })
         .limit(1);
 
-      logger.info('Conv query result: ' + JSON.stringify({
-        convData: convData,
-        convError: convError?.message,
-        query_business_id: business.id,
-        query_from: from
-      }));
-
       const conv = convData?.[0] || null;
-
-      logger.info('Pause check: ' + JSON.stringify({
-        conv_existe: !!conv,
-        bot_paused_until: conv?.bot_paused_until,
-        registros_encontrados: convData?.length,
-        business_id: business?.id,
-        from
-      }));
 
       const ahora = new Date();
       const pausadoHasta = conv?.bot_paused_until ? new Date(conv.bot_paused_until) : null;
@@ -182,16 +159,17 @@ async function handleWebhook(req, res) {
       phoneNumberId,
       messageText,
       messageId: message.id
-    }).catch(err => logger.error('Error procesando mensaje WA:', err));
+    }).catch(err => logger.error('Error procesando mensaje WA:', err))
+      .finally(() => {
+        if (clientKey) {
+          processingClients.delete(clientKey);
+        }
+      });
 
   } catch (error) {
     logger.error('webhook error:', error.message);
     if (!res.headersSent) {
       res.sendStatus(500);
-    }
-  } finally {
-    if (clientKey) {
-      processingClients.delete(clientKey);
     }
   }
 }

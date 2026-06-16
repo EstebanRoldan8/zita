@@ -102,6 +102,7 @@ export default function Businesses() {
   });
 
   const activeCount = (data || []).filter(b => b.status === 'active').length;
+  const trialCount = (data || []).filter(b => b.status === 'trial').length;
   const suspendedCount = (data || []).filter(b => b.status === 'suspended').length;
   const registeredCount = (data || []).filter(b => b.status !== 'suspended').length;
 
@@ -123,10 +124,14 @@ export default function Businesses() {
       </div>
 
       {/* KPI Cards */}
-      <div className="grid grid-cols-2 gap-4 mb-6">
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
         <div className="bg-[#131929] border border-white/10 rounded-2xl p-4">
           <p className="text-slate-400 text-xs mb-2">Activos</p>
           <p className="text-3xl font-bold text-emerald-400">{activeCount}</p>
+        </div>
+        <div className="bg-[#131929] border border-white/10 rounded-2xl p-4">
+          <p className="text-slate-400 text-xs mb-2">Trial</p>
+          <p className="text-3xl font-bold text-yellow-400">{trialCount}</p>
         </div>
         <div className="bg-[#131929] border border-white/10 rounded-2xl p-4">
           <p className="text-slate-400 text-xs mb-2">Suspendidos</p>

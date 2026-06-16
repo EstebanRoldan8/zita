@@ -223,7 +223,6 @@ async function employeeMetrics(req, res) {
         .from('employees')
         .select('id, name, commission_percent')
         .eq('business_id', req.businessId)
-        .eq('is_active', true)
         .order('name'),
 
       userClient

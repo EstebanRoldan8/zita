@@ -18,7 +18,7 @@ async function transcribeAudio(audioUrl, accessToken) {
     }
 
     const audioBuffer = Buffer.from(await audioResponse.arrayBuffer());
-    logger.info('Audio descargado, tamaño en bytes:', audioBuffer.length);
+    logger.info(`AUDIO_BYTES_${audioBuffer.length}`);
 
     const FormData = require('form-data');
     const form = new FormData();
@@ -41,7 +41,9 @@ async function transcribeAudio(audioUrl, accessToken) {
 
     if (!groqResponse.ok) {
       const errText = await groqResponse.text();
-      logger.error('Groq API error:', groqResponse.status, errText);
+      const statusCode = groqResponse.status;
+      const shortErr = errText.slice(0, 500);
+      logger.error(`GROQ_ERROR_${statusCode}: ${shortErr}`);
       return null;
     }
 

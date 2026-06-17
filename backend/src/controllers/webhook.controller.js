@@ -209,4 +209,45 @@ async function handleWebhook(req, res) {
   }
 }
 
-module.exports = { verifyWebhook, handleWebhook };
+async function reactivarBot(req, res) {
+  try {
+    const { client_phone } = req.body;
+    if (!client_phone) {
+      return res.status(400).json({ success: false, error: 'client_phone requerido' });
+    }
+
+    const { error } = await require('../config/supabase').supabaseAdmin
+      .from('whatsapp_conversations')
+      .update({ bot_paused_until: null })
+      .eq('business_id', req.businessId)
+      .eq('client_phone', client_phone);
+
+    if (error) return res.status(500).json({ success: false, error: error.message });
+
+    return res.json({ success: true, message: 'Bot reactivado correctamente' });
+  } catch (err) {
+    logger.error('Error reactivando bot:', err.message);
+    return res.status(500).json({ success: false, error: 'Error interno' });
+  }
+}
+
+async function getConversacionesPausadas(req, res) {
+  try {
+    const ahora = new Date().toISOString();
+    const { data, error } = await require('../config/supabase').supabaseAdmin
+      .from('whatsapp_conversations')
+      .select('client_phone, bot_paused_until')
+      .eq('business_id', req.businessId)
+      .gt('bot_paused_until', ahora)
+      .order('bot_paused_until');
+
+    if (error) return res.status(500).json({ success: false, error: error.message });
+
+    return res.json({ success: true, data: data || [] });
+  } catch (err) {
+    logger.error('Error obteniendo pausas:', err.message);
+    return res.status(500).json({ success: false, error: 'Error interno' });
+  }
+}
+
+module.exports = { verifyWebhook, handleWebhook, reactivarBot, getConversacionesPausadas };

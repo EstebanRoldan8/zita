@@ -106,6 +106,37 @@ export default function Appointments() {
     queryFn: () => api.get('/api/loyalty/config').then((r) => r.data.data),
   });
 
+  const { session } = useAuth();
+  const { data: pausasData, refetch: refetchPausas } = useQuery({
+    queryKey: ['bot-pausas', business?.id],
+    queryFn: async () => {
+      const res = await fetch(`${import.meta.env.VITE_API_URL}/api/whatsapp/pausadas`, {
+        headers: { Authorization: `Bearer ${session?.access_token}` }
+      });
+      const json = await res.json();
+      return json.data || [];
+    },
+    refetchInterval: 30000,
+    enabled: !!business?.id
+  });
+  const pausasActivas = pausasData || [];
+
+  const reactivarBot = async (clientPhone) => {
+    try {
+      await fetch(`${import.meta.env.VITE_API_URL}/api/whatsapp/reactivar-bot`, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${session?.access_token}`,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({ client_phone: clientPhone })
+      });
+      refetchPausas();
+    } catch (err) {
+      console.error('Error reactivando bot:', err);
+    }
+  };
+
   useEffect(() => {
     if (editingAppt) {
       const appt = appointments.find((a) => a.id === editingAppt);
@@ -268,6 +299,37 @@ export default function Appointments() {
           <CalendarPlus size={16} /> Nueva cita
         </button>
       </div>
+
+      {pausasActivas.length > 0 && (
+        <div className="mb-4 rounded-xl border border-yellow-500/30 bg-yellow-500/10 p-4">
+          <p className="text-sm font-semibold text-yellow-400 mb-2">
+            ⚠️ Bot pausado para {pausasActivas.length} cliente{pausasActivas.length > 1 ? 's' : ''}
+          </p>
+          <div className="flex flex-col gap-2">
+            {pausasActivas.map((p) => {
+              const hasta = new Date(p.bot_paused_until).toLocaleTimeString('es-CO', {
+                timeZone: 'America/Bogota',
+                hour: '2-digit',
+                minute: '2-digit',
+                hour12: true
+              });
+              return (
+                <div key={p.client_phone} className="flex items-center justify-between gap-2 flex-wrap">
+                  <span className="text-sm text-slate-300">
+                    📱 {p.client_phone} — pausado hasta las {hasta}
+                  </span>
+                  <button
+                    onClick={() => reactivarBot(p.client_phone)}
+                    className="text-xs px-3 py-1 rounded-lg bg-yellow-500/20 border border-yellow-500/40 text-yellow-300 hover:bg-yellow-500/30 transition-colors whitespace-nowrap"
+                  >
+                    Reactivar bot
+                  </button>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      )}
 
       {isLoading ? (
         <div className="space-y-3">{Array.from({ length: 4 }).map((_, i) => <div key={i} className="h-16 bg-[#131929] border border-slate-800 rounded-xl shadow-lg shadow-black/30 animate-pulse" />)}</div>

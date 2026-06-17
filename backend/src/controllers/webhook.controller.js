@@ -109,42 +109,73 @@ async function handleWebhook(req, res) {
 
     if (messageType !== 'text' || !messageText) {
       if (messageType === 'audio') {
-        // Verificar si bot está pausado antes de responder a audio
-        let estaPausado = false;
-        if (business) {
-          const { data: audioConvData } = await require('../config/supabase').supabaseAdmin
-            .from('whatsapp_conversations')
-            .select('bot_paused_until')
-            .eq('business_id', business.id)
-            .eq('client_phone', from)
-            .limit(1);
-          const audioConv = audioConvData?.[0] || null;
-          const ahora = new Date();
-          const pausadoHasta = audioConv?.bot_paused_until ? new Date(audioConv.bot_paused_until) : null;
-          estaPausado = pausadoHasta && pausadoHasta > ahora;
-        }
-
-        if (estaPausado) {
-          logger.info('Bot pausado - no respondiendo a audio:', { from });
-          res.sendStatus(200);
-          return;
-        }
-
         res.sendStatus(200);
-        const { sendMessage } = require('../config/whatsapp');
+
         try {
+          const audioId = message.audio?.id;
+          if (!audioId) {
+            logger.error('Audio sin ID');
+            return;
+          }
+
           const business = await require('../services/chatbot.service').getBusinessByPhoneNumberId(phoneNumberId);
+          if (!business) {
+            logger.error('Negocio no encontrado para procesar audio');
+            return;
+          }
+
           const businessToken = business?.whatsapp_access_token
             ? require('../utils/encrypt').decrypt(business.whatsapp_access_token)
             : null;
-          await sendMessage(
+
+          if (!businessToken) {
+            logger.error('Token de WhatsApp no disponible');
+            return;
+          }
+
+          const audioUrlRes = await fetch(`https://graph.facebook.com/v18.0/${audioId}`, {
+            headers: { Authorization: `Bearer ${businessToken}` }
+          });
+
+          const audioData = await audioUrlRes.json();
+          const audioUrl = audioData.url;
+
+          if (!audioUrl) {
+            logger.error('No se obtuvo URL del audio');
+            const { sendMessage } = require('../config/whatsapp');
+            await sendMessage(
+              from,
+              'No pude procesar tu nota de voz. ¿Puedes escribirme el mensaje?',
+              businessToken,
+              phoneNumberId
+            );
+            return;
+          }
+
+          const { transcribeAudio } = require('../services/chatbot.service');
+          const transcribedText = await transcribeAudio(audioUrl, businessToken);
+
+          if (!transcribedText) {
+            const { sendMessage } = require('../config/whatsapp');
+            await sendMessage(
+              from,
+              'No pude escuchar tu nota de voz, ¿puedes escribirlo?',
+              businessToken,
+              phoneNumberId
+            );
+            return;
+          }
+
+          logger.info('Audio transcrito:', { from, texto: transcribedText });
+
+          await require('../services/chatbot.service').processWhatsAppMessage({
             from,
-            'Hola 😊 No puedo escuchar notas de voz, pero con gusto te ayudo por texto. ¿En qué te puedo colaborar?',
-            businessToken,
-            phoneNumberId
-          );
-        } catch(e) {
-          logger.error('Error respondiendo nota de voz:', e.message);
+            phoneNumberId,
+            messageText: transcribedText,
+            messageId: message.id
+          });
+        } catch (err) {
+          logger.error('Error procesando audio:', err.message);
         }
       } else {
         res.sendStatus(200);

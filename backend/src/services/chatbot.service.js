@@ -4,6 +4,33 @@ const { decrypt } = require('../utils/encrypt');
 const Anthropic = require('@anthropic-ai/sdk');
 const logger = require('../utils/logger');
 const { getAvailableEmployee, getNextAvailableSlots } = require('../utils/availability');
+const Groq = require('groq-sdk');
+
+async function transcribeAudio(audioUrl, accessToken) {
+  try {
+    const audioResponse = await fetch(audioUrl, {
+      headers: { Authorization: `Bearer ${accessToken}` }
+    });
+
+    if (!audioResponse.ok) {
+      logger.error('Error descargando audio:', audioResponse.status);
+      return null;
+    }
+
+    const audioBuffer = await audioResponse.arrayBuffer();
+    const client = new Groq({ apiKey: process.env.GROQ_API_KEY });
+
+    const transcription = await client.audio.transcriptions.create({
+      file: new File([audioBuffer], 'audio.ogg', { type: 'audio/ogg' }),
+      model: 'whisper-large-v3'
+    });
+
+    return transcription.text || null;
+  } catch (err) {
+    logger.error('Error transcribiendo audio:', err.message);
+    return null;
+  }
+}
 
 // Constantes de system prompt (instrucciones fijas)
 const PERSONALITY_RULES = `<personality>
@@ -1540,4 +1567,4 @@ async function processWhatsAppMessage({ from, phoneNumberId, messageText, messag
   }
 }
 
-module.exports = { processWhatsAppMessage, processChatbotMessage, getBusinessSystemPrompt, getBusinessByPhoneNumberId };
+module.exports = { processWhatsAppMessage, processChatbotMessage, getBusinessSystemPrompt, getBusinessByPhoneNumberId, transcribeAudio };

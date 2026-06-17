@@ -1399,7 +1399,7 @@ async function processChatbotMessage(businessId, clientPhone, messageText, histo
           return { error: 'Función no disponible' };
       }
     } catch (error) {
-      logger.error(`Error en tool ${toolName}:`, error.message);
+      logger.error('TOOL_ERROR_' + toolName + '_' + (error.message || String(error)).replace(/\s+/g, '_').slice(0, 300));
       return { error: error.message };
     }
   }

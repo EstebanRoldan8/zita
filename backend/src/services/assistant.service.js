@@ -880,7 +880,7 @@ const tools = [
 // Ejecutar cada tool
 async function executeTool(toolName, toolInput, businessId) {
   try {
-    const today = new Date().toISOString().split('T')[0];
+    const today = new Date().toLocaleDateString('en-CA', { timeZone: 'America/Bogota' });
 
     switch(toolName) {
         case 'buscar_servicio': {
@@ -1055,8 +1055,8 @@ async function executeTool(toolName, toolInput, businessId) {
         .from('appointments')
         .select('id, scheduled_at, status, clients(name), services(name), employees(name)')
         .eq('business_id', businessId)
-        .gte('scheduled_at', `${fecha}T00:00:00`)
-        .lte('scheduled_at', `${fecha}T23:59:59`)
+        .gte('scheduled_at', `${fecha}T00:00:00-05:00`)
+        .lte('scheduled_at', `${fecha}T23:59:59-05:00`)
         .order('scheduled_at');
       return { appointments: data, date: fecha };
     }
@@ -2185,8 +2185,8 @@ async function executeTool(toolName, toolInput, businessId) {
 
       if (tipo === 'meta_mensual') {
         if (!toolInput.meta || toolInput.meta <= 0) return { success: false, error: 'Meta inválida.' };
-        const now = new Date();
-        const month = `${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,'0')}-01`;
+        const hoyCol = new Date().toLocaleDateString('en-CA', { timeZone: 'America/Bogota' });
+        const month = hoyCol.slice(0, 7) + '-01';
         const { error } = await supabaseAdmin
           .from('monthly_goals')
           .upsert({ business_id: businessId, month, income_goal: toolInput.meta }, { onConflict: 'business_id,month' });

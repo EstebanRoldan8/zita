@@ -674,13 +674,6 @@ async function processChatbotMessage(businessId, clientPhone, messageText, histo
         }
 
         case 'agendar_cita': {
-          if (citasAgendadasEnSesion >= MAX_CITAS_SESION) {
-            return {
-              success: false,
-              error: 'Ya agendamos el máximo de citas por conversación. Escríbenos de nuevo para agendar más 😊'
-            };
-          }
-
           const { data: servicios } = await supabaseAdmin
             .from('services')
             .select('id, name, price')
@@ -921,7 +914,6 @@ async function processChatbotMessage(businessId, clientPhone, messageText, histo
             minute: '2-digit',
             hour12: true
           });
-          citasAgendadasEnSesion++;
           return {
             success: true,
             servicio: servicio.name,
@@ -1435,8 +1427,6 @@ async function processChatbotMessage(businessId, clientPhone, messageText, histo
     const allMessages = [...messages];
     let iterations = 0;
     const MAX_ITERATIONS = 5;
-    let citasAgendadasEnSesion = 0;
-    const MAX_CITAS_SESION = 3;
 
     while (response.stop_reason === 'tool_use' && iterations < MAX_ITERATIONS) {
       iterations++;

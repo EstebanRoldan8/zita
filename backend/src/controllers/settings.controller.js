@@ -150,8 +150,7 @@ async function removeClosedDay(req, res) {
 async function getGoal(req, res) {
   try {
     const userClient = createUserClient(req.headers.authorization);
-    const now = new Date();
-    const month = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-01`;
+    const month = new Date().toLocaleDateString('en-CA', { timeZone: 'America/Bogota' }).slice(0, 7) + '-01';
 
     const { data, error } = await userClient
       .from('monthly_goals')
@@ -178,10 +177,7 @@ async function updateGoal(req, res) {
     }
 
     // Normalizar month a primer día del mes
-    const monthDate = month ? month.slice(0, 7) + '-01' : (() => {
-      const now = new Date();
-      return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-01`;
-    })();
+    const monthDate = month ? month.slice(0, 7) + '-01' : new Date().toLocaleDateString('en-CA', { timeZone: 'America/Bogota' }).slice(0, 7) + '-01';
 
     const { data, error } = await userClient
       .from('monthly_goals')

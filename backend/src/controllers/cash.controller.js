@@ -8,9 +8,8 @@ const INCOME_CATEGORIES = ['servicios', 'productos', 'otro'];
 const EXPENSE_CATEGORIES = ['nomina', 'materias_primas', 'servicios', 'arriendo', 'otro'];
 
 function dateToString(date) {
-  const y = date.getFullYear();
-  const m = String(date.getMonth() + 1).padStart(2, '0');
-  const d = String(date.getDate()).padStart(2, '0');
+  const dateCol = date.toLocaleDateString('en-CA', { timeZone: 'America/Bogota' });
+  const [y, m, d] = dateCol.split('-');
   return `${y}-${m}-${d}`;
 }
 
@@ -129,7 +128,7 @@ async function getSummary(req, res) {
     for (let i = 5; i >= 0; i--) {
       const d = new Date();
       d.setMonth(d.getMonth() - i);
-      const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
+      const key = d.toLocaleDateString('en-CA', { timeZone: 'America/Bogota' }).slice(0, 7);
       chartMap[key] = { month: key, income: 0, expenses: 0 };
     }
     for (const r of (chartIncome   || [])) { const k = r.date.slice(0, 7);         if (chartMap[k]) chartMap[k].income   += Number(r.amount); }

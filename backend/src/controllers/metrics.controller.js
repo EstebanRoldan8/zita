@@ -210,7 +210,7 @@ async function employeeMetrics(req, res) {
     } else if (monthParam && /^\d{4}-\d{2}$/.test(monthParam)) {
       const [y, m] = monthParam.split('-').map(Number);
       start = `${monthParam}-01T00:00:00${offset}`;
-      end   = `${new Date(y, m, 0).toISOString().slice(0, 10)}T23:59:59${offset}`;
+      end   = `${new Date(y, m, 0).toLocaleDateString('en-CA', { timeZone: 'America/Bogota' })}T23:59:59${offset}`;
     } else {
       ({ start, end } = monthRange(tz));
     }
@@ -418,8 +418,10 @@ async function getRetention(req, res) {
     const trendMap = {};
     for (let i = 5; i >= 0; i--) {
       const nowDate = new Date();
-      const d = new Date(nowDate.getFullYear(), nowDate.getMonth() - i, 1);
-      const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
+      const nowCol = nowDate.toLocaleDateString('en-CA', { timeZone: 'America/Bogota' });
+      const [nowYear, nowMonth] = nowCol.split('-').map(Number);
+      const d = new Date(nowYear, nowMonth - 1 - i, 1);
+      const key = d.toLocaleDateString('en-CA', { timeZone: 'America/Bogota' }).slice(0, 7);
       trendMap[key] = { month: key, new_clients: new Set(), returning: new Set() };
     }
 

@@ -79,7 +79,7 @@ async function getNextAvailableSlots(businessId, fecha, hora, cantidad = 3) {
 
   while (slots.length < cantidad) {
     const dayOfWeek = currentDate.toLocaleDateString('es-CO', { weekday: 'long', timeZone: 'America/Bogota' });
-    const dateStr = currentDate.toISOString().split('T')[0];
+    const dateStr = currentDate.toLocaleDateString('en-CA', { timeZone: 'America/Bogota' });
     const horaStr = String(currentDate.getHours()).padStart(2, '0') + ':' + String(currentDate.getMinutes()).padStart(2, '0');
 
     if (!diasCerrados.includes(dayOfWeek) && currentDate.getHours() >= horaInicio && currentDate.getHours() < horaFin) {

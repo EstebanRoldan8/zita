@@ -20,8 +20,8 @@ async function getAll(req, res) {
       const nextDate = new Date(dateObj);
       nextDate.setDate(nextDate.getDate() + 1);
       query = query
-        .gte('created_at', date + 'T00:00:00')
-        .lt('created_at', nextDate.toISOString().split('T')[0] + 'T00:00:00');
+        .gte('created_at', date + 'T00:00:00-05:00')
+        .lt('created_at', nextDate.toLocaleDateString('en-CA', { timeZone: 'America/Bogota' }) + 'T00:00:00-05:00');
     }
 
     if (month) {

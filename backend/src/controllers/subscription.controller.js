@@ -1,6 +1,7 @@
 const { supabaseAdmin } = require('../config/supabase');
 const { PLANS } = require('../config/plans');
 const logger = require('../utils/logger');
+const { getMonthRangeByCountry } = require('../utils/timezone');
 
 async function getSubscription(req, res) {
   try {
@@ -28,8 +29,7 @@ async function getSubscription(req, res) {
       estado = 'expired';
     }
 
-    const inicioMes = new Date(ahora.getFullYear(), ahora.getMonth(), 1).toISOString();
-    const finMes = new Date(ahora.getFullYear(), ahora.getMonth() + 1, 0, 23, 59, 59).toISOString();
+    const { start: inicioMes, end: finMes } = getMonthRangeByCountry('colombia');
 
     const { count: citas_mes } = await supabaseAdmin
       .from('appointments')

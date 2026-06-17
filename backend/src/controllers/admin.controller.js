@@ -303,7 +303,7 @@ async function getCaja(req, res) {
     for (let i = 5; i >= 0; i--) {
       const d = new Date();
       d.setMonth(d.getMonth() - i);
-      const key = `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}`;
+      const key = d.toLocaleDateString('en-CA', { timeZone: 'America/Bogota' }).slice(0, 7);
       trendMap[key] = { month: key, ingresos: 0 };
     }
     (pagosAño || []).forEach(p => {

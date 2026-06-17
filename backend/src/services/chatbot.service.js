@@ -13,28 +13,45 @@ async function transcribeAudio(audioUrl, accessToken) {
     });
 
     if (!audioResponse.ok) {
-      logger.error('Error descargando audio desde Meta:', audioResponse.status, audioResponse.statusText);
+      logger.error('Error descargando audio desde Meta:', audioResponse.status);
       return null;
     }
 
     const audioBuffer = Buffer.from(await audioResponse.arrayBuffer());
-    const groqClient = new Groq({ apiKey: process.env.GROQ_API_KEY });
+    logger.info('Audio descargado, tamaño en bytes:', audioBuffer.length);
 
-    const transcription = await groqClient.audio.transcriptions.create({
-      file: audioBuffer,
+    const FormData = require('form-data');
+    const form = new FormData();
+    form.append('file', audioBuffer, {
       filename: 'audio.ogg',
-      content_type: 'audio/ogg',
-      model: 'whisper-large-v3',
-      language: 'es'
+      contentType: 'audio/ogg'
+    });
+    form.append('model', 'whisper-large-v3');
+    form.append('language', 'es');
+    form.append('response_format', 'text');
+
+    const groqResponse = await fetch('https://api.groq.com/openai/v1/audio/transcriptions', {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${process.env.GROQ_API_KEY}`,
+        ...form.getHeaders()
+      },
+      body: form
     });
 
-    logger.info('Transcripción exitosa:', { texto: transcription.text?.slice(0, 100) });
-    return transcription.text || null;
+    if (!groqResponse.ok) {
+      const errText = await groqResponse.text();
+      logger.error('Groq API error:', groqResponse.status, errText);
+      return null;
+    }
+
+    const transcribedText = await groqResponse.text();
+    logger.info('Transcripción exitosa:', { texto: transcribedText?.slice(0, 100) });
+    return transcribedText?.trim() || null;
+
   } catch (err) {
-    logger.error('Error transcribiendo audio — detalle completo:', {
+    logger.error('Error transcribiendo audio:', {
       message: err.message,
-      status: err.status,
-      error: err.error,
       stack: err.stack?.slice(0, 300)
     });
     return null;

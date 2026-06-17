@@ -77,8 +77,7 @@ export default function Appointments() {
   const { data: appointments = [], isLoading } = useQuery({
     queryKey: ['appointments', date],
     queryFn: () => api.get(`/api/appointments?date=${date}`).then((r) => r.data.data),
-    refetchInterval: 60000,
-    staleTime: 30000,
+    refetchInterval: 15000,
   });
 
   const { data: clients = [] } = useQuery({

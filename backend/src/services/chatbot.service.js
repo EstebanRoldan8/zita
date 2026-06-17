@@ -13,21 +13,30 @@ async function transcribeAudio(audioUrl, accessToken) {
     });
 
     if (!audioResponse.ok) {
-      logger.error('Error descargando audio:', audioResponse.status);
+      logger.error('Error descargando audio desde Meta:', audioResponse.status, audioResponse.statusText);
       return null;
     }
 
-    const audioBuffer = await audioResponse.arrayBuffer();
-    const client = new Groq({ apiKey: process.env.GROQ_API_KEY });
+    const audioBuffer = Buffer.from(await audioResponse.arrayBuffer());
+    const groqClient = new Groq({ apiKey: process.env.GROQ_API_KEY });
 
-    const transcription = await client.audio.transcriptions.create({
-      file: new File([audioBuffer], 'audio.ogg', { type: 'audio/ogg' }),
-      model: 'whisper-large-v3'
+    const transcription = await groqClient.audio.transcriptions.create({
+      file: audioBuffer,
+      filename: 'audio.ogg',
+      content_type: 'audio/ogg',
+      model: 'whisper-large-v3',
+      language: 'es'
     });
 
+    logger.info('Transcripción exitosa:', { texto: transcription.text?.slice(0, 100) });
     return transcription.text || null;
   } catch (err) {
-    logger.error('Error transcribiendo audio:', err.message);
+    logger.error('Error transcribiendo audio — detalle completo:', {
+      message: err.message,
+      status: err.status,
+      error: err.error,
+      stack: err.stack?.slice(0, 300)
+    });
     return null;
   }
 }
@@ -1507,7 +1516,7 @@ async function processWhatsAppMessage({ from, phoneNumberId, messageText, messag
       logger.info('Mensaje procesado exitosamente');
     } catch(e) {
       logger.error('Error procesando mensaje:', e.message);
-      await sendMessage(from, 'Lo siento, tuve un problema procesando tu mensaje.', businessToken, business.whatsapp_phone_number_id);
+      await sendMessage(from, 'Estoy teniendo problemas técnicos en este momento 🙏 Escríbeme en unos minutos e intento de nuevo.', businessToken, business.whatsapp_phone_number_id);
       return;
     }
 
@@ -1562,7 +1571,7 @@ async function processWhatsAppMessage({ from, phoneNumberId, messageText, messag
   } catch (error) {
     logger.error('Error general en processWhatsAppMessage:', error.message);
     try {
-      await sendMessage(from, 'Lo siento, tuve un problema. Intenta de nuevo.');
+      await sendMessage(from, 'Tuve un problema técnico 😕 Intenta escribirme de nuevo en un momento.');
     } catch(e) {}
   }
 }

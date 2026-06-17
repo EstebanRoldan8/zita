@@ -176,6 +176,10 @@ async function handleWebhook(req, res) {
           });
         } catch (err) {
           logger.error('Error procesando audio:', err.message);
+        } finally {
+          if (clientKey) {
+            processingClients.delete(clientKey);
+          }
         }
       } else {
         res.sendStatus(200);

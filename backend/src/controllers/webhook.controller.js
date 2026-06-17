@@ -166,7 +166,7 @@ async function handleWebhook(req, res) {
             return;
           }
 
-          logger.info('Audio transcrito:', { from, texto: transcribedText });
+          logger.info('Procesando audio transcrito como texto:', { from, texto: transcribedText });
 
           await require('../services/chatbot.service').processWhatsAppMessage({
             from,

@@ -1214,7 +1214,7 @@ async function executeTool(toolName, toolInput, businessId) {
         ? hoy
         : toolInput.periodo === 'week'
           ? new Date(Date.now() - 7 * 86400000).toLocaleDateString('en-CA', bogota)
-          : new Date(new Date().getFullYear(), new Date().getMonth(), 1).toLocaleDateString('en-CA', bogota);
+          : new Date().toLocaleDateString('en-CA', { timeZone: 'America/Bogota' }).slice(0, 7) + '-01';
 
       const [{ data: ingresos }, { data: egresos }] = await Promise.all([
         supabaseAdmin.from('income').select('amount').eq('business_id', businessId).gte('date', inicioFecha),

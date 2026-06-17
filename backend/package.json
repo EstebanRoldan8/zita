@@ -14,7 +14,7 @@
     "@google/generative-ai": "^0.24.1",
     "@sentry/node": "^10.56.0",
     "@supabase/supabase-js": "^2.47.0",
-    "axios": "^1.16.0",
+    "axios": "^1.18.0",
     "cors": "^2.8.5",
     "crypto-js": "^4.2.0",
     "dotenv": "^16.4.5",

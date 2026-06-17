@@ -13,14 +13,16 @@ async function transcribeAudio(audioUrl, accessToken) {
     });
 
     if (!audioResponse.ok) {
-      logger.error('Error descargando audio desde Meta:', audioResponse.status);
+      logger.error('AUDIO_DOWNLOAD_FAIL_' + audioResponse.status);
       return null;
     }
 
     const audioBuffer = Buffer.from(await audioResponse.arrayBuffer());
-    logger.info(`AUDIO_BYTES_${audioBuffer.length}`);
+    logger.info('AUDIO_OK_BYTES_' + audioBuffer.length + '_GROQKEY_' + (process.env.GROQ_API_KEY ? 'SET' : 'MISSING'));
 
     const FormData = require('form-data');
+    const axios = require('axios');
+
     const form = new FormData();
     form.append('file', audioBuffer, {
       filename: 'audio.ogg',
@@ -30,32 +32,28 @@ async function transcribeAudio(audioUrl, accessToken) {
     form.append('language', 'es');
     form.append('response_format', 'text');
 
-    const groqResponse = await fetch('https://api.groq.com/openai/v1/audio/transcriptions', {
-      method: 'POST',
-      headers: {
-        'Authorization': `Bearer ${process.env.GROQ_API_KEY}`,
-        ...form.getHeaders()
-      },
-      body: form
-    });
+    const groqResponse = await axios.post(
+      'https://api.groq.com/openai/v1/audio/transcriptions',
+      form,
+      {
+        headers: {
+          'Authorization': `Bearer ${process.env.GROQ_API_KEY}`,
+          ...form.getHeaders()
+        },
+        maxBodyLength: Infinity,
+        maxContentLength: Infinity
+      }
+    );
 
-    if (!groqResponse.ok) {
-      const errText = await groqResponse.text();
-      const statusCode = groqResponse.status;
-      const shortErr = errText.slice(0, 500);
-      logger.error(`GROQ_ERROR_${statusCode}: ${shortErr}`);
-      return null;
-    }
-
-    const transcribedText = await groqResponse.text();
-    logger.info('Transcripción exitosa:', { texto: transcribedText?.slice(0, 100) });
-    return transcribedText?.trim() || null;
+    const transcribedText = groqResponse.data;
+    logger.info('TRANSCRIPCION_OK_' + String(transcribedText).slice(0, 100).replace(/\s+/g, '_'));
+    return typeof transcribedText === 'string' ? transcribedText.trim() : null;
 
   } catch (err) {
-    logger.error('Error transcribiendo audio:', {
-      message: err.message,
-      stack: err.stack?.slice(0, 300)
-    });
+    const errMsg = err.response?.data
+      ? JSON.stringify(err.response.data).slice(0, 200)
+      : err.message;
+    logger.error('GROQ_FAIL_' + errMsg.replace(/\s+/g, '_'));
     return null;
   }
 }

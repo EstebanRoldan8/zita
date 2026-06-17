@@ -105,41 +105,36 @@ async function create(req, res) {
 
     const { data: biz } = await supabaseAdmin
       .from('businesses')
-      .select('plan, trial_ends_at')
+      .select('plan')
       .eq('id', req.businessId)
       .single();
 
-    const ahora = new Date();
-    const enTrial = biz.trial_ends_at && new Date(biz.trial_ends_at) > ahora;
+    const plan = biz.plan || 'estandar';
+    const limite = PLANS[plan].max_appointments_month;
 
-    if (!enTrial) {
-      const plan = biz.plan || 'estandar';
-      const limite = PLANS[plan].max_appointments_month;
+    if (limite !== -1) {
+      const _tz = getTimezone(req.business?.country);
+      const _off = getOffsetForTz(_tz);
+      const mesActual = new Date().toLocaleDateString('en-CA', { timeZone: _tz }).slice(0, 7);
+      const inicioMes = `${mesActual}-01T00:00:00${_off}`;
+      const [yr, mo] = mesActual.split('-').map(Number);
+      const ultimoDia = new Date(yr, mo, 0).getDate();
+      const finMes = `${mesActual}-${String(ultimoDia).padStart(2, '0')}T23:59:59${_off}`;
 
-      if (limite !== -1) {
-        const _tz = getTimezone(req.business?.country);
-        const _off = getOffsetForTz(_tz);
-        const mesActual = new Date().toLocaleDateString('en-CA', { timeZone: _tz }).slice(0, 7);
-        const inicioMes = `${mesActual}-01T00:00:00${_off}`;
-        const [yr, mo] = mesActual.split('-').map(Number);
-        const ultimoDia = new Date(yr, mo, 0).getDate();
-        const finMes = `${mesActual}-${String(ultimoDia).padStart(2, '0')}T23:59:59${_off}`;
+      const { count } = await supabaseAdmin
+        .from('appointments')
+        .select('id', { count: 'exact', head: true })
+        .eq('business_id', req.businessId)
+        .gte('scheduled_at', inicioMes)
+        .lte('scheduled_at', finMes)
+        .neq('status', 'cancelled');
 
-        const { count } = await supabaseAdmin
-          .from('appointments')
-          .select('id', { count: 'exact', head: true })
-          .eq('business_id', req.businessId)
-          .gte('scheduled_at', inicioMes)
-          .lte('scheduled_at', finMes)
-          .neq('status', 'cancelled');
-
-        if (count >= limite) {
-          return res.status(403).json({
-            success: false,
-            error: `Alcanzaste el límite de ${limite} citas este mes en tu plan ${PLANS[plan].name}. Mejora tu plan para agregar más.`,
-            code: 'APPOINTMENTS_LIMIT_REACHED'
-          });
-        }
+      if (count >= limite) {
+        return res.status(403).json({
+          success: false,
+          error: 'Has alcanzado el límite de citas este mes de tu plan.',
+          code: 'APPOINTMENTS_LIMIT_REACHED'
+        });
       }
     }
 

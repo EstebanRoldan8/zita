@@ -76,10 +76,49 @@ async function getById(req, res) {
 async function create(req, res) {
   try {
     const sb = createUserClient(req.headers.authorization);
+    const { supabaseAdmin } = require('../config/supabase');
+    const { PLANS } = require('../config/plans');
     const { client_id, client_name, client_phone, delivery_type, delivery_address, notes, items } = req.body;
 
     if (!client_name || !client_phone || !delivery_type || !Array.isArray(items) || items.length === 0) {
       return res.status(400).json({ success: false, error: 'Datos incompletos.' });
+    }
+
+    // Validar límite de órdenes del mes
+    const { data: bizord } = await supabaseAdmin
+      .from('businesses')
+      .select('plan')
+      .eq('id', req.businessId)
+      .single();
+
+    const planord = bizord.plan || 'estandar';
+    const limiteord = PLANS[planord].max_orders_month;
+
+    if (limiteord !== -1) {
+      const { getTimezone, getOffsetForTz } = require('../utils/timezone');
+      const _tzord = getTimezone(req.business?.country);
+      const _offzord = getOffsetForTz(_tzord);
+      const mesActualord = new Date().toLocaleDateString('en-CA', { timeZone: _tzord }).slice(0, 7);
+      const inicioMesord = `${mesActualord}-01T00:00:00${_offzord}`;
+      const [yrord, moord] = mesActualord.split('-').map(Number);
+      const ultimoDiaord = new Date(yrord, moord, 0).getDate();
+      const finMesord = `${mesActualord}-${String(ultimoDiaord).padStart(2, '0')}T23:59:59${_offzord}`;
+
+      const { count: countord } = await supabaseAdmin
+        .from('orders')
+        .select('id', { count: 'exact', head: true })
+        .eq('business_id', req.businessId)
+        .gte('created_at', inicioMesord)
+        .lte('created_at', finMesord)
+        .neq('status', 'cancelado');
+
+      if (countord >= limiteord) {
+        return res.status(403).json({
+          success: false,
+          error: 'Has alcanzado el límite de pedidos este mes de tu plan.',
+          code: 'ORDERS_LIMIT_REACHED'
+        });
+      }
     }
 
     for (const item of items) {

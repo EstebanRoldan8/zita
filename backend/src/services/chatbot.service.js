@@ -775,6 +775,39 @@ async function processChatbotMessage(businessId, clientPhone, messageText, histo
 
           const scheduled_at = `${toolInput.fecha}T${toolInput.hora}:00-05:00`;
 
+          // Validar límite de citas del mes
+          const { PLANS } = require('../config/plans');
+          const { data: bizPlan } = await supabaseAdmin
+            .from('businesses')
+            .select('plan')
+            .eq('id', businessId)
+            .single();
+
+          const planbot = bizPlan.plan || 'estandar';
+          const limitebot = PLANS[planbot].max_appointments_month;
+
+          if (limitebot !== -1) {
+            const _tzbot = require('../utils/timezone').getTimezone();
+            const _offbot = require('../utils/timezone').getOffsetForTz(_tzbot);
+            const mesActualbot = new Date().toLocaleDateString('en-CA', { timeZone: _tzbot }).slice(0, 7);
+            const inicioMesbot = `${mesActualbot}-01T00:00:00${_offbot}`;
+            const [yrbot, mobot] = mesActualbot.split('-').map(Number);
+            const ultimoDiabot = new Date(yrbot, mobot, 0).getDate();
+            const finMesbot = `${mesActualbot}-${String(ultimoDiabot).padStart(2, '0')}T23:59:59${_offbot}`;
+
+            const { count: countbot } = await supabaseAdmin
+              .from('appointments')
+              .select('id', { count: 'exact', head: true })
+              .eq('business_id', businessId)
+              .gte('scheduled_at', inicioMesbot)
+              .lte('scheduled_at', finMesbot)
+              .neq('status', 'cancelled');
+
+            if (countbot >= limitebot) {
+              return { success: false, error: 'Lo siento, el negocio ha alcanzado su límite de citas este mes.' };
+            }
+          }
+
           const { data, error } = await supabaseAdmin
             .from('appointments')
             .insert({
@@ -1144,6 +1177,38 @@ async function processChatbotMessage(businessId, clientPhone, messageText, histo
             const resultados = [];
             const pendientes = grupo.personas.filter(p => !p.agendada);
 
+            // Validar límite de citas del mes para el grupo
+            const { PLANS: PLANSgrp } = require('../config/plans');
+            const { data: bizGrp } = await supabaseAdmin
+              .from('businesses')
+              .select('plan')
+              .eq('id', businessId)
+              .single();
+
+            const plangrp = bizGrp.plan || 'estandar';
+            const limitegrp = PLANSgrp[plangrp].max_appointments_month;
+            let contadorCitasGrp = 0;
+
+            if (limitegrp !== -1) {
+              const _tzgrp = require('../utils/timezone').getTimezone();
+              const _offgrp = require('../utils/timezone').getOffsetForTz(_tzgrp);
+              const mesActualgrp = new Date().toLocaleDateString('en-CA', { timeZone: _tzgrp }).slice(0, 7);
+              const inicioMesgrp = `${mesActualgrp}-01T00:00:00${_offgrp}`;
+              const [yrgrp, mogrp] = mesActualgrp.split('-').map(Number);
+              const ultimoDiagrp = new Date(yrgrp, mogrp, 0).getDate();
+              const finMesgrp = `${mesActualgrp}-${String(ultimoDiagrp).padStart(2, '0')}T23:59:59${_offgrp}`;
+
+              const { count: countgrp } = await supabaseAdmin
+                .from('appointments')
+                .select('id', { count: 'exact', head: true })
+                .eq('business_id', businessId)
+                .gte('scheduled_at', inicioMesgrp)
+                .lte('scheduled_at', finMesgrp)
+                .neq('status', 'cancelled');
+
+              contadorCitasGrp = countgrp || 0;
+            }
+
             for (const p of pendientes) {
               if (!p.servicio || !p.fecha || !p.hora) {
                 resultados.push({ nombre: p.nombre, success: false, error: 'Faltan datos' });
@@ -1184,6 +1249,12 @@ async function processChatbotMessage(businessId, clientPhone, messageText, histo
               const notaNombre = p.nombre && p.nombre !== 'Sin nombre'
                 ? `Para: ${p.nombre}`
                 : null;
+
+              // Validar límite antes de cada cita
+              if (limitegrp !== -1 && contadorCitasGrp >= limitegrp) {
+                resultados.push({ nombre: p.nombre, success: false, error: 'Límite de citas del mes alcanzado' });
+                continue;
+              }
 
               const { data: cita, error } = await supabaseAdmin
                 .from('appointments')
@@ -1233,6 +1304,7 @@ async function processChatbotMessage(businessId, clientPhone, messageText, histo
               });
 
               p.agendada = true;
+              contadorCitasGrp++;
               resultados.push({
                 nombre: p.nombre,
                 success: true,

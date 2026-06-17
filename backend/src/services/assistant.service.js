@@ -1133,6 +1133,39 @@ async function executeTool(toolName, toolInput, businessId) {
 
       logger.info('insertData:', JSON.stringify(insertData));
 
+      // Validar límite de citas del mes
+      const { PLANS: PLANSast } = require('../config/plans');
+      const { data: bizast } = await supabaseAdmin
+        .from('businesses')
+        .select('plan')
+        .eq('id', businessId)
+        .single();
+
+      const planast = bizast.plan || 'estandar';
+      const limiteast = PLANSast[planast].max_appointments_month;
+
+      if (limiteast !== -1) {
+        const _tzast = getTimezone();
+        const _offzast = getOffsetForTz(_tzast);
+        const mesActualast = new Date().toLocaleDateString('en-CA', { timeZone: _tzast }).slice(0, 7);
+        const inicioMesast = `${mesActualast}-01T00:00:00${_offzast}`;
+        const [yrast, moast] = mesActualast.split('-').map(Number);
+        const ultimoDiaast = new Date(yrast, moast, 0).getDate();
+        const finMesast = `${mesActualast}-${String(ultimoDiaast).padStart(2, '0')}T23:59:59${_offzast}`;
+
+        const { count: countast } = await supabaseAdmin
+          .from('appointments')
+          .select('id', { count: 'exact', head: true })
+          .eq('business_id', businessId)
+          .gte('scheduled_at', inicioMesast)
+          .lte('scheduled_at', finMesast)
+          .neq('status', 'cancelled');
+
+        if (countast >= limiteast) {
+          return { success: false, error: 'Has alcanzado el límite de citas este mes de tu plan.' };
+        }
+      }
+
       const { data, error } = await supabaseAdmin
         .from('appointments')
         .insert(insertData)

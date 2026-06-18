@@ -1,10 +1,69 @@
 import { defineConfig } from 'vite'
 import react from '@vitejs/plugin-react'
 import tailwindcss from '@tailwindcss/vite'
+import { VitePWA } from 'vite-plugin-pwa'
 
 export default defineConfig({
   plugins: [
     react(),
     tailwindcss(),
+    VitePWA({
+      registerType: 'prompt',
+      includeAssets: ['logo.png', 'icons/icon-192x192.png', 'icons/icon-512x512.png'],
+      manifest: {
+        name: 'ZITA — Gestión Inteligente',
+        short_name: 'ZITA',
+        description: 'Panel de gestión de citas, clientes y ventas con IA',
+        start_url: '/dashboard',
+        scope: '/',
+        display: 'standalone',
+        background_color: '#0a0a0f',
+        theme_color: '#7c3aed',
+        orientation: 'portrait-primary',
+        icons: [
+          {
+            src: '/icons/icon-192x192.png',
+            sizes: '192x192',
+            type: 'image/png',
+            purpose: 'any maskable'
+          },
+          {
+            src: '/icons/icon-512x512.png',
+            sizes: '512x512',
+            type: 'image/png',
+            purpose: 'any maskable'
+          }
+        ]
+      },
+      workbox: {
+        globPatterns: ['**/*.{js,css,woff,woff2,png,svg,ico}'],
+        navigateFallback: null,
+        navigateFallbackDenylist: [/^\/api/, /^\/auth/],
+        runtimeCaching: [
+          {
+            urlPattern: /\.(?:png|jpg|jpeg|svg|gif|webp|ico)$/,
+            handler: 'CacheFirst',
+            options: {
+              cacheName: 'zita-images-v1',
+              expiration: {
+                maxEntries: 50,
+                maxAgeSeconds: 30 * 24 * 60 * 60
+              }
+            }
+          },
+          {
+            urlPattern: /\.(?:woff|woff2|ttf)$/,
+            handler: 'CacheFirst',
+            options: {
+              cacheName: 'zita-fonts-v1',
+              expiration: {
+                maxEntries: 10,
+                maxAgeSeconds: 365 * 24 * 60 * 60
+              }
+            }
+          }
+        ]
+      }
+    })
   ],
 })

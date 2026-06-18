@@ -1466,12 +1466,24 @@ async function executeTool(toolName, toolInput, businessId) {
       const totalGastado = appointments?.reduce((sum, a) =>
         sum + (a.services?.price || 0), 0) || 0;
 
+      const formatColDate = (iso) => iso ? new Date(iso).toLocaleString('es-CO', {
+        timeZone: 'America/Bogota',
+        weekday: 'long',
+        day: 'numeric',
+        month: 'long',
+        hour: '2-digit',
+        minute: '2-digit',
+        hour12: true
+      }) : null;
       return {
         total_visits: loyalty?.total_visits || 0,
         loyalty_visits: loyalty?.loyalty_visits || 0,
         total_spent: totalGastado,
-        last_visit: appointments?.[0]?.scheduled_at || null,
-        recent_appointments: appointments
+        last_visit: formatColDate(appointments?.[0]?.scheduled_at),
+        recent_appointments: (appointments || []).map(a => ({
+          ...a,
+          hora_colombia: formatColDate(a.scheduled_at)
+        }))
       };
     }
 
@@ -1899,7 +1911,10 @@ async function executeTool(toolName, toolInput, businessId) {
         const diasSinVisita = ultimaCita
           ? Math.floor((new Date() - new Date(ultimaCita.scheduled_at)) / 86400000)
           : null;
-        return { ...c, dias_sin_visita: diasSinVisita, ultima_visita: ultimaCita?.scheduled_at?.slice(0,10) };
+        const ultimaVisitaCol = ultimaCita?.scheduled_at
+          ? new Date(ultimaCita.scheduled_at).toLocaleDateString('en-CA', { timeZone: 'America/Bogota' })
+          : null;
+        return { ...c, dias_sin_visita: diasSinVisita, ultima_visita: ultimaVisitaCol };
       }).sort((a,b) => (b.dias_sin_visita || 0) - (a.dias_sin_visita || 0));
 
       return {

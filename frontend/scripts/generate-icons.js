@@ -74,5 +74,14 @@ async function generate() {
 
     console.log('Generated maskable ' + size + 'x' + size);
   }
+
+  // Generar favicon transparente para PC
+  await sharp(input)
+    .resize(256, 256, {
+      fit: 'contain',
+      background: { r: 0, g: 0, b: 0, alpha: 0 }
+    })
+    .toFile(path.join(outDir, 'favicon-256.png'));
+  console.log('Generated favicon-256 transparent');
 }
 generate().catch(console.error);

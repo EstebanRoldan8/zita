@@ -147,7 +147,7 @@ cron.schedule('0 * * * *', async () => {
     const { data: toComplete, error: selectError } = await supabaseAdmin
       .from('appointments')
       .select('id, business_id, services(name, price)')
-      .eq('status', 'confirmed')
+      .in('status', ['confirmed', 'pending'])
       .lt('scheduled_at', unaHoraAtras)
       .limit(200);
 

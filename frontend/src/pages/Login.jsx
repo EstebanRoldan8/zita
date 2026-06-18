@@ -186,9 +186,11 @@ export default function Login() {
       <div className="w-full md:w-[45%] bg-[#050508] flex items-center justify-center px-6 md:px-8 lg:px-12 py-8">
         <div className="w-full max-w-md">
           {/* Back link */}
-          <Link to="/" className="inline-flex items-center text-violet-400 hover:text-violet-300 transition text-sm mb-8">
-            ← Volver
-          </Link>
+          {!window.matchMedia('(display-mode: standalone)').matches && (
+            <Link to="/" className="inline-flex items-center text-violet-400 hover:text-violet-300 transition text-sm mb-8">
+              ← Volver
+            </Link>
+          )}
 
           {/* Logo and ZITA text */}
           <div className="flex flex-col items-center mb-6">
@@ -316,13 +318,15 @@ export default function Login() {
                 >
                   {loading ? 'Enviando...' : 'Enviar enlace'}
                 </button>
-                <button
-                  type="button"
-                  onClick={() => setResetMode(false)}
-                  className="flex-1 bg-slate-800 hover:bg-slate-700 text-white font-semibold rounded-xl px-4 py-3 transition"
-                >
-                  Volver
-                </button>
+                {!window.matchMedia('(display-mode: standalone)').matches && (
+                  <button
+                    type="button"
+                    onClick={() => setResetMode(false)}
+                    className="flex-1 bg-slate-800 hover:bg-slate-700 text-white font-semibold rounded-xl px-4 py-3 transition"
+                  >
+                    Volver
+                  </button>
+                )}
               </div>
             </form>
           )}

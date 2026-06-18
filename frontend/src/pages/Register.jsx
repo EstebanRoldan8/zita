@@ -160,9 +160,11 @@ export default function Register() {
         <div className="w-full md:w-[45%] bg-[#050508] flex items-center justify-center px-6 md:px-8 lg:px-12 py-8">
           <div className="w-full max-w-md">
             {/* Back link */}
-            <Link to="/" className="inline-flex items-center text-violet-400 hover:text-violet-300 transition text-sm mb-8">
-              ← Volver
-            </Link>
+            {!window.matchMedia('(display-mode: standalone)').matches && (
+              <Link to="/" className="inline-flex items-center text-violet-400 hover:text-violet-300 transition text-sm mb-8">
+                ← Volver
+              </Link>
+            )}
 
             <div className="text-center">
             <div className="text-6xl mb-6">✉️</div>
@@ -257,9 +259,11 @@ export default function Register() {
       <div className="w-full md:w-[45%] bg-[#050508] flex items-center justify-center px-6 md:px-8 lg:px-12 py-8 overflow-y-auto">
         <div className="w-full max-w-md">
           {/* Back link */}
-          <Link to="/" className="inline-flex items-center text-violet-400 hover:text-violet-300 transition text-sm mb-8">
-            ← Volver
-          </Link>
+          {!window.matchMedia('(display-mode: standalone)').matches && (
+            <Link to="/" className="inline-flex items-center text-violet-400 hover:text-violet-300 transition text-sm mb-8">
+              ← Volver
+            </Link>
+          )}
 
           {/* Header */}
           <div className="mb-8 text-center">

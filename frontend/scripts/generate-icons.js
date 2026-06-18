@@ -14,7 +14,7 @@ async function generate() {
     await sharp(input)
       .resize(innerSize, innerSize, {
         fit: 'contain',
-        background: { r: 0, g: 0, b: 0, alpha: 0 }
+        background: { r: 10, g: 10, b: 15, alpha: 1 }
       })
       .extend({
         top: padding,

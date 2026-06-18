@@ -765,7 +765,7 @@ function CatalogoTab({ products, clients, showInactive, onShowInactiveChange, so
 
 // ── Inventario Tab ───────────────────────────────────────────────────────────
 function InventarioTab({ products, sales, sortBy, onSortChange }) {
-  const [selectedMonth, setSelectedMonth] = useState(new Date().toISOString().slice(0, 7));
+  const [selectedMonth, setSelectedMonth] = useState(new Date().toLocaleDateString('en-CA', { timeZone: 'America/Bogota' }).slice(0, 7));
   const [productSales, setProductSales] = useState([]);
   const [error, setError] = useState(null);
   const [inventoryError, setInventoryError] = useState(null);
@@ -985,7 +985,7 @@ function InventarioTab({ products, sales, sortBy, onSortChange }) {
             {Array.from({length: 6}, (_, i) => {
               const d = new Date();
               d.setMonth(d.getMonth() - i);
-              const val = d.toISOString().slice(0, 7);
+              const val = d.toLocaleDateString('en-CA', { timeZone: 'America/Bogota' }).slice(0, 7);
               const label = d.toLocaleDateString('es-CO', {month:'long', year:'numeric'});
               return <option key={val} value={val}>{label}</option>;
             })}

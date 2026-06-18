@@ -261,7 +261,7 @@ function TeamTab({ showInactive, onShowInactiveChange, showCreateModal, setShowC
 
 // ─── PESTAÑA RENDIMIENTO ──────────────────────────────────────────────────────
 function PerformanceTab() {
-  const defaultMonth = new Date().toISOString().slice(0, 7);
+  const defaultMonth = new Date().toLocaleDateString('en-CA', { timeZone: 'America/Bogota' }).slice(0, 7);
   const defaultDate = new Date().toLocaleDateString('en-CA', { timeZone: 'America/Bogota' });
   const [viewType, setViewType] = useState('day');
   const [month, setMonth] = useState(defaultMonth);

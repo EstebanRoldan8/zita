@@ -329,7 +329,7 @@ function OrderDetailModal({ order, onClose, onStatusChange, onDelete }) {
 export default function Orders() {
   const qc = useQueryClient();
   const [filterStatus, setFilterStatus] = useState('');
-  const [filterMonth, setFilterMonth] = useState(new Date().toISOString().slice(0, 7));
+  const [filterMonth, setFilterMonth] = useState(new Date().toLocaleDateString('en-CA', { timeZone: 'America/Bogota' }).slice(0, 7));
   const [newOrderModal, setNewOrderModal] = useState(false);
   const [selectedOrder, setSelectedOrder] = useState(null);
 
@@ -367,7 +367,7 @@ export default function Orders() {
           {Array.from({ length: 6 }, (_, i) => {
             const d = new Date();
             d.setMonth(d.getMonth() - i);
-            const val = d.toISOString().slice(0, 7);
+            const val = d.toLocaleDateString('en-CA', { timeZone: 'America/Bogota' }).slice(0, 7);
             const label = d.toLocaleDateString('es-CO', { month: 'long', year: 'numeric' });
             return <option key={val} value={val}>{label}</option>;
           })}

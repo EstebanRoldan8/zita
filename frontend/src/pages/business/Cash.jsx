@@ -584,7 +584,7 @@ function IncomeTab({ month, period, onPeriodChange, dayDate, onDayDateChange }) 
                   <label className="block text-slate-400 text-sm mb-1.5">Fecha *</label>
                   <DatePicker
                     selected={form.date ? new Date(form.date) : null}
-                    onChange={(d) => setForm({ ...form, date: d.toISOString().slice(0, 10) })}
+                    onChange={(d) => setForm({ ...form, date: d.toLocaleDateString('en-CA', { timeZone: 'America/Bogota' }) })}
                     dateFormat="dd/MM/yyyy"
                     locale="es"
                     placeholderText="Seleccionar"

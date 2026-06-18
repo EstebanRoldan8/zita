@@ -7,7 +7,7 @@ const MONTHS = [
 
 export default function MonthSelector({ value, onChange }) {
   const [year, month] = value.split('-').map(Number);
-  const currentYear = new Date().getFullYear();
+  const currentYear = parseInt(new Date().toLocaleDateString('en-CA', { timeZone: 'America/Bogota' }).split('-')[0]);
   const years = Array.from({ length: 5 }, (_, i) => currentYear - i);
 
   const handleMonthChange = (newMonth) => {

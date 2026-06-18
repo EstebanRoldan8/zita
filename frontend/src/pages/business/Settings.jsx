@@ -215,7 +215,7 @@ function ClosedDaysTab() {
   const [form, setForm] = useState({ date: '', reason: '', is_full_day: true });
   const [formError, setFormError] = useState('');
 
-  const today = new Date().toISOString().slice(0, 10);
+  const today = new Date().toLocaleDateString('en-CA', { timeZone: 'America/Bogota' });
 
   const { data: closedDays = [], isLoading } = useQuery({
     queryKey: ['settings-closed-days'],
@@ -270,7 +270,7 @@ function ClosedDaysTab() {
             <label className="block text-slate-400 text-xs mb-1.5">Fecha *</label>
             <DatePicker
               selected={form.date ? new Date(form.date) : null}
-              onChange={(d) => setForm({ ...form, date: d.toISOString().slice(0, 10) })}
+              onChange={(d) => setForm({ ...form, date: d.toLocaleDateString('en-CA', { timeZone: 'America/Bogota' }) })}
               minDate={new Date(today)}
               dateFormat="dd/MM/yyyy"
               locale="es"

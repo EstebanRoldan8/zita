@@ -38,11 +38,11 @@ function MonthPicker({ value, onChange }) {
   const [year, month] = value.split('-').map(Number);
   const goPrev = () => {
     const d = new Date(year, month - 2, 1);
-    onChange(`${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}`);
+    onChange(d.toLocaleDateString('en-CA', { timeZone: 'America/Bogota' }).slice(0, 7));
   };
   const goNext = () => {
     const d = new Date(year, month, 1);
-    onChange(`${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}`);
+    onChange(d.toLocaleDateString('en-CA', { timeZone: 'America/Bogota' }).slice(0, 7));
   };
   return (
     <div className="flex items-center gap-2 bg-[#0a0a0f] border border-white/10 rounded-xl px-3 py-2">
@@ -64,7 +64,7 @@ export default function CajaAdmin() {
   const [showExpenseModal, setShowExpenseModal] = useState(false);
   const [editingGoal, setEditingGoal] = useState(false);
   const [goalInput, setGoalInput] = useState('');
-  const [form, setForm] = useState({ category: 'Railway', description: '', amount: '', currency: 'USD', recurring: true, date: new Date().toISOString().slice(0,10) });
+  const [form, setForm] = useState({ category: 'Railway', description: '', amount: '', currency: 'USD', recurring: true, date: new Date().toLocaleDateString('en-CA', { timeZone: 'America/Bogota' }) });
 
   const { data, isLoading } = useQuery({
     queryKey: ['admin-caja', month],
@@ -76,7 +76,7 @@ export default function CajaAdmin() {
     onSuccess: () => {
       queryClient.invalidateQueries(['admin-caja']);
       setShowExpenseModal(false);
-      setForm({ category: 'Railway', description: '', amount: '', currency: 'USD', recurring: true, date: new Date().toISOString().slice(0,10) });
+      setForm({ category: 'Railway', description: '', amount: '', currency: 'USD', recurring: true, date: new Date().toLocaleDateString('en-CA', { timeZone: 'America/Bogota' }) });
     }
   });
 

@@ -41,6 +41,38 @@ async function generate() {
       .toFile(path.join(outDir, `icon-${size}x${size}.png`));
 
     console.log('Generated ' + size + 'x' + size);
+
+    // Generar íconos maskable para Android
+    const safeZone = Math.round(size * 0.4);
+
+    const maskableBackground = await sharp({
+      create: {
+        width: size,
+        height: size,
+        channels: 4,
+        background: { r: 10, g: 10, b: 15, alpha: 255 }
+      }
+    }).png().toBuffer();
+
+    const maskableLogo = await sharp(input)
+      .resize(safeZone, safeZone, {
+        fit: 'contain',
+        background: { r: 0, g: 0, b: 0, alpha: 0 }
+      })
+      .png()
+      .toBuffer();
+
+    const offset = Math.round((size - safeZone) / 2);
+
+    await sharp(maskableBackground)
+      .composite([{
+        input: maskableLogo,
+        top: offset,
+        left: offset
+      }])
+      .toFile(path.join(outDir, `icon-${size}x${size}-maskable.png`));
+
+    console.log('Generated maskable ' + size + 'x' + size);
   }
 }
 generate().catch(console.error);

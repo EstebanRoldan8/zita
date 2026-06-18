@@ -1058,7 +1058,26 @@ async function executeTool(toolName, toolInput, businessId) {
         .gte('scheduled_at', `${fecha}T00:00:00-05:00`)
         .lte('scheduled_at', `${fecha}T23:59:59-05:00`)
         .order('scheduled_at');
-      return { appointments: data, date: fecha };
+      const appointmentsCol = (data || []).map(a => ({
+        ...a,
+        scheduled_at_colombia: new Date(a.scheduled_at).toLocaleString('es-CO', {
+          timeZone: 'America/Bogota',
+          weekday: 'long',
+          year: 'numeric',
+          month: 'long',
+          day: 'numeric',
+          hour: '2-digit',
+          minute: '2-digit',
+          hour12: true
+        }),
+        hora_colombia: new Date(a.scheduled_at).toLocaleTimeString('es-CO', {
+          timeZone: 'America/Bogota',
+          hour: '2-digit',
+          minute: '2-digit',
+          hour12: true
+        })
+      }));
+      return { appointments: appointmentsCol, date: fecha };
     }
 
     case 'crear_cita': {

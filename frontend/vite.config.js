@@ -14,7 +14,7 @@ export default defineConfig({
         name: 'ZITA — Gestión Inteligente',
         short_name: 'ZITA',
         description: 'Panel de gestión de citas, clientes y ventas con IA',
-        start_url: '/dashboard',
+        start_url: '/login',
         scope: '/',
         display: 'standalone',
         background_color: '#0a0a0f',

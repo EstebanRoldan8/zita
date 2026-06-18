@@ -14,15 +14,8 @@ async function generate() {
 
     // Ícono transparente (para PC - purpose: any)
     await sharp(input)
-      .resize(innerSize, innerSize, {
+      .resize(size, size, {
         fit: 'contain',
-        background: { r: 0, g: 0, b: 0, alpha: 0 }
-      })
-      .extend({
-        top: padding,
-        bottom: padding,
-        left: padding,
-        right: padding,
         background: { r: 0, g: 0, b: 0, alpha: 0 }
       })
       .png()

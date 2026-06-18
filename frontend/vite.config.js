@@ -22,7 +22,7 @@ export default defineConfig({
         orientation: 'portrait-primary',
         icons: [
           {
-            src: '/icons/icon-192x192.png',
+            src: '/icons/icon-192x192-any.png',
             sizes: '192x192',
             type: 'image/png',
             purpose: 'any'
@@ -34,7 +34,7 @@ export default defineConfig({
             purpose: 'maskable'
           },
           {
-            src: '/icons/icon-512x512.png',
+            src: '/icons/icon-512x512-any.png',
             sizes: '512x512',
             type: 'image/png',
             purpose: 'any'

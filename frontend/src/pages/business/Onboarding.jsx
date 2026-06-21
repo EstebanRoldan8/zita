@@ -5,7 +5,7 @@ import { ChevronLeft, ChevronRight, X, Zap, Clock, CheckCircle2, Check } from 'l
 import { useAuth } from '../../context/AuthContext';
 import api from '../../lib/api';
 
-const steps = ['Bienvenida', 'Servicios', 'Horarios', 'Asistente IA', 'Listo'];
+const steps = ['Bienvenida', 'Servicios', 'Empleados', 'Horarios', 'Asistente IA', 'Listo'];
 const dayLabels = { lunes: 'Lun', martes: 'Mar', miercoles: 'Mié', jueves: 'Jue', viernes: 'Vie', sabado: 'Sáb', domingo: 'Dom' };
 
 export default function Onboarding() {
@@ -16,6 +16,8 @@ export default function Onboarding() {
   const [error, setError] = useState('');
   const [services, setServices] = useState([]);
   const [serviceForm, setServiceForm] = useState({ name: '', price: '', duration_minutes: 30 });
+  const [employees, setEmployees] = useState([]);
+  const [employeeForm, setEmployeeForm] = useState({ name: '', phone: '', email: '', commission_percent: 0 });
   const [schedule, setSchedule] = useState({
     days: { lunes: true, martes: true, miercoles: true, jueves: true, viernes: true, sabado: false, domingo: false },
     open: '09:00',
@@ -26,7 +28,7 @@ export default function Onboarding() {
 
   const skipMutation = useMutation({
     mutationFn: () => {
-      const payload = { action: 'skip', services, schedule };
+      const payload = { action: 'skip', services, employees, schedule };
       console.log('=== skipMutation.mutationFn: PAYLOAD BEING SENT ===', JSON.stringify(payload, null, 2));
       return api.patch('/api/businesses/onboarding', payload);
     },
@@ -57,7 +59,7 @@ export default function Onboarding() {
 
   const completeMutation = useMutation({
     mutationFn: () => {
-      const payload = { action: 'complete', services, schedule };
+      const payload = { action: 'complete', services, employees, schedule };
       console.log('=== completeMutation.mutationFn: PAYLOAD BEING SENT ===', JSON.stringify(payload, null, 2));
       return api.patch('/api/businesses/onboarding', payload);
     },
@@ -110,6 +112,17 @@ export default function Onboarding() {
 
   const removeService = (id) => {
     setServices(services.filter(s => s.id !== id));
+  };
+
+  const addEmployee = () => {
+    if (employeeForm.name.trim()) {
+      setEmployees([...employees, { ...employeeForm, id: Date.now(), commission_percent: parseFloat(employeeForm.commission_percent) || 0 }]);
+      setEmployeeForm({ name: '', phone: '', email: '', commission_percent: 0 });
+    }
+  };
+
+  const removeEmployee = (id) => {
+    setEmployees(employees.filter(e => e.id !== id));
   };
 
   const toggleDay = (day) => {
@@ -284,8 +297,97 @@ export default function Onboarding() {
             </div>
           )}
 
-          {/* Step 3: Horarios */}
+          {/* Step 3: Empleados */}
           {step === 2 && (
+            <div className="space-y-6">
+              <div>
+                <div className="w-14 h-14 bg-violet-500/10 rounded-2xl flex items-center justify-center mb-4">
+                  <Clock size={28} className="text-violet-400" />
+                </div>
+                <h2 className="text-2xl font-bold mb-2">Tu equipo</h2>
+                <p className="text-slate-400">Agrega empleados (opcional). Puedes agregar más después.</p>
+              </div>
+
+              <div className="bg-slate-900 border border-slate-800 rounded-2xl p-4 space-y-4">
+                <input
+                  type="text"
+                  placeholder="Nombre del empleado *"
+                  value={employeeForm.name}
+                  onChange={(e) => setEmployeeForm({ ...employeeForm, name: e.target.value })}
+                  className="w-full bg-slate-900 border border-slate-700 text-white rounded-lg px-4 py-2 text-sm placeholder-slate-500 focus:outline-none focus:border-violet-500 transition"
+                />
+                <div className="grid grid-cols-2 gap-4">
+                  <input
+                    type="tel"
+                    placeholder="Teléfono"
+                    value={employeeForm.phone}
+                    onChange={(e) => setEmployeeForm({ ...employeeForm, phone: e.target.value })}
+                    className="bg-slate-900 border border-slate-700 text-white rounded-lg px-4 py-2 text-sm placeholder-slate-500 focus:outline-none focus:border-violet-500 transition"
+                  />
+                  <input
+                    type="email"
+                    placeholder="Email"
+                    value={employeeForm.email}
+                    onChange={(e) => setEmployeeForm({ ...employeeForm, email: e.target.value })}
+                    className="bg-slate-900 border border-slate-700 text-white rounded-lg px-4 py-2 text-sm placeholder-slate-500 focus:outline-none focus:border-violet-500 transition"
+                  />
+                </div>
+                <input
+                  type="number"
+                  placeholder="Comisión (%)"
+                  min="0"
+                  max="100"
+                  value={employeeForm.commission_percent}
+                  onChange={(e) => setEmployeeForm({ ...employeeForm, commission_percent: e.target.value })}
+                  className="w-full bg-slate-900 border border-slate-700 text-white rounded-lg px-4 py-2 text-sm placeholder-slate-500 focus:outline-none focus:border-violet-500 transition"
+                />
+                <button
+                  onClick={addEmployee}
+                  disabled={!employeeForm.name.trim()}
+                  className="w-full py-2 bg-violet-600 hover:bg-violet-500 disabled:opacity-50 text-white rounded-lg font-medium transition"
+                >
+                  Agregar empleado
+                </button>
+              </div>
+
+              {employees.length > 0 && (
+                <div className="space-y-2">
+                  {employees.map(emp => (
+                    <div key={emp.id} className="bg-slate-900 border border-slate-700 rounded-lg p-4 flex items-center justify-between">
+                      <div>
+                        <p className="font-medium">{emp.name}</p>
+                        <p className="text-sm text-slate-400">{emp.phone || '—'} • {emp.email || '—'} • {emp.commission_percent}%</p>
+                      </div>
+                      <button
+                        onClick={() => removeEmployee(emp.id)}
+                        className="text-red-400 hover:text-red-300"
+                      >
+                        <X size={18} />
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              )}
+
+              <div className="flex gap-4">
+                <button
+                  onClick={prevStep}
+                  className="flex-1 py-3 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-lg font-semibold transition flex items-center justify-center gap-2"
+                >
+                  <ChevronLeft size={18} /> Atrás
+                </button>
+                <button
+                  onClick={nextStep}
+                  className="flex-1 py-3 bg-violet-600 hover:bg-violet-500 text-white rounded-lg font-semibold transition flex items-center justify-center gap-2"
+                >
+                  Siguiente <ChevronRight size={18} />
+                </button>
+              </div>
+            </div>
+          )}
+
+          {/* Step 4: Horarios */}
+          {step === 3 && (
             <div className="space-y-6">
               <div>
                 <div className="w-14 h-14 bg-violet-500/10 rounded-2xl flex items-center justify-center mb-4">
@@ -364,8 +466,8 @@ export default function Onboarding() {
             </div>
           )}
 
-          {/* Step 4: Asistente IA */}
-          {step === 3 && (
+          {/* Step 5: Asistente IA */}
+          {step === 4 && (
             <div className="space-y-6">
               <div>
                 <div className="w-14 h-14 bg-violet-500/10 rounded-2xl flex items-center justify-center mb-4">
@@ -430,8 +532,8 @@ export default function Onboarding() {
             </div>
           )}
 
-          {/* Step 5: Listo */}
-          {step === 4 && (
+          {/* Step 6: Listo */}
+          {step === 5 && (
             <div className="text-center space-y-6">
               <div>
                 <div className="w-20 h-20 bg-emerald-500/10 rounded-2xl flex items-center justify-center mx-auto mb-4">

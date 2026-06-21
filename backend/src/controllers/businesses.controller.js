@@ -96,8 +96,8 @@ async function updateProfile(req, res) {
 async function updateOnboarding(req, res) {
   try {
     logger.info(`businesses.updateOnboarding: RAW req.body = ${JSON.stringify(req.body)}`);
-    const { action, services, schedule } = req.body;
-    logger.info(`businesses.updateOnboarding: action=${action}, businessId=${req.businessId}, servicesCount=${Array.isArray(services) ? services.length : 'N/A'}, schedule=${JSON.stringify(schedule || 'N/A')}`);
+    const { action, services, employees, schedule } = req.body;
+    logger.info(`businesses.updateOnboarding: action=${action}, businessId=${req.businessId}, servicesCount=${Array.isArray(services) ? services.length : 'N/A'}, employeeCount=${Array.isArray(employees) ? employees.length : 'N/A'}, schedule=${JSON.stringify(schedule || 'N/A')}`);
 
     if (!['complete', 'skip'].includes(action)) {
       return res.status(400).json({ success: false, error: 'Acción inválida.' });
@@ -120,6 +120,23 @@ async function updateOnboarding(req, res) {
         if (servicesError) {
           logger.error(`businesses.updateOnboarding services insert error: ${servicesError.message}`);
           throw servicesError;
+        }
+      }
+
+      if (Array.isArray(employees) && employees.length > 0) {
+        const employeesToInsert = employees.map(e => ({
+          business_id: req.businessId,
+          name: e.name,
+          phone: e.phone || null,
+          email: e.email || null,
+          commission_percent: parseFloat(e.commission_percent) || 0,
+          is_active: true,
+        }));
+        logger.info(`businesses.updateOnboarding: inserting ${employeesToInsert.length} employees`);
+        const { error: employeesError } = await sb.from('employees').insert(employeesToInsert);
+        if (employeesError) {
+          logger.error(`businesses.updateOnboarding employees insert error: ${employeesError.message}`);
+          throw employeesError;
         }
       }
 

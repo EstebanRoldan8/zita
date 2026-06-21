@@ -104,6 +104,43 @@ async function updateOnboarding(req, res) {
     }
 
     const sb = createUserClient(req.headers.authorization);
+
+    if (action === 'complete') {
+      if (Array.isArray(services) && services.length > 0) {
+        const servicesToInsert = services.map(s => ({
+          business_id: req.businessId,
+          name: s.name,
+          price: parseFloat(s.price),
+          duration_minutes: parseInt(s.duration_minutes) || 30,
+          description: s.description || null,
+          active: true,
+        }));
+        logger.info(`businesses.updateOnboarding: inserting ${servicesToInsert.length} services`);
+        const { error: servicesError } = await sb.from('services').insert(servicesToInsert);
+        if (servicesError) {
+          logger.error(`businesses.updateOnboarding services insert error: ${servicesError.message}`);
+          throw servicesError;
+        }
+      }
+
+      if (schedule && schedule.days) {
+        const hoursToUpsert = Object.entries(schedule.days).map(([day, isOpen], index) => ({
+          business_id: req.businessId,
+          day_of_week: index,
+          is_open: Boolean(isOpen),
+          open_time: schedule.open || '08:00',
+          close_time: schedule.close || '18:00',
+          slot_duration_minutes: 30,
+        }));
+        logger.info(`businesses.updateOnboarding: upserting ${hoursToUpsert.length} hours`);
+        const { error: hoursError } = await sb.from('business_hours').upsert(hoursToUpsert, { onConflict: 'business_id,day_of_week' });
+        if (hoursError) {
+          logger.error(`businesses.updateOnboarding hours upsert error: ${hoursError.message}`);
+          throw hoursError;
+        }
+      }
+    }
+
     const updates = {};
     if (action === 'complete') {
       updates.onboarding_completed = true;

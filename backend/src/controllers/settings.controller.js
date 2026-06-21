@@ -28,6 +28,7 @@ async function getHours(req, res) {
 
     // Si el negocio no tiene horario configurado, devolver defaults
     if (!data || data.length === 0) {
+      logger.info(`settings.getHours: businessId=${req.businessId}, returning DEFAULT_HOURS (no custom hours found)`);
       return res.json({ success: true, data: DEFAULT_HOURS });
     }
 
@@ -35,6 +36,7 @@ async function getHours(req, res) {
     const map = Object.fromEntries((data || []).map((r) => [r.day_of_week, r]));
     const merged = DEFAULT_HOURS.map((d) => map[d.day_of_week] ?? d);
 
+    logger.info(`settings.getHours: businessId=${req.businessId}, rowCount=${data?.length || 0}, merged=${merged?.length || 0}`);
     return res.json({ success: true, data: merged });
   } catch (err) {
     logger.error(`settings.getHours: ${err.message}`);
@@ -60,12 +62,14 @@ async function updateHours(req, res) {
       slot_duration_minutes: parseInt(d.slot_duration_minutes) || 30,
     }));
 
+    logger.info(`settings.updateHours: businessId=${req.businessId}, upserting ${rows.length} rows`);
     const { data, error } = await userClient
       .from('business_hours')
       .upsert(rows, { onConflict: 'business_id,day_of_week' })
       .select();
 
     if (error) throw error;
+    logger.info(`settings.updateHours: success, upserted ${data?.length || 0} rows`);
     return res.json({ success: true, data });
   } catch (err) {
     logger.error(`settings.updateHours: ${err.message}`);

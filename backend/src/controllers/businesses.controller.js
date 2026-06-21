@@ -95,8 +95,8 @@ async function updateProfile(req, res) {
 
 async function updateOnboarding(req, res) {
   try {
-    const { action } = req.body;
-    logger.info(`Onboarding action: ${action} for business: ${req.businessId}`);
+    const { action, services, schedule } = req.body;
+    logger.info(`businesses.updateOnboarding: action=${action}, businessId=${req.businessId}, servicesCount=${Array.isArray(services) ? services.length : 'N/A'}, schedule=${JSON.stringify(schedule || 'N/A')}`);
 
     if (!['complete', 'skip'].includes(action)) {
       return res.status(400).json({ success: false, error: 'Acción inválida.' });
@@ -118,10 +118,10 @@ async function updateOnboarding(req, res) {
       .single();
 
     if (error) {
-      logger.error(`updateOnboarding error for ${req.businessId}:`, error.message);
+      logger.error(`businesses.updateOnboarding error for ${req.businessId}:`, error.message);
       throw error;
     }
-    logger.info(`Onboarding updated successfully for ${req.businessId}`, data);
+    logger.info(`businesses.updateOnboarding: success for ${req.businessId}`, data);
     return res.json({ success: true, data });
   } catch (err) {
     logger.error(`businesses.updateOnboarding error: ${err.message}`, { businessId: req.businessId, action: req.body?.action });

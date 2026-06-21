@@ -80,10 +80,12 @@ export default function Onboarding() {
 
   const handleSkip = () => {
     setError('');
+    console.log('handleSkip: services=', services, 'schedule=', schedule);
     skipMutation.mutate();
   };
   const handleComplete = () => {
     setError('');
+    console.log('handleComplete: services=', services, 'schedule=', schedule);
     completeMutation.mutate();
   };
   const nextStep = () => { if (step < steps.length - 1) setStep(step + 1); };

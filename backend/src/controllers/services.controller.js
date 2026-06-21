@@ -11,6 +11,7 @@ async function getAll(req, res) {
       .order('name');
 
     if (error) throw error;
+    logger.info(`services.getAll: businessId=${req.businessId}, rowCount=${data?.length || 0}`);
     return res.json({ success: true, data });
   } catch (err) {
     logger.error(`services.getAll: ${err.message}`);
@@ -27,6 +28,7 @@ async function create(req, res) {
     }
 
     const userClient = createUserClient(req.headers.authorization);
+    logger.info(`services.create: businessId=${req.businessId}, payload={name: ${name}, price: ${price}, duration_minutes: ${duration_minutes}}`);
     const { data, error } = await userClient
       .from('services')
       .insert({ business_id: req.businessId, name, duration_minutes, price, description })
@@ -34,6 +36,7 @@ async function create(req, res) {
       .single();
 
     if (error) throw error;
+    logger.info(`services.create: success, id=${data?.id}`);
     return res.status(201).json({ success: true, data });
   } catch (err) {
     logger.error(`services.create: ${err.message}`);

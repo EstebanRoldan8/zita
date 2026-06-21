@@ -95,6 +95,7 @@ async function updateProfile(req, res) {
 
 async function updateOnboarding(req, res) {
   try {
+    logger.info(`businesses.updateOnboarding: RAW req.body = ${JSON.stringify(req.body)}`);
     const { action, services, schedule } = req.body;
     logger.info(`businesses.updateOnboarding: action=${action}, businessId=${req.businessId}, servicesCount=${Array.isArray(services) ? services.length : 'N/A'}, schedule=${JSON.stringify(schedule || 'N/A')}`);
 

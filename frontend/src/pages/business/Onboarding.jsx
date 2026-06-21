@@ -25,7 +25,11 @@ export default function Onboarding() {
   const closeTimeRef = useRef(null);
 
   const skipMutation = useMutation({
-    mutationFn: () => api.patch('/api/businesses/onboarding', { action: 'skip' }),
+    mutationFn: () => {
+      const payload = { action: 'skip', services, schedule };
+      console.log('=== skipMutation.mutationFn: PAYLOAD BEING SENT ===', JSON.stringify(payload, null, 2));
+      return api.patch('/api/businesses/onboarding', payload);
+    },
     onSuccess: (res) => {
       if (res.data?.success) {
         setBusiness({ ...business, onboarding_skipped: true });
@@ -52,7 +56,11 @@ export default function Onboarding() {
   });
 
   const completeMutation = useMutation({
-    mutationFn: () => api.patch('/api/businesses/onboarding', { action: 'complete' }),
+    mutationFn: () => {
+      const payload = { action: 'complete', services, schedule };
+      console.log('=== completeMutation.mutationFn: PAYLOAD BEING SENT ===', JSON.stringify(payload, null, 2));
+      return api.patch('/api/businesses/onboarding', payload);
+    },
     onSuccess: (res) => {
       if (res.data?.success) {
         setBusiness({ ...business, onboarding_completed: true });

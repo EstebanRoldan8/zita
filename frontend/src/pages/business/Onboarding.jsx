@@ -29,10 +29,19 @@ export default function Onboarding() {
     onSuccess: (res) => {
       if (res.data?.success) {
         setBusiness({ ...business, onboarding_skipped: true });
-        qc.invalidateQueries({ queryKey: ['services-list'] });
-        qc.invalidateQueries({ queryKey: ['employees-list'] });
-        qc.invalidateQueries({ queryKey: ['businesses-me'] });
-        navigate('/dashboard');
+        Promise.all([
+          qc.invalidateQueries({ queryKey: ['services-list'] }),
+          qc.invalidateQueries({ queryKey: ['services-all'] }),
+          qc.invalidateQueries({ queryKey: ['settings-hours'] }),
+          qc.invalidateQueries({ queryKey: ['employees-list'] }),
+          qc.invalidateQueries({ queryKey: ['businesses-me'] }),
+        ]).then(() => {
+          qc.refetchQueries({ queryKey: ['services-list'] });
+          qc.refetchQueries({ queryKey: ['services-all'] });
+          qc.refetchQueries({ queryKey: ['settings-hours'] });
+          qc.refetchQueries({ queryKey: ['employees-list'] });
+          navigate('/dashboard');
+        });
       } else {
         setError('Error al omitir onboarding. Intenta de nuevo.');
       }
@@ -47,10 +56,19 @@ export default function Onboarding() {
     onSuccess: (res) => {
       if (res.data?.success) {
         setBusiness({ ...business, onboarding_completed: true });
-        qc.invalidateQueries({ queryKey: ['services-list'] });
-        qc.invalidateQueries({ queryKey: ['employees-list'] });
-        qc.invalidateQueries({ queryKey: ['businesses-me'] });
-        navigate('/dashboard');
+        Promise.all([
+          qc.invalidateQueries({ queryKey: ['services-list'] }),
+          qc.invalidateQueries({ queryKey: ['services-all'] }),
+          qc.invalidateQueries({ queryKey: ['settings-hours'] }),
+          qc.invalidateQueries({ queryKey: ['employees-list'] }),
+          qc.invalidateQueries({ queryKey: ['businesses-me'] }),
+        ]).then(() => {
+          qc.refetchQueries({ queryKey: ['services-list'] });
+          qc.refetchQueries({ queryKey: ['services-all'] });
+          qc.refetchQueries({ queryKey: ['settings-hours'] });
+          qc.refetchQueries({ queryKey: ['employees-list'] });
+          navigate('/dashboard');
+        });
       } else {
         setError('Error al completar onboarding. Intenta de nuevo.');
       }

@@ -1,6 +1,6 @@
 import { useState, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { useMutation } from '@tanstack/react-query';
+import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { ChevronLeft, ChevronRight, X, Zap, Clock, CheckCircle2, Check } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
 import api from '../../lib/api';
@@ -10,6 +10,7 @@ const dayLabels = { lunes: 'Lun', martes: 'Mar', miercoles: 'Mié', jueves: 'Jue
 
 export default function Onboarding() {
   const navigate = useNavigate();
+  const qc = useQueryClient();
   const { business, setBusiness } = useAuth();
   const [step, setStep] = useState(0);
   const [error, setError] = useState('');
@@ -28,6 +29,9 @@ export default function Onboarding() {
     onSuccess: (res) => {
       if (res.data?.success) {
         setBusiness({ ...business, onboarding_skipped: true });
+        qc.invalidateQueries({ queryKey: ['services-list'] });
+        qc.invalidateQueries({ queryKey: ['employees-list'] });
+        qc.invalidateQueries({ queryKey: ['businesses-me'] });
         navigate('/dashboard');
       } else {
         setError('Error al omitir onboarding. Intenta de nuevo.');
@@ -43,6 +47,9 @@ export default function Onboarding() {
     onSuccess: (res) => {
       if (res.data?.success) {
         setBusiness({ ...business, onboarding_completed: true });
+        qc.invalidateQueries({ queryKey: ['services-list'] });
+        qc.invalidateQueries({ queryKey: ['employees-list'] });
+        qc.invalidateQueries({ queryKey: ['businesses-me'] });
         navigate('/dashboard');
       } else {
         setError('Error al completar onboarding. Intenta de nuevo.');

@@ -94,10 +94,10 @@ async function create(req, res) {
       ? scheduled_at + '-05:00'
       : scheduled_at;
 
-    if (!client_id || !service_id || !scheduled_at || price == null) {
+    if (!service_id || !scheduled_at) {
       return res.status(400).json({
         success: false,
-        error: 'client_id, service_id, scheduled_at y price son obligatorios.',
+        error: 'service_id y scheduled_at son obligatorios.',
       });
     }
 
@@ -138,6 +138,22 @@ async function create(req, res) {
       }
     }
 
+    const userClient = createUserClient(req.headers.authorization);
+
+    let finalPrice = price;
+    if (finalPrice == null) {
+      const { data: service, error: serviceError } = await userClient
+        .from('services')
+        .select('price')
+        .eq('id', service_id)
+        .eq('business_id', req.businessId)
+        .single();
+      if (serviceError || !service) {
+        return res.status(400).json({ success: false, error: 'Servicio no encontrado.' });
+      }
+      finalPrice = service.price;
+    }
+
     let finalEmployeeId = employee_id;
 
     if (finalEmployeeId) {
@@ -174,7 +190,6 @@ async function create(req, res) {
 
     logger.info(`scheduled_at enviado a Supabase: ${scheduledAtWithTZ}`);
 
-    const userClient = createUserClient(req.headers.authorization);
     const { data, error } = await userClient
       .from('appointments')
       .insert({
@@ -182,7 +197,7 @@ async function create(req, res) {
         client_id,
         service_id,
         scheduled_at: scheduledAtWithTZ,
-        price,
+        price: finalPrice,
         notes,
         is_reward: is_reward ?? false,
         source: 'manual',

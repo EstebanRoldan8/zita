@@ -201,13 +201,29 @@ function fuzzyMatch(searchTerm, targetText) {
   const norm_target = normalizeText(targetText);
   if (!norm_search) return true;
   if (norm_target.includes(norm_search)) return true;
-  const words = norm_target.split(/\s+/);
-  for (const word of words) {
-    const dist = levenshteinDistance(norm_search, word);
-    const maxDist = Math.max(1, Math.floor(Math.min(norm_search.length, word.length) * 0.4));
-    if (dist <= maxDist) return true;
+
+  const searchWords = norm_search.split(/\s+/).filter(w => w.length > 0);
+  const targetWords = norm_target.split(/\s+/);
+
+  if (searchWords.length === 0) return true;
+
+  for (const searchWord of searchWords) {
+    let foundMatch = false;
+    for (const targetWord of targetWords) {
+      if (targetWord.includes(searchWord)) {
+        foundMatch = true;
+        break;
+      }
+      const dist = levenshteinDistance(searchWord, targetWord);
+      const maxDist = Math.max(1, Math.floor(Math.min(searchWord.length, targetWord.length) * 0.4));
+      if (dist <= maxDist) {
+        foundMatch = true;
+        break;
+      }
+    }
+    if (!foundMatch) return false;
   }
-  return false;
+  return true;
 }
 
 export default function Clients() {

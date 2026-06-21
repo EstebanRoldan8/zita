@@ -80,12 +80,14 @@ export default function Onboarding() {
 
   const handleSkip = () => {
     setError('');
-    console.log('handleSkip: services=', services, 'schedule=', schedule);
+    console.log('=== handleSkip TRIGGERED at step=', step, ', services=', services, 'schedule=', schedule);
+    console.trace('handleSkip stack trace');
     skipMutation.mutate();
   };
   const handleComplete = () => {
     setError('');
-    console.log('handleComplete: services=', services, 'schedule=', schedule);
+    console.log('=== handleComplete TRIGGERED at step=', step, ', services=', services, 'schedule=', schedule);
+    console.trace('handleComplete stack trace');
     completeMutation.mutate();
   };
   const nextStep = () => { if (step < steps.length - 1) setStep(step + 1); };
@@ -152,9 +154,10 @@ export default function Onboarding() {
           </div>
           {step < steps.length - 1 && (
             <button
-              onClick={handleSkip}
+              onClick={() => { console.log('Skip button clicked at step=', step); handleSkip(); }}
               disabled={skipMutation.isPending}
               className="text-slate-400 hover:text-white text-sm transition disabled:opacity-50"
+              title={`Skip button (visible at steps 0-${steps.length-2})`}
             >
               {skipMutation.isPending ? 'Omitiendo...' : 'Omitir'}
             </button>
@@ -460,9 +463,10 @@ export default function Onboarding() {
               )}
 
               <button
-                onClick={handleComplete}
+                onClick={() => { console.log('Complete button clicked at step=', step); handleComplete(); }}
                 disabled={completeMutation.isPending}
                 className="w-full py-3 bg-violet-600 hover:bg-violet-500 disabled:opacity-50 text-white rounded-lg font-semibold transition"
+                title={`Complete button (only visible at step ${steps.length-1})`}
               >
                 {completeMutation.isPending ? 'Guardando...' : 'Ir al Dashboard'}
               </button>

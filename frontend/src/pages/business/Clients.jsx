@@ -179,6 +179,37 @@ function normalizeText(text) {
   return (text || '').normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase();
 }
 
+function levenshteinDistance(a, b) {
+  const arr = [];
+  for (let i = 0; i <= b.length; i++) {
+    arr[i] = [i];
+  }
+  for (let j = 0; j <= a.length; j++) {
+    arr[0][j] = j;
+  }
+  for (let i = 1; i <= b.length; i++) {
+    for (let j = 1; j <= a.length; j++) {
+      const cost = a[j - 1] === b[i - 1] ? 0 : 1;
+      arr[i][j] = Math.min(arr[i - 1][j] + 1, arr[i][j - 1] + 1, arr[i - 1][j - 1] + cost);
+    }
+  }
+  return arr[b.length][a.length];
+}
+
+function fuzzyMatch(searchTerm, targetText) {
+  const norm_search = normalizeText(searchTerm);
+  const norm_target = normalizeText(targetText);
+  if (!norm_search) return true;
+  if (norm_target.includes(norm_search)) return true;
+  const words = norm_target.split(/\s+/);
+  for (const word of words) {
+    const dist = levenshteinDistance(norm_search, word);
+    const maxDist = Math.max(1, Math.floor(Math.min(norm_search.length, word.length) * 0.4));
+    if (dist <= maxDist) return true;
+  }
+  return false;
+}
+
 export default function Clients() {
   const [tab, setTab]         = useState('clientes');
   const [selectedId, setSelectedId] = useState(null);
@@ -299,9 +330,8 @@ export default function Clients() {
   }
 
   const selected  = detail || clients.find((c) => c.id === selectedId);
-  const searchNorm = normalizeText(search);
   const filtered  = clients.filter((c) =>
-    !search || normalizeText(c.name).includes(searchNorm) || c.phone?.includes(search)
+    !search || fuzzyMatch(search, c.name) || c.phone?.includes(search)
   );
   const lastVisit = detail?.appointments?.find((a) => a.status === 'completed')?.scheduled_at;
 

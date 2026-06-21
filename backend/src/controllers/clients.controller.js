@@ -180,12 +180,13 @@ async function update(req, res) {
       return res.status(404).json({ success: false, error: 'No encontrado' });
     }
 
-    const { name, phone, email } = req.body;
+    const { name, phone, email, notes } = req.body;
 
     const updates = {};
     if (name  !== undefined) updates.name  = name?.trim() || null;
     if (phone !== undefined) updates.phone = phone?.trim() || null;
     if (email !== undefined) updates.email = email?.trim() || null;
+    if (notes !== undefined) updates.notes = notes?.trim() || null;
 
     const { data, error } = await userClient
       .from('clients')

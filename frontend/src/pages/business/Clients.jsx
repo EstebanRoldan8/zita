@@ -27,9 +27,17 @@ function EditModal({ client, onClose }) {
   const [form, setForm] = useState({ name: client.name || '', phone: client.phone || '', email: client.email || '', notes: client.notes || '' });
   const [error, setError] = useState('');
 
+  useEffect(() => {
+    setForm({ name: client.name || '', phone: client.phone || '', email: client.email || '', notes: client.notes || '' });
+  }, [client]);
+
   const updateMutation = useMutation({
     mutationFn: (body) => api.put(`/api/clients/${client.id}`, body),
-    onSuccess: () => { qc.invalidateQueries({ queryKey: ['clients'] }); qc.invalidateQueries({ queryKey: ['client-detail', client.id] }); onClose(); },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['clients'] });
+      qc.invalidateQueries({ queryKey: ['client-detail', client.id] });
+      onClose();
+    },
     onError: (err) => setError(err.response?.data?.error || 'Error al guardar.'),
   });
 

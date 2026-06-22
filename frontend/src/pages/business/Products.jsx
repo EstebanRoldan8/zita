@@ -559,7 +559,20 @@ function CatalogoTab({ products, clients, showInactive, onShowInactiveChange, so
 
   const toggleMutation = useMutation({
     mutationFn: (id) => api.put(`/api/products/${id}/toggle`),
-    onSuccess: () => qc.invalidateQueries({ queryKey: ['products'] }),
+    onMutate: async (id) => {
+      await qc.cancelQueries({ queryKey: ['products', showInactive] });
+      const prevData = qc.getQueryData(['products', showInactive]);
+      if (prevData) {
+        qc.setQueryData(['products', showInactive], prevData.map(p => p.id === id ? { ...p, is_active: !p.is_active } : p));
+      }
+      return { prevData };
+    },
+    onError: (err, id, context) => {
+      if (context?.prevData) {
+        qc.setQueryData(['products', showInactive], context.prevData);
+      }
+    },
+    onSettled: () => qc.invalidateQueries({ queryKey: ['products'] }),
   });
 
   const deleteMutation = useMutation({
@@ -611,7 +624,7 @@ function CatalogoTab({ products, clients, showInactive, onShowInactiveChange, so
               className="w-4 h-4 rounded bg-[#131929] border border-slate-700 cursor-pointer accent-violet-600"
             />
             <span className="text-slate-400 text-sm whitespace-nowrap">
-              Mostrar inactivos ({inactive.length})
+              {showInactive ? `Mostrar activos (${active.length})` : `Mostrar inactivos (${inactive.length})`}
             </span>
           </label>
           <select value={sortBy} onChange={(e) => onSortChange(e.target.value)}

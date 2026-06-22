@@ -78,6 +78,7 @@ export default function Appointments() {
     queryKey: ['appointments', date],
     queryFn: () => api.get(`/api/appointments?date=${date}`).then((r) => r.data.data),
     refetchInterval: 15000,
+    staleTime: 0,
   });
 
   const { data: clients = [] } = useQuery({
@@ -223,18 +224,44 @@ export default function Appointments() {
 
   const updateStatusMutation = useMutation({
     mutationFn: ({ id, status }) => api.patch(`/api/appointments/${id}`, { status }),
-    onSuccess: () => qc.invalidateQueries({ queryKey: ['appointments'] }),
+    onMutate: async ({ id, status }) => {
+      await qc.cancelQueries({ queryKey: ['appointments', date] });
+      const previousData = qc.getQueryData(['appointments', date]);
+      qc.setQueryData(['appointments', date], (old) =>
+        old?.map((appt) => appt.id === id ? { ...appt, status } : appt) || []
+      );
+      return { previousData };
+    },
+    onError: (_, __, context) => {
+      if (context?.previousData) {
+        qc.setQueryData(['appointments', date], context.previousData);
+      }
+    },
+    onSettled: () => qc.invalidateQueries({ queryKey: ['appointments', date] }),
   });
 
   const editApptMutation = useMutation({
     mutationFn: ({ id, ...data }) => api.put(`/api/appointments/${id}`, data),
-    onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ['appointments'] });
+    onMutate: async ({ id, ...data }) => {
+      await qc.cancelQueries({ queryKey: ['appointments', date] });
+      const previousData = qc.getQueryData(['appointments', date]);
+      qc.setQueryData(['appointments', date], (old) =>
+        old?.map((appt) => appt.id === id ? { ...appt, ...data } : appt) || []
+      );
+      return { previousData };
+    },
+    onError: (err, __, context) => {
+      if (context?.previousData) {
+        qc.setQueryData(['appointments', date], context.previousData);
+      }
+      setEditError(err.response?.data?.error || 'Error al actualizar la cita.');
+    },
+    onSettled: () => {
+      qc.invalidateQueries({ queryKey: ['appointments', date] });
       setEditingAppt(null);
       setEditForm({ time: '', employee_id: '', service_id: '' });
       setEditError('');
     },
-    onError: (err) => setEditError(err.response?.data?.error || 'Error al actualizar la cita.'),
   });
 
   const resetClientState = () => {

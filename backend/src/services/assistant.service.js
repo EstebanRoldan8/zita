@@ -1212,8 +1212,7 @@ async function executeTool(toolName, toolInput, businessId) {
             amount: service.price,
             date: incomeDate,
             description: `Cita manual registrada`,
-            source: 'appointment',
-            payment_method: 'cash'
+            source: 'appointment'
           };
           const { error: incomeError } = await supabaseAdmin
             .from('income')

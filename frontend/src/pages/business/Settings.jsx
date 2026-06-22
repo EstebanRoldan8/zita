@@ -755,9 +755,10 @@ function LoyaltyConfigTab() {
   const [form, setForm] = useState(null);
   const synced = useRef(false);
 
-  const { data: config, isLoading: configLoading } = useQuery({
+  const { data: config, isLoading: configLoading, error: configError } = useQuery({
     queryKey: ['loyalty-config'],
     queryFn: () => api.get('/api/loyalty/config').then((r) => r.data.data),
+    retry: 1,
   });
 
   const { data: services = [], isLoading: servicesLoading } = useQuery({
@@ -783,6 +784,14 @@ function LoyaltyConfigTab() {
     },
     onError: (err) => show(err.response?.data?.error || 'Error al guardar.', 'error'),
   });
+
+  if (configError) {
+    return (
+      <div className="space-y-4 max-w-lg">
+        <p className="text-slate-400 text-sm">No se pudo cargar la configuración de fidelización. Intenta más tarde.</p>
+      </div>
+    );
+  }
 
   if (configLoading || servicesLoading || !form) {
     return (

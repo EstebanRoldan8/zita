@@ -767,14 +767,21 @@ function LoyaltyConfigTab() {
   });
 
   useEffect(() => {
-    if (config && !synced.current) {
-      setForm({
-        visits_for_reward:  config.visits_for_reward  ?? 10,
-        reward_service_id:  config.reward_service_id  || '',
-      });
+    if (!synced.current && !configLoading) {
+      if (config) {
+        setForm({
+          visits_for_reward:  config.visits_for_reward  ?? 10,
+          reward_service_id:  config.reward_service_id  || '',
+        });
+      } else {
+        setForm({
+          visits_for_reward:  10,
+          reward_service_id:  '',
+        });
+      }
       synced.current = true;
     }
-  }, [config]);
+  }, [config, configLoading]);
 
   const saveMutation = useMutation({
     mutationFn: (body) => api.put('/api/loyalty/config', body),

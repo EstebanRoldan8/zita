@@ -26,6 +26,12 @@ function formatCOP(v) {
 
 const today = () => new Date().toLocaleDateString('en-CA', { timeZone: 'America/Bogota' });
 
+function dateStringToDate(dateStr) {
+  if (!dateStr) return null;
+  const [y, m, d] = dateStr.split('-');
+  return new Date(y, m - 1, d);
+}
+
 const MONTH_ABBR = ['Ene','Feb','Mar','Abr','May','Jun','Jul','Ago','Sep','Oct','Nov','Dic'];
 const fmtMonthKey = (k) => MONTH_ABBR[parseInt(k.slice(5, 7)) - 1];
 
@@ -583,7 +589,7 @@ function IncomeTab({ month, period, onPeriodChange, dayDate, onDayDateChange }) 
                 <div>
                   <label className="block text-slate-400 text-sm mb-1.5">Fecha *</label>
                   <DatePicker
-                    selected={form.date ? new Date(form.date) : null}
+                    selected={form.date ? dateStringToDate(form.date) : null}
                     onChange={(d) => setForm({ ...form, date: d.toLocaleDateString('en-CA', { timeZone: 'America/Bogota' }) })}
                     dateFormat="dd/MM/yyyy"
                     locale="es"
@@ -896,7 +902,7 @@ function ExpensesTab({ month, period, onPeriodChange, dayDate, onDayDateChange }
                 <div>
                   <label className="block text-slate-400 text-sm mb-1.5">Fecha *</label>
                   <DatePicker
-                    selected={form.date ? new Date(form.date) : null}
+                    selected={form.date ? dateStringToDate(form.date) : null}
                     onChange={(d) => setForm({ ...form, date: d.toLocaleDateString('en-CA', { timeZone: 'America/Bogota' }) })}
                     dateFormat="dd/MM/yyyy"
                     locale="es"
@@ -945,7 +951,10 @@ export default function Cash() {
   const [tab, setTab] = useState('summary');
   const [month, setMonth] = useState(() => new Date().toLocaleDateString('en-CA', { timeZone: 'America/Bogota' }).slice(0, 7));
   const [period, setPeriod] = useState('mes');
-  const [dayDate, setDayDate] = useState(new Date());
+  const [dayDate, setDayDate] = useState(() => {
+    const d = new Date().toLocaleDateString('en-CA', { timeZone: 'America/Bogota' }).split('-');
+    return new Date(d[0], d[1] - 1, d[2]);
+  });
   const { business } = useAuth();
   const goalKey = `zita_goal_${business?.id}`;
   const [goal, setGoal] = useState(() => parseInt(localStorage.getItem(goalKey) || '0'));

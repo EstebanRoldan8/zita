@@ -17,6 +17,12 @@ function currentMonth() {
   return new Date().toLocaleDateString('en-CA', { timeZone: 'America/Bogota' }).slice(0, 7);
 }
 
+function dateStringToDate(dateStr) {
+  if (!dateStr) return null;
+  const [y, m, d] = dateStr.split('-');
+  return new Date(y, m - 1, d);
+}
+
 const CATEGORIES = [
   { value: 'nomina',          label: 'Nómina' },
   { value: 'materias_primas', label: 'Materias primas' },
@@ -229,7 +235,7 @@ export default function Expenses() {
                 <div>
                   <label className="block text-slate-400 text-sm mb-1.5">Fecha *</label>
                   <DatePicker
-                    selected={form.date ? new Date(form.date) : null}
+                    selected={form.date ? dateStringToDate(form.date) : null}
                     onChange={(d) => setForm({ ...form, date: d.toLocaleDateString('en-CA', { timeZone: 'America/Bogota' }) })}
                     dateFormat="dd/MM/yyyy"
                     locale="es"

@@ -1,5 +1,7 @@
 import { useState, useRef, useEffect } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+
+// fix: queryClient scope available in ProductModal
 import { Package, Plus, X, AlertTriangle, ShoppingCart, Edit2, TrendingUp, ToggleRight, ToggleLeft, Trash2, Image as ImageIcon, Layers2 } from 'lucide-react';
 import DatePicker, { registerLocale } from 'react-datepicker';
 import 'react-datepicker/dist/react-datepicker.css';

@@ -2,6 +2,7 @@
 const { supabaseAdmin } = require('../config/supabase');
 const { PLANS } = require('../config/plans');
 const logger = require('../utils/logger');
+const { getTimezone, getOffsetForTz } = require('../utils/timezone');
 
 const client = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
 

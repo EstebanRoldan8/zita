@@ -335,7 +335,7 @@ function ProductModal({ initial, onClose, onSave, isTienda }) {
               headers: { 'Content-Type': 'multipart/form-data' },
             });
           } catch (imgErr) {
-            logger.warn(`Image upload failed for product ${initial.id}, but product was updated`);
+            console.warn(`Image upload failed for product ${initial.id}, but product was updated`);
           }
         }
       } else {
@@ -349,13 +349,14 @@ function ProductModal({ initial, onClose, onSave, isTienda }) {
               headers: { 'Content-Type': 'multipart/form-data' },
             });
           } catch (imgErr) {
-            logger.warn(`Image upload failed for product ${productId}, but product was created`);
+            console.warn(`Image upload failed for product ${productId}, but product was created`);
           }
         }
       }
       qc.invalidateQueries({ queryKey: ['products'] });
       onSave();
     } catch (err) {
+      console.error('handleSave error:', err);
       setError(err.response?.data?.error || 'Error al guardar el producto.');
     } finally {
       setLoading(false);

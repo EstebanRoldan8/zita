@@ -10,7 +10,7 @@ async function getAll(req, res) {
     // 1. Traer todos los clientes
     const { data: clients, error: clientsError } = await userClient
       .from('clients')
-      .select('id, name, phone, email, created_at')
+      .select('id, name, phone, email, notes, created_at')
       .eq('business_id', req.businessId)
       .order('name');
 
@@ -78,7 +78,7 @@ async function getOne(req, res) {
 
     const { data: client, error: clientError } = await userClient
       .from('clients')
-      .select('id, name, phone, email, created_at')
+      .select('id, name, phone, email, notes, created_at')
       .eq('id', id)
       .eq('business_id', req.businessId)
       .single();

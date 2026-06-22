@@ -1124,6 +1124,7 @@ function InventarioTab({ products, sales, sortBy, onSortChange }) {
 
 // ── Main Page ────────────────────────────────────────────────────────────────
 export default function Products() {
+  const qc = useQueryClient();
   const [tab, setTab] = useState('catalogo');
   const [showInactive, setShowInactive] = useState(false);
   const [sortBy, setSortBy] = useState('name');

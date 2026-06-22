@@ -1152,8 +1152,8 @@ export default function Products() {
     .replace(/[̀-ͯ]/g, '') === 'tienda';
 
   const { data: products = [], isLoading } = useQuery({
-    queryKey: ['products', showInactive],
-    queryFn: () => api.get(`/api/products?includeInactive=${showInactive}`).then((r) => r.data.data),
+    queryKey: ['products'],
+    queryFn: () => api.get('/api/products?includeInactive=true').then((r) => r.data.data),
   });
 
   const { data: sales = [] } = useQuery({

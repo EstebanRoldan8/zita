@@ -330,18 +330,27 @@ function ProductModal({ initial, onClose, onSave, isTienda }) {
         if (imageFile) {
           const formData = new FormData();
           formData.append('image', imageFile);
-          await api.post(`/api/products/${initial.id}/image`, formData, {
-            headers: { 'Content-Type': 'multipart/form-data' },
-          });
+          try {
+            await api.post(`/api/products/${initial.id}/image`, formData, {
+              headers: { 'Content-Type': 'multipart/form-data' },
+            });
+          } catch (imgErr) {
+            logger.warn(`Image upload failed for product ${initial.id}, but product was updated`);
+          }
         }
       } else {
         const res = await api.post('/api/products', payload);
-        if (imageFile) {
+        const productId = res.data?.data?.id;
+        if (imageFile && productId) {
           const formData = new FormData();
           formData.append('image', imageFile);
-          await api.post(`/api/products/${res.data.data.id}/image`, formData, {
-            headers: { 'Content-Type': 'multipart/form-data' },
-          });
+          try {
+            await api.post(`/api/products/${productId}/image`, formData, {
+              headers: { 'Content-Type': 'multipart/form-data' },
+            });
+          } catch (imgErr) {
+            logger.warn(`Image upload failed for product ${productId}, but product was created`);
+          }
         }
       }
       qc.invalidateQueries({ queryKey: ['products'] });

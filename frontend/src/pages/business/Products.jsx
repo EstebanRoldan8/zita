@@ -586,6 +586,9 @@ function CatalogoTab({ products, clients, showInactive, onShowInactiveChange, so
     price_desc: (a, b) => b.price - a.price
   }[sortBy];
 
+  const activeCount = products.filter(p => p.is_active).length;
+  const inactiveCount = products.filter(p => !p.is_active).length;
+
   const sorted = [
     ...products
       .filter(p => p.is_active)
@@ -624,7 +627,7 @@ function CatalogoTab({ products, clients, showInactive, onShowInactiveChange, so
               className="w-4 h-4 rounded bg-[#131929] border border-slate-700 cursor-pointer accent-violet-600"
             />
             <span className="text-slate-400 text-sm whitespace-nowrap">
-              {showInactive ? `Mostrar activos (${active.length})` : `Mostrar inactivos (${inactive.length})`}
+              {showInactive ? `Mostrar activos (${activeCount})` : `Mostrar inactivos (${inactiveCount})`}
             </span>
           </label>
           <select value={sortBy} onChange={(e) => onSortChange(e.target.value)}

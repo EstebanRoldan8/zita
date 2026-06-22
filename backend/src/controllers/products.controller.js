@@ -301,7 +301,7 @@ async function sell(req, res) {
         .insert({
           business_id: req.businessId,
           amount:      costoTotal,
-          category:    'costo_producto',
+          category:    'productos',
           description: `Costo de venta: ${product.name} (${qty} unidades)`,
           date:        saleDate,
         });

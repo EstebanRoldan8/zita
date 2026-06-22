@@ -46,6 +46,7 @@ const EXPENSE_CATS = [
   { value: 'materias_primas', label: 'Materias primas' },
   { value: 'servicios',       label: 'Servicios' },
   { value: 'arriendo',        label: 'Arriendo' },
+  { value: 'productos',       label: 'Productos' },
   { value: 'otro',            label: 'Otro' },
 ];
 
@@ -78,6 +79,7 @@ const EXPENSE_ICONS = {
   materias_primas: '📦',
   servicios: '⚙️',
   arriendo: '🏠',
+  productos: '🛍️',
   otro: '📝',
 };
 

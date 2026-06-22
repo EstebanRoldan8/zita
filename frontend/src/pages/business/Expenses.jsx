@@ -28,6 +28,7 @@ const CATEGORIES = [
   { value: 'materias_primas', label: 'Materias primas' },
   { value: 'servicios',       label: 'Servicios' },
   { value: 'arriendo',        label: 'Arriendo' },
+  { value: 'productos',       label: 'Productos' },
   { value: 'otro',            label: 'Otro' },
 ];
 

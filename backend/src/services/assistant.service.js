@@ -3,6 +3,7 @@ const { supabaseAdmin } = require('../config/supabase');
 const { PLANS } = require('../config/plans');
 const logger = require('../utils/logger');
 const { getTimezone, getOffsetForTz } = require('../utils/timezone');
+const { getAvailableEmployee } = require('../utils/availability');
 
 const client = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
 
@@ -1139,11 +1140,22 @@ async function executeTool(toolName, toolInput, businessId) {
         .eq('business_id', businessId)
         .single();
 
+      // Auto-assign employee if not specified
+      let finalEmployeeId = toolInput.employee_id;
+      if (!finalEmployeeId) {
+        const fecha = scheduledAt.slice(0, 10);
+        const hora = scheduledAt.slice(11, 16);
+        const available = await getAvailableEmployee(businessId, fecha, hora);
+        if (available) {
+          finalEmployeeId = available.id;
+        }
+      }
+
       const insertData = {
         business_id: businessId,
         client_id: toolInput.client_id || null,
         service_id: toolInput.service_id,
-        employee_id: toolInput.employee_id || null,
+        employee_id: finalEmployeeId || null,
         scheduled_at: scheduledAt,
         status: 'confirmed',
         source: 'manual',

@@ -171,7 +171,7 @@ export default function Appointments() {
       let employeeId = body.employee_id || null;
       if (!employeeId && employees.length > 0) {
         const { data } = await supabase.rpc('get_available_employee', {
-          p_business_id: null,
+          p_business_id: business?.id,
           p_date: body.date,
           p_time: body.time + ':00',
         });

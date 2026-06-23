@@ -26,6 +26,7 @@ export default function AIAssistant() {
   });
 
   const queryClient = useQueryClient();
+  const { business } = useAuth();
   const [open, setOpen]               = useState(false);
   const [displayMessages, setDisplay] = useState([
     { role: 'assistant', text: WELCOME, actions: [] },
@@ -75,6 +76,7 @@ export default function AIAssistant() {
       const { data } = await api.post('/api/assistant/message', {
         message: text,
         history: apiHistory,
+        businessId: business?.id,
       });
       setApiHistory(data.data.history);
       setDisplay((prev) => [...prev, {

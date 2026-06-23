@@ -188,7 +188,7 @@ export default function Appointments() {
       });
       const apptId = apptRes.data.data?.id;
       if (apptProducts.length > 0 && apptId) {
-        await Promise.allSettled(
+        const results = await Promise.allSettled(
           apptProducts.map((p) =>
             api.post(`/api/products/${p.product_id}/sell`, {
               quantity: p.quantity,
@@ -198,6 +198,13 @@ export default function Appointments() {
             })
           )
         );
+        if (import.meta.env.DEV) {
+          results.forEach((result, idx) => {
+            if (result.status === 'rejected') {
+              console.error(`Failed to sell product ${apptProducts[idx].product_id}:`, result.reason);
+            }
+          });
+        }
       }
       return apptRes;
     },
@@ -400,6 +407,11 @@ export default function Appointments() {
                                 <span>{appt.employees?.name || 'Sin asignar'}</span>
                               </div>
                             </div>
+                            {appt.notes && (
+                              <div className="mt-2 text-xs text-slate-400 italic">
+                                📝 {appt.notes}
+                              </div>
+                            )}
                             <div className="mt-2.5 md:mt-2">
                               <span className={`inline-flex items-center gap-1 text-xs border px-2.5 py-1 rounded-full font-medium ${STATUS_COLOR[appt.status]}`}>
                                 {STATUS_LABEL[appt.status]}
@@ -532,6 +544,11 @@ export default function Appointments() {
                         <p className="text-slate-300 font-medium">{formatCOP(appt.price)}</p>
                       </div>
                     </div>
+                    {appt.notes && (
+                      <div className="mt-2 text-xs text-slate-400 italic border-t border-slate-700/50 pt-2">
+                        📝 {appt.notes}
+                      </div>
+                    )}
                   </div>
                 ))}
               </div>

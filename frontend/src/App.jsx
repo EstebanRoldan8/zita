@@ -1,7 +1,9 @@
 // ZITA - Main application entry point
+import { useEffect } from 'react';
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { AuthProvider } from './context/AuthContext';
+import { startKeepAlive } from './lib/keepAlive';
 import ProtectedRoute from './components/ui/ProtectedRoute';
 import Layout from './components/ui/Layout';
 import AdminLayout from './components/ui/AdminLayout';
@@ -45,6 +47,10 @@ const queryClient = new QueryClient({
 });
 
 export default function App() {
+  useEffect(() => {
+    startKeepAlive();
+  }, []);
+
   return (
     <QueryClientProvider client={queryClient}>
       <BrowserRouter>

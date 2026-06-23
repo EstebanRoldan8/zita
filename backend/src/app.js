@@ -128,6 +128,10 @@ app.post('/api/data-deletion', (req, res) => {
   });
 });
 
+app.get('/api/ping', (req, res) => {
+  res.json({ status: 'ok' });
+});
+
 app.use('/api/auth', authRoutes);
 app.use('/api/businesses', businessesRoutes);
 app.use('/api/appointments', appointmentsRoutes);

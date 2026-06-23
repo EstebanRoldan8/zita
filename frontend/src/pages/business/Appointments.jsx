@@ -108,19 +108,19 @@ export default function Appointments() {
   });
 
   const { session } = useAuth();
-  const { data: pausasData, refetch: refetchPausas } = useQuery({
-    queryKey: ['bot-pausas', business?.id],
-    queryFn: async () => {
-      const res = await fetch(`${import.meta.env.VITE_API_URL}/api/whatsapp/pausadas`, {
-        headers: { Authorization: `Bearer ${session?.access_token}` }
-      });
-      const json = await res.json();
-      return json.data || [];
-    },
-    refetchInterval: 30000,
-    enabled: !!business?.id
-  });
-  const pausasActivas = pausasData || [];
+  // const { data: pausasData, refetch: refetchPausas } = useQuery({
+  //   queryKey: ['bot-pausas', business?.id],
+  //   queryFn: async () => {
+  //     const res = await fetch(`${import.meta.env.VITE_API_URL}/api/whatsapp/pausadas`, {
+  //       headers: { Authorization: `Bearer ${session?.access_token}` }
+  //     });
+  //     const json = await res.json();
+  //     return json.data || [];
+  //   },
+  //   refetchInterval: 30000,
+  //   enabled: !!business?.id
+  // });
+  const pausasActivas = [];
 
   const reactivarBot = async (clientPhone) => {
     try {
@@ -132,7 +132,7 @@ export default function Appointments() {
         },
         body: JSON.stringify({ client_phone: clientPhone })
       });
-      refetchPausas();
+      // refetchPausas();
     } catch (err) {
       console.error('Error reactivando bot:', err);
     }
@@ -188,6 +188,7 @@ export default function Appointments() {
       });
       const apptId = apptRes.data.data?.id;
       if (apptProducts.length > 0 && apptId) {
+        console.log('SELL DEBUG', { apptId, apptProducts });
         const results = await Promise.allSettled(
           apptProducts.map((p) =>
             api.post(`/api/products/${p.product_id}/sell`, {

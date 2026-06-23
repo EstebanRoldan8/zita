@@ -406,13 +406,14 @@ export default function Appointments() {
                               <div className="flex items-center gap-1.5">
                                 <User size={16} className="text-violet-400 flex-shrink-0" />
                                 <span>{appt.employees?.name || 'Sin asignar'}</span>
+                                {appt.notes && (
+                                  <>
+                                    <span className="text-slate-500">•</span>
+                                    <span className="text-slate-400 italic">📝 {appt.notes}</span>
+                                  </>
+                                )}
                               </div>
                             </div>
-                            {appt.notes && (
-                              <div className="mt-2 text-xs text-slate-400 italic">
-                                📝 {appt.notes}
-                              </div>
-                            )}
                             <div className="mt-2.5 md:mt-2">
                               <span className={`inline-flex items-center gap-1 text-xs border px-2.5 py-1 rounded-full font-medium ${STATUS_COLOR[appt.status]}`}>
                                 {STATUS_LABEL[appt.status]}
@@ -538,18 +539,18 @@ export default function Appointments() {
                       </div>
                       <div>
                         <p className="text-slate-500">Empleado</p>
-                        <p className="text-slate-300 font-medium">{appt.employees?.name || 'Sin asignar'}</p>
+                        <p className="text-slate-300 font-medium">
+                          {appt.employees?.name || 'Sin asignar'}
+                          {appt.notes && (
+                            <span className="text-slate-400 italic ml-2">• 📝 {appt.notes}</span>
+                          )}
+                        </p>
                       </div>
                       <div>
                         <p className="text-slate-500">Precio</p>
                         <p className="text-slate-300 font-medium">{formatCOP(appt.price)}</p>
                       </div>
                     </div>
-                    {appt.notes && (
-                      <div className="mt-2 text-xs text-slate-400 italic border-t border-slate-700/50 pt-2">
-                        📝 {appt.notes}
-                      </div>
-                    )}
                   </div>
                 ))}
               </div>

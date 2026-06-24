@@ -73,6 +73,7 @@ export default function AIAssistant() {
     setLoading(true);
 
     try {
+      console.log('ASSISTANT SEND', { businessId: business?.id, message: text });
       const { data } = await api.post('/api/assistant/message', {
         message: text,
         history: apiHistory,

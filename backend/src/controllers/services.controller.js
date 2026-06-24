@@ -47,7 +47,7 @@ async function create(req, res) {
 async function update(req, res) {
   try {
     const { id } = req.params;
-    const { name, duration_minutes, price, active } = req.body;
+    const { name, duration_minutes, price, active, description } = req.body;
 
     const userClient = createUserClient(req.headers.authorization);
 
@@ -67,6 +67,7 @@ async function update(req, res) {
     if (duration_minutes !== undefined) updates.duration_minutes = duration_minutes;
     if (price !== undefined) updates.price = price;
     if (active !== undefined) updates.active = active;
+    if (description !== undefined) updates.description = description;
 
     const { data, error } = await userClient
       .from('services')

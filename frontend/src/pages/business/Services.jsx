@@ -31,7 +31,7 @@ export default function Services() {
 
   const updateMutation = useMutation({
     mutationFn: ({ id, body }) => api.patch(`/api/services/${id}`, body),
-    onSuccess: () => { qc.invalidateQueries({ queryKey: ['services-all'] }); qc.invalidateQueries({ queryKey: ['services-list'] }); setEditService(null); },
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ['services-all'] }); qc.invalidateQueries({ queryKey: ['services-list'] }); setEditService(null); setNewModal(false); },
     onError: (err) => setFormError(err.response?.data?.error || 'Error al guardar.'),
   });
 

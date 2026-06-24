@@ -3,6 +3,8 @@ const logger = require('../utils/logger');
 const { decrypt } = require('../utils/encrypt');
 const { sendMessage } = require('../config/whatsapp');
 
+const capitalizeName = (str) => str.trim().replace(/\b\w/g, c => c.toUpperCase());
+
 async function getAll(req, res) {
   try {
     const userClient = createUserClient(req.headers.authorization);
@@ -144,9 +146,10 @@ async function create(req, res) {
     }
 
     const userClient = createUserClient(req.headers.authorization);
+    const capitalizedName = capitalizeName(name);
     const { data, error } = await userClient
       .from('clients')
-      .insert({ business_id: req.businessId, name, phone, email })
+      .insert({ business_id: req.businessId, name: capitalizedName, phone, email })
       .select()
       .single();
 
@@ -183,7 +186,7 @@ async function update(req, res) {
     const { name, phone, email, notes } = req.body;
 
     const updates = {};
-    if (name  !== undefined) updates.name  = name?.trim() || null;
+    if (name  !== undefined) updates.name  = name?.trim() ? capitalizeName(name) : null;
     if (phone !== undefined) updates.phone = phone?.trim() || null;
     if (email !== undefined) updates.email = email?.trim() || null;
     if (notes !== undefined) updates.notes = notes?.trim() || null;

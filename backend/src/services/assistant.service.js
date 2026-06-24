@@ -227,6 +227,16 @@ EFICIENCIA - RESOLVER EN UN SOLO MENSAJE:
 - El flujo debe ser: detectar problema → informar → ofrecer solución
   TODO EN UN SOLO MENSAJE
 
+USO DE VENDER_PRODUCTO:
+- Usa vender_producto cuando el usuario mencione que un cliente compró un producto
+  durante o después de una cita
+- Ejemplos:
+  * 'Juan se fue con un corte y compró gel' → crear cita + vender_producto
+  * 'A María le hicimos un masaje y vendimos crema' → vender_producto
+  * 'Cliente compró 2 shampoo después de la cita' → vender_producto quantity=2
+- vender_producto busca el producto automáticamente por nombre
+- Es más eficiente que buscar_producto + registrar_venta porque lo hace en una sola llamada
+
 INFORMACIÓN DE CLIENTES:
 Cuando pregunten por visitas, historial o información de un cliente,
 primero usa buscar_cliente para obtener el ID, luego usa info_cliente.
@@ -875,6 +885,20 @@ const tools = [
         }
       },
       required: ['modulo']
+    }
+  },
+  {
+    name: 'vender_producto',
+    description: 'Vende un producto buscando por nombre. Usa esto cuando el cliente compró un producto durante o después de una cita.',
+    input_schema: {
+      type: 'object',
+      properties: {
+        product_name: { type: 'string', description: 'Nombre del producto a vender' },
+        quantity: { type: 'number', description: 'Cantidad vendida' },
+        client_id: { type: 'string', description: 'ID del cliente (opcional)' },
+        appointment_id: { type: 'string', description: 'ID de la cita asociada (opcional)' }
+      },
+      required: ['product_name', 'quantity']
     }
   }
 ];
@@ -2357,6 +2381,83 @@ async function executeTool(toolName, toolInput, businessId) {
         resultados,
         disponibles_hoy: disponibles - exitosos
       };
+    }
+
+    case 'vender_producto': {
+      const normalizedSearch = normalize(toolInput.product_name);
+      const { data: allProducts } = await supabaseAdmin
+        .from('products')
+        .select('id, name, price, stock, cost_price')
+        .eq('business_id', businessId)
+        .eq('is_active', true);
+
+      if (!allProducts || allProducts.length === 0) {
+        return { success: false, error: 'No encontré ese producto' };
+      }
+
+      const matches = allProducts.filter(p =>
+        normalize(p.name).includes(normalizedSearch) || normalizedSearch.split(' ').some(w => normalize(p.name).includes(w))
+      ).sort((a, b) => b.name.length - a.name.length);
+
+      if (!matches.length) {
+        return { success: false, error: `Producto "${toolInput.product_name}" no encontrado` };
+      }
+
+      const product = matches[0];
+
+      if (product.stock < toolInput.quantity) {
+        return { success: false, error: `Stock insuficiente. Disponible: ${product.stock}` };
+      }
+
+      await supabaseAdmin
+        .from('products')
+        .update({ stock: product.stock - toolInput.quantity })
+        .eq('id', product.id);
+
+      const saleDate = new Date().toLocaleDateString('en-CA', { timeZone: 'America/Bogota' });
+
+      const { data: saleData } = await supabaseAdmin
+        .from('product_sales')
+        .insert({
+          business_id: businessId,
+          product_id: product.id,
+          quantity: toolInput.quantity,
+          total_amount: product.price * toolInput.quantity,
+          client_id: toolInput.client_id || null,
+          appointment_id: toolInput.appointment_id || null,
+          sold_via: 'presencial'
+        })
+        .select()
+        .single();
+
+      const { data: incomeData } = await supabaseAdmin
+        .from('income')
+        .insert({
+          business_id: businessId,
+          amount: product.price * toolInput.quantity,
+          category: 'productos',
+          description: `Venta: ${product.name}${toolInput.quantity > 1 ? ` ×${toolInput.quantity}` : ''}`,
+          date: saleDate,
+          client_id: toolInput.client_id || null,
+          source: 'product_sale'
+        })
+        .select()
+        .single();
+
+      if (product.cost_price != null) {
+        const costoTotal = Number(product.cost_price) * toolInput.quantity;
+        await supabaseAdmin
+          .from('expenses')
+          .insert({
+            business_id: businessId,
+            amount: costoTotal,
+            category: 'productos',
+            description: `Costo de venta: ${product.name} (${toolInput.quantity} unidades)`,
+            date: saleDate
+          });
+      }
+
+      return { success: true, product_name: product.name, quantity: toolInput.quantity, total_amount: product.price * toolInput.quantity };
     }
 
     case 'test_sistema': {

@@ -951,7 +951,7 @@ function InventarioTab({ products, sales, sortBy, onSortChange }) {
                     <th className="w-[9%] text-center text-white/40 font-medium px-4 py-3 text-xs uppercase tracking-wider">Margen</th>
                     <th className="w-[9%] text-center text-white/40 font-medium px-4 py-3 text-xs uppercase tracking-wider">Stock actual</th>
                     <th className="w-[9%] text-center text-white/40 font-medium px-4 py-3 text-xs uppercase tracking-wider">Stock mín.</th>
-                    <th className="w-[15%] text-left text-white/40 font-medium px-4 py-3 text-xs uppercase tracking-wider">Estado</th>
+                    <th className="w-[15%] text-center text-white/40 font-medium px-4 py-3 text-xs uppercase tracking-wider">Estado</th>
                   </tr>
                 </thead>
                 <tbody>

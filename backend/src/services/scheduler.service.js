@@ -134,7 +134,7 @@ cron.schedule('*/5 * * * *', async () => {
 });
 
 // Auto-completar citas 1 hora después de la hora programada
-cron.schedule('0 * * * *', async () => {
+cron.schedule('*/15 * * * *', async () => {
   const acquired = await acquireLock('auto_completar', 50);
   if (!acquired) return;
 
@@ -214,7 +214,7 @@ cron.schedule('0 * * * *', async () => {
   logger.info('Tareas activas:');
   logger.info('  • Resumen diario a las 12:00 UTC (7am Colombia)');
   logger.info('  • Recordatorio 2 horas antes cada 5 minutos (testing)');
-  logger.info('  • Auto-completar citas cada hora (1 hora después de scheduled_at)');
+  logger.info('  • Auto-completar citas cada 15 minutos (1 hora después de scheduled_at)');
   logger.info('Usando database locks para evitar duplicados en múltiples instancias');
 };
 

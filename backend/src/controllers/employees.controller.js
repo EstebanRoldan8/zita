@@ -1,6 +1,8 @@
 const { createUserClient, supabaseAdmin } = require('../config/supabase');
 const logger = require('../utils/logger');
 
+const capitalizeName = (str) => str.trim().replace(/\b\w/g, c => c.toUpperCase());
+
 async function getAll(req, res) {
   try {
     const userClient = createUserClient(req.headers.authorization);
@@ -27,11 +29,15 @@ async function getAll(req, res) {
 
 async function create(req, res) {
   try {
-    const { name, email, phone, commission_percent } = req.body;
+    const body = req.body;
+    let { name, email, phone, commission_percent } = body;
 
     if (!name) {
       return res.status(400).json({ success: false, error: 'El nombre es obligatorio.' });
     }
+
+    if (body.name) body.name = capitalizeName(body.name);
+    name = body.name;
 
     const { PLANS } = require('../config/plans');
 
@@ -134,7 +140,9 @@ async function update(req, res) {
     }
 
     const updates = {};
-    if (name !== undefined) updates.name = name;
+    if (name !== undefined) {
+      updates.name = capitalizeName(name);
+    }
     if (email !== undefined) updates.email = email;
     if (phone !== undefined) updates.phone = phone;
     if (commission_percent !== undefined) updates.commission_percent = commission_percent;

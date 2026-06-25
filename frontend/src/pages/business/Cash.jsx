@@ -217,15 +217,6 @@ function SummaryTab({ month, period, onPeriodChange, dayDate, onDayDateChange })
         </div>
         <div className="min-w-0 bg-[#131929] border border-slate-800 rounded-xl shadow-lg shadow-black/30 p-4 sm:p-5 border border-violet-500/15 hover:border-violet-500/35 transition-all duration-200">
           <div className="flex items-center justify-between mb-2 sm:mb-3">
-            <p className="text-xs sm:text-sm text-slate-400 truncate mr-1">Ganancia neta</p>
-            <div className={`w-7 h-7 sm:w-8 sm:h-8 rounded-lg flex items-center justify-center flex-shrink-0 ${net >= 0 ? 'bg-emerald-600' : 'bg-red-600'}`}>
-              {net >= 0 ? <TrendingUp size={14} className="text-white" /> : <TrendingDown size={14} className="text-white" />}
-            </div>
-          </div>
-          <p className={`text-sm sm:text-xl font-bold truncate ${net >= 0 ? 'text-emerald-400' : 'text-red-400'}`}>{formatCOP(net)}</p>
-        </div>
-        <div className="min-w-0 bg-[#131929] border border-slate-800 rounded-xl shadow-lg shadow-black/30 p-4 sm:p-5 border border-violet-500/15 hover:border-violet-500/35 transition-all duration-200">
-          <div className="flex items-center justify-between mb-2 sm:mb-3">
             <p className="text-xs sm:text-sm text-slate-400 truncate mr-1">Margen bruto</p>
             <div className="w-7 h-7 sm:w-8 sm:h-8 bg-emerald-700 rounded-lg flex items-center justify-center flex-shrink-0">
               <TrendingUp size={14} className="text-white" />
@@ -234,6 +225,15 @@ function SummaryTab({ month, period, onPeriodChange, dayDate, onDayDateChange })
           <p className={`text-sm sm:text-xl font-bold truncate ${(periodData?.margen_bruto ?? 0) >= 0 ? 'text-emerald-400' : 'text-red-400'}`}>
             {formatCOP(periodData?.margen_bruto)}
           </p>
+        </div>
+        <div className="min-w-0 bg-[#131929] border border-slate-800 rounded-xl shadow-lg shadow-black/30 p-4 sm:p-5 border border-violet-500/15 hover:border-violet-500/35 transition-all duration-200">
+          <div className="flex items-center justify-between mb-2 sm:mb-3">
+            <p className="text-xs sm:text-sm text-slate-400 truncate mr-1">Ganancia neta</p>
+            <div className={`w-7 h-7 sm:w-8 sm:h-8 rounded-lg flex items-center justify-center flex-shrink-0 ${net >= 0 ? 'bg-emerald-600' : 'bg-red-600'}`}>
+              {net >= 0 ? <TrendingUp size={14} className="text-white" /> : <TrendingDown size={14} className="text-white" />}
+            </div>
+          </div>
+          <p className={`text-sm sm:text-xl font-bold truncate ${net >= 0 ? 'text-emerald-400' : 'text-red-400'}`}>{formatCOP(net)}</p>
         </div>
       </div>
 

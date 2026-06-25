@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { Users, ChevronRight, ChevronLeft, X, Pencil, Search, Phone, Mail, Trophy, Plus, Check } from 'lucide-react';
 import api from '../../lib/api';
+import SubscriptionExpiredBanner from '../../components/ui/SubscriptionExpiredBanner';
 import { useAuth } from '../../context/AuthContext';
 
 function formatCOP(v) {

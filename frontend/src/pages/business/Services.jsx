@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { Plus, Edit2, Eye, EyeOff, Trash2 } from 'lucide-react';
 import api from '../../lib/api';
+import SubscriptionExpiredBanner from '../../components/ui/SubscriptionExpiredBanner';
 
 function formatCOP(v) {
   return new Intl.NumberFormat('es-CO', { style: 'currency', currency: 'COP', maximumFractionDigits: 0 }).format(v ?? 0);

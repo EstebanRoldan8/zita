@@ -36,6 +36,7 @@ export default function AIAssistant() {
   const [loading, setLoading]         = useState(false);
   const [viewportHeight, setViewportHeight] = useState(window.innerHeight);
   const [isMobile, setIsMobile]       = useState(window.matchMedia('(max-width: 768px)').matches);
+  const [isExpired, setIsExpired]      = useState(localStorage.getItem('subscription_expired') === 'true');
   const bottomRef  = useRef(null);
   const inputRef   = useRef(null);
   const panelRef   = useRef(null);
@@ -47,6 +48,13 @@ export default function AIAssistant() {
     mq.addEventListener('change', handleChange);
     return () => mq.removeEventListener('change', handleChange);
   }, []);
+
+  useEffect(() => {
+    if (isExpired && open) {
+      const expiredMsg = { role: 'assistant', text: 'Tu plan ha vencido 🔒 Renueva tu suscripción para usar el asistente.', actions: [] };
+      setDisplay([{ role: 'assistant', text: WELCOME, actions: [] }, expiredMsg]);
+    }
+  }, [isExpired, open]);
 
   useEffect(() => {
     if (open) setTimeout(() => inputRef.current?.focus(), 120);
@@ -241,14 +249,15 @@ export default function AIAssistant() {
                 value={input}
                 onChange={(e) => setInput(e.target.value)}
                 onKeyDown={onKeyDown}
-                placeholder="Escribe un mensaje..."
+                disabled={isExpired}
+                placeholder={isExpired ? "Plan vencido - Renueva para continuar" : "Escribe un mensaje..."}
                 rows={1}
                 style={{ maxHeight: '72px', overflowY: 'auto' }}
-                className="flex-1 bg-slate-800 border border-slate-700 text-white rounded-lg px-3 py-2 sm:py-2.5 text-xs sm:text-sm placeholder-slate-500 focus:outline-none focus:border-violet-500 transition resize-none"
+                className="flex-1 bg-slate-800 border border-slate-700 text-white rounded-lg px-3 py-2 sm:py-2.5 text-xs sm:text-sm placeholder-slate-500 focus:outline-none focus:border-violet-500 transition resize-none disabled:opacity-60"
               />
               <button
                 onClick={send}
-                disabled={!input.trim() || loading}
+                disabled={!input.trim() || loading || isExpired}
                 className="w-9 h-9 sm:w-9 sm:h-9 flex-shrink-0 flex items-center justify-center bg-violet-600 hover:bg-violet-500 disabled:opacity-40 disabled:cursor-not-allowed text-white rounded-lg transition"
               >
                 <Send size={16} className="sm:w-[14px] sm:h-[14px]" />

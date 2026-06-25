@@ -15,12 +15,16 @@ api.interceptors.request.use(async (config) => {
 });
 
 // Si el backend responde 401, cierra sesión y redirige al login
+// Si el backend responde 403 SUBSCRIPTION_EXPIRED, redirige a suscripción
 api.interceptors.response.use(
   (response) => response,
   async (error) => {
     if (error.response?.status === 401) {
       await supabase.auth.signOut();
       window.location.href = '/login';
+    } else if (error.response?.status === 403 && error.response?.data?.code === 'SUBSCRIPTION_EXPIRED') {
+      window.alert('Tu suscripción ha vencido. Renueva tu plan para continuar.');
+      window.location.href = '/dashboard/suscripcion';
     }
     return Promise.reject(error);
   }

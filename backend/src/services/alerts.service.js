@@ -79,8 +79,9 @@ async function getAlerts(businessId) {
       .gte('date', prevStart.slice(0, 10)).lte('date', prevEnd.slice(0, 10)),
 
     supabaseAdmin
-      .from('employees').select('id, name')
-      .eq('business_id', businessId).eq('is_active', true),
+      .from('employees').select('id, name, created_at')
+      .eq('business_id', businessId).eq('is_active', true)
+      .gt('created_at', new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString()),
 
     supabaseAdmin
       .from('appointments').select('employee_id')

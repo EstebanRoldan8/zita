@@ -8,6 +8,7 @@ import 'react-datepicker/dist/react-datepicker.css';
 import api from '../../lib/api';
 import { supabase } from '../../lib/supabase';
 import AppointmentModal from '../../components/appointments/AppointmentModal';
+import SubscriptionExpiredBanner from '../../components/ui/SubscriptionExpiredBanner';
 import { timeFromISO } from '../../lib/timezone';
 import { useAuth } from '../../context/AuthContext';
 
@@ -844,6 +845,8 @@ export default function Dashboard() {
         limitError={limitError}
         setLimitError={setLimitError}
       />
+
+      <SubscriptionExpiredBanner />
 
       {/* Modal límite de citas - Standard/Pro */}
       {limitError && (

@@ -41,6 +41,7 @@ const contactRoutes = require('./routes/contact.routes');
 const paymentRoutes = require('./routes/payment.routes');
 const { verifyToken } = require('./middlewares/auth');
 const { businessContext } = require('./middlewares/businessContext');
+const { checkPlanAccess } = require('./middlewares/planCheck');
 const { initScheduler } = require('./services/scheduler.service');
 
 const app = express();
@@ -134,19 +135,19 @@ app.get('/api/ping', (req, res) => {
 
 app.use('/api/auth', authRoutes);
 app.use('/api/businesses', businessesRoutes);
-app.use('/api/appointments', appointmentsRoutes);
-app.use('/api/clients', clientsRoutes);
-app.use('/api/services', servicesRoutes);
+app.use('/api/appointments', verifyToken, businessContext, checkPlanAccess, appointmentsRoutes);
+app.use('/api/clients', verifyToken, businessContext, checkPlanAccess, clientsRoutes);
+app.use('/api/services', verifyToken, businessContext, checkPlanAccess, servicesRoutes);
 app.use('/api/metrics', metricsRoutes);
 app.use('/api/support', supportRouter);
 app.use('/api/admin', adminRoutes);
-app.use('/api/employees', employeesRoutes);
-app.use('/api/cash', cashRoutes);
+app.use('/api/employees', verifyToken, businessContext, checkPlanAccess, employeesRoutes);
+app.use('/api/cash', verifyToken, businessContext, checkPlanAccess, cashRoutes);
 app.use('/api/settings', settingsRoutes);
 app.use('/api/loyalty', loyaltyRoutes);
 app.use('/api/alerts',     alertsRoutes);
-app.use('/api/products', productVariantsRoutes);
-app.use('/api/products',   productsRoutes);
+app.use('/api/products', verifyToken, businessContext, checkPlanAccess, productVariantsRoutes);
+app.use('/api/products', verifyToken, businessContext, checkPlanAccess, productsRoutes);
 app.use('/api/orders', ordersRoutes);
 app.use('/api/assistant',  assistantRoutes);
 app.use('/api/subscription', verifyToken, businessContext, subscriptionRoutes);

@@ -92,6 +92,12 @@ REGLA DE CLIENTES:
 - Solo pedir datos si buscar_cliente retorna found: false
 - Si hay múltiples clientes con ese nombre → SIEMPRE usa el PRIMERO sin preguntar
 
+REGLA DE SERVICIOS:
+- SIEMPRE llama a listar_servicios antes de mencionar servicios disponibles
+- NUNCA menciones servicios de memoria o basándote en conversaciones anteriores
+- Si el usuario menciona un servicio que no conoces, primero llama a listar_servicios para verificar si existe
+- Si buscar_servicio retorna not_found, muestra los servicios disponibles obtenidos de listar_servicios
+
 CREAR CLIENTE: SOLO necesitas el nombre.
 NUNCA pidas teléfono ni email. Son completamente opcionales.
 Si no te dan teléfono, crea el cliente SIN teléfono.

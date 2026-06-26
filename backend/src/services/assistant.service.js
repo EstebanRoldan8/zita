@@ -1,4 +1,4 @@
-﻿// v2.1
+﻿// ZITA Assistant v2.1
 const Anthropic = require('@anthropic-ai/sdk');
 const { supabaseAdmin } = require('../config/supabase');
 const { PLANS } = require('../config/plans');

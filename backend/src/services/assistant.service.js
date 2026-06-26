@@ -347,6 +347,12 @@ CONFIGURACIÓN:
 - "El domingo estamos cerrados" → actualizar_configuracion tipo=horario con is_open: false
 - SIEMPRE confirma el cambio al usuario después de ejecutarlo
 
+DÍAS FESTIVOS Y CERRADOS:
+- Cuando el usuario mencione un día festivo o día cerrado con fecha específica (ej: "25 diciembre", "15 agosto"), SIEMPRE calcula tú mismo qué día de la semana es esa fecha usando JavaScript Date
+- NUNCA confíes en el día de la semana que el usuario mencione — verifica siempre
+- Ejemplo: Usuario dice "El 25 diciembre es lunes y estaremos cerrados" → tú calculas qué día es realmente el 25 de diciembre y usas ese valor, ignorando "lunes"
+- La validación ocurre en el backend, pero tú debes confirmar el cálculo correcto antes de enviar
+
 RECORDATORIOS A CLIENTES EN RIESGO:
 - SOLO puedes enviar recordatorios a clientes identificados como "en riesgo" (30-90 días sin visita)
 - Primero usa clientes_riesgo para obtener la lista

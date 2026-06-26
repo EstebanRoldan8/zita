@@ -348,10 +348,11 @@ CONFIGURACIÓN:
 - SIEMPRE confirma el cambio al usuario después de ejecutarlo
 
 DÍAS FESTIVOS Y CERRADOS:
-- Cuando el usuario mencione un día festivo o día cerrado con fecha específica (ej: "25 diciembre", "15 agosto"), SIEMPRE calcula tú mismo qué día de la semana es esa fecha usando JavaScript Date
-- NUNCA confíes en el día de la semana que el usuario mencione — verifica siempre
-- Ejemplo: Usuario dice "El 25 diciembre es lunes y estaremos cerrados" → tú calculas qué día es realmente el 25 de diciembre y usas ese valor, ignorando "lunes"
-- La validación ocurre en el backend, pero tú debes confirmar el cálculo correcto antes de enviar
+- Cuando el usuario mencione un día festivo o día cerrado con fecha específica (ej: "25 diciembre", "15 agosto"), usar cerrar_dia_especial
+- Para cierres puntuales de fechas específicas (festivos, vacaciones, eventos): usar cerrar_dia_especial con date en formato YYYY-MM-DD
+- Para cambios de horario semanal recurrente (ej: "El lunes siempre cierra a las 5pm"): usar actualizar_configuracion tipo=horario
+- NUNCA confíes en el día de la semana que el usuario mencione cuando sea una fecha específica — verifica siempre y usa YYYY-MM-DD
+- Ejemplo: Usuario dice "El 25 diciembre estaremos cerrados" → usar cerrar_dia_especial con date="2026-12-25" y reason="Festivo"
 
 RECORDATORIOS A CLIENTES EN RIESGO:
 - SOLO puedes enviar recordatorios a clientes identificados como "en riesgo" (30-90 días sin visita)
@@ -903,6 +904,18 @@ const tools = [
         }
       },
       required: ['modulo']
+    }
+  },
+  {
+    name: 'cerrar_dia_especial',
+    description: 'Registra un día específico como cerrado (festivo, vacación, evento especial). Solo para cierres puntuales de fechas específicas.',
+    input_schema: {
+      type: 'object',
+      properties: {
+        date: { type: 'string', description: 'Fecha del día cerrado en formato YYYY-MM-DD' },
+        reason: { type: 'string', description: 'Motivo del cierre (ej: Festivo, Vacaciones, Evento especial)' }
+      },
+      required: ['date', 'reason']
     }
   },
   {
@@ -2592,6 +2605,26 @@ async function executeTool(toolName, toolInput, businessId) {
         resultados,
         estado_general: totalOk === totalTests ? '🟢 Todo funciona' : totalOk >= totalTests * 0.7 ? '🟡 Funcionando con advertencias' : '🔴 Problemas críticos detectados'
       };
+    }
+
+    case 'cerrar_dia_especial': {
+      const { date, reason } = toolInput;
+      if (!date || !/^\d{4}-\d{2}-\d{2}$/.test(date)) {
+        return { success: false, error: 'Fecha inválida. Usa formato YYYY-MM-DD.' };
+      }
+      if (!reason || reason.trim().length === 0) {
+        return { success: false, error: 'Motivo del cierre es requerido.' };
+      }
+      const { error } = await supabaseAdmin
+        .from('business_closed_days')
+        .insert({
+          business_id: businessId,
+          date: date,
+          reason: reason.trim(),
+          is_full_day: true
+        });
+      if (error) return { success: false, error: error.message };
+      return { success: true, message: `Día ${date} registrado como cerrado por: ${reason}` };
     }
 
     default:

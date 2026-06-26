@@ -2630,7 +2630,7 @@ async function processMessage(businessId, userMessage, conversationHistory = [])
     if (mensajesHoy >= limite) {
       return {
         success: false,
-        error: `Alcanzaste el límite de ${limite} mensajes diarios del asistente IA. Renueva mañana o mejora tu plan.`,
+        error: `Has alcanzado el límite de ${limite} mensajes diarios del plan Estándar. Para aumentar tu límite o gestionar tu negocio, visita la sección de Citas, Clientes o Servicios en el panel. También puedes actualizar a un plan superior desde Mi Suscripción.`,
         code: 'AI_LIMIT_REACHED'
       };
     }

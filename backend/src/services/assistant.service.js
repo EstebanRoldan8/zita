@@ -506,7 +506,7 @@ const tools = [
       properties: {
         client_id: { type: 'string', description: 'Opcional - ID del cliente. Si no se proporciona, serÃ¡ una cita walk-in.' },
         service_id: { type: 'string' },
-        scheduled_at: { type: 'string', description: 'Fecha y hora en formato ISO: YYYY-MM-DDTHH:mm:00' },
+        scheduled_at: { type: 'string', description: 'Fecha y hora en formato ISO con timezone Colombia: YYYY-MM-DDTHH:mm:00-05:00. SIEMPRE incluir -05:00 al final. NUNCA usar Z o UTC.' },
         employee_id: { type: 'string', description: 'Opcional' },
         notes: { type: 'string', description: 'Notas opcionales' }
       },

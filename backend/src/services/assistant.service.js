@@ -1,4 +1,5 @@
-﻿const Anthropic = require('@anthropic-ai/sdk');
+﻿// v2.1
+const Anthropic = require('@anthropic-ai/sdk');
 const { supabaseAdmin } = require('../config/supabase');
 const { PLANS } = require('../config/plans');
 const logger = require('../utils/logger');

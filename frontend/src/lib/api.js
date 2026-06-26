@@ -16,8 +16,14 @@ api.interceptors.request.use(async (config) => {
 
 // Si el backend responde 401, cierra sesión y redirige al login
 // Si el backend responde 403 SUBSCRIPTION_EXPIRED, guardar en localStorage
+// Si respuesta exitosa, limpiar flag de suscripción expirada
 api.interceptors.response.use(
-  (response) => response,
+  (response) => {
+    if (localStorage.getItem('subscription_expired') === 'true') {
+      localStorage.removeItem('subscription_expired');
+    }
+    return response;
+  },
   async (error) => {
     if (error.response?.status === 401) {
       await supabase.auth.signOut();

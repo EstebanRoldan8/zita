@@ -728,13 +728,15 @@ const tools = [
   },
   {
     name: 'actualizar_cita',
-    description: 'Actualiza el cliente o empleado de una cita existente. Usar cuando el usuario dice que se equivocó de cliente.',
+    description: 'Actualiza cliente, empleado, hora o servicio de una cita existente. Usar cuando el usuario dice que se equivocó de cliente, empleado, hora o servicio.',
     input_schema: {
       type: 'object',
       properties: {
         appointment_id: { type: 'string', description: 'ID de la cita a actualizar' },
         client_id: { type: 'string', description: 'Nuevo client_id (opcional)' },
         employee_id: { type: 'string', description: 'Nuevo employee_id (opcional)' },
+        scheduled_at: { type: 'string', description: 'Nueva fecha y hora en formato ISO con timezone Colombia: YYYY-MM-DDTHH:mm:00-05:00 (opcional)' },
+        service_id: { type: 'string', description: 'Nuevo service_id (opcional)' },
         notes: { type: 'string', description: 'Notas opcionales' }
       },
       required: ['appointment_id']
@@ -1742,8 +1744,24 @@ async function executeTool(toolName, toolInput, businessId) {
         updateData.client_id = toolInput.client_id;
       if (toolInput.employee_id !== undefined)
         updateData.employee_id = toolInput.employee_id;
+      if (toolInput.service_id !== undefined)
+        updateData.service_id = toolInput.service_id;
       if (toolInput.notes !== undefined)
         updateData.notes = toolInput.notes;
+
+      if (toolInput.scheduled_at !== undefined) {
+        let scheduledAt = toolInput.scheduled_at;
+        if (scheduledAt) {
+          if (scheduledAt.endsWith('Z')) {
+            scheduledAt = scheduledAt.slice(0, -1) + '-05:00';
+          } else if (scheduledAt.includes('+00:00')) {
+            scheduledAt = scheduledAt.replace('+00:00', '-05:00');
+          } else if (!scheduledAt.includes('+') && !scheduledAt.includes('-05:00')) {
+            scheduledAt = scheduledAt.includes('T') ? scheduledAt + '-05:00' : scheduledAt;
+          }
+        }
+        updateData.scheduled_at = scheduledAt;
+      }
 
       const { error } = await supabaseAdmin
         .from('appointments')

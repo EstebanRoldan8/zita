@@ -64,11 +64,6 @@ async function autoCompleteAppointments() {
         .eq('appointment_id', appointment.id)
         .maybeSingle();
 
-      if (existingIncome) {
-        logger.info(`Income ya existe para appointment ${appointment.id}, skipping`);
-        continue;
-      }
-
       const { error: updateError } = await supabaseAdmin
         .from('appointments')
         .update({ status: 'completed' })
@@ -81,6 +76,11 @@ async function autoCompleteAppointments() {
       }
 
       completed++;
+
+      if (existingIncome) {
+        logger.info(`Income ya existe para appointment ${appointment.id}, solo marcar como completed`);
+        continue;
+      }
 
       if (appointment.services?.price && appointment.services.price > 0) {
         const { data: existingIncome } = await supabaseAdmin

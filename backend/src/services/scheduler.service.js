@@ -223,7 +223,6 @@ async function autoCompleteAppointments() {
 }
 
 cron.schedule('*/15 * * * *', autoCompleteAppointments);
-});
 
   logger.info('=== SCHEDULER CARGADO ===');
   logger.info('Tareas activas:');

@@ -29,6 +29,95 @@ async function acquireLock(lockName, expiresInMinutes = 10) {
   return true;
 }
 
+// Auto-completar citas 1 hora después de la hora programada
+async function autoCompleteAppointments() {
+  const acquired = await acquireLock('auto_completar', 50);
+  if (!acquired) return { completed: 0, errors: [] };
+
+  const errors = [];
+  logger.info('Verificando citas para auto-completar...');
+
+  try {
+    const unaHoraAtras = new Date(Date.now() - 60 * 60 * 1000).toISOString();
+    logger.info(`Buscando citas confirmadas antes de ${unaHoraAtras}`);
+
+    const { data: toComplete, error: selectError } = await supabaseAdmin
+      .from('appointments')
+      .select('id, business_id, services(name, price)')
+      .in('status', ['confirmed', 'pending'])
+      .lt('scheduled_at', unaHoraAtras)
+      .limit(200);
+
+    if (selectError) {
+      logger.error('Error obteniendo citas para auto-completar:', selectError.message);
+      errors.push(selectError.message);
+      return { completed: 0, errors };
+    }
+
+    logger.info(`Encontradas ${toComplete?.length || 0} citas para auto-completar`);
+
+    let completed = 0;
+    for (const appointment of toComplete || []) {
+      const { data: existingIncome } = await supabaseAdmin
+        .from('income')
+        .select('id')
+        .eq('appointment_id', appointment.id)
+        .maybeSingle();
+
+      if (existingIncome) {
+        logger.info(`Income ya existe para appointment ${appointment.id}, skipping`);
+        continue;
+      }
+
+      const { error: updateError } = await supabaseAdmin
+        .from('appointments')
+        .update({ status: 'completed' })
+        .eq('id', appointment.id);
+
+      if (updateError) {
+        logger.error(`Error marcando appointment ${appointment.id} como completed:`, updateError.message);
+        errors.push(`appointment ${appointment.id}: ${updateError.message}`);
+        continue;
+      }
+
+      completed++;
+
+      if (appointment.services?.price && appointment.services.price > 0) {
+        const { data: existingIncome } = await supabaseAdmin
+          .from('income')
+          .select('id')
+          .eq('appointment_id', appointment.id)
+          .limit(1);
+
+        if (!existingIncome || existingIncome.length === 0) {
+          await supabaseAdmin
+            .from('income')
+            .insert({
+              business_id: appointment.business_id,
+              amount: appointment.services.price,
+              category: 'servicios',
+              description: `${appointment.services.name} - auto-completado`,
+              source: 'appointment',
+              appointment_id: appointment.id,
+              date: new Date().toLocaleDateString('en-CA', { timeZone: 'America/Bogota' })
+            })
+            .catch(err => {
+              logger.error(`Error creando income para appointment ${appointment.id}:`, err.message);
+              errors.push(`income ${appointment.id}: ${err.message}`);
+            });
+        }
+      }
+    }
+
+    logger.info(`Auto-completadas ${completed} citas`);
+    return { completed, errors };
+  } catch (error) {
+    logger.error('Error en scheduler de auto-completar:', error.message);
+    errors.push(error.message);
+    return { completed: 0, errors };
+  }
+}
+
 const initScheduler = () => {
 if (schedulerInitialized) {
   logger.warn('initScheduler ya fue inicializado, ignorando llamada duplicada');
@@ -133,95 +222,7 @@ cron.schedule('*/5 * * * *', async () => {
   }
 });
 
-// Auto-completar citas 1 hora después de la hora programada
-async function autoCompleteAppointments() {
-  const acquired = await acquireLock('auto_completar', 50);
-  if (!acquired) return { completed: 0, errors: [] };
-
-  const errors = [];
-  logger.info('Verificando citas para auto-completar...');
-
-  try {
-    const unaHoraAtras = new Date(Date.now() - 60 * 60 * 1000).toISOString();
-    logger.info(`Buscando citas confirmadas antes de ${unaHoraAtras}`);
-
-    const { data: toComplete, error: selectError } = await supabaseAdmin
-      .from('appointments')
-      .select('id, business_id, services(name, price)')
-      .in('status', ['confirmed', 'pending'])
-      .lt('scheduled_at', unaHoraAtras)
-      .limit(200);
-
-    if (selectError) {
-      logger.error('Error obteniendo citas para auto-completar:', selectError.message);
-      errors.push(selectError.message);
-      return { completed: 0, errors };
-    }
-
-    logger.info(`Encontradas ${toComplete?.length || 0} citas para auto-completar`);
-
-    let completed = 0;
-    for (const appointment of toComplete || []) {
-      const { data: existingIncome } = await supabaseAdmin
-        .from('income')
-        .select('id')
-        .eq('appointment_id', appointment.id)
-        .maybeSingle();
-
-      if (existingIncome) {
-        logger.info(`Income ya existe para appointment ${appointment.id}, skipping`);
-        continue;
-      }
-
-      const { error: updateError } = await supabaseAdmin
-        .from('appointments')
-        .update({ status: 'completed' })
-        .eq('id', appointment.id);
-
-      if (updateError) {
-        logger.error(`Error marcando appointment ${appointment.id} como completed:`, updateError.message);
-        errors.push(`appointment ${appointment.id}: ${updateError.message}`);
-        continue;
-      }
-
-      completed++;
-
-      if (appointment.services?.price && appointment.services.price > 0) {
-        const { data: existingIncome } = await supabaseAdmin
-          .from('income')
-          .select('id')
-          .eq('appointment_id', appointment.id)
-          .limit(1);
-
-        if (!existingIncome || existingIncome.length === 0) {
-          await supabaseAdmin
-            .from('income')
-            .insert({
-              business_id: appointment.business_id,
-              amount: appointment.services.price,
-              category: 'servicios',
-              description: `${appointment.services.name} - auto-completado`,
-              source: 'appointment',
-              appointment_id: appointment.id,
-              date: new Date().toLocaleDateString('en-CA', { timeZone: 'America/Bogota' })
-            })
-            .catch(err => {
-              logger.error(`Error creando income para appointment ${appointment.id}:`, err.message);
-              errors.push(`income ${appointment.id}: ${err.message}`);
-            });
-        }
-      }
-    }
-
-    logger.info(`Auto-completadas ${completed} citas`);
-    return { completed, errors };
-  } catch (error) {
-    logger.error('Error en scheduler de auto-completar:', error.message);
-    errors.push(error.message);
-    return { completed: 0, errors };
-  }
-}
-
+// Auto-completar citas cada 15 minutos
 cron.schedule('*/15 * * * *', autoCompleteAppointments);
 
   logger.info('=== SCHEDULER CARGADO ===');

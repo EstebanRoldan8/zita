@@ -1150,8 +1150,14 @@ async function executeTool(toolName, toolInput, businessId) {
       logger.info('businessId:', businessId);
 
       let scheduledAt = toolInput.scheduled_at;
-      if (scheduledAt && !scheduledAt.includes('Z') && !scheduledAt.includes('+') && !scheduledAt.includes('-05:00')) {
-        scheduledAt = scheduledAt.includes('T') ? scheduledAt + '-05:00' : scheduledAt;
+      if (scheduledAt) {
+        if (scheduledAt.endsWith('Z')) {
+          scheduledAt = scheduledAt.slice(0, -1) + '-05:00';
+        } else if (scheduledAt.includes('+00:00')) {
+          scheduledAt = scheduledAt.replace('+00:00', '-05:00');
+        } else if (!scheduledAt.includes('+') && !scheduledAt.includes('-05:00')) {
+          scheduledAt = scheduledAt.includes('T') ? scheduledAt + '-05:00' : scheduledAt;
+        }
       }
 
       const appointmentDate = new Date(scheduledAt);

@@ -355,6 +355,12 @@ DÍAS FESTIVOS Y CERRADOS:
 - NUNCA confíes en el día de la semana que el usuario mencione cuando sea una fecha específica — verifica siempre y usa YYYY-MM-DD
 - Ejemplo: Usuario dice "El 25 diciembre estaremos cerrados" → usar cerrar_dia_especial con date="2026-12-25" y reason="Festivo"
 
+DISTINCIÓN: FECHAS ESPECÍFICAS vs PATRONES RECURRENTES:
+- Si el usuario menciona "este [día]" o "el [día] [número]" o cualquier día con fecha específica → SIEMPRE usar cerrar_dia_especial
+- Ejemplos: "Este lunes", "el próximo viernes", "el lunes 29", "el 15 de agosto" → son fechas específicas, NO patrones recurrentes
+- Solo usar actualizar_configuracion tipo=horario cuando el usuario diga "todos los lunes", "cada domingo", "siempre los martes" — patrones recurrentes sin fecha específica
+- "El lunes" sin contexto temporal = ambiguo. Pregunta: "¿Te refieres a próximo lunes (fecha específica) o a todos los lunes (recurrente)?"
+
 RECORDATORIOS A CLIENTES EN RIESGO:
 - SOLO puedes enviar recordatorios a clientes identificados como "en riesgo" (30-90 días sin visita)
 - Primero usa clientes_riesgo para obtener la lista

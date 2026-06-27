@@ -134,10 +134,11 @@ cron.schedule('*/5 * * * *', async () => {
 });
 
 // Auto-completar citas 1 hora después de la hora programada
-cron.schedule('*/15 * * * *', async () => {
+async function autoCompleteAppointments() {
   const acquired = await acquireLock('auto_completar', 50);
-  if (!acquired) return;
+  if (!acquired) return { completed: 0, errors: [] };
 
+  const errors = [];
   logger.info('Verificando citas para auto-completar...');
 
   try {
@@ -153,11 +154,13 @@ cron.schedule('*/15 * * * *', async () => {
 
     if (selectError) {
       logger.error('Error obteniendo citas para auto-completar:', selectError.message);
-      return;
+      errors.push(selectError.message);
+      return { completed: 0, errors };
     }
 
     logger.info(`Encontradas ${toComplete?.length || 0} citas para auto-completar`);
 
+    let completed = 0;
     for (const appointment of toComplete || []) {
       const { data: existingIncome } = await supabaseAdmin
         .from('income')
@@ -177,8 +180,11 @@ cron.schedule('*/15 * * * *', async () => {
 
       if (updateError) {
         logger.error(`Error marcando appointment ${appointment.id} como completed:`, updateError.message);
+        errors.push(`appointment ${appointment.id}: ${updateError.message}`);
         continue;
       }
+
+      completed++;
 
       if (appointment.services?.price && appointment.services.price > 0) {
         const { data: existingIncome } = await supabaseAdmin
@@ -199,15 +205,24 @@ cron.schedule('*/15 * * * *', async () => {
               appointment_id: appointment.id,
               date: new Date().toLocaleDateString('en-CA', { timeZone: 'America/Bogota' })
             })
-            .catch(err => logger.error(`Error creando income para appointment ${appointment.id}:`, err.message));
+            .catch(err => {
+              logger.error(`Error creando income para appointment ${appointment.id}:`, err.message);
+              errors.push(`income ${appointment.id}: ${err.message}`);
+            });
         }
       }
     }
 
-    logger.info(`Auto-completadas ${toComplete?.length || 0} citas`);
+    logger.info(`Auto-completadas ${completed} citas`);
+    return { completed, errors };
   } catch (error) {
     logger.error('Error en scheduler de auto-completar:', error.message);
+    errors.push(error.message);
+    return { completed: 0, errors };
   }
+}
+
+cron.schedule('*/15 * * * *', autoCompleteAppointments);
 });
 
   logger.info('=== SCHEDULER CARGADO ===');
@@ -218,4 +233,4 @@ cron.schedule('*/15 * * * *', async () => {
   logger.info('Usando database locks para evitar duplicados en múltiples instancias');
 };
 
-module.exports = { initScheduler };
+module.exports = { initScheduler, autoCompleteAppointments };

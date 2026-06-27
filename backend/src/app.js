@@ -39,6 +39,7 @@ const loyaltyRoutes = require('./routes/loyalty.routes');
 const subscriptionRoutes = require('./routes/subscription.routes');
 const contactRoutes = require('./routes/contact.routes');
 const paymentRoutes = require('./routes/payment.routes');
+const internalRoutes = require('./routes/internal.routes');
 const { verifyToken } = require('./middlewares/auth');
 const { businessContext } = require('./middlewares/businessContext');
 const { checkPlanAccess } = require('./middlewares/planCheck');
@@ -133,6 +134,7 @@ app.get('/api/ping', (req, res) => {
   res.json({ status: 'ok' });
 });
 
+app.use('/api/internal', internalRoutes);
 app.use('/api/auth', authRoutes);
 app.use('/api/businesses', businessesRoutes);
 app.use('/api/appointments', verifyToken, businessContext, checkPlanAccess, appointmentsRoutes);

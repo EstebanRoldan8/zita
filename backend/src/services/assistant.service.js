@@ -1035,7 +1035,20 @@ async function executeTool(toolName, toolInput, businessId) {
         .select('id, name')
         .single();
 
-      if (error) return { success: false, error: error.message };
+      if (error) {
+        if (error.code === '23505' && toolInput.phone) {
+          const { data: existingClient } = await supabaseAdmin
+            .from('clients')
+            .select('id, name')
+            .eq('business_id', businessId)
+            .eq('phone', toolInput.phone)
+            .maybeSingle();
+          if (existingClient) {
+            return { success: true, client: existingClient, already_existed: true };
+          }
+        }
+        return { success: false, error: error.message };
+      }
       return { success: true, client: data };
     }
 

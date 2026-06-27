@@ -1025,23 +1025,33 @@ async function executeTool(toolName, toolInput, businessId) {
     }
 
     case 'crear_cliente': {
+      let normalizedPhone = null;
+      if (toolInput.phone) {
+        normalizedPhone = toolInput.phone.trim();
+        if (normalizedPhone.startsWith('+57')) {
+          normalizedPhone = normalizedPhone.slice(3);
+        } else if (normalizedPhone.startsWith('57') && normalizedPhone.length > 10) {
+          normalizedPhone = normalizedPhone.slice(2);
+        }
+      }
+
       const { data, error } = await supabaseAdmin
         .from('clients')
         .insert({
           business_id: businessId,
           name: formatName(toolInput.name),
-          phone: toolInput.phone || null
+          phone: normalizedPhone
         })
         .select('id, name')
         .single();
 
       if (error) {
-        if (error.code === '23505' && toolInput.phone) {
+        if (error.code === '23505' && normalizedPhone) {
           const { data: existingClient } = await supabaseAdmin
             .from('clients')
             .select('id, name')
             .eq('business_id', businessId)
-            .eq('phone', toolInput.phone)
+            .eq('phone', normalizedPhone)
             .maybeSingle();
           if (existingClient) {
             return { success: true, client: existingClient, already_existed: true };

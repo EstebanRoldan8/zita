@@ -147,9 +147,15 @@ async function create(req, res) {
 
     const userClient = createUserClient(req.headers.authorization);
     const capitalizedName = capitalizeName(name);
+    let normalizedPhone = phone.trim();
+    if (normalizedPhone.startsWith('+57')) {
+      normalizedPhone = normalizedPhone.slice(3);
+    } else if (normalizedPhone.startsWith('57') && normalizedPhone.length > 10) {
+      normalizedPhone = normalizedPhone.slice(2);
+    }
     const { data, error } = await userClient
       .from('clients')
-      .insert({ business_id: req.businessId, name: capitalizedName, phone, email })
+      .insert({ business_id: req.businessId, name: capitalizedName, phone: normalizedPhone, email })
       .select()
       .single();
 
@@ -187,7 +193,17 @@ async function update(req, res) {
 
     const updates = {};
     if (name  !== undefined) updates.name  = name?.trim() ? capitalizeName(name) : null;
-    if (phone !== undefined) updates.phone = phone?.trim() || null;
+    if (phone !== undefined) {
+      let normalizedPhone = phone?.trim();
+      if (normalizedPhone) {
+        if (normalizedPhone.startsWith('+57')) {
+          normalizedPhone = normalizedPhone.slice(3);
+        } else if (normalizedPhone.startsWith('57') && normalizedPhone.length > 10) {
+          normalizedPhone = normalizedPhone.slice(2);
+        }
+      }
+      updates.phone = normalizedPhone || null;
+    }
     if (email !== undefined) updates.email = email?.trim() || null;
     if (notes !== undefined) updates.notes = notes?.trim() || null;
 

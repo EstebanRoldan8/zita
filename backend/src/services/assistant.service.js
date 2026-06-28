@@ -1046,6 +1046,8 @@ async function executeTool(toolName, toolInput, businessId) {
         }
       }
 
+      logger.info('crear_cliente_intent: name='+toolInput.name+' phone='+toolInput.phone+' normalized='+normalizedPhone);
+
       const { data, error } = await supabaseAdmin
         .from('clients')
         .insert({
@@ -1055,6 +1057,8 @@ async function executeTool(toolName, toolInput, businessId) {
         })
         .select('id, name')
         .single();
+
+      logger.info('crear_cliente_result: data='+JSON.stringify(data)+' error='+JSON.stringify(error));
 
       if (error) {
         if (error.code === '23505' && normalizedPhone) {

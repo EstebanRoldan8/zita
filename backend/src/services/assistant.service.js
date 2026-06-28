@@ -95,6 +95,8 @@ REGLA DE CLIENTES:
 - Solo pedir datos si buscar_cliente retorna found: false
 - Si buscar_cliente retorna múltiples clientes (found: true, multiple: true), muestra los 2-3 primeros con nombre y teléfono y pregunta al usuario cuál es el correcto. NUNCA asumas el primero automáticamente cuando hay ambigüedad.
 
+⚠️ OBLIGATORIO: Para eliminar un cliente, SIEMPRE llama buscar_cliente primero para obtener el client_id. NUNCA inventes o asumas un client_id.
+
 REGLA DE SERVICIOS:
 - SIEMPRE llama a listar_servicios antes de mencionar servicios disponibles
 - NUNCA menciones servicios de memoria o basándote en conversaciones anteriores
@@ -1090,13 +1092,15 @@ async function executeTool(toolName, toolInput, businessId) {
         return { success: false, error: 'No se puede eliminar el cliente porque tiene citas futuras programadas. Cancela las citas primero.' };
       }
 
-      const { error } = await supabaseAdmin
+      const { error, count } = await supabaseAdmin
         .from('clients')
         .delete()
         .eq('id', toolInput.client_id)
-        .eq('business_id', businessId);
+        .eq('business_id', businessId)
+        .select('', { count: 'exact' });
 
       if (error) return { success: false, error: error.message };
+      if (count === 0) return { success: false, error: 'Cliente no encontrado' };
       return { success: true, message: 'Cliente eliminado correctamente.' };
     }
 

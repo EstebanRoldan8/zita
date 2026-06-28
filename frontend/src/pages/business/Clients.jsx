@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { Users, ChevronRight, ChevronLeft, X, Pencil, Search, Phone, Mail, Trophy, Plus, Check } from 'lucide-react';
+import { Users, ChevronRight, ChevronLeft, X, Pencil, Search, Phone, Mail, Trophy, Plus, Check, Trash2 } from 'lucide-react';
 import api from '../../lib/api';
 import SubscriptionExpiredBanner from '../../components/ui/SubscriptionExpiredBanner';
 import { useAuth } from '../../context/AuthContext';
@@ -243,6 +243,8 @@ export default function Clients() {
   const [showEdit, setShowEdit] = useState(false);
   const [showCreate, setShowCreate] = useState(false);
   const [showRedeemConfirm, setShowRedeemConfirm] = useState(false);
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+  const [deleteError, setDeleteError] = useState('');
   const [isRedeeming, setIsRedeeming] = useState(false);
   const [recallStatus, setRecallStatus] = useState({});
 
@@ -321,6 +323,25 @@ export default function Clients() {
     onError: (err) => {
       setIsRedeeming(false);
       console.error('Error al canjear:', err);
+    },
+  });
+
+  const deleteMutation = useMutation({
+    mutationFn: (clientId) => api.delete(`/api/clients/${clientId}`),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['clients'] });
+      setShowDeleteConfirm(false);
+      setSelectedId(null);
+      setDeleteError('');
+    },
+    onError: (err) => {
+      const status = err.response?.status;
+      const msg = err.response?.data?.error;
+      if (status === 409) {
+        setDeleteError('Este cliente tiene citas próximas. Cancélalas primero.');
+      } else {
+        setDeleteError(msg || 'Error al eliminar cliente.');
+      }
     },
   });
 
@@ -689,9 +710,45 @@ export default function Clients() {
                     </div>
                   )}
                 </div>
+
+                {/* Botón eliminar cliente */}
+                <button
+                  onClick={() => { setDeleteError(''); setShowDeleteConfirm(true); }}
+                  className="w-full mt-6 bg-red-600/20 hover:bg-red-600/30 border border-red-600/30 text-red-400 text-sm font-medium py-2.5 rounded-lg transition flex items-center justify-center gap-2"
+                >
+                  <Trash2 size={16} />
+                  Eliminar cliente
+                </button>
               </div>
             </div>
           )}
+        </div>
+      )}
+
+      {/* Dialog de confirmación de eliminación */}
+      {showDeleteConfirm && selected && (
+        <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50 px-4">
+          <div className="bg-[#131929] border border-slate-800 rounded-2xl w-full max-w-md p-6 shadow-xl">
+            <h3 className="text-white font-semibold text-lg mb-4">Eliminar cliente</h3>
+            <p className="text-slate-300 text-sm mb-6">¿Estás seguro? Esta acción no se puede deshacer.</p>
+            {deleteError && <p className="text-red-400 text-sm bg-red-500/10 border border-red-500/20 px-3 py-2 rounded-lg mb-4">{deleteError}</p>}
+            <div className="flex gap-3">
+              <button
+                onClick={() => setShowDeleteConfirm(false)}
+                disabled={deleteMutation.isPending}
+                className="flex-1 bg-slate-800 hover:bg-slate-700 disabled:opacity-50 text-slate-300 text-sm font-medium py-2.5 rounded-lg transition"
+              >
+                Cancelar
+              </button>
+              <button
+                onClick={() => deleteMutation.mutate(selected.id)}
+                disabled={deleteMutation.isPending}
+                className="flex-1 bg-red-600 hover:bg-red-500 disabled:opacity-50 text-white text-sm font-medium py-2.5 rounded-lg transition"
+              >
+                {deleteMutation.isPending ? 'Eliminando...' : 'Eliminar'}
+              </button>
+            </div>
+          </div>
         </div>
       )}
 

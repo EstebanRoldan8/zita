@@ -154,70 +154,17 @@ async function getIncome(req, res) {
     const startTS = `${start}T00:00:00${offset}`;
     const endTS = `${end}T23:59:59${offset}`;
 
-    const [
-      { data: manual, error: incErr },
-      { data: appts },
-      { data: sales },
-    ] = await Promise.all([
-      userClient.from('income')
-        .select('id, amount, category, description, custom_category, client_id, services_detail, source, date, created_at, clients(name)')
-        .eq('business_id', req.businessId)
-        .neq('source', 'product_sale')
-        .gte('date', start)
-        .lte('date', end)
-        .order('date', { ascending: false }),
-      userClient.from('appointments')
-        .select('id, price, scheduled_at, clients(name), services(name)')
-        .eq('business_id', req.businessId)
-        .eq('status', 'completed')
-        .gte('scheduled_at', startTS)
-        .lt('scheduled_at', endTS),
-      userClient.from('product_sales')
-        .select('id, quantity, total_amount, created_at, sold_via, client_id, products(name), clients(name)')
-        .eq('business_id', req.businessId)
-        .gte('created_at', `${start}T00:00:00${offset}`)
-        .lte('created_at', `${end}T23:59:59${offset}`)
-        .order('created_at', { ascending: false }),
-    ]);
+    const { data: incomeData, error: incErr } = await userClient
+      .from('income')
+      .select('id, amount, category, description, custom_category, client_id, services_detail, source, date, created_at, clients(name)')
+      .eq('business_id', req.businessId)
+      .gte('date', start)
+      .lte('date', end)
+      .order('created_at', { ascending: false });
 
     if (incErr) throw incErr;
 
-    const apptRows = (appts || []).map((a) => ({
-      id: a.id,
-      amount: a.price || 0,
-      category: 'servicios',
-      description: a.services?.name || 'Servicio',
-      custom_category: null,
-      client_id: null,
-      clients: a.clients,
-      services_detail: null,
-      source: 'appointment',
-      appointment_id: a.id,
-      date: a.scheduled_at.slice(0, 10),
-      created_at: a.scheduled_at,
-    }));
-
-    const salesRows = (sales || []).map((s) => ({
-      id: s.id,
-      amount: s.total_amount || 0,
-      category: 'productos',
-      description: `${s.products?.name || 'Producto'} x${s.quantity}`,
-      custom_category: null,
-      client_id: null,
-      clients: null,
-      services_detail: null,
-      source:     s.sold_via === 'whatsapp' ? 'whatsapp' : 'presencial',
-      sale_id:    s.id,
-      client_id:  s.client_id || null,
-      clients:    s.clients || null,
-      date:       s.created_at?.slice(0, 10),
-      created_at: s.created_at,
-    }));
-
-    const combined = [...(manual || []), ...apptRows, ...salesRows]
-      .sort((a, b) => new Date(b.created_at) - new Date(a.created_at));
-
-    return res.json({ success: true, data: combined });
+    return res.json({ success: true, data: incomeData || [] });
   } catch (err) {
     logger.error(`cash.getIncome: ${err.message}`);
     return res.status(500).json({ success: false, error: 'Error interno del servidor.' });

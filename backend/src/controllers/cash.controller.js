@@ -84,21 +84,14 @@ async function getSummary(req, res) {
 
     const [
       { data: periodIncome },
-      { data: periodAppts },
       { data: periodExpenses },
       { data: chartIncome },
       { data: chartExpenses },
-      { data: chartAppts },
     ] = await Promise.all([
       userClient.from('income').select('amount')
         .eq('business_id', req.businessId)
         .gte('date', start)
         .lte('date', end),
-      userClient.from('appointments').select('price, scheduled_at')
-        .eq('business_id', req.businessId)
-        .eq('status', 'completed')
-        .gte('scheduled_at', startTS)
-        .lt('scheduled_at', endTS),
       userClient.from('expenses').select('amount, category')
         .eq('business_id', req.businessId)
         .gte('date', start)
@@ -109,14 +102,9 @@ async function getSummary(req, res) {
       userClient.from('expenses').select('amount, date')
         .eq('business_id', req.businessId)
         .gte('date', chartStart),
-      userClient.from('appointments').select('price, scheduled_at')
-        .eq('business_id', req.businessId)
-        .eq('status', 'completed')
-        .gte('scheduled_at', chartStartTS),
     ]);
 
-    const incomeTotal       = (periodIncome  || []).reduce((s, r) => s + Number(r.amount), 0)
-                            + (periodAppts   || []).reduce((s, r) => s + Number(r.price || 0), 0);
+    const incomeTotal       = (periodIncome  || []).reduce((s, r) => s + Number(r.amount), 0);
     const costoVentas       = (periodExpenses|| []).filter(r => r.category === 'costo_producto').reduce((s, r) => s + Number(r.amount), 0);
     const egresosOperativos = (periodExpenses|| []).filter(r => r.category !== 'costo_producto').reduce((s, r) => s + Number(r.amount), 0);
     const expenseTotal      = costoVentas + egresosOperativos;
@@ -132,7 +120,6 @@ async function getSummary(req, res) {
       chartMap[key] = { month: key, income: 0, expenses: 0 };
     }
     for (const r of (chartIncome   || [])) { const k = r.date.slice(0, 7);         if (chartMap[k]) chartMap[k].income   += Number(r.amount); }
-    for (const r of (chartAppts    || [])) { const k = r.scheduled_at.slice(0, 7); if (chartMap[k]) chartMap[k].income   += Number(r.price || 0); }
     for (const r of (chartExpenses || [])) { const k = r.date.slice(0, 7);         if (chartMap[k]) chartMap[k].expenses += Number(r.amount); }
 
     return res.json({

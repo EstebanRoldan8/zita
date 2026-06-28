@@ -479,6 +479,17 @@ const tools = [
     }
   },
   {
+    name: 'eliminar_cliente',
+    description: 'Elimina un cliente existente. Solo permite eliminar si el cliente no tiene citas futuras.',
+    input_schema: {
+      type: 'object',
+      properties: {
+        client_id: { type: 'string', description: 'ID del cliente a eliminar' }
+      },
+      required: ['client_id']
+    }
+  },
+  {
     name: 'buscar_empleado',
     description: 'Busca un empleado por nombre para obtener su ID internamente.',
     input_schema: {
@@ -1060,6 +1071,29 @@ async function executeTool(toolName, toolInput, businessId) {
         return { success: false, error: error.message };
       }
       return { success: true, client: data };
+    }
+
+    case 'eliminar_cliente': {
+      const { data: futureAppointments } = await supabaseAdmin
+        .from('appointments')
+        .select('id')
+        .eq('client_id', toolInput.client_id)
+        .neq('status', 'cancelled')
+        .gt('scheduled_at', new Date().toISOString())
+        .limit(1);
+
+      if (futureAppointments && futureAppointments.length > 0) {
+        return { success: false, error: 'No se puede eliminar el cliente porque tiene citas futuras programadas. Cancela las citas primero.' };
+      }
+
+      const { error } = await supabaseAdmin
+        .from('clients')
+        .delete()
+        .eq('id', toolInput.client_id)
+        .eq('business_id', businessId);
+
+      if (error) return { success: false, error: error.message };
+      return { success: true, message: 'Cliente eliminado correctamente.' };
     }
 
     case 'buscar_empleado': {

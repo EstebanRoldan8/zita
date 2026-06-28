@@ -228,6 +228,37 @@ async function update(req, res) {
   }
 }
 
+async function destroy(req, res) {
+  try {
+    const { id } = req.params;
+    const userClient = createUserClient(req.headers.authorization);
+
+    const { data: futureAppointments } = await userClient
+      .from('appointments')
+      .select('id')
+      .eq('client_id', id)
+      .neq('status', 'cancelled')
+      .gt('scheduled_at', new Date().toISOString())
+      .limit(1);
+
+    if (futureAppointments && futureAppointments.length > 0) {
+      return res.status(409).json({ success: false, error: 'No se puede eliminar el cliente porque tiene citas futuras programadas.' });
+    }
+
+    const { error } = await userClient
+      .from('clients')
+      .delete()
+      .eq('id', id)
+      .eq('business_id', req.businessId);
+
+    if (error) throw error;
+    return res.json({ success: true, message: 'Cliente eliminado correctamente.' });
+  } catch (err) {
+    logger.error(`clients.destroy: ${err.message}`);
+    return res.status(500).json({ success: false, error: 'Error interno del servidor.' });
+  }
+}
+
 async function recallClient(req, res) {
   try {
     logger.info('Recall iniciado: ' + req.params.id);
@@ -314,4 +345,4 @@ async function recallClient(req, res) {
   }
 }
 
-module.exports = { getAll, getOne, create, update, recallClient };
+module.exports = { getAll, getOne, create, update, destroy, recallClient };

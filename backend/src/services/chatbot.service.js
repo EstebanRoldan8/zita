@@ -318,12 +318,14 @@ Si el cliente pregunta por puntos, visitas o recompensa:
 }
 
 async function getOrCreateClient(businessId, phone, name = null) {
-  const { data: existing } = await supabaseAdmin
+  const { data: existingArr } = await supabaseAdmin
     .from('clients')
     .select('id, name')
     .eq('business_id', businessId)
     .eq('phone', phone)
-    .single();
+    .limit(1);
+
+  const existing = existingArr?.[0] || null;
 
   if (existing) return existing;
 
@@ -706,6 +708,21 @@ async function processChatbotMessage(businessId, clientPhone, messageText, histo
             return { success: false, error: 'Ese día estamos cerrados.' };
           }
 
+          // Verificar días cerrados especiales (festivos)
+          const { data: diaCerrado } = await supabaseAdmin
+            .from('business_closed_days')
+            .select('reason')
+            .eq('business_id', businessId)
+            .eq('date', toolInput.fecha)
+            .maybeSingle();
+
+          if (diaCerrado) {
+            return {
+              success: false,
+              error: `Ese día estamos cerrados: ${diaCerrado.reason}. ¿Te agendo otro día?`
+            };
+          }
+
           const [horaH, horaM] = toolInput.hora.split(':').map(Number);
           const appointmentMinutes = horaH * 60 + horaM;
           const [aperturaH, aperturaM] = horario.open_time.split(':').map(Number);
@@ -936,7 +953,7 @@ async function processChatbotMessage(businessId, clientPhone, messageText, histo
           const hoy = new Date().toLocaleDateString('en-CA', {timeZone: 'America/Bogota'});
           const { data } = await supabaseAdmin
             .from('appointments')
-            .select('id, scheduled_at, status, services(name, price)')
+            .select('id, scheduled_at, status, services(name, price), employees(name)')
             .eq('business_id', businessId)
             .eq('client_id', clienteDB.id)
             .gte('scheduled_at', hoy + 'T00:00:00-05:00')
@@ -957,6 +974,7 @@ async function processChatbotMessage(businessId, clientPhone, messageText, histo
               id: c.id,
               servicio: c.services?.name,
               precio: c.services?.price,
+              empleado: c.employees?.name || null,
               fecha_hora_colombia: horaCol,
               status: c.status
             };
@@ -965,6 +983,12 @@ async function processChatbotMessage(businessId, clientPhone, messageText, histo
         }
 
         case 'cancelar_cita': {
+          await supabaseAdmin
+            .from('income')
+            .delete()
+            .eq('appointment_id', toolInput.appointment_id)
+            .eq('business_id', businessId);
+
           const { error } = await supabaseAdmin
             .from('appointments')
             .update({ status: 'cancelled' })
@@ -1105,6 +1129,22 @@ async function processChatbotMessage(businessId, clientPhone, messageText, histo
             .eq('business_id', businessId);
 
           if (error) return { success: false, error: error.message };
+
+          if (toolInput.nueva_fecha || toolInput.nueva_hora) {
+            const { data: citaActualizada } = await supabaseAdmin
+              .from('appointments')
+              .select('service_id, services(price)')
+              .eq('id', toolInput.appointment_id)
+              .single();
+
+            if (citaActualizada?.services?.price) {
+              await supabaseAdmin
+                .from('income')
+                .update({ amount: citaActualizada.services.price })
+                .eq('appointment_id', toolInput.appointment_id)
+                .eq('business_id', businessId);
+            }
+          }
 
           const empleadoNombre = toolInput.employee_name || null;
           return {
@@ -1413,7 +1453,7 @@ async function processChatbotMessage(businessId, clientPhone, messageText, histo
   try {
     response = await anthropicClient.messages.create({
       model: 'claude-haiku-4-5-20251001',
-      max_tokens: 400,
+      max_tokens: 600,
       system: systemPrompt,
       tools,
       messages
@@ -1464,7 +1504,7 @@ async function processChatbotMessage(businessId, clientPhone, messageText, histo
       allMessages.push({ role: 'user', content: toolResults });
       response = await anthropicClient.messages.create({
         model: 'claude-haiku-4-5-20251001',
-        max_tokens: 400,
+        max_tokens: 600,
         system: systemPrompt,
         tools,
         messages: allMessages
@@ -1510,6 +1550,22 @@ async function processWhatsAppMessage({ from, phoneNumberId, messageText, messag
       const processedIds = existingMsg?.processed_message_ids || [];
       if (processedIds.includes(messageId)) {
         logger.info('Mensaje duplicado ignorado:', messageId);
+        return;
+      }
+    }
+
+    // Verificar si el bot está pausado para este cliente
+    const { data: convPausa } = await supabaseAdmin
+      .from('whatsapp_conversations')
+      .select('bot_paused_until')
+      .eq('business_id', business.id)
+      .eq('client_phone', from)
+      .maybeSingle();
+
+    if (convPausa?.bot_paused_until) {
+      const pausadoHasta = new Date(convPausa.bot_paused_until);
+      if (pausadoHasta > new Date()) {
+        logger.info('Bot pausado para cliente hasta: ' + pausadoHasta.toISOString() + ' cliente: ' + from);
         return;
       }
     }

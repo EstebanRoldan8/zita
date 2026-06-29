@@ -108,8 +108,8 @@ async function getSummary(req, res) {
     const costoVentas       = (periodExpenses|| []).filter(r => r.category === 'costo_producto').reduce((s, r) => s + Number(r.amount), 0);
     const egresosOperativos = (periodExpenses|| []).filter(r => r.category !== 'costo_producto').reduce((s, r) => s + Number(r.amount), 0);
     const expenseTotal      = costoVentas + egresosOperativos;
-    const margenBruto       = incomeTotal - costoVentas;
-    const utilidadNeta      = margenBruto - egresosOperativos;
+    const ganancia_neta     = incomeTotal - expenseTotal;
+    const margen_porcentaje = incomeTotal > 0 ? Math.round((ganancia_neta / incomeTotal) * 100) : 0;
 
     // Build 6-month chart
     const chartMap = {};
@@ -129,8 +129,8 @@ async function getSummary(req, res) {
         expense_total:       expenseTotal,
         costo_ventas:        costoVentas,
         egresos_operativos:  egresosOperativos,
-        margen_bruto:        margenBruto,
-        utilidad_neta:       utilidadNeta,
+        ganancia_neta:       ganancia_neta,
+        margen_porcentaje:   margen_porcentaje,
         net:                 incomeTotal - expenseTotal,
         chart_data:          Object.values(chartMap),
       },

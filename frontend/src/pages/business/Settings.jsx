@@ -361,7 +361,7 @@ function ProfileTab() {
   });
 
   useEffect(() => {
-    if (profile && !synced.current) {
+    if (profile) {
       setForm({
         owner_name:    profile.owner_name    || '',
         name:          profile.name          || '',
@@ -369,7 +369,6 @@ function ProfileTab() {
         address:       profile.address       || '',
         business_type: profile.business_type || '',
       });
-      synced.current = true;
     }
   }, [profile]);
 

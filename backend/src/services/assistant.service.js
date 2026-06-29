@@ -248,6 +248,16 @@ USO DE VENDER_PRODUCTO:
 - vender_producto busca el producto automáticamente por nombre
 - Es más eficiente que buscar_producto + registrar_venta porque lo hace en una sola llamada
 
+CREAR Y ACTUALIZAR PRODUCTOS:
+- "Crea un producto X con precio $Y" → usar crear_producto con name y price
+- Si el usuario NO menciona stock al crear un producto, preguntar: "¿Cuántas unidades tienes en inventario?" ANTES de crear
+- Si dice el stock → crear directamente sin preguntar
+- Para actualizar un producto: buscar_producto primero para obtener el ID, luego usar actualizar_producto
+- Ejemplos:
+  * "Cambiar precio de gel a $25000" → buscar_producto('gel') → actualizar_producto(product_id, price: 25000)
+  * "Sumar 50 unidades de shampoo al stock" → buscar_producto → actualizar_producto con nuevo stock
+  * "Cambiar nombre de 'Corte A' a 'Corte Premium'" → buscar_producto → actualizar_producto(name: 'Corte Premium')
+
 INFORMACIÓN DE CLIENTES:
 Cuando pregunten por visitas, historial o información de un cliente,
 primero usa buscar_cliente para obtener el ID, luego usa info_cliente.
@@ -969,6 +979,22 @@ const tools = [
         category: { type: 'string', description: 'Categoría del producto (opcional)' }
       },
       required: ['name', 'price']
+    }
+  },
+  {
+    name: 'actualizar_producto',
+    description: 'Actualiza un producto existente (nombre, precio, costo, stock, categoría).',
+    input_schema: {
+      type: 'object',
+      properties: {
+        product_id: { type: 'string', description: 'ID del producto a actualizar' },
+        name: { type: 'string', description: 'Nuevo nombre (opcional)' },
+        price: { type: 'number', description: 'Nuevo precio (opcional)' },
+        cost: { type: 'number', description: 'Nuevo costo (opcional)' },
+        stock: { type: 'number', description: 'Nuevo stock (opcional)' },
+        category: { type: 'string', description: 'Nueva categoría (opcional)' }
+      },
+      required: ['product_id']
     }
   }
 ];
@@ -2624,6 +2650,27 @@ async function executeTool(toolName, toolInput, businessId) {
       }
 
       return { success: true, product: data };
+    }
+
+    case 'actualizar_producto': {
+      const updateData = {};
+      if (toolInput.name !== undefined) updateData.name = toolInput.name;
+      if (toolInput.price !== undefined) updateData.price = toolInput.price;
+      if (toolInput.cost !== undefined) updateData.cost_price = toolInput.cost;
+      if (toolInput.stock !== undefined) updateData.stock = toolInput.stock;
+      if (toolInput.category !== undefined) updateData.category = toolInput.category;
+
+      const { error } = await supabaseAdmin
+        .from('products')
+        .update(updateData)
+        .eq('id', toolInput.product_id)
+        .eq('business_id', businessId);
+
+      if (error) {
+        return { success: false, error: error.message };
+      }
+
+      return { success: true };
     }
 
     case 'test_sistema': {

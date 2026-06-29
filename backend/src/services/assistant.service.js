@@ -1502,43 +1502,38 @@ async function executeTool(toolName, toolInput, businessId) {
     }
 
         case 'buscar_cliente': {
+      const searchTerm = toolInput.nombre.trim();
+      const searchNormalized = normalizeForSearch(searchTerm);
+      const searchWords = searchNormalized.split(/\s+/).filter(w => w.length > 0);
+
       const { data: allClients } = await supabaseAdmin
         .from('clients')
         .select('id, name, phone')
-        .eq('business_id', businessId);
+        .eq('business_id', businessId)
+        .order('name');
 
       if (!allClients || allClients.length === 0) {
         return { not_found: true, searched_for: toolInput.nombre, can_create: true };
       }
 
-      const searchNormalized = normalizeForSearch(toolInput.nombre);
-      const searchWords = searchNormalized.split(/\s+/).filter(w => w.length > 0);
-
       const conPuntaje = allClients.map(c => {
         const clientNormalized = normalizeForSearch(c.name);
         const clientWords = clientNormalized.split(/\s+/).filter(w => w.length > 0);
+        let puntaje = 0;
 
-        let totalMatches = 0;
-        let bestDistanceSum = 0;
-
-        for (const searchWord of searchWords) {
-          let bestDistForWord = Infinity;
-          for (const clientWord of clientWords) {
-            const dist = levenshtein(searchWord, clientWord);
-            if (dist < bestDistForWord) bestDistForWord = dist;
+        for (const sw of searchWords) {
+          for (const cw of clientWords) {
+            if (cw === sw) { puntaje += 10; }
+            else if (cw.startsWith(sw) && sw.length >= 3) { puntaje += 6; }
+            else if (cw.includes(sw) && sw.length >= 3) { puntaje += 4; }
+            else if (sw.length >= 5 && levenshtein(sw, cw) === 1) { puntaje += 2; }
           }
-          const wordMatch = bestDistForWord <= 2 || clientWords.some(w => w.includes(searchWord) || searchWord.includes(w));
-          if (wordMatch) totalMatches++;
-          bestDistanceSum += bestDistForWord === Infinity ? 10 : bestDistForWord;
         }
 
-        const containsSearch = clientNormalized.includes(searchNormalized);
-        if (containsSearch) totalMatches = Math.max(totalMatches, searchWords.length);
-
-        return { ...c, puntaje: totalMatches, distancia: bestDistanceSum };
+        return { ...c, puntaje };
       })
-      .filter(c => c.puntaje > 0)
-      .sort((a, b) => b.puntaje - a.puntaje || a.distancia - b.distancia);
+      .filter(c => c.puntaje >= 4)
+      .sort((a, b) => b.puntaje - a.puntaje);
 
       if (!conPuntaje.length) {
         return { not_found: true, searched_for: toolInput.nombre, can_create: true };

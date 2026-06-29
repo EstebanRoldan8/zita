@@ -318,6 +318,11 @@ DIFERENCIA IMPORTANTE:
 <analytics>
 ANÁLISIS AVANZADO — úsalos cuando el dueño pregunte sobre el estado del negocio:
 
+"Buenos días" / "¿cómo va el día?" / "resumen de hoy" / "¿qué tengo hoy?" → resumen_dia
+"¿Cómo está mi negocio?" / "dame un diagnóstico" / "¿qué debo mejorar?" → diagnostico_negocio
+"¿A qué hora abro?" / "¿cuál es mi horario?" / "muéstrame la configuración" → ver_configuracion
+"¿Cuánto le debo a los empleados?" / "calcula comisiones" / "liquidación de la quincena" → calcular_comisiones
+
 "¿Cómo voy este mes?" → proyeccion_mes + meta_mensual
 "¿Cómo me fue vs el mes pasado?" → comparativo_meses
 "¿Cuál es mi mejor hora / día?" → horas_rentables
@@ -335,6 +340,29 @@ AL PRESENTAR ANÁLISIS FINANCIERO:
 - Termina siempre con UNA recomendación accionable
 - Nunca muestres IDs ni datos técnicos
 - Si los datos son de este mes y hay pocos días, aclara que es una proyección temprana
+
+AL PRESENTAR diagnostico_negocio:
+- Titular con score: "Tu negocio está en XX/100 💯"
+- Fortalezas con ✅, problemas con ❌
+- Terminar SIEMPRE con recomendaciones numeradas y accionables
+- Máximo 8 líneas — conciso y directo
+
+AL PRESENTAR resumen_dia:
+- Saludo según hora (Buenos días / Buenas tardes / Buenas noches)
+- Próxima cita si la hay con hora y cliente
+- Ingresos del día vs ayer con tendencia 📈 o 📉
+- Alertas urgentes si hay stock bajo o citas sin confirmar
+
+AL PRESENTAR ver_configuracion:
+- Horarios en formato tabla por día con ✅ abierto / ❌ cerrado
+- Meta mensual si está configurada, o sugerir configurarla si no hay
+- Días cerrados próximos si los hay
+
+AL PRESENTAR calcular_comisiones:
+- Formato tabla: Empleado | Citas | Ingresos | Comisión
+- Total a pagar al final en negrita
+- Si hay empleados con 0 citas, mencionarlo
+
 </analytics>
 
 <gestion_avanzada>
@@ -1031,6 +1059,33 @@ const tools = [
       },
       required: ['tipo']
     }
+  },
+  {
+    name: 'ver_configuracion',
+    description: 'Muestra la configuración actual del negocio: horarios de atención, meta mensual, nombre, teléfono, dirección, días cerrados próximos. Usar cuando pregunten "¿a qué hora abro?", "¿cuál es mi horario?", "muéstrame la configuración".',
+    input_schema: { type: 'object', properties: {} }
+  },
+  {
+    name: 'calcular_comisiones',
+    description: 'Calcula cuánto le debe el negocio a cada empleado en comisiones para el período. Muestra citas completadas, ingresos generados y comisión a pagar por empleado.',
+    input_schema: {
+      type: 'object',
+      properties: {
+        period: { type: 'string', enum: ['week', 'month', 'quincena'], description: 'Período: week=últimos 7 días, month=este mes, quincena=quincena actual' },
+        quincena: { type: 'number', description: 'Si period=quincena: 1=primera (1-15), 2=segunda (16-fin de mes)' }
+      },
+      required: ['period']
+    }
+  },
+  {
+    name: 'resumen_dia',
+    description: 'Resumen ejecutivo del día: citas de hoy, ingresos, comparado con ayer, alertas urgentes. Usar cuando el dueño llegue por la mañana o pregunte cómo va el día.',
+    input_schema: { type: 'object', properties: {} }
+  },
+  {
+    name: 'diagnostico_negocio',
+    description: 'Diagnóstico completo del negocio: tendencia de ingresos, retención, empleados sin actividad, stock, proyección vs meta y recomendaciones. Usar cuando pregunten "¿cómo está mi negocio?", "¿qué debo mejorar?", "dame un diagnóstico".',
+    input_schema: { type: 'object', properties: {} }
   },
   {
     name: 'enviar_recordatorio_riesgo',
@@ -2831,6 +2886,258 @@ async function executeTool(toolName, toolInput, businessId) {
       }
 
       return { success: false, error: 'Tipo de configuración no reconocido.' };
+    }
+
+    case 'ver_configuracion': {
+      const bogota = { timeZone: 'America/Bogota' };
+      const hoy = new Date().toLocaleDateString('en-CA', bogota);
+      const en30 = new Date(Date.now() + 30 * 86400000).toLocaleDateString('en-CA', bogota);
+
+      const [
+        { data: biz },
+        { data: horarios },
+        { data: meta },
+        { data: diasCerrados }
+      ] = await Promise.all([
+        supabaseAdmin.from('businesses').select('name, phone, address, business_type, country, owner_name').eq('id', businessId).single(),
+        supabaseAdmin.from('business_hours').select('day_of_week, open_time, close_time, is_open').eq('business_id', businessId).order('day_of_week'),
+        supabaseAdmin.from('monthly_goals').select('income_goal').eq('business_id', businessId).order('month', { ascending: false }).limit(1).maybeSingle(),
+        supabaseAdmin.from('business_closed_days').select('date, reason').eq('business_id', businessId).gte('date', hoy).lte('date', en30).order('date')
+      ]);
+
+      const diasSemana = ['Domingo','Lunes','Martes','Miércoles','Jueves','Viernes','Sábado'];
+      const horariosFormateados = (horarios || []).map(h => ({
+        dia: diasSemana[h.day_of_week],
+        abierto: h.is_open,
+        apertura: h.open_time,
+        cierre: h.close_time
+      }));
+
+      return {
+        perfil: biz,
+        horarios: horariosFormateados,
+        meta_mensual: meta?.income_goal || null,
+        meta_configurada: !!meta?.income_goal,
+        dias_cerrados_proximos: diasCerrados || []
+      };
+    }
+
+    case 'calcular_comisiones': {
+      const bogota = { timeZone: 'America/Bogota' };
+      const hoy = new Date().toLocaleDateString('en-CA', bogota);
+      const [year, month, day] = hoy.split('-').map(Number);
+
+      let fechaInicio, fechaFin, periodoLabel;
+
+      if (toolInput.period === 'quincena') {
+        const q = toolInput.quincena || (day <= 15 ? 1 : 2);
+        if (q === 1) {
+          fechaInicio = `${year}-${String(month).padStart(2,'0')}-01`;
+          fechaFin = `${year}-${String(month).padStart(2,'0')}-15`;
+          periodoLabel = `1ra quincena`;
+        } else {
+          const ultimoDia = new Date(year, month, 0).getDate();
+          fechaInicio = `${year}-${String(month).padStart(2,'0')}-16`;
+          fechaFin = `${year}-${String(month).padStart(2,'0')}-${ultimoDia}`;
+          periodoLabel = `2da quincena`;
+        }
+      } else if (toolInput.period === 'month') {
+        fechaInicio = `${year}-${String(month).padStart(2,'0')}-01`;
+        fechaFin = hoy;
+        periodoLabel = 'este mes';
+      } else {
+        fechaInicio = new Date(Date.now() - 7*86400000).toLocaleDateString('en-CA', bogota);
+        fechaFin = hoy;
+        periodoLabel = 'esta semana';
+      }
+
+      const [{ data: empleados }, { data: citas }] = await Promise.all([
+        supabaseAdmin.from('employees').select('id, name, commission_percent, commission_fixed').eq('business_id', businessId).eq('is_active', true),
+        supabaseAdmin.from('appointments').select('employee_id, price').eq('business_id', businessId).eq('status', 'completed').gte('scheduled_at', `${fechaInicio}T00:00:00-05:00`).lte('scheduled_at', `${fechaFin}T23:59:59-05:00`)
+      ]);
+
+      const citasPorEmpleado = {};
+      (citas || []).forEach(c => {
+        if (!c.employee_id) return;
+        if (!citasPorEmpleado[c.employee_id]) citasPorEmpleado[c.employee_id] = { citas: 0, ingresos: 0 };
+        citasPorEmpleado[c.employee_id].citas++;
+        citasPorEmpleado[c.employee_id].ingresos += Number(c.price || 0);
+      });
+
+      const liquidacion = (empleados || []).map(e => {
+        const datos = citasPorEmpleado[e.id] || { citas: 0, ingresos: 0 };
+        const comisionFija = e.commission_fixed || 0;
+        const comisionPct = e.commission_percent || 0;
+        const comisionCalculada = comisionFija > 0
+          ? comisionFija * datos.citas
+          : Math.round(datos.ingresos * (comisionPct / 100));
+        return {
+          nombre: e.name,
+          citas_completadas: datos.citas,
+          ingresos_generados: datos.ingresos,
+          tipo_comision: comisionFija > 0 ? `$${comisionFija.toLocaleString('es-CO')} por cita` : `${comisionPct}%`,
+          comision_a_pagar: comisionCalculada
+        };
+      }).sort((a, b) => b.comision_a_pagar - a.comision_a_pagar);
+
+      const totalAPagar = liquidacion.reduce((s, e) => s + e.comision_a_pagar, 0);
+
+      return {
+        periodo: periodoLabel,
+        fecha_inicio: fechaInicio,
+        fecha_fin: fechaFin,
+        liquidacion,
+        total_a_pagar: totalAPagar
+      };
+    }
+
+    case 'resumen_dia': {
+      const bogota = { timeZone: 'America/Bogota' };
+      const hoy = new Date().toLocaleDateString('en-CA', bogota);
+      const ayer = new Date(Date.now() - 86400000).toLocaleDateString('en-CA', bogota);
+      const horaActual = new Date().toLocaleTimeString('es-CO', { timeZone: 'America/Bogota', hour: '2-digit', minute: '2-digit', hour12: true });
+
+      const [
+        { data: citasHoy },
+        { data: ingresosHoy },
+        { data: ingresosAyer },
+        { data: citasPendientes },
+        { data: stockBajo }
+      ] = await Promise.all([
+        supabaseAdmin.from('appointments').select('id, scheduled_at, status, price, clients(name), services(name), employees(name)').eq('business_id', businessId).gte('scheduled_at', `${hoy}T00:00:00-05:00`).lte('scheduled_at', `${hoy}T23:59:59-05:00`).not('status', 'in', '("cancelled")').order('scheduled_at'),
+        supabaseAdmin.from('income').select('amount').eq('business_id', businessId).eq('date', hoy),
+        supabaseAdmin.from('income').select('amount').eq('business_id', businessId).eq('date', ayer),
+        supabaseAdmin.from('appointments').select('id').eq('business_id', businessId).eq('status', 'pending').gte('scheduled_at', `${hoy}T00:00:00-05:00`),
+        supabaseAdmin.from('products').select('name, stock, min_stock').eq('business_id', businessId).eq('is_active', true).filter('stock', 'lte', 'min_stock').limit(3)
+      ]);
+
+      const totalHoy = (ingresosHoy || []).reduce((s, i) => s + Number(i.amount), 0);
+      const totalAyer = (ingresosAyer || []).reduce((s, i) => s + Number(i.amount), 0);
+
+      const ahora = new Date();
+      const proximaCita = (citasHoy || []).find(c => {
+        return c.status !== 'completed' && c.status !== 'cancelled' && new Date(c.scheduled_at) >= ahora;
+      });
+
+      const citas = (citasHoy || []).map(a => ({
+        hora: new Date(a.scheduled_at).toLocaleTimeString('es-CO', { timeZone: 'America/Bogota', hour: '2-digit', minute: '2-digit', hour12: true }),
+        cliente: a.clients?.name || 'Walk-in',
+        servicio: a.services?.name || 'Sin servicio',
+        empleado: a.employees?.name || 'Sin asignar',
+        status: a.status
+      }));
+
+      return {
+        hora_consulta: horaActual,
+        resumen: {
+          total_citas_hoy: citasHoy?.length || 0,
+          citas_completadas: (citasHoy || []).filter(c => c.status === 'completed').length,
+          citas_pendientes_confirmar: citasPendientes?.length || 0,
+          ingresos_hoy: Math.round(totalHoy),
+          ingresos_ayer: Math.round(totalAyer),
+          diferencia_vs_ayer: Math.round(totalHoy - totalAyer),
+          tendencia: totalHoy >= totalAyer ? 'igual_o_mejor' : 'por_debajo'
+        },
+        citas_hoy: citas,
+        proxima_cita: proximaCita ? {
+          hora: new Date(proximaCita.scheduled_at).toLocaleTimeString('es-CO', { timeZone: 'America/Bogota', hour: '2-digit', minute: '2-digit', hour12: true }),
+          cliente: proximaCita.clients?.name || 'Walk-in',
+          servicio: proximaCita.services?.name
+        } : null,
+        alertas_urgentes: {
+          stock_bajo: (stockBajo || []).map(p => `${p.name}: ${p.stock} unidades`),
+          citas_sin_confirmar: citasPendientes?.length || 0
+        }
+      };
+    }
+
+    case 'diagnostico_negocio': {
+      const bogota = { timeZone: 'America/Bogota' };
+      const hoy = new Date().toLocaleDateString('en-CA', bogota);
+      const [year, month] = hoy.split('-').map(Number);
+      const inicioMes = `${year}-${String(month).padStart(2,'0')}-01`;
+      const mesAnterior = month === 1 ? 12 : month - 1;
+      const yearAnterior = month === 1 ? year - 1 : year;
+      const inicioMesAnterior = `${yearAnterior}-${String(mesAnterior).padStart(2,'0')}-01`;
+      const hace30 = new Date(Date.now() - 30*86400000).toLocaleDateString('en-CA', bogota);
+      const hace90 = new Date(Date.now() - 90*86400000).toLocaleDateString('en-CA', bogota);
+      const diaActual = parseInt(hoy.split('-')[2]);
+      const diasMes = new Date(year, month, 0).getDate();
+
+      const [
+        { data: ingMes }, { data: ingMesAnt },
+        { data: citasMes }, { data: citasMesAnt },
+        { data: clientesNuevos },
+        { data: citasRiesgo }, { data: citasRecientes },
+        { data: empleados }, { data: citasEmpleados },
+        { data: stockBajo },
+        { data: meta }
+      ] = await Promise.all([
+        supabaseAdmin.from('income').select('amount').eq('business_id', businessId).gte('date', inicioMes).lte('date', hoy),
+        supabaseAdmin.from('income').select('amount').eq('business_id', businessId).gte('date', inicioMesAnterior).lt('date', inicioMes),
+        supabaseAdmin.from('appointments').select('id').eq('business_id', businessId).eq('status', 'completed').gte('scheduled_at', `${inicioMes}T00:00:00-05:00`),
+        supabaseAdmin.from('appointments').select('id').eq('business_id', businessId).eq('status', 'completed').gte('scheduled_at', `${inicioMesAnterior}T00:00:00-05:00`).lt('scheduled_at', `${inicioMes}T00:00:00-05:00`),
+        supabaseAdmin.from('clients').select('id').eq('business_id', businessId).gte('created_at', `${inicioMes}T00:00:00-05:00`),
+        supabaseAdmin.from('appointments').select('client_id').eq('business_id', businessId).eq('status', 'completed').gte('scheduled_at', `${hace90}T00:00:00-05:00`).lte('scheduled_at', `${hace30}T23:59:59-05:00`).not('client_id', 'is', null),
+        supabaseAdmin.from('appointments').select('client_id').eq('business_id', businessId).eq('status', 'completed').gte('scheduled_at', `${hace30}T00:00:00-05:00`).not('client_id', 'is', null),
+        supabaseAdmin.from('employees').select('id, name').eq('business_id', businessId).eq('is_active', true),
+        supabaseAdmin.from('appointments').select('employee_id').eq('business_id', businessId).eq('status', 'completed').gte('scheduled_at', `${inicioMes}T00:00:00-05:00`),
+        supabaseAdmin.from('products').select('name, stock, min_stock').eq('business_id', businessId).eq('is_active', true).filter('stock', 'lte', 'min_stock'),
+        supabaseAdmin.from('monthly_goals').select('income_goal').eq('business_id', businessId).order('month', { ascending: false }).limit(1).maybeSingle()
+      ]);
+
+      const totalMes = (ingMes || []).reduce((s, i) => s + Number(i.amount), 0);
+      const totalMesAnt = (ingMesAnt || []).reduce((s, i) => s + Number(i.amount), 0);
+      const crecimientoPct = totalMesAnt > 0 ? Number(((totalMes - totalMesAnt) / totalMesAnt * 100).toFixed(1)) : null;
+      const promedioDiario = diaActual > 0 ? totalMes / diaActual : 0;
+      const proyeccion = Math.round(promedioDiario * diasMes);
+      const metaValor = meta?.income_goal || null;
+
+      const idsRiesgo = new Set((citasRiesgo || []).map(c => c.client_id));
+      const idsRecientes = new Set((citasRecientes || []).map(c => c.client_id));
+      const clientesEnRiesgo = [...idsRiesgo].filter(id => !idsRecientes.has(id)).length;
+
+      const empleadosActivos = new Set((citasEmpleados || []).map(c => c.employee_id));
+      const empleadosSinActividad = (empleados || []).filter(e => !empleadosActivos.has(e.id)).map(e => e.name);
+
+      const fortalezas = [];
+      const problemas = [];
+      const recomendaciones = [];
+
+      if (crecimientoPct !== null && crecimientoPct > 0) fortalezas.push(`Ingresos creciendo ${crecimientoPct}% vs mes anterior`);
+      if ((clientesNuevos?.length || 0) > 5) fortalezas.push(`${clientesNuevos.length} clientes nuevos este mes`);
+      if ((stockBajo?.length || 0) === 0) fortalezas.push('Stock de productos en buen nivel');
+      if (crecimientoPct !== null && crecimientoPct < -10) problemas.push(`Ingresos bajaron ${Math.abs(crecimientoPct)}% vs mes anterior`);
+      if (clientesEnRiesgo > 3) problemas.push(`${clientesEnRiesgo} clientes no han vuelto en más de 30 días`);
+      if ((stockBajo?.length || 0) > 0) problemas.push(`${stockBajo.length} producto(s) con stock bajo: ${stockBajo.map(p => p.name).join(', ')}`);
+      if (empleadosSinActividad.length > 0) problemas.push(`Empleados sin citas este mes: ${empleadosSinActividad.join(', ')}`);
+      if (clientesEnRiesgo > 0) recomendaciones.push(`Envía recordatorios a los ${clientesEnRiesgo} clientes en riesgo`);
+      if ((stockBajo?.length || 0) > 0) recomendaciones.push('Repone el stock de productos antes de quedarte sin inventario');
+      if (crecimientoPct !== null && crecimientoPct < 0) recomendaciones.push('Considera promociones para reactivar clientes');
+      if (metaValor && totalMes < metaValor * 0.5 && diaActual > 15) recomendaciones.push('Llevas menos del 50% de la meta en la segunda mitad del mes — intensifica la agenda');
+
+      return {
+        periodo: `${inicioMes} al ${hoy}`,
+        financiero: {
+          ingresos_mes: Math.round(totalMes),
+          ingresos_mes_anterior: Math.round(totalMesAnt),
+          crecimiento_pct: crecimientoPct,
+          proyeccion_mes: proyeccion,
+          meta: metaValor,
+          va_a_llegar_meta: metaValor ? proyeccion >= metaValor : null
+        },
+        operacional: {
+          citas_completadas_mes: citasMes?.length || 0,
+          citas_mes_anterior: citasMesAnt?.length || 0,
+          clientes_nuevos_mes: clientesNuevos?.length || 0,
+          clientes_en_riesgo: clientesEnRiesgo,
+          empleados_sin_actividad: empleadosSinActividad
+        },
+        fortalezas,
+        problemas,
+        recomendaciones,
+        score_negocio: Math.max(0, Math.min(100, 60 + (fortalezas.length * 10) - (problemas.length * 10)))
+      };
     }
 
     case 'enviar_recordatorio_riesgo': {

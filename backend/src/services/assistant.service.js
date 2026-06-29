@@ -63,7 +63,7 @@ Usuario: ‘agendar corte’
 → Preguntar SOLO la hora, luego crear inmediatamente
 
 REGLA DE AMBIGÜEDAD:
-- Si hay múltiples clientes → usar el PRIMERO automáticamente, menciona: “encontré a [nombre]”
+- Si buscar_cliente retorna multiple_found: true → muestra all_matches al usuario y pregunta cuál es el correcto. NUNCA asumas automáticamente cuando hay ambigüedad de cliente.
 - Si hay múltiples servicios → usar el que MEJOR COINCIDA por similitud de nombre
 - NUNCA bloquees la acción por ambigüedad, SIEMPRE elige el más probable
 - Solo pide aclaración si el resultado es completamente diferente a lo que pidió
@@ -682,6 +682,7 @@ const tools = [
       type: 'object',
       properties: {
         service_id: { type: 'string' },
+        name: { type: 'string', description: 'Nuevo nombre del servicio (opcional)' },
         price: { type: 'number', description: 'Nuevo precio opcional' },
         duration_minutes: { type: 'number', description: 'Nueva duración opcional' }
       },
@@ -866,7 +867,7 @@ const tools = [
       properties: {
         amount: { type: 'number', description: 'Monto en COP' },
         description: { type: 'string', description: 'Descripción del gasto' },
-        category: { type: 'string', description: 'Categoría: arriendo, nomina, servicios, insumos, otro' },
+        category: { type: 'string', description: 'Categoría: arriendo, nomina, servicios, insumos, materias_primas, productos, otro' },
         date: { type: 'string', description: 'Fecha YYYY-MM-DD. Si no se especifica usa hoy.' }
       },
       required: ['amount', 'description', 'category']
@@ -1075,7 +1076,13 @@ async function executeTool(toolName, toolInput, businessId) {
         return { not_found: true, searched_for: toolInput.nombre, can_create: true };
       }
 
-      return { found: true, client: conPuntaje[0], multiple_found: conPuntaje.length > 1 ? conPuntaje.length : undefined };
+      const topMatches = conPuntaje.slice(0, 3).map(c => ({ id: c.id, name: c.name, phone: c.phone }));
+      return {
+        found: true,
+        client: conPuntaje[0],
+        multiple_found: conPuntaje.length > 1,
+        all_matches: conPuntaje.length > 1 ? topMatches : undefined
+      };
     }
 
     case 'crear_cliente': {
@@ -1163,6 +1170,7 @@ async function executeTool(toolName, toolInput, businessId) {
 
       if (!conPuntaje?.length) return { found: false };
       if (conPuntaje[0].puntaje >= 1) return { found: true, employee: conPuntaje[0] };
+      return { found: false, searched_for: toolInput.nombre };
     }
 
         case 'buscar_producto': {
@@ -1344,34 +1352,33 @@ async function executeTool(toolName, toolInput, businessId) {
       logger.info('insertData:', JSON.stringify(insertData));
 
       // Validar límite de citas del mes
-      const { PLANS: PLANSast } = require('../config/plans');
-      const { data: bizast } = await supabaseAdmin
+      const { data: bizPlan } = await supabaseAdmin
         .from('businesses')
         .select('plan')
         .eq('id', businessId)
         .single();
 
-      const planast = bizast.plan || 'estandar';
-      const limiteast = PLANSast[planast].max_appointments_month;
+      const planCita = bizPlan?.plan || 'estandar';
+      const limiteCita = PLANS[planCita].max_appointments_month;
 
-      if (limiteast !== -1) {
-        const _tzast = getTimezone();
-        const _offzast = getOffsetForTz(_tzast);
-        const mesActualast = new Date().toLocaleDateString('en-CA', { timeZone: _tzast }).slice(0, 7);
-        const inicioMesast = `${mesActualast}-01T00:00:00${_offzast}`;
-        const [yrast, moast] = mesActualast.split('-').map(Number);
-        const ultimoDiaast = new Date(yrast, moast, 0).getDate();
-        const finMesast = `${mesActualast}-${String(ultimoDiaast).padStart(2, '0')}T23:59:59${_offzast}`;
+      if (limiteCita !== -1) {
+        const _tzCita = getTimezone();
+        const _offCita = getOffsetForTz(_tzCita);
+        const mesActualCita = new Date().toLocaleDateString('en-CA', { timeZone: _tzCita }).slice(0, 7);
+        const inicioMesCita = `${mesActualCita}-01T00:00:00${_offCita}`;
+        const [yrCita, moCita] = mesActualCita.split('-').map(Number);
+        const ultimoDiaCita = new Date(yrCita, moCita, 0).getDate();
+        const finMesCita = `${mesActualCita}-${String(ultimoDiaCita).padStart(2, '0')}T23:59:59${_offCita}`;
 
-        const { count: countast } = await supabaseAdmin
+        const { count: countCita } = await supabaseAdmin
           .from('appointments')
           .select('id', { count: 'exact', head: true })
           .eq('business_id', businessId)
-          .gte('scheduled_at', inicioMesast)
-          .lte('scheduled_at', finMesast)
+          .gte('scheduled_at', inicioMesCita)
+          .lte('scheduled_at', finMesCita)
           .neq('status', 'cancelled');
 
-        if (countast >= limiteast) {
+        if (countCita >= limiteCita) {
           return { success: false, error: 'Has alcanzado el límite de citas este mes de tu plan.' };
         }
       }
@@ -1488,10 +1495,27 @@ async function executeTool(toolName, toolInput, businessId) {
           });
       }
 
+      const saleDateRV = new Date().toLocaleDateString('en-CA', { timeZone: 'America/Bogota' });
+      await supabaseAdmin.from('income').insert({
+        business_id: businessId,
+        amount: product.price * toolInput.quantity,
+        category: 'productos',
+        description: `Venta: ${product.name}${toolInput.quantity > 1 ? ` ×${toolInput.quantity}` : ''}`,
+        date: saleDateRV,
+        client_id: toolInput.client_id || null,
+        source: 'product_sale'
+      });
+
       return { success: true, sale: data };
     }
 
     case 'cancelar_cita': {
+      await supabaseAdmin
+        .from('income')
+        .delete()
+        .eq('appointment_id', toolInput.appointment_id)
+        .eq('business_id', businessId);
+
       const { error } = await supabaseAdmin
         .from('appointments')
         .update({ status: 'cancelled' })
@@ -1583,6 +1607,7 @@ async function executeTool(toolName, toolInput, businessId) {
 
     case 'actualizar_servicio': {
       const updateData = {};
+      if (toolInput.name !== undefined) updateData.name = toolInput.name;
       if (toolInput.price) updateData.price = toolInput.price;
       if (toolInput.duration_minutes) updateData.duration_minutes = toolInput.duration_minutes;
       const { error } = await supabaseAdmin
@@ -1646,7 +1671,7 @@ async function executeTool(toolName, toolInput, businessId) {
 
       const { data: appointments } = await supabaseAdmin
         .from('appointments')
-        .select('scheduled_at, status, services(name, price)')
+        .select('scheduled_at, status, price, services(name)')
         .eq('client_id', toolInput.client_id)
         .eq('business_id', businessId)
         .eq('status', 'completed')
@@ -1654,7 +1679,7 @@ async function executeTool(toolName, toolInput, businessId) {
         .limit(5);
 
       const totalGastado = appointments?.reduce((sum, a) =>
-        sum + (a.services?.price || 0), 0) || 0;
+        sum + (Number(a.price) || 0), 0) || 0;
 
       const formatColDate = (iso) => iso ? new Date(iso).toLocaleString('es-CO', {
         timeZone: 'America/Bogota',
@@ -1875,6 +1900,21 @@ async function executeTool(toolName, toolInput, businessId) {
         .eq('id', toolInput.appointment_id)
         .eq('business_id', businessId);
 
+      if (toolInput.service_id && !error) {
+        const { data: newSvc } = await supabaseAdmin
+          .from('services')
+          .select('price')
+          .eq('id', toolInput.service_id)
+          .single();
+        if (newSvc?.price) {
+          await supabaseAdmin
+            .from('income')
+            .update({ amount: newSvc.price })
+            .eq('appointment_id', toolInput.appointment_id)
+            .eq('business_id', businessId);
+        }
+      }
+
       return { success: !error, error: error?.message };
     }
 
@@ -2031,7 +2071,8 @@ async function executeTool(toolName, toolInput, businessId) {
 
       (citas || []).forEach(c => {
         const fecha = new Date(c.scheduled_at);
-        const dia = diasSemana[fecha.toLocaleDateString('en-US', { timeZone: 'America/Bogota', weekday: 'short' }) === 'Sun' ? 0 : fecha.getDay()];
+        const diaNombreRaw = new Date(c.scheduled_at).toLocaleDateString('es-CO', { timeZone: 'America/Bogota', weekday: 'long' });
+        const dia = diaNombreRaw.charAt(0).toUpperCase() + diaNombreRaw.slice(1);
         const hora = new Date(c.scheduled_at).toLocaleString('en-CA', { timeZone: 'America/Bogota', hour: '2-digit', hour12: false });
         const precio = Number(c.price || 0);
 
@@ -2397,6 +2438,7 @@ async function executeTool(toolName, toolInput, businessId) {
         .from('expenses')
         .select('amount, description, category, date')
         .eq('business_id', businessId)
+        .neq('category', 'costo_producto')
         .gte('date', inicios[toolInput.period])
         .lte('date', hoy)
         .order('date', { ascending: false });
@@ -2406,6 +2448,7 @@ async function executeTool(toolName, toolInput, businessId) {
       (data || []).forEach(e => {
         porCategoria[e.category] = (porCategoria[e.category] || 0) + Number(e.amount);
       });
+      delete porCategoria['costo_producto'];
 
       return { egresos: data || [], total, por_categoria: porCategoria, period: toolInput.period };
     }
@@ -2905,7 +2948,7 @@ Cuando diga "mañana" usar: ${mananaISO}
     { role: 'user', content: userMessage }
   ];
 
-  let response = await client.messages.create({
+  let response = await callClaudeWithRetry({
     model: 'claude-sonnet-4-6',
     max_tokens: 1024,
     system: dynamicSystemPrompt,
@@ -2973,9 +3016,9 @@ Cuando diga "mañana" usar: ${mananaISO}
   const frasesDeError = [
     'no tengo herramientas',
     'no puedo acceder',
-    'no estÃ¡ disponible',
-    'no tengo informaciÃ³n',
-    'no tengo una funciÃ³n',
+    'no está disponible',
+    'no tengo información',
+    'no tengo una función',
     'el sistema no proporciona',
     'no tengo acceso',
     'no puedo ver',

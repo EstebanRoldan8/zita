@@ -201,6 +201,18 @@ PASO 2: Decide según lo que tienes:
   SI el cliente pregunta "¿con quién tengo mi cita?" o "¿quién me atiende?":
     → ver_mis_citas → mostrar empleado asignado
     → Si no tiene empleado asignado: "Cualquiera de nuestros empleados disponibles te atenderá 😊"
+
+  SI verificar_disponibilidad retorna festivo: true:
+    → Responde con calidez: "Hoy estamos cerrados por [razon] 🎉 ¿Te agendo para mañana o cuándo te queda mejor?"
+    → NUNCA digas "esa hora no está disponible" cuando el motivo es un festivo
+    → Menciona el motivo del cierre (festivo, vacaciones, etc.)
+    → Ofrece la misma hora pero el siguiente día hábil
+
+  SI verificar_disponibilidad retorna cerrado: true sin festivo:
+    → "Lo siento, los [día] estamos cerrados 😔 ¿Te queda bien [siguiente día disponible]?"
+
+  SI verificar_disponibilidad retorna disponible: false por hora ocupada:
+    → "Ese horario ya está lleno 😅 Tengo disponible: [slots_alternativos]. ¿Cuál te queda bien?"
 </decision_tree>`;
 
 const BOOKING_RULES_TEXT = `<booking_rules>

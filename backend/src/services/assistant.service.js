@@ -507,6 +507,47 @@ ACTUALIZAR CLIENTE:
 
 </gestion_avanzada>
 
+<fidelizacion>
+PROGRAMA DE FIDELIZACIÓN:
+- "¿Cuántas visitas lleva Juan?" / "¿puede canjear?" → buscar_cliente → ver_fidelizacion_cliente
+- "Canjéale la recompensa a María" → buscar_cliente → ver_fidelizacion_cliente (verificar puede_canjear: true) → canjear_recompensa
+- NUNCA canjees sin verificar primero que puede_canjear sea true
+- "¿Quién está cerca de la recompensa?" → clientes_cerca_recompensa
+- "¿Cómo está configurada la fidelización?" → ver_config_fidelizacion
+
+CIERRE DE CAJA:
+- "Cierra la caja" / "¿cómo quedó el día?" / "resumen del cierre" → resumen_caja_hoy
+- Presenta: ingresos por categoría, egresos, neto con ✅ o ⚠️
+
+BÚSQUEDA PARA BORRAR:
+- "Borra ese egreso" → buscar_egreso(period='today') → mostrar lista → eliminar_egreso(expense_id)
+- "Borra ese ingreso" → buscar_ingreso(period='today') → mostrar lista → eliminar_ingreso(income_id)
+- SIEMPRE mostrar la lista al usuario para que confirme cuál borrar antes de eliminar
+
+STOCK E INVENTARIO:
+- "Llegaron 50 unidades de gel" / "súmale 30 al stock" → buscar_producto → ajustar_stock(cantidad positiva)
+- "Se perdieron 5 unidades" / "quita 3 del inventario" → buscar_producto → ajustar_stock(cantidad negativa)
+- NUNCA uses actualizar_producto para sumar stock — siempre ajustar_stock para operaciones de inventario
+
+NOTAS DE CLIENTES:
+- "Juan es alérgico al tinte" → buscar_cliente → agregar_nota_cliente
+- "Agrega que María prefiere a Carlos" → buscar_cliente → agregar_nota_cliente(agregar: true)
+- Las notas son visibles en historial_cliente
+
+AGENDA DE EMPLEADOS:
+- "¿Qué tiene Carlos hoy?" → buscar_empleado → ver_agenda_empleado
+- "¿Qué citas tiene Pedro mañana?" → buscar_empleado → ver_agenda_empleado(fecha=mañana)
+
+DISPONIBILIDAD:
+- "¿Tengo hueco mañana a las 3?" / "¿hay espacio el viernes a las 5?" → ver_disponibilidad
+- Reporta empleados libres y ocupados en ese horario
+
+CITAS PENDIENTES (del bot WhatsApp):
+- Al inicio del día: ver_citas_pendientes para ver las que llegaron por WhatsApp
+- "Confirma todas las de hoy" → confirmar_todas_pendientes
+- "¿Cuántas tengo sin confirmar?" → ver_citas_pendientes
+</fidelizacion>
+
 <testing>
 TESTING DEL SISTEMA — SOLO SUPERADMIN:
 - "Haz un test del sistema" → test_sistema con modulo: 'todos'
@@ -1065,6 +1106,31 @@ const tools = [
     }
   },
   {
+    name: 'buscar_egreso',
+    description: 'Busca egresos por descripción, categoría o fecha para identificar cuál eliminar. Usar SIEMPRE antes de eliminar_egreso para obtener el ID correcto.',
+    input_schema: {
+      type: 'object',
+      properties: {
+        descripcion: { type: 'string', description: 'Texto a buscar en la descripción (opcional)' },
+        categoria: { type: 'string', description: 'Categoría del egreso (opcional)' },
+        fecha: { type: 'string', description: 'Fecha YYYY-MM-DD (opcional)' },
+        period: { type: 'string', enum: ['today', 'week', 'month'], description: 'Período alternativo a fecha específica' }
+      }
+    }
+  },
+  {
+    name: 'buscar_ingreso',
+    description: 'Busca ingresos manuales por descripción o fecha para identificar cuál eliminar. Usar SIEMPRE antes de eliminar_ingreso para obtener el ID correcto.',
+    input_schema: {
+      type: 'object',
+      properties: {
+        descripcion: { type: 'string', description: 'Texto a buscar en la descripción (opcional)' },
+        fecha: { type: 'string', description: 'Fecha YYYY-MM-DD (opcional)' },
+        period: { type: 'string', enum: ['today', 'week', 'month'], description: 'Período alternativo' }
+      }
+    }
+  },
+  {
     name: 'registrar_ingreso',
     description: 'Registra un ingreso manual en caja (efectivo, transferencia, domicilio, otro no registrado automáticamente). Usar cuando el dueño dice que recibió dinero que no está en el sistema.',
     input_schema: {
@@ -1181,6 +1247,44 @@ const tools = [
     }
   },
   {
+    name: 'ver_config_fidelizacion',
+    description: 'Muestra la configuración del programa de fidelización: visitas necesarias para recompensa, puntos por cita y descripción de la recompensa.',
+    input_schema: { type: 'object', properties: {} }
+  },
+  {
+    name: 'ver_fidelizacion_cliente',
+    description: 'Muestra el estado de fidelización de un cliente: visitas acumuladas, cuántas le faltan para la recompensa, si puede canjear ahora. Usar buscar_cliente primero.',
+    input_schema: {
+      type: 'object',
+      properties: {
+        client_id: { type: 'string', description: 'ID del cliente' }
+      },
+      required: ['client_id']
+    }
+  },
+  {
+    name: 'clientes_cerca_recompensa',
+    description: 'Lista clientes que están a 1, 2 o 3 visitas de obtener su recompensa de fidelización. Ideal para motivarlos a volver.',
+    input_schema: {
+      type: 'object',
+      properties: {
+        margen: { type: 'number', description: 'Visitas de diferencia máximo. Default 2.' }
+      }
+    }
+  },
+  {
+    name: 'canjear_recompensa',
+    description: 'Registra el canje de recompensa de fidelización para un cliente. Resetea sus visitas a 0. SIEMPRE usar ver_fidelizacion_cliente primero para verificar que puede_canjear sea true.',
+    input_schema: {
+      type: 'object',
+      properties: {
+        client_id: { type: 'string', description: 'ID del cliente' },
+        notas: { type: 'string', description: 'Notas opcionales del canje' }
+      },
+      required: ['client_id']
+    }
+  },
+  {
     name: 'test_sistema',
     description: 'SOLO SUPERADMIN. Ejecuta pruebas de funcionamiento del sistema y retorna reporte de salud.',
     input_schema: {
@@ -1250,6 +1354,110 @@ const tools = [
         category: { type: 'string', description: 'Nueva categoría (opcional)' }
       },
       required: ['product_id']
+    }
+  },
+  {
+    name: 'ver_citas_pendientes',
+    description: 'Lista todas las citas con estado pendiente que esperan confirmación (llegaron por WhatsApp). Usar al inicio del día.',
+    input_schema: {
+      type: 'object',
+      properties: {
+        fecha: { type: 'string', description: 'Fecha YYYY-MM-DD. Default hoy.' }
+      }
+    }
+  },
+  {
+    name: 'confirmar_todas_pendientes',
+    description: 'Confirma todas las citas pendientes de una fecha en un solo paso. Usar después de ver_citas_pendientes cuando el dueño quiere confirmar todo.',
+    input_schema: {
+      type: 'object',
+      properties: {
+        fecha: { type: 'string', description: 'Fecha YYYY-MM-DD. Default hoy.' }
+      }
+    }
+  },
+  {
+    name: 'resumen_caja_hoy',
+    description: 'Cierre de caja del día: ingresos por categoría, egresos del día y neto final. Usar al cierre del día o cuando el dueño quiera saber exactamente cómo quedó la caja.',
+    input_schema: {
+      type: 'object',
+      properties: {
+        fecha: { type: 'string', description: 'Fecha YYYY-MM-DD. Default hoy.' }
+      }
+    }
+  },
+  {
+    name: 'historial_cliente',
+    description: 'Historial completo de citas de un cliente con rango de fechas. Más detallado que info_cliente que solo muestra las últimas 5.',
+    input_schema: {
+      type: 'object',
+      properties: {
+        client_id: { type: 'string', description: 'ID del cliente' },
+        limit: { type: 'number', description: 'Máximo de citas a retornar. Default 20.' },
+        period: { type: 'string', enum: ['month', 'quarter', 'year', 'all'], description: 'month=este mes, quarter=3 meses, year=este año, all=todo el historial' }
+      },
+      required: ['client_id']
+    }
+  },
+  {
+    name: 'agregar_nota_cliente',
+    description: 'Agrega o actualiza la nota de un cliente. Útil para recordar preferencias, alergias o notas especiales. Usar buscar_cliente primero para obtener el ID.',
+    input_schema: {
+      type: 'object',
+      properties: {
+        client_id: { type: 'string', description: 'ID del cliente' },
+        nota: { type: 'string', description: 'Nota a guardar.' },
+        agregar: { type: 'boolean', description: 'Si true, agrega al final de la nota existente. Si false o ausente, reemplaza.' }
+      },
+      required: ['client_id', 'nota']
+    }
+  },
+  {
+    name: 'ajustar_stock',
+    description: 'Suma o resta unidades al stock existente de un producto. DIFERENTE a actualizar_producto que reemplaza el stock. Usar cuando llegue mercancía ("llegaron 50 unidades") o para correcciones.',
+    input_schema: {
+      type: 'object',
+      properties: {
+        product_id: { type: 'string', description: 'ID del producto (usar buscar_producto primero)' },
+        cantidad: { type: 'number', description: 'Unidades a sumar (positivo) o restar (negativo del stock)' },
+        motivo: { type: 'string', description: 'Motivo: llegada_mercancia, devolucion, correccion, perdida' }
+      },
+      required: ['product_id', 'cantidad']
+    }
+  },
+  {
+    name: 'ver_disponibilidad',
+    description: 'Verifica si hay disponibilidad en una fecha y hora específica sin crear cita. Útil para responder clientes que preguntan por un horario.',
+    input_schema: {
+      type: 'object',
+      properties: {
+        fecha: { type: 'string', description: 'Fecha YYYY-MM-DD' },
+        hora: { type: 'string', description: 'Hora HH:mm (ej: 15:00)' }
+      },
+      required: ['fecha', 'hora']
+    }
+  },
+  {
+    name: 'ver_agenda_empleado',
+    description: 'Muestra las citas de un empleado específico para hoy o una fecha. Usar buscar_empleado primero para obtener el ID.',
+    input_schema: {
+      type: 'object',
+      properties: {
+        employee_id: { type: 'string', description: 'ID del empleado' },
+        fecha: { type: 'string', description: 'Fecha YYYY-MM-DD. Default hoy.' }
+      },
+      required: ['employee_id']
+    }
+  },
+  {
+    name: 'eliminar_empleado',
+    description: 'Elimina permanentemente un empleado. Solo si nunca tuvo citas. Si tuvo citas, usar actualizar_empleado con is_active=false para desactivarlo y preservar el historial.',
+    input_schema: {
+      type: 'object',
+      properties: {
+        employee_id: { type: 'string', description: 'ID del empleado a eliminar' }
+      },
+      required: ['employee_id']
     }
   }
 ];
@@ -2853,6 +3061,73 @@ async function executeTool(toolName, toolInput, businessId) {
       return { egresos: data || [], total, por_categoria: porCategoria, period: toolInput.period };
     }
 
+    case 'buscar_egreso': {
+      const bogota = { timeZone: 'America/Bogota' };
+      const hoy = new Date().toLocaleDateString('en-CA', bogota);
+      let fechaInicio = toolInput.fecha || hoy;
+      let fechaFin = toolInput.fecha || hoy;
+
+      if (toolInput.period) {
+        const inicios = {
+          today: hoy,
+          week: new Date(Date.now() - 7*86400000).toLocaleDateString('en-CA', bogota),
+          month: hoy.slice(0,7) + '-01'
+        };
+        fechaInicio = inicios[toolInput.period];
+        fechaFin = hoy;
+      }
+
+      let query = supabaseAdmin
+        .from('expenses')
+        .select('id, amount, description, category, date')
+        .eq('business_id', businessId)
+        .neq('category', 'costo_producto')
+        .gte('date', fechaInicio)
+        .lte('date', fechaFin)
+        .order('date', { ascending: false })
+        .limit(10);
+
+      if (toolInput.descripcion) query = query.ilike('description', `%${toolInput.descripcion}%`);
+      if (toolInput.categoria) query = query.eq('category', toolInput.categoria);
+
+      const { data } = await query;
+      if (!data || data.length === 0) return { found: false, message: 'No se encontraron egresos con esos criterios' };
+      return { found: true, egresos: data, total: data.length };
+    }
+
+    case 'buscar_ingreso': {
+      const bogota = { timeZone: 'America/Bogota' };
+      const hoy = new Date().toLocaleDateString('en-CA', bogota);
+      let fechaInicio = toolInput.fecha || hoy;
+      let fechaFin = toolInput.fecha || hoy;
+
+      if (toolInput.period) {
+        const inicios = {
+          today: hoy,
+          week: new Date(Date.now() - 7*86400000).toLocaleDateString('en-CA', bogota),
+          month: hoy.slice(0,7) + '-01'
+        };
+        fechaInicio = inicios[toolInput.period];
+        fechaFin = hoy;
+      }
+
+      let query = supabaseAdmin
+        .from('income')
+        .select('id, amount, description, category, source, date')
+        .eq('business_id', businessId)
+        .eq('source', 'manual')
+        .gte('date', fechaInicio)
+        .lte('date', fechaFin)
+        .order('date', { ascending: false })
+        .limit(10);
+
+      if (toolInput.descripcion) query = query.ilike('description', `%${toolInput.descripcion}%`);
+
+      const { data } = await query;
+      if (!data || data.length === 0) return { found: false, message: 'No se encontraron ingresos manuales con esos criterios' };
+      return { found: true, ingresos: data, total: data.length };
+    }
+
     case 'registrar_ingreso': {
       const bogota = { timeZone: 'America/Bogota' };
       const hoy = new Date().toLocaleDateString('en-CA', bogota);
@@ -3319,6 +3594,128 @@ async function executeTool(toolName, toolInput, businessId) {
       };
     }
 
+    case 'ver_config_fidelizacion': {
+      const { data: config } = await supabaseAdmin
+        .from('loyalty_config')
+        .select('visits_for_reward, points_per_appointment, points_per_product, rewards_description, reward_service_id')
+        .eq('business_id', businessId)
+        .maybeSingle();
+
+      if (!config) return { configured: false, message: 'No hay programa de fidelización configurado. Configúralo en el panel en Configuración → Fidelización.' };
+
+      let rewardService = null;
+      if (config.reward_service_id) {
+        const { data: svc } = await supabaseAdmin.from('services').select('name, price').eq('id', config.reward_service_id).single();
+        rewardService = svc;
+      }
+
+      return {
+        configured: true,
+        visitas_para_recompensa: config.visits_for_reward,
+        puntos_por_cita: config.points_per_appointment,
+        puntos_por_producto: config.points_per_product,
+        descripcion_recompensa: config.rewards_description,
+        servicio_recompensa: rewardService
+      };
+    }
+
+    case 'ver_fidelizacion_cliente': {
+      const [{ data: loyalty }, { data: config }, { data: clientFid }] = await Promise.all([
+        supabaseAdmin.from('client_loyalty').select('points, total_visits, loyalty_visits, last_visit, last_redeemed_at').eq('client_id', toolInput.client_id).eq('business_id', businessId).maybeSingle(),
+        supabaseAdmin.from('loyalty_config').select('visits_for_reward, rewards_description').eq('business_id', businessId).maybeSingle(),
+        supabaseAdmin.from('clients').select('name').eq('id', toolInput.client_id).single()
+      ]);
+
+      const visitasActuales = loyalty?.loyalty_visits || 0;
+      const visitasMeta = config?.visits_for_reward || 0;
+      const puedeCanjear = visitasMeta > 0 && visitasActuales >= visitasMeta;
+      const faltanVisitas = visitasMeta > 0 ? Math.max(0, visitasMeta - visitasActuales) : null;
+
+      return {
+        cliente: clientFid?.name,
+        visitas_para_recompensa: visitasActuales,
+        total_visitas_historicas: loyalty?.total_visits || 0,
+        meta_visitas: visitasMeta,
+        faltan_visitas: faltanVisitas,
+        puede_canjear: puedeCanjear,
+        ultima_visita: loyalty?.last_visit || null,
+        ultimo_canje: loyalty?.last_redeemed_at || null,
+        recompensa: config?.rewards_description || null,
+        mensaje: puedeCanjear
+          ? `🎉 ${clientFid?.name} puede canjear su recompensa ahora. Tiene ${visitasActuales} visitas acumuladas.`
+          : `Le faltan ${faltanVisitas} visita(s) para la recompensa (lleva ${visitasActuales}/${visitasMeta})`
+      };
+    }
+
+    case 'clientes_cerca_recompensa': {
+      const margen = toolInput.margen || 2;
+
+      const { data: config } = await supabaseAdmin.from('loyalty_config').select('visits_for_reward, rewards_description').eq('business_id', businessId).maybeSingle();
+
+      if (!config?.visits_for_reward) return { error: 'No hay programa de fidelización configurado.' };
+
+      const meta = config.visits_for_reward;
+      const minVisitas = Math.max(0, meta - margen);
+
+      const { data: loyalty } = await supabaseAdmin
+        .from('client_loyalty')
+        .select('client_id, loyalty_visits')
+        .eq('business_id', businessId)
+        .gte('loyalty_visits', minVisitas)
+        .lt('loyalty_visits', meta);
+
+      if (!loyalty || loyalty.length === 0) return { clientes: [], total: 0, mensaje: 'No hay clientes cerca de la recompensa actualmente.' };
+
+      const ids = loyalty.map(l => l.client_id);
+      const { data: clients } = await supabaseAdmin.from('clients').select('id, name, phone').in('id', ids);
+
+      const resultado = loyalty.map(l => {
+        const c = clients?.find(cl => cl.id === l.client_id);
+        return { nombre: c?.name || 'Desconocido', phone: c?.phone, visitas_actuales: l.loyalty_visits, faltan: meta - l.loyalty_visits, meta };
+      }).sort((a, b) => a.faltan - b.faltan);
+
+      return { clientes: resultado, total: resultado.length, recompensa: config.rewards_description, mensaje: `${resultado.length} cliente(s) a ${margen} visita(s) o menos de su recompensa` };
+    }
+
+    case 'canjear_recompensa': {
+      const [{ data: loyalty }, { data: config }, { data: clientCanje }] = await Promise.all([
+        supabaseAdmin.from('client_loyalty').select('id, loyalty_visits').eq('client_id', toolInput.client_id).eq('business_id', businessId).maybeSingle(),
+        supabaseAdmin.from('loyalty_config').select('visits_for_reward, rewards_description').eq('business_id', businessId).maybeSingle(),
+        supabaseAdmin.from('clients').select('name').eq('id', toolInput.client_id).single()
+      ]);
+
+      if (!config?.visits_for_reward) return { success: false, error: 'No hay programa de fidelización configurado.' };
+      if (!loyalty) return { success: false, error: 'Este cliente no tiene visitas registradas en el programa de fidelización.' };
+      if (loyalty.loyalty_visits < config.visits_for_reward) {
+        return { success: false, error: `El cliente solo tiene ${loyalty.loyalty_visits} visitas y necesita ${config.visits_for_reward} para canjear.` };
+      }
+
+      const { error: updateError } = await supabaseAdmin
+        .from('client_loyalty')
+        .update({ loyalty_visits: 0, last_redeemed_at: new Date().toISOString() })
+        .eq('id', loyalty.id);
+
+      if (updateError) return { success: false, error: updateError.message };
+
+      await supabaseAdmin.from('loyalty_transactions').insert({
+        business_id: businessId,
+        client_id: toolInput.client_id,
+        type: 'redeem',
+        visits_redeemed: config.visits_for_reward,
+        reward_description: config.rewards_description || 'Recompensa canjeada',
+        notes: toolInput.notas || null,
+        created_at: new Date().toISOString()
+      }).catch(() => {});
+
+      return {
+        success: true,
+        cliente: clientCanje?.name,
+        visitas_canjeadas: config.visits_for_reward,
+        recompensa: config.rewards_description,
+        mensaje: `✅ Recompensa canjeada para ${clientCanje?.name}. Sus visitas vuelven a 0.`
+      };
+    }
+
     case 'vender_producto': {
       const normalizedSearch = normalize(toolInput.product_name);
       const { data: allProducts } = await supabaseAdmin
@@ -3437,6 +3834,257 @@ async function executeTool(toolName, toolInput, businessId) {
       }
 
       return { success: true };
+    }
+
+    case 'ver_citas_pendientes': {
+      const bogota = { timeZone: 'America/Bogota' };
+      const hoy = new Date().toLocaleDateString('en-CA', bogota);
+      const fecha = toolInput.fecha || hoy;
+
+      const { data } = await supabaseAdmin
+        .from('appointments')
+        .select('id, scheduled_at, clients(name, phone), services(name, price), employees(name)')
+        .eq('business_id', businessId)
+        .eq('status', 'pending')
+        .gte('scheduled_at', `${fecha}T00:00:00-05:00`)
+        .lte('scheduled_at', `${fecha}T23:59:59-05:00`)
+        .order('scheduled_at');
+
+      if (!data || data.length === 0) return { total: 0, citas: [], mensaje: '✅ No hay citas pendientes de confirmar.' };
+
+      const citas = data.map(a => ({
+        id: a.id,
+        hora: new Date(a.scheduled_at).toLocaleTimeString('es-CO', { timeZone: 'America/Bogota', hour: '2-digit', minute: '2-digit', hour12: true }),
+        cliente: a.clients?.name || 'Sin nombre',
+        telefono: a.clients?.phone,
+        servicio: a.services?.name,
+        precio: a.services?.price || 0,
+        empleado: a.employees?.name || 'Sin asignar'
+      }));
+
+      return { total: citas.length, citas, mensaje: `${citas.length} cita(s) pendientes de confirmar` };
+    }
+
+    case 'confirmar_todas_pendientes': {
+      const bogota = { timeZone: 'America/Bogota' };
+      const hoy = new Date().toLocaleDateString('en-CA', bogota);
+      const fecha = toolInput.fecha || hoy;
+
+      const { data, error } = await supabaseAdmin
+        .from('appointments')
+        .update({ status: 'confirmed' })
+        .eq('business_id', businessId)
+        .eq('status', 'pending')
+        .gte('scheduled_at', `${fecha}T00:00:00-05:00`)
+        .lte('scheduled_at', `${fecha}T23:59:59-05:00`)
+        .select('id');
+
+      if (error) return { success: false, error: error.message };
+      return { success: true, confirmadas: data?.length || 0, mensaje: `✅ ${data?.length || 0} cita(s) confirmadas` };
+    }
+
+    case 'resumen_caja_hoy': {
+      const bogota = { timeZone: 'America/Bogota' };
+      const hoy = new Date().toLocaleDateString('en-CA', bogota);
+      const fecha = toolInput.fecha || hoy;
+
+      const [{ data: ingresos }, { data: egresos }, { data: citas }, { data: ventas }] = await Promise.all([
+        supabaseAdmin.from('income').select('amount, category, source, description').eq('business_id', businessId).eq('date', fecha),
+        supabaseAdmin.from('expenses').select('amount, category, description').eq('business_id', businessId).eq('date', fecha).neq('category', 'costo_producto'),
+        supabaseAdmin.from('appointments').select('price, status').eq('business_id', businessId).gte('scheduled_at', `${fecha}T00:00:00-05:00`).lte('scheduled_at', `${fecha}T23:59:59-05:00`).eq('status', 'completed'),
+        supabaseAdmin.from('product_sales').select('total_amount').eq('business_id', businessId).gte('created_at', `${fecha}T00:00:00-05:00`).lte('created_at', `${fecha}T23:59:59-05:00`)
+      ]);
+
+      const totalIngresos = (ingresos || []).reduce((s, i) => s + Number(i.amount), 0);
+      const totalEgresos = (egresos || []).reduce((s, e) => s + Number(e.amount), 0);
+      const neto = totalIngresos - totalEgresos;
+
+      const porCategoriaIngreso = {};
+      (ingresos || []).forEach(i => {
+        const cat = i.category || 'otro';
+        porCategoriaIngreso[cat] = (porCategoriaIngreso[cat] || 0) + Number(i.amount);
+      });
+
+      const porCategoriaEgreso = {};
+      (egresos || []).forEach(e => {
+        porCategoriaEgreso[e.category || 'otro'] = (porCategoriaEgreso[e.category || 'otro'] || 0) + Number(e.amount);
+      });
+
+      return {
+        fecha,
+        ingresos: { total: Math.round(totalIngresos), por_categoria: porCategoriaIngreso, citas_completadas: citas?.length || 0, ventas_productos: ventas?.length || 0 },
+        egresos: { total: Math.round(totalEgresos), por_categoria: porCategoriaEgreso },
+        neto_del_dia: Math.round(neto),
+        resultado: neto >= 0 ? 'positivo' : 'negativo',
+        emoji: neto >= 0 ? '✅' : '⚠️'
+      };
+    }
+
+    case 'historial_cliente': {
+      const bogota = { timeZone: 'America/Bogota' };
+      const hoy = new Date().toLocaleDateString('en-CA', bogota);
+      const periodos = {
+        month: hoy.slice(0,7) + '-01',
+        quarter: new Date(Date.now() - 90*86400000).toLocaleDateString('en-CA', bogota),
+        year: hoy.slice(0,4) + '-01-01',
+        all: '2020-01-01'
+      };
+      const desde = periodos[toolInput.period || 'all'];
+      const limite = toolInput.limit || 20;
+
+      const [{ data: clientHist }, { data: citas }] = await Promise.all([
+        supabaseAdmin.from('clients').select('name, phone, notes, total_spent, visits_count').eq('id', toolInput.client_id).single(),
+        supabaseAdmin.from('appointments').select('id, scheduled_at, status, price, notes, services(name), employees(name)').eq('client_id', toolInput.client_id).eq('business_id', businessId).gte('scheduled_at', `${desde}T00:00:00-05:00`).order('scheduled_at', { ascending: false }).limit(limite)
+      ]);
+
+      const completadas = (citas || []).filter(c => c.status === 'completed');
+      const totalGastadoPeriodo = completadas.reduce((s, c) => s + Number(c.price || 0), 0);
+
+      return {
+        cliente: { nombre: clientHist?.name, telefono: clientHist?.phone, notas: clientHist?.notes, total_gastado_historico: clientHist?.total_spent || 0, visitas_totales: clientHist?.visits_count || 0 },
+        citas: (citas || []).map(c => ({
+          fecha: new Date(c.scheduled_at).toLocaleDateString('es-CO', { timeZone: 'America/Bogota', weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' }),
+          hora: new Date(c.scheduled_at).toLocaleTimeString('es-CO', { timeZone: 'America/Bogota', hour: '2-digit', minute: '2-digit', hour12: true }),
+          servicio: c.services?.name || 'Sin servicio',
+          empleado: c.employees?.name || 'Sin asignar',
+          precio: c.price || 0,
+          status: c.status,
+          notas: c.notes
+        })),
+        resumen_periodo: { total_citas: citas?.length || 0, completadas: completadas.length, gastado_en_periodo: Math.round(totalGastadoPeriodo) }
+      };
+    }
+
+    case 'agregar_nota_cliente': {
+      let notaFinal = toolInput.nota;
+
+      if (toolInput.agregar) {
+        const { data: clientNota } = await supabaseAdmin.from('clients').select('notes').eq('id', toolInput.client_id).single();
+        if (clientNota?.notes) notaFinal = clientNota.notes + '\n' + toolInput.nota;
+      }
+
+      const { error } = await supabaseAdmin
+        .from('clients')
+        .update({ notes: notaFinal })
+        .eq('id', toolInput.client_id)
+        .eq('business_id', businessId);
+
+      return { success: !error, error: error?.message };
+    }
+
+    case 'ajustar_stock': {
+      const { data: prodStock } = await supabaseAdmin
+        .from('products')
+        .select('name, stock')
+        .eq('id', toolInput.product_id)
+        .eq('business_id', businessId)
+        .single();
+
+      if (!prodStock) return { success: false, error: 'Producto no encontrado' };
+
+      const nuevoStock = Math.max(0, prodStock.stock + toolInput.cantidad);
+
+      const { error } = await supabaseAdmin
+        .from('products')
+        .update({ stock: nuevoStock })
+        .eq('id', toolInput.product_id)
+        .eq('business_id', businessId);
+
+      if (error) return { success: false, error: error.message };
+
+      return {
+        success: true,
+        producto: prodStock.name,
+        stock_anterior: prodStock.stock,
+        ajuste: toolInput.cantidad > 0 ? `+${toolInput.cantidad}` : `${toolInput.cantidad}`,
+        stock_nuevo: nuevoStock,
+        motivo: toolInput.motivo || 'ajuste manual'
+      };
+    }
+
+    case 'ver_disponibilidad': {
+      const [horaStr, minStr] = toolInput.hora.split(':');
+      const hora = parseInt(horaStr);
+      const min = parseInt(minStr);
+      const dayOfWeek = new Date(toolInput.fecha + 'T12:00:00-05:00').getDay();
+
+      const [{ data: horario }, { data: citasSlot }, { data: cerrado }, { data: empleados }] = await Promise.all([
+        supabaseAdmin.from('business_hours').select('open_time, close_time, is_open').eq('business_id', businessId).eq('day_of_week', dayOfWeek).single(),
+        supabaseAdmin.from('appointments').select('id, employee_id, employees(name)').eq('business_id', businessId).gte('scheduled_at', `${toolInput.fecha}T${toolInput.hora}:00-05:00`).lt('scheduled_at', `${toolInput.fecha}T${String(hora + 1).padStart(2,'0')}:${String(min).padStart(2,'0')}:00-05:00`).not('status', 'in', '("cancelled")'),
+        supabaseAdmin.from('business_closed_days').select('reason').eq('business_id', businessId).eq('date', toolInput.fecha).maybeSingle(),
+        supabaseAdmin.from('employees').select('id, name').eq('business_id', businessId).eq('is_active', true)
+      ]);
+
+      if (cerrado) return { disponible: false, razon: `Día cerrado: ${cerrado.reason}` };
+      if (!horario || !horario.is_open) return { disponible: false, razon: 'El negocio está cerrado ese día' };
+
+      const [openH, openM] = horario.open_time.split(':').map(Number);
+      const [closeH, closeM] = horario.close_time.split(':').map(Number);
+      const horaMinutos = hora * 60 + min;
+
+      if (horaMinutos < openH * 60 + openM || horaMinutos >= closeH * 60 + closeM) {
+        return { disponible: false, razon: `Fuera de horario. El negocio atiende de ${horario.open_time} a ${horario.close_time}` };
+      }
+
+      const empleadosOcupados = new Set((citasSlot || []).map(c => c.employee_id).filter(Boolean));
+      const empleadosLibres = (empleados || []).filter(e => !empleadosOcupados.has(e.id));
+
+      return {
+        disponible: empleadosLibres.length > 0,
+        fecha: toolInput.fecha,
+        hora: toolInput.hora,
+        empleados_libres: empleadosLibres.map(e => e.name),
+        empleados_ocupados: (citasSlot || []).map(c => c.employees?.name).filter(Boolean),
+        razon: empleadosLibres.length === 0 ? 'Todos los empleados están ocupados en ese horario' : null
+      };
+    }
+
+    case 'ver_agenda_empleado': {
+      const bogota = { timeZone: 'America/Bogota' };
+      const hoy = new Date().toLocaleDateString('en-CA', bogota);
+      const fecha = toolInput.fecha || hoy;
+
+      const [{ data: empAgenda }, { data: citasEmp }] = await Promise.all([
+        supabaseAdmin.from('employees').select('name').eq('id', toolInput.employee_id).single(),
+        supabaseAdmin.from('appointments').select('id, scheduled_at, status, price, clients(name), services(name, duration_minutes)').eq('business_id', businessId).eq('employee_id', toolInput.employee_id).gte('scheduled_at', `${fecha}T00:00:00-05:00`).lte('scheduled_at', `${fecha}T23:59:59-05:00`).not('status', 'in', '("cancelled")').order('scheduled_at')
+      ]);
+
+      const totalIngresos = (citasEmp || []).filter(c => c.status === 'completed').reduce((s, c) => s + Number(c.price || 0), 0);
+
+      return {
+        empleado: empAgenda?.name,
+        fecha,
+        citas: (citasEmp || []).map(c => ({
+          hora: new Date(c.scheduled_at).toLocaleTimeString('es-CO', { timeZone: 'America/Bogota', hour: '2-digit', minute: '2-digit', hour12: true }),
+          cliente: c.clients?.name || 'Walk-in',
+          servicio: c.services?.name,
+          duracion_min: c.services?.duration_minutes,
+          precio: c.price || 0,
+          status: c.status
+        })),
+        total_citas: citasEmp?.length || 0,
+        ingresos_generados: totalIngresos
+      };
+    }
+
+    case 'eliminar_empleado': {
+      const { count: citasEmpCount } = await supabaseAdmin
+        .from('appointments')
+        .select('id', { count: 'exact', head: true })
+        .eq('employee_id', toolInput.employee_id)
+        .eq('business_id', businessId);
+
+      if (citasEmpCount > 0) {
+        return { success: false, error: `Este empleado tiene ${citasEmpCount} cita(s) en el historial. Para preservar el historial usa "desactivar empleado" en su lugar.` };
+      }
+
+      const { error } = await supabaseAdmin
+        .from('employees')
+        .delete()
+        .eq('id', toolInput.employee_id)
+        .eq('business_id', businessId);
+
+      return { success: !error, error: error?.message };
     }
 
     case 'test_sistema': {

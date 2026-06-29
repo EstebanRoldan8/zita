@@ -1512,33 +1512,39 @@ async function executeTool(toolName, toolInput, businessId) {
       }
 
       const searchNormalized = normalizeForSearch(toolInput.nombre);
-      const searchWords = searchNormalized.split(/\s+/);
+      const searchWords = searchNormalized.split(/\s+/).filter(w => w.length > 0);
 
       const conPuntaje = allClients.map(c => {
         const clientNormalized = normalizeForSearch(c.name);
-        const clientWords = clientNormalized.split(/\s+/);
-        let totalDistance = 0;
-        let matches = 0;
+        const clientWords = clientNormalized.split(/\s+/).filter(w => w.length > 0);
+
+        let totalMatches = 0;
+        let bestDistanceSum = 0;
 
         for (const searchWord of searchWords) {
-          let bestDistance = Infinity;
+          let bestDistForWord = Infinity;
           for (const clientWord of clientWords) {
             const dist = levenshtein(searchWord, clientWord);
-            if (dist <= 2) matches++;
-            bestDistance = Math.min(bestDistance, dist);
+            if (dist < bestDistForWord) bestDistForWord = dist;
           }
-          totalDistance += bestDistance === Infinity ? 10 : bestDistance;
+          const wordMatch = bestDistForWord <= 2 || clientWords.some(w => w.includes(searchWord) || searchWord.includes(w));
+          if (wordMatch) totalMatches++;
+          bestDistanceSum += bestDistForWord === Infinity ? 10 : bestDistForWord;
         }
 
-        return { ...c, puntaje: matches, distancia: totalDistance };
-      }).filter(c => c.puntaje > 0 || c.distancia < 10)
-        .sort((a, b) => b.puntaje - a.puntaje || a.distancia - b.distancia);
+        const containsSearch = clientNormalized.includes(searchNormalized);
+        if (containsSearch) totalMatches = Math.max(totalMatches, searchWords.length);
 
-      if (!conPuntaje?.length) {
+        return { ...c, puntaje: totalMatches, distancia: bestDistanceSum };
+      })
+      .filter(c => c.puntaje > 0)
+      .sort((a, b) => b.puntaje - a.puntaje || a.distancia - b.distancia);
+
+      if (!conPuntaje.length) {
         return { not_found: true, searched_for: toolInput.nombre, can_create: true };
       }
 
-      const topMatches = conPuntaje.slice(0, 3).map(c => ({ id: c.id, name: c.name, phone: c.phone }));
+      const topMatches = conPuntaje.slice(0, 5).map(c => ({ id: c.id, name: c.name, phone: c.phone }));
       return {
         found: true,
         client: conPuntaje[0],

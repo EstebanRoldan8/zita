@@ -4370,8 +4370,15 @@ Cuando diga "mañana" usar: ${mananaISO}
   let response = await callClaudeWithRetry({
     model: 'claude-sonnet-4-6',
     max_tokens: 1500,
-    system: dynamicSystemPrompt,
+    system: [
+      {
+        type: 'text',
+        text: dynamicSystemPrompt,
+        cache_control: { type: 'ephemeral' }
+      }
+    ],
     tools: tools,
+    tool_choice: { type: 'auto' },
     messages: messages
   });
 
@@ -4401,7 +4408,13 @@ Cuando diga "mañana" usar: ${mananaISO}
     response = await client.messages.create({
       model: 'claude-sonnet-4-6',
       max_tokens: 1500,
-      system: dynamicSystemPrompt,
+      system: [
+        {
+          type: 'text',
+          text: dynamicSystemPrompt,
+          cache_control: { type: 'ephemeral' }
+        }
+      ],
       tools: tools,
       messages: apiMessages
     });
@@ -4419,7 +4432,13 @@ Cuando diga "mañana" usar: ${mananaISO}
         response = await callClaudeWithRetry({
           model: 'claude-sonnet-4-6',
           max_tokens: 200,
-          system: dynamicSystemPrompt,
+          system: [
+            {
+              type: 'text',
+              text: dynamicSystemPrompt,
+              cache_control: { type: 'ephemeral' }
+            }
+          ],
           tools: tools,
           messages: apiMessages
         });

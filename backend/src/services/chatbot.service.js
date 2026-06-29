@@ -232,7 +232,13 @@ const BOOKING_RULES_TEXT = `<booking_rules>
 - NUNCA preguntes más de UNA cosa por mensaje
 - Si el nombre es "Cliente WhatsApp" o null → agenda sin nombre, no lo pidas
 - Si el cliente da su nombre espontáneamente → úsalo en agendar_cita como client_name
-- Confirmación de cita SIEMPRE incluye precio: "Listo ✅ [servicio] el [fecha] a las [hora] - $[precio]"
+- Confirmación de cita SIEMPRE incluye: servicio, fecha, hora, precio Y empleado si viene en el resultado
+- Formato de confirmación:
+  "Listo ✅ [servicio] el [fecha] a las [hora]
+  👤 Te atiende: [empleado]
+  💰 $[precio]"
+- Si el resultado de agendar_cita incluye el nombre del empleado, SIEMPRE mostrarlo
+- NUNCA confirmes una cita sin mostrar al menos: servicio + fecha + hora + precio
 - Máximo 2 mensajes para completar un agendamiento
 - Si el horario está ocupado → propón alternativas, nunca digas "error" ni "el sistema"
 

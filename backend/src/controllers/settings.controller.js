@@ -241,7 +241,7 @@ async function getProfile(req, res) {
 
     const { data, error } = await userClient
       .from('businesses')
-      .select('id, name, business_type, owner_email, phone, address, whatsapp_notify, owner_whatsapp, created_at')
+      .select('id, name, business_type, owner_email, owner_name, phone, address, whatsapp_notify, owner_whatsapp, created_at')
       .eq('id', req.businessId)
       .single();
 

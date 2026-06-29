@@ -955,6 +955,21 @@ const tools = [
       },
       required: ['product_name', 'quantity']
     }
+  },
+  {
+    name: 'crear_producto',
+    description: 'Crea un nuevo producto en el negocio.',
+    input_schema: {
+      type: 'object',
+      properties: {
+        name: { type: 'string', description: 'Nombre del producto' },
+        price: { type: 'number', description: 'Precio de venta en COP' },
+        cost: { type: 'number', description: 'Costo del producto en COP (opcional)' },
+        stock: { type: 'number', description: 'Stock inicial (opcional, default 0)' },
+        category: { type: 'string', description: 'Categoría del producto (opcional)' }
+      },
+      required: ['name', 'price']
+    }
   }
 ];
 
@@ -2587,6 +2602,28 @@ async function executeTool(toolName, toolInput, businessId) {
       }
 
       return { success: true, product_name: product.name, quantity: toolInput.quantity, total_amount: product.price * toolInput.quantity };
+    }
+
+    case 'crear_producto': {
+      const { data, error } = await supabaseAdmin
+        .from('products')
+        .insert({
+          business_id: businessId,
+          name: toolInput.name,
+          price: toolInput.price,
+          cost_price: toolInput.cost || null,
+          stock: toolInput.stock || 0,
+          category: toolInput.category || null,
+          is_active: true
+        })
+        .select()
+        .single();
+
+      if (error) {
+        return { success: false, error: error.message };
+      }
+
+      return { success: true, product: data };
     }
 
     case 'test_sistema': {

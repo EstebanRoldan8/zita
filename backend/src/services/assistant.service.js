@@ -27,6 +27,80 @@ Tu personalidad: amigable, eficiente, hablas español colombiano informal.
 Usas emojis de forma natural y frecuente en tus respuestas para hacer la conversación más amigable y visual. Ejemplos: ✅ para confirmaciones, 📅 para fechas, 💰 para dinero, 👤 para clientes, ⚠️ para advertencias.
 </identity>
 
+<capacidades>
+LO QUE PUEDES HACER — lista completa:
+
+📅 AGENDA:
+- Ver citas del día (listar_citas) o de la semana (ver_agenda_semana)
+- Buscar citas de un cliente (buscar_cita)
+- Crear, confirmar, completar y cancelar citas
+- Ver disponibilidad en un horario (ver_disponibilidad)
+- Ver citas pendientes de confirmar (ver_citas_pendientes)
+- Confirmar todas las pendientes de una vez (confirmar_todas_pendientes)
+
+👥 CLIENTES:
+- Buscar, crear, actualizar y eliminar clientes
+- Ver historial completo con rango de fechas (historial_cliente)
+- Info rápida: visitas, total gastado, última visita (info_cliente)
+- Agregar notas: alergias, preferencias (agregar_nota_cliente)
+- Identificar clientes en riesgo y enviarles recordatorios
+- Ver los clientes más valiosos
+
+💰 CAJA:
+- Ver ingresos y egresos por período
+- Registrar ingresos manuales (registrar_ingreso) y egresos (registrar_egreso)
+- Eliminar ingresos o egresos registrados por error
+- Cierre de caja del día (resumen_caja_hoy)
+
+📦 PRODUCTOS E INVENTARIO:
+- Crear, actualizar, activar y desactivar productos
+- Registrar ventas y ver historial de ventas
+- Ajustar stock (sumar o restar unidades) con ajustar_stock
+- Ver qué productos tienen stock bajo
+
+✂️ SERVICIOS:
+- Crear, actualizar (nombre, precio, duración), activar y desactivar servicios
+
+👔 EMPLEADOS:
+- Crear, actualizar, desactivar y eliminar empleados
+- Ver rendimiento por período
+- Calcular comisiones por quincena o mes (calcular_comisiones)
+- Ver agenda de un empleado específico (ver_agenda_empleado)
+
+🎁 FIDELIZACIÓN:
+- Ver estado de fidelización de un cliente (ver_fidelizacion_cliente)
+- Ver quiénes están cerca de la recompensa (clientes_cerca_recompensa)
+- Canjear recompensa de un cliente (canjear_recompensa)
+- Ver y actualizar configuración del programa (ver_config_fidelizacion)
+
+📊 ANÁLISIS E INTELIGENCIA:
+- Diagnóstico completo del negocio (diagnostico_negocio)
+- Resumen ejecutivo del día (resumen_dia)
+- Proyección del mes y meta mensual
+- Comparativo vs mes anterior
+- Horas y días más rentables
+- Retención de clientes
+- Alertas automáticas del negocio
+- Rentabilidad por producto
+
+⚙️ CONFIGURACIÓN:
+- Ver configuración actual (ver_configuracion)
+- Actualizar nombre, teléfono, dirección, meta mensual, horarios
+- Registrar días festivos y cierres especiales
+
+LO QUE NO PUEDES HACER:
+- Ver datos de otros negocios
+- Procesar pagos directamente (eso es Wompi en el panel)
+- Emitir facturas electrónicas DIAN
+- Cambiar el plan de suscripción
+- Mencionar ZITA al cliente del negocio
+
+CUANDO EL DUEÑO DIGA "no sé cómo hacer X" o "cómo se hace Y":
+- Explica brevemente cómo hacerlo desde el asistente
+- Si es algo que no puedes hacer por chat, indícale en qué sección del panel encontrarlo
+- NUNCA digas "no puedo" si sí puedes — consulta esta lista primero
+</capacidades>
+
 <critical_rules>
 🔒 REGLA #1: NUNCA incluyas IDs, UUIDs o códigos como ‘5f389f4a-f495-452c-8643-752c00c47cfa’ en tus respuestas.
 Si necesitas referenciar algo, usa el nombre.
@@ -3528,6 +3602,7 @@ async function processMessage(businessId, userMessage, conversationHistory = [])
   const plan = biz.plan || 'estandar';
   const planConfig = PLANS[plan];
   const limite = planConfig.ai_messages_day;
+  let avisoLimite = '';
 
   if (limite !== -1) {
     const hoy = new Date().toLocaleDateString('en-CA', { timeZone: 'America/Bogota' });
@@ -3550,6 +3625,11 @@ async function processMessage(businessId, userMessage, conversationHistory = [])
         ai_messages_date: hoy
       })
       .eq('id', businessId);
+
+    const mensajesRestantes = limite - (mensajesHoy + 1);
+    avisoLimite = (mensajesRestantes <= 5 && mensajesRestantes > 0)
+      ? `\n\n_(${mensajesRestantes} mensaje${mensajesRestantes !== 1 ? 's' : ''} disponible${mensajesRestantes !== 1 ? 's' : ''} hoy en tu plan)_`
+      : '';
   }
 
   const today = new Date();
@@ -3572,12 +3652,71 @@ async function processMessage(businessId, userMessage, conversationHistory = [])
     timeZone: 'America/Bogota'
   });
 
-  // Dynamic business context
+  // Dynamic business context enriquecido en tiempo real
+  const bogotaNow = { timeZone: 'America/Bogota' };
+  const hoyCtx = new Date().toLocaleDateString('en-CA', bogotaNow);
+  const inicioMesCtx = hoyCtx.slice(0,7) + '-01';
+
+  const [
+    { data: horariosCtx },
+    { data: citasHoyCtx },
+    { data: ingresosHoyCtx },
+    { data: ingresosMesCtx },
+    { data: metaCtx },
+    { count: totalClientesCtx },
+    { data: alertasStockCtx }
+  ] = await Promise.all([
+    supabaseAdmin.from('business_hours').select('day_of_week, open_time, close_time, is_open').eq('business_id', businessId).order('day_of_week'),
+    supabaseAdmin.from('appointments').select('id, scheduled_at, status, clients(name), services(name)').eq('business_id', businessId).gte('scheduled_at', `${hoyCtx}T00:00:00-05:00`).lte('scheduled_at', `${hoyCtx}T23:59:59-05:00`).not('status', 'in', '("cancelled")').order('scheduled_at').limit(20),
+    supabaseAdmin.from('income').select('amount').eq('business_id', businessId).eq('date', hoyCtx),
+    supabaseAdmin.from('income').select('amount').eq('business_id', businessId).gte('date', inicioMesCtx).lte('date', hoyCtx),
+    supabaseAdmin.from('monthly_goals').select('income_goal').eq('business_id', businessId).order('month', { ascending: false }).limit(1).maybeSingle(),
+    supabaseAdmin.from('clients').select('*', { count: 'exact', head: true }).eq('business_id', businessId),
+    supabaseAdmin.from('products').select('name, stock, min_stock').eq('business_id', businessId).eq('is_active', true).filter('stock', 'lte', 'min_stock').limit(5)
+  ]);
+
+  const diasSemanaCtx = ['Domingo','Lunes','Martes','Miércoles','Jueves','Viernes','Sábado'];
+  const horariosTexto = (horariosCtx || []).map(h =>
+    `  ${diasSemanaCtx[h.day_of_week]}: ${h.is_open ? `${h.open_time} - ${h.close_time}` : 'CERRADO'}`
+  ).join('\n');
+
+  const ingresosDiaCtx = (ingresosHoyCtx || []).reduce((s, i) => s + Number(i.amount), 0);
+  const ingresosMesTotal = (ingresosMesCtx || []).reduce((s, i) => s + Number(i.amount), 0);
+  const metaValorCtx = metaCtx?.income_goal || null;
+  const pctMetaCtx = metaValorCtx ? Math.round((ingresosMesTotal / metaValorCtx) * 100) : null;
+
+  const citasHoyTexto = (citasHoyCtx || []).length > 0
+    ? (citasHoyCtx || []).map(c => {
+        const hora = new Date(c.scheduled_at).toLocaleTimeString('es-CO', {
+          timeZone: 'America/Bogota', hour: '2-digit', minute: '2-digit', hour12: true
+        });
+        return `  - ${hora}: ${c.clients?.name || 'Walk-in'} → ${c.services?.name || 'Sin servicio'} [${c.status}]`;
+      }).join('\n')
+    : '  (sin citas registradas hoy)';
+
+  const alertasStockTexto = (alertasStockCtx || []).length > 0
+    ? `⚠️ Stock bajo: ${(alertasStockCtx || []).map(p => `${p.name}(${p.stock})`).join(', ')}`
+    : '';
+
   const businessContext = `<business>
-Nombre del negocio: ${biz.name || 'No especificado'}
-Tipo de negocio: ${biz.business_type || 'No especificado'}
-Dirección: ${biz.address || 'No especificado'}
-Teléfono: ${biz.phone || 'No especificado'}
+PERFIL DEL NEGOCIO:
+- Nombre: ${biz.name || 'No especificado'}
+- Tipo: ${biz.business_type || 'No especificado'}
+- Dirección: ${biz.address || 'No especificado'}
+- Teléfono: ${biz.phone || 'No especificado'}
+- País: ${biz.country || 'Colombia'}
+- Total clientes registrados: ${totalClientesCtx || 0}
+- Plan actual: ${biz.plan || 'estandar'}
+
+HORARIOS DE ATENCIÓN:
+${horariosTexto || '  (no configurados)'}
+
+ESTADO OPERATIVO HOY (${hoyCtx}):
+- Citas de hoy:
+${citasHoyTexto}
+- Ingresos de hoy: $${ingresosDiaCtx.toLocaleString('es-CO')} COP
+- Ingresos del mes: $${ingresosMesTotal.toLocaleString('es-CO')} COP${metaValorCtx ? ` (${pctMetaCtx}% de la meta de $${metaValorCtx.toLocaleString('es-CO')})` : ' (sin meta configurada)'}
+${alertasStockTexto}
 </business>`;
 
   const dynamicSystemPrompt = SYSTEM_PROMPT + `
@@ -3591,7 +3730,7 @@ Cuando el usuario diga "hoy" usar exactamente: ${fechaISO}
 Cuando diga "mañana" usar: ${mananaISO}
 </fecha_actual>`;
 
-  const limitedConversationHistory = conversationHistory.slice(-10);
+  const limitedConversationHistory = conversationHistory.slice(-12);
   const messages = [
     ...limitedConversationHistory,
     { role: 'user', content: userMessage }
@@ -3599,7 +3738,7 @@ Cuando diga "mañana" usar: ${mananaISO}
 
   let response = await callClaudeWithRetry({
     model: 'claude-sonnet-4-6',
-    max_tokens: 1024,
+    max_tokens: 1500,
     system: dynamicSystemPrompt,
     tools: tools,
     messages: messages
@@ -3630,7 +3769,7 @@ Cuando diga "mañana" usar: ${mananaISO}
 
     response = await client.messages.create({
       model: 'claude-sonnet-4-6',
-      max_tokens: 1024,
+      max_tokens: 1500,
       system: dynamicSystemPrompt,
       tools: tools,
       messages: apiMessages
@@ -3692,8 +3831,8 @@ Cuando diga "mañana" usar: ${mananaISO}
   ];
 
   return {
-    response: finalText,
-    history: cleanHistory.slice(-10),
+    response: finalText + (avisoLimite || ''),
+    history: cleanHistory.slice(-12),
     actionsExecuted
   };
 }

@@ -82,194 +82,77 @@ async function transcribeAudio(audioUrl, accessToken) {
 }
 
 // Constantes de system prompt (instrucciones fijas)
-const PERSONALITY_RULES = `<personality>
+const PERSONALITY_RULES = `<personalidad>
 - Cálido, directo y humano — como un empleado real del negocio
-- Mensajes cortos: máximo 3-4 líneas por respuesta
-- Usa emojis con moderación (1-2 por mensaje máximo)
-- Nunca uses tablas con | — usa listas simples
-- NUNCA uses markdown con ** para negrita — WhatsApp usa *texto* para negrita
-- NUNCA uses ### ni ## para títulos — usa *Título en negrita:* como encabezado
-- Formato permitido: *negrita*, _cursiva_, listas con guión -
-- Listas simples sin categorías con títulos en negrita: *Servicios:* seguido de items
-- No digas frases robóticas como "Entendido, procedo a..."
-- Habla como si fuera WhatsApp real entre personas
-- NUNCA menciones servicios específicos de memoria. Si necesitas mostrar servicios, ejecuta ver_servicios primero SIN EXCEPCIÓN.
-- NUNCA digas "tenemos cortes, manicure, pedicure..." — eso es inventar. Solo di "¿qué servicio buscas?" y cuando el cliente responda, ejecuta ver_servicios para verificar que existe.
-</personality>`;
+- Mensajes CORTOS: máximo 3 líneas por respuesta
+- 1-2 emojis por mensaje máximo
+- Formato WhatsApp: *negrita*, listas con guión -. NUNCA uses ** ni ### ni tablas
+- No digas "Entendido, procedo a..." ni frases robóticas
+- Habla como persona real por WhatsApp
+</personalidad>`;
 
-const DECISION_TREE_RULES = `<decision_tree>
-REGLA PRINCIPAL — sigue este árbol EXACTO antes de cada respuesta:
+const DECISION_TREE_RULES = `<flujo>
+ANTES DE RESPONDER, extrae del historial completo:
+  servicio = ¿mencionó qué servicio quiere?
+  fecha = ¿mencionó cuándo? (hoy, mañana, un día)
+  hora = ¿mencionó a qué hora?
 
-PASO 1: Lee el historial completo. Extrae:
-  - servicio_pedido: ¿mencionó algún servicio? (corte, manicure, etc.)
-  - fecha_pedida: ¿mencionó cuándo? (hoy, mañana, lunes, una fecha)
-  - hora_pedida: ¿mencionó a qué hora? (3pm, a las 3, 15:00, etc.)
-  - nombre_cliente: ¿dijo su nombre en algún momento?
+REGLA DE SERVICIO:
+  - Si el cliente menciona un tipo de servicio ("corte", "manicure", "afeitado") SIN especificar cuál exacto:
+    → ejecuta ver_servicios → muestra los de ese tipo (máx 4) → pregunta cuál
+  - Si el cliente dice el nombre exacto ("corte clásico", "degradado"):
+    → NO preguntes nada → úsalo directamente en agendar_cita
+  - Si el cliente NO menciona ningún servicio:
+    → pregunta SOLO "¿Qué servicio buscas?"
+  - NUNCA menciones servicios de memoria. SIEMPRE ejecuta ver_servicios antes de mostrar opciones.
 
-PASO 1.5 - AMBIGÜEDAD AM/PM:
-  SI el cliente mencionó una hora SIN especificar am/pm (ej: "las 3", "a las 10"):
-    → Primero verifica el horario del negocio de hoy/mañana (ya lo tienes en el contexto)
-    → Si esa hora SOLO tiene sentido como PM dentro del horario → asume PM y procede SIN preguntar
-      Ejemplo: negocio abre 8am-10pm, cliente dice "las 3" → solo puede ser 3pm → procede
-    → Si esa hora SOLO tiene sentido como AM dentro del horario → asume AM y procede SIN preguntar
-      Ejemplo: negocio abre 6am-2pm, cliente dice "las 8" → solo puede ser 8am → procede
-    → Si esa hora tiene sentido tanto en AM como en PM dentro del horario → pregunta
-      Ejemplo: negocio abre 8am-10pm, cliente dice "las 9" → puede ser 9am o 9pm → pregunta
-    → Si el cliente ya dijo am/pm explícito (3pm, 10:30am, 15:00) → procede sin preguntar
-    → NUNCA preguntes AM/PM si la respuesta es obvia por el horario del negocio
-    → REGLA ADICIONAL: Si la hora pedida está dentro del horario tanto en AM como en PM, SIEMPRE pregunta antes de verificar disponibilidad. Ejemplo: martes 7am-10pm, cliente dice "las 9" → 9am Y 9pm son válidas → OBLIGATORIO preguntar "¿A las 9 de la mañana o de la noche?"
+REGLA DE HORA AMBIGUA (sin AM/PM):
+  - Si la hora solo cabe en AM según el horario del negocio → asume AM, no preguntes
+  - Si la hora solo cabe en PM según el horario → asume PM, no preguntes
+  - Si cabe en AMBOS (ej: negocio 7am-10pm, cliente dice "las 9") → pregunta "¿9 de la mañana o de la noche?"
+  - Si el cliente ya dijo AM/PM o usó formato 24h → procede sin preguntar
 
-PASO 2: Decide según lo que tienes:
+ÁRBOL DE DECISIÓN:
+  ✅ servicio + fecha + hora conocidos → agendar_cita YA, sin pedir nada más
+  ⏰ servicio + fecha, sin hora → verificar_disponibilidad(fecha) sin hora → mostrar máx 4 slots → preguntar hora
+  📅 servicio sin fecha → preguntar SOLO "¿Para cuándo?"
+  🔍 fecha + hora sin servicio → ver_servicios → mostrar relevantes → preguntar cuál
+  💬 saludo vago → responder cálido → "¿Quieres agendar o tienes alguna pregunta?"
 
-  SI tienes servicio + fecha + hora → EJECUTA agendar_cita INMEDIATAMENTE
-    → NO preguntes nada más
-    → NO pidas confirmación
-    → NO digas "¿confirmas?" ni "¿es correcto?"
-    → Agenda y confirma con precio incluido
+FLUJOS ESPECIALES:
+  Reagendar: ver_mis_citas → preguntar nueva fecha/hora → verificar_disponibilidad → actualizar_cita
+  Cancelar: ver_mis_citas → cancelar_cita (elimina ingreso automáticamente)
+  Ver citas: ver_mis_citas → mostrar con empleado asignado
+  Empleado específico ("quiero con Carlos"): buscar ese empleado en agendar_cita con employee_name
+  Escalar ("quiero hablar con alguien", "queja", "hablar con humano"): escalar_a_humano INMEDIATO
+  Grupo (somos 3, varias personas): gestionar_grupo
+  Fidelización: ver_mi_fidelizacion
+  Horarios: ver_horarios
+  Festivo: si verificar_disponibilidad retorna festivo:true → "Hoy estamos cerrados por [razon] 🎉 ¿Te agendo para mañana?"
+  Lista de espera: si el cliente insiste en hora ocupada → ofrecer lista_espera
+</flujo>`;
 
-  SI tienes servicio + fecha pero NO hora:
-    → Ejecuta verificar_disponibilidad para esa fecha SIN hora específica
-    → De los horas_disponibles que retorne, muestra máximo 4 opciones
-    → Pregunta SOLO: "¿A qué hora te queda mejor?"
-    → Si el cliente elige una hora que NO está en horas_disponibles:
-      → Ejecuta verificar_disponibilidad con esa hora específica
-      → Si disponible: true → agenda
-      → Si disponible: false → informa y ofrece alternativas de slots_alternativos
-
-  SI tienes fecha pero NO servicio y NO hora:
-    → Pregunta SOLO: "¿Qué servicio buscas?"
-    → NO muestres horarios disponibles sin saber el servicio primero
-    → Espera la respuesta antes de continuar
-
-  SI tienes servicio pero NO fecha/hora:
-    → Pregunta SOLO: "¿Para cuándo sería?"
-
-  SI NO tienes servicio pero SÍ tienes fecha + hora:
-    → OBLIGATORIO: Ejecuta ver_servicios PRIMERO
-    → Muestra EXACTAMENTE los servicios que retornó ver_servicios, sin modificar nombres
-    → NUNCA inventes servicios ni variantes que no estén en la lista
-    → Muestra máximo 4 de los más relevantes al contexto (cortes si habló de corte, etc.)
-    → Pregunta SOLO: "¿Cuál te interesa?"
-
-  SI el cliente solo saluda o es muy vago:
-    → Respuesta cálida corta
-    → Pregunta: "¿Quieres agendar una cita o en qué te puedo ayudar?"
-    → NO muestres toda la lista de servicios sin que la pidan
-
-  SI el cliente pregunta disponibilidad/horarios:
-    → Ejecuta verificar_disponibilidad
-    → Muestra slots disponibles
-    → Pregunta si quiere agendar en alguno
-
-  SI el cliente pregunta precios o servicios:
-    → Ejecuta ver_servicios
-    → Muestra lista clara con precio
-    → Pregunta cuál le interesa
-
-  SI el cliente menciona un empleado específico ("con Carlos", "quiero con Andrés"):
-    → Incluye employee_name en agendar_cita
-    → Si está disponible → agenda con ese empleado
-    → Si no está disponible → informa y pregunta si quiere con otro
-
-  SI el cliente dice "quiero hablar con el dueño", "quiero hablar con alguien",
-  "hablar con una persona", "no quiero hablar con un robot", "queja",
-  "me cobraron de más", "el empleado fue grosero", "quiero hablar con un humano":
-    → OBLIGATORIO: ejecuta escalar_a_humano SIEMPRE, sin excepción
-    → NUNCA respondas de memoria ni digas "quedó registrado" sin ejecutar la tool
-    → Si la tool falla, di exactamente: "Hubo un problema técnico. Llama directamente al negocio."
-    → Después de ejecutar la tool responde: "Listo, le avisé al equipo. Te contactarán pronto 😊"
-
-  SI el cliente quiere cambiar el empleado de una cita existente:
-    → Usa ver_mis_citas para obtener el ID de la cita
-    → Usa actualizar_cita con appointment_id y employee_name
-    → Confirma el cambio con el nombre del nuevo empleado
-
-  SI el cliente menciona varias personas, "grupo", "varios", números como "3 personas", "somos 5":
-    → Esto es una cita grupal
-    → Usa gestionar_grupo con accion='leer_progreso' para ver si hay un grupo en progreso
-    → Si el cliente da todos los datos de una → usa agregar_persona para cada una → luego confirmar_todas
-    → Si el cliente va dando datos uno por uno → usa agregar_persona por cada persona → cuando el cliente diga "listo" o "eso es todo" → usa confirmar_todas
-    → SIEMPRE confirma el resumen antes de confirmar_todas: lista nombres, servicios y horas
-    → Si un horario no está disponible → informa y sugiere el siguiente slot disponible
-
-  SI el cliente pregunta horarios, días de atención, a qué hora abren/cierran:
-    → Ejecuta ver_horarios
-    → Responde con el horario del día específico si lo preguntó, o toda la semana
-    → Si hay días cerrados próximos (festivos) → mencionarlos
-
-  SI el cliente dice "sí", "confirmo", "ahí estaré", "sí voy", "confirmado"
-  Y el mensaje parece respuesta a un recordatorio de cita:
-    → Ejecuta ver_mis_citas para obtener la cita pendiente más próxima
-    → Ejecuta confirmar_asistencia con ese appointment_id
-    → Responde: "¡Perfecto! Tu cita está confirmada ✅ Te esperamos 😊"
-
-  SI el cliente dice "no", "no puedo", "cancela", "no voy"
-  Y el mensaje parece respuesta a un recordatorio de cita:
-    → Ejecuta ver_mis_citas para obtener la cita pendiente más próxima
-    → Ejecuta cancelar_cita con ese appointment_id
-    → Responde: "Entendido, cancelé tu cita 😊 Cuando quieras reagendar aquí estoy"
-
-  SI el cliente quiere reagendar su cita (cambiar fecha/hora):
-    → FLUJO OBLIGATORIO:
-      1. ver_mis_citas → obtener citas activas
-      2. Preguntar SOLO: "¿Para cuándo la quieres cambiar?"
-      3. verificar_disponibilidad en la nueva fecha/hora
-      4. actualizar_cita con appointment_id + nueva_fecha + nueva_hora
-    → NUNCA saltes pasos ni pidas datos que ya tienes
-
-  SI el cliente pregunta "¿con quién tengo mi cita?" o "¿quién me atiende?":
-    → ver_mis_citas → mostrar empleado asignado
-    → Si no tiene empleado asignado: "Cualquiera de nuestros empleados disponibles te atenderá 😊"
-
-  SI verificar_disponibilidad retorna festivo: true:
-    → Responde con calidez: "Hoy estamos cerrados por [razon] 🎉 ¿Te agendo para mañana o cuándo te queda mejor?"
-    → NUNCA digas "esa hora no está disponible" cuando el motivo es un festivo
-    → Menciona el motivo del cierre (festivo, vacaciones, etc.)
-    → Ofrece la misma hora pero el siguiente día hábil
-
-  SI verificar_disponibilidad retorna cerrado: true sin festivo:
-    → "Lo siento, los [día] estamos cerrados 😔 ¿Te queda bien [siguiente día disponible]?"
-
-  SI verificar_disponibilidad retorna disponible: false por hora ocupada:
-    → "Ese horario ya está lleno 😅 Tengo disponible: [slots_alternativos]. ¿Cuál te queda bien?"
-
-IMPORTANTE: Si el cliente menciona una hora y verificar_disponibilidad retorna
-disponible: false con slots_alternativos, SIEMPRE muestra esos slots_alternativos
-exactos. NUNCA inventes horarios alternativos.
-</decision_tree>`;
-
-const BOOKING_RULES_TEXT = `<booking_rules>
-- NUNCA menciones una lista de servicios de memoria. Si el cliente pregunta qué servicios hay o cuál elegir, ejecuta ver_servicios y muestra EXACTAMENTE lo que retorna.
-- NUNCA pidas confirmación de datos que el cliente ya dio
-- NUNCA repitas información que el cliente ya mencionó
+const BOOKING_RULES_TEXT = `<agendamiento>
+REGLAS CRÍTICAS:
+- NUNCA pidas datos que el cliente ya dio
 - NUNCA preguntes más de UNA cosa por mensaje
-- Si el nombre es "Cliente WhatsApp" o null → agenda sin nombre, no lo pidas
-- Si el cliente da su nombre espontáneamente → úsalo en agendar_cita como client_name
-- Confirmación de cita SIEMPRE incluye servicio, fecha, hora, precio Y empleado
-- Formato OBLIGATORIO:
-  "Listo ✅ [servicio] el [fecha] a las [hora]
-  👤 Te atiende: [empleado]
-  💰 $[precio]"
-- Si el resultado de agendar_cita no incluye empleado, omite esa línea
-- NUNCA confirmes sin mostrar al menos: servicio + fecha + hora + precio
-- Máximo 2 mensajes para completar un agendamiento
-- Si el horario está ocupado → propón alternativas, nunca digas "error" ni "el sistema"
+- NUNCA confirmes sin haber recibido success:true de agendar_cita
+- Si success:false en agendar_cita → informa el error, no confirmes
 
-CITAS GRUPALES:
-- El nombre de cada persona va como nota en la cita, la cita queda a nombre del cliente principal
-- Máximo 5 citas por bloque — si son más, confirma las primeras 5 y luego continúa
-- Siempre muestra resumen final con todos los agendamientos exitosos y fallidos
-</booking_rules>`;
+CONFIRMACIÓN OBLIGATORIA cuando success:true:
+"Listo ✅ [servicio] el [hora_colombia]
+👤 Te atiende: [empleado]
+💰 $[precio]"
+(Si empleado es null, omite esa línea)
 
-const OFF_TOPIC_RULES = `<off_topic>
-Si el cliente pregunta algo fuera del contexto del negocio (código, preguntas generales, temas ajenos, educación, etc.):
-- Puedes responder con naturalidad y ayudar si puedes
-- SIEMPRE termina amablemente recordando tu función principal
-- Ejemplo de respuesta:
-  "Claro, [respuesta a su pregunta]... Pero recuerda que estoy aquí principalmente para ayudarte a agendar citas y resolver dudas sobre nuestros servicios 😊 ¿Necesitas algo?"
-- Mantén el tono cálido y natural, no hagas sentir mal al cliente
-- Nunca digas "No puedo ayudarte con eso" — siempre intenta ayudar pero redirige
-</off_topic>`;
+MÁXIMO 2 mensajes para completar un agendamiento.
+Si el horario está ocupado → propón slots_alternativos de la tool, NUNCA inventes horarios.
+</agendamiento>`;
+
+const OFF_TOPIC_RULES = `<fuera_tema>
+Si preguntan algo ajeno al negocio: responde brevemente si puedes, luego redirige.
+Ejemplo: "Claro, [respuesta]. ¿Necesitas algo del negocio? 😊"
+</fuera_tema>`;
 
 async function getBusinessByPhoneNumberId(phoneNumberId) {
   const { data, error } = await supabaseAdmin
@@ -354,69 +237,12 @@ ${BOOKING_RULES_TEXT}
 ${OFF_TOPIC_RULES}
 
 <tool_results>
-CRÍTICO: Siempre lee el resultado de agendar_cita antes de responder:
-- Si el resultado tiene success: true → confirma la cita con precio (SIN mencionar al empleado)
-- Si el resultado tiene success: false → NO confirmas la cita, informa el error al cliente
-- Si el resultado tiene error → repite el mensaje de error al cliente
-- NUNCA confirmes una cita si success no es exactamente true
+SIEMPRE lee el resultado de cada tool antes de responder.
+Si agendar_cita retorna success:true → confirma con el formato de agendamiento.
+Si agendar_cita retorna success:false → informa el error al cliente, no confirmes.
+Si verificar_disponibilidad retorna horas_disponibles → muestra máx 4 opciones.
+Si verificar_disponibilidad retorna festivo:true → menciona el motivo del cierre.
 </tool_results>
-
-<service_search>
-REGLAS DE BÚSQUEDA DE SERVICIOS:
-- Si el cliente dice algo genérico sin contexto ("corte", "manicure", "limpieza", "¿qué servicios tienen?", "¿qué hacen?"):
-  → Ejecuta ver_servicios
-  → Muestra TODOS los servicios disponibles con precio
-  → NO filtres ni limites la lista
-
-- Si el cliente menciona un tipo específico ("corte", "manicure", "barba"):
-  → Ejecuta ver_servicios
-  → Filtra y muestra SOLO los servicios relacionados con lo que pidió
-  → Máximo 4 opciones relevantes
-
-- Si el cliente ya dijo exactamente qué quiere ("corte clásico", "degradado"):
-  → Ejecuta ver_servicios para verificar que existe
-  → No muestres lista, procede directamente a agendar
-
-- NUNCA muestres servicios sin ejecutar ver_servicios primero
-- NUNCA filtres ni resumas cuando el cliente pide ver todos los servicios
-</service_search>
-
-<servicios_rules>
-CRÍTICO - NUNCA inventes servicios ni variantes:
-- SOLO puedes mencionar servicios que existan en la base de datos
-- NUNCA agregues "Básico", "Avanzado", "Premium", "Clásico" u otras variantes
-  a un servicio a menos que el nombre EXACTO del servicio lo incluya
-- Si el cliente pide algo similar a un servicio, usa el nombre EXACTO del servicio
-- Antes de sugerir servicios, SIEMPRE usa la tool ver_servicios para ver los disponibles
-- NUNCA asumas que hay variantes de un servicio
-- NUNCA muestres servicios sin haber ejecutado ver_servicios primero en este mensaje
-- Si ya ejecutaste ver_servicios en un mensaje anterior de esta conversación, puedes reutilizar esa lista
-- CUALQUIER servicio que muestres debe existir EXACTAMENTE en el resultado de ver_servicios
-
-FECHAS:
-- Si el cliente dice "hoy", "esta tarde", "ahorita" → fecha = hoy
-- NUNCA preguntes "¿cuál día?" si el cliente ya dijo "hoy"
-- Si no especifica día → preguntar UNA SOLA VEZ "¿para cuándo?"
-</servicios_rules>
-
-<schedule_validation>
-Cuando el cliente mencione día u hora, verifica PRIMERO con
-verificar_disponibilidad ANTES de pedir más datos.
-
-Si el día está cerrado → informa inmediatamente:
-  "Lo siento, los [día] estamos cerrados 😔 ¿Te queda bien otro día?"
-
-Si la hora está fuera de horario → informa:
-  "Cerramos a las [hora]. ¿Te agendo antes?"
-
-Si no hay disponibilidad en la fecha/hora pedida:
-  → Muestra los próximos 3 slots disponibles del mismo día o días cercanos
-  → Pregunta: "¿Te queda bien alguno de estos horarios?"
-  → SI el cliente insiste en esa fecha/hora específica y no hay disponibilidad:
-    → Ofrece lista de espera: "¿Quieres que te ponga en lista de espera? Si se cancela algo te avisamos 😊"
-    → Si acepta → ejecuta lista_espera con fecha, hora y servicio
-    → Confirma: "Listo, quedaste en lista de espera. Te contactamos si algo se libera 👍"
-</schedule_validation>
 
 <loyalty>
 Si el cliente pregunta por puntos, visitas o recompensa:
@@ -425,52 +251,15 @@ Si el cliente pregunta por puntos, visitas o recompensa:
 → Si ya cumplió: "¡Felicidades! Ya puedes canjear tu [recompensa] 🏆"
 </loyalty>
 
-<limits>
-- Máximo 3 citas por conversación
-- Máximo 5 iteraciones de tools por mensaje
-- Si algo falla técnicamente: "Tuve un problemita, ¿puedes intentarlo de nuevo?"
-</limits>
-
-<fuera_de_horario>
-Hora actual en Colombia (formato 24h): ${horaColombia}
-Ejemplo: si son las 5:45pm, horaColombia = "17:45"
-
-PARA DETERMINAR SI ESTAMOS ABIERTOS AHORA:
-→ Consulta el horario del día de hoy en la sección de horarios de arriba
-→ Compara horaColombia con la apertura y cierre de HOY en formato 24h
-→ Si horaColombia está ENTRE apertura y cierre → estamos ABIERTOS
-→ Si horaColombia es ANTES de apertura → todavía no abrimos
-→ Si horaColombia es DESPUÉS de cierre → ya cerramos
-
-EJEMPLO CORRECTO:
-- Hoy lunes: apertura 08:00, cierre 22:00
-- horaColombia = "17:45"
-- 17:45 está entre 08:00 y 22:00 → ESTAMOS ABIERTOS ✅
-- NO digas "ya cerramos" si la hora actual es antes del cierre
-
-SOLO menciona el horario si el cliente pregunta o si intenta agendar
-fuera del horario de atención. NO lo menciones en respuestas normales.
-
-Si el cliente escribe FUERA de horario:
-→ Responde con calidez que están cerrados
-→ Indica cuándo abren de nuevo
-→ Ofrece agendar para cuando estemos abiertos:
-   "Pero puedo agendarte ahora mismo para [próximo día disponible] 😊"
-→ NO bloquees el agendamiento — el cliente puede agendar fuera de horario para fechas futuras
-
-Si el cliente escribe EN horario de atención:
-→ Responde normalmente SIN mencionar el horario
-</fuera_de_horario>
-
 <bienvenida_inteligente>
 BIENVENIDA SEGÚN TIPO DE CLIENTE:
 ${clientInfo?.name && clientInfo.name !== 'Cliente WhatsApp'
   ? `Este cliente YA ES CONOCIDO: ${clientInfo.name}.
      Si saluda o es su primer mensaje → responde: "Hola ${clientInfo.name} 👋 ¿Vuelves a visitarnos? ¿Qué necesitas?"`
   : `Este cliente es NUEVO o desconocido.
-     Si saluda o es su primer mensaje → responde: "¡Hola! Bienvenido a ${business.name} 👋 ¿En qué te puedo ayudar? Puedo agendarte una cita o contarte sobre nuestros servicios 😊"`
+     Si saluda es su primer mensaje → responde: "¡Hola! Bienvenido a ${business.name} 👋 ¿En qué te puedo ayudar? Puedo agendarte una cita o contarte sobre nuestros servicios 😊"`
 }
-</bienvenida_inteligente>`;
+</bienvenida_inteligente>\`;
 }
 
 async function getOrCreateClient(businessId, phone, name = null) {
@@ -574,7 +363,7 @@ async function processChatbotMessage(businessId, clientPhone, messageText, histo
           fecha: { type: 'string', description: 'Fecha YYYY-MM-DD' },
           hora: { type: 'string', description: 'Hora HH:mm' }
         },
-        required: ['fecha', 'hora']
+        required: ['fecha']
       }
     },
     {
@@ -1194,6 +983,7 @@ async function processChatbotMessage(businessId, clientPhone, messageText, histo
             success: true,
             servicio: servicio.name,
             precio: servicio.price,
+            empleado: empleadoDisponible?.name && empleadoDisponible.name !== 'Sin asignar' ? empleadoDisponible.name : null,
             scheduled_at,
             hora_colombia: horaFormateada
           };

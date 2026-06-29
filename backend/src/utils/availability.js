@@ -1,9 +1,6 @@
 const { supabaseAdmin } = require('../config/supabase');
 
 async function getAvailableEmployee(businessId, fecha, hora) {
-  const scheduled_at_inicio = `${fecha}T${hora}:00-05:00`;
-  const scheduled_at_fin = `${fecha}T${hora}:59-05:00`;
-
   const { data: empleados } = await supabaseAdmin
     .from('employees')
     .select('id, name, last_appointment_at')
@@ -12,7 +9,8 @@ async function getAvailableEmployee(businessId, fecha, hora) {
 
   if (!empleados?.length) return null;
 
-  const { data: citasEnHorario } = await supabaseAdmin
+  // Obtener citas del día para verificar disponibilidad en ese horario
+  const { data: citasDelDia } = await supabaseAdmin
     .from('appointments')
     .select('employee_id, scheduled_at, services(duration_minutes)')
     .eq('business_id', businessId)
@@ -20,11 +18,11 @@ async function getAvailableEmployee(businessId, fecha, hora) {
     .gte('scheduled_at', `${fecha}T00:00:00-05:00`)
     .lte('scheduled_at', `${fecha}T23:59:59-05:00`);
 
+  // Determinar empleados ocupados en ese horario específico
   const horaReservadaMs = new Date(`${fecha}T${hora}:00-05:00`).getTime();
-
   const ocupados = new Set(
-    citasEnHorario
-      ?.filter(c => {
+    (citasDelDia || [])
+      .filter(c => {
         const inicio = new Date(c.scheduled_at).getTime();
         const duracion = (c.services?.duration_minutes || 30) * 60 * 1000;
         const fin = inicio + duracion;
@@ -32,28 +30,41 @@ async function getAvailableEmployee(businessId, fecha, hora) {
       })
       .map(c => c.employee_id)
   );
-  const disponibles = empleados.filter(e => !ocupados.has(e.id));
 
+  const disponibles = empleados.filter(e => !ocupados.has(e.id));
   if (!disponibles.length) return null;
 
-  const hoy = fecha;
-  const { data: citasHoy } = await supabaseAdmin
+  // Contar citas del mes actual por empleado (para balance mensual)
+  const inicioMes = fecha.slice(0, 7) + '-01';
+  const { data: citasMes } = await supabaseAdmin
     .from('appointments')
     .select('employee_id')
     .eq('business_id', businessId)
-    .gte('scheduled_at', hoy + 'T00:00:00-05:00')
-    .lte('scheduled_at', hoy + 'T23:59:59-05:00')
-    .in('status', ['confirmed', 'pending', 'completed']);
+    .in('status', ['confirmed', 'pending', 'completed'])
+    .gte('scheduled_at', `${inicioMes}T00:00:00-05:00`)
+    .lte('scheduled_at', `${fecha}T23:59:59-05:00`);
 
-  const conteo = {};
-  citasHoy?.forEach(c => {
-    conteo[c.employee_id] = (conteo[c.employee_id] || 0) + 1;
+  const conteoMes = {};
+  (citasMes || []).forEach(c => {
+    if (c.employee_id) conteoMes[c.employee_id] = (conteoMes[c.employee_id] || 0) + 1;
   });
 
+  // Contar citas del día por empleado (para desempate)
+  const conteoHoy = {};
+  (citasDelDia || []).forEach(c => {
+    if (c.employee_id) conteoHoy[c.employee_id] = (conteoHoy[c.employee_id] || 0) + 1;
+  });
+
+  // Ordenar: 1) menos citas en el mes, 2) menos citas hoy, 3) hace más tiempo sin atender
   disponibles.sort((a, b) => {
-    const citasA = conteo[a.id] || 0;
-    const citasB = conteo[b.id] || 0;
-    if (citasA !== citasB) return citasA - citasB;
+    const mesA = conteoMes[a.id] || 0;
+    const mesB = conteoMes[b.id] || 0;
+    if (mesA !== mesB) return mesA - mesB;
+
+    const hoyA = conteoHoy[a.id] || 0;
+    const hoyB = conteoHoy[b.id] || 0;
+    if (hoyA !== hoyB) return hoyA - hoyB;
+
     const fechaA = a.last_appointment_at ? new Date(a.last_appointment_at) : new Date(0);
     const fechaB = b.last_appointment_at ? new Date(b.last_appointment_at) : new Date(0);
     return fechaA - fechaB;

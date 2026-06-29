@@ -2709,14 +2709,14 @@ async function executeTool(toolName, toolInput, businessId) {
           const inicio = Date.now();
           const testClient = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
           await testClient.messages.create({
-            model: 'claude-haiku-4-5-20251001',
+            model: 'claude-sonnet-4-6',
             max_tokens: 10,
             messages: [{ role: 'user', content: 'di ok' }]
           });
           resultados.anthropic = {
             ok: true,
             latencia_ms: Date.now() - inicio,
-            modelo: 'claude-haiku-4-5-20251001'
+            modelo: 'claude-sonnet-4-6'
           };
         } catch(e) {
           resultados.anthropic = { ok: false, error: e.message };
@@ -2906,7 +2906,7 @@ Cuando diga "mañana" usar: ${mananaISO}
   ];
 
   let response = await client.messages.create({
-    model: 'claude-haiku-4-5-20251001',
+    model: 'claude-sonnet-4-6',
     max_tokens: 1024,
     system: dynamicSystemPrompt,
     tools: tools,
@@ -2937,7 +2937,7 @@ Cuando diga "mañana" usar: ${mananaISO}
     apiMessages.push({ role: 'user', content: toolResults });
 
     response = await client.messages.create({
-      model: 'claude-haiku-4-5-20251001',
+      model: 'claude-sonnet-4-6',
       max_tokens: 1024,
       system: dynamicSystemPrompt,
       tools: tools,
@@ -2955,7 +2955,7 @@ Cuando diga "mañana" usar: ${mananaISO}
           content: 'Confirma brevemente al usuario lo que acabas de hacer en español colombiano informal.'
         });
         response = await callClaudeWithRetry({
-          model: 'claude-haiku-4-5-20251001',
+          model: 'claude-sonnet-4-6',
           max_tokens: 200,
           system: dynamicSystemPrompt,
           tools: tools,

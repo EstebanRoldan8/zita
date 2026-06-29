@@ -351,8 +351,13 @@ Si el día está cerrado → informa inmediatamente:
 Si la hora está fuera de horario → informa:
   "Cerramos a las [hora]. ¿Te agendo antes?"
 
-Si no hay disponibilidad → propón alternativas:
-  "Ese horario ya está lleno 😅 Tengo disponible: [lista]. ¿Cuál te queda bien?"
+Si no hay disponibilidad en la fecha/hora pedida:
+  → Muestra los próximos 3 slots disponibles del mismo día o días cercanos
+  → Pregunta: "¿Te queda bien alguno de estos horarios?"
+  → SI el cliente insiste en esa fecha/hora específica y no hay disponibilidad:
+    → Ofrece lista de espera: "¿Quieres que te ponga en lista de espera? Si se cancela algo te avisamos 😊"
+    → Si acepta → ejecuta lista_espera con fecha, hora y servicio
+    → Confirma: "Listo, quedaste en lista de espera. Te contactamos si algo se libera 👍"
 </schedule_validation>
 
 <loyalty>
@@ -577,6 +582,19 @@ async function processChatbotMessage(businessId, clientPhone, messageText, histo
           appointment_id: { type: 'string', description: 'ID de la cita a confirmar (obtener de ver_mis_citas)' }
         },
         required: ['appointment_id']
+      }
+    },
+    {
+      name: 'lista_espera',
+      description: 'Agrega al cliente a la lista de espera para una fecha/hora específica cuando no hay disponibilidad. El negocio lo contactará si se libera un espacio.',
+      input_schema: {
+        type: 'object',
+        properties: {
+          fecha: { type: 'string', description: 'Fecha YYYY-MM-DD deseada' },
+          hora: { type: 'string', description: 'Hora HH:mm deseada (opcional)' },
+          servicio: { type: 'string', description: 'Servicio deseado' }
+        },
+        required: ['fecha']
       }
     },
     {
@@ -1262,6 +1280,44 @@ async function processChatbotMessage(businessId, clientPhone, messageText, histo
 
           if (error) return { success: false, error: error.message };
           return { success: true, message: 'Asistencia confirmada correctamente' };
+        }
+
+        case 'lista_espera': {
+          try {
+            const { data: clienteWait } = await supabaseAdmin
+              .from('clients')
+              .select('id, name')
+              .eq('business_id', businessId)
+              .eq('phone', clientPhone)
+              .limit(1);
+
+            const { error } = await supabaseAdmin
+              .from('waitlist')
+              .insert({
+                business_id: businessId,
+                client_id: clienteWait?.[0]?.id || null,
+                client_phone: clientPhone,
+                client_name: clienteWait?.[0]?.name || 'Cliente WhatsApp',
+                desired_date: toolInput.fecha,
+                desired_time: toolInput.hora || null,
+                desired_service: toolInput.servicio || null,
+                status: 'waiting',
+                created_at: new Date().toISOString()
+              });
+
+            if (error) {
+              logger.error('Error lista espera: ' + error.message);
+              return { success: false, error: 'No se pudo agregar a la lista de espera' };
+            }
+
+            return {
+              success: true,
+              message: `Quedaste en lista de espera para el ${toolInput.fecha}${toolInput.hora ? ' a las ' + toolInput.hora : ''}. Te avisamos si se libera un espacio 😊`
+            };
+          } catch(e) {
+            logger.error('Error lista_espera: ' + e.message);
+            return { success: false, error: 'No se pudo agregar a la lista de espera' };
+          }
         }
 
         case 'actualizar_cita': {

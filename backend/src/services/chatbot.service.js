@@ -985,6 +985,7 @@ async function processChatbotMessage(businessId, clientPhone, messageText, histo
             precio: servicio.price,
             empleado: empleadoDisponible?.name && empleadoDisponible.name !== 'Sin asignar' ? empleadoDisponible.name : null,
             scheduled_at,
+            empleado: empleadoDisponible?.name && empleadoDisponible.name !== 'Sin asignar' ? empleadoDisponible.name : null,
             hora_colombia: horaFormateada
           };
         }
@@ -1535,6 +1536,7 @@ async function processChatbotMessage(businessId, clientPhone, messageText, histo
                 nombre: p.nombre,
                 success: true,
                 servicio: servicio.name,
+            empleado: empleadoDisponible?.name && empleadoDisponible.name !== 'Sin asignar' ? empleadoDisponible.name : null,
                 hora_colombia: horaFormateada,
                 precio: servicio.price
               });

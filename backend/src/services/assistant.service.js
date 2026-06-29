@@ -1726,7 +1726,7 @@ async function executeTool(toolName, toolInput, businessId) {
     case 'listar_empleados': {
       let query = supabaseAdmin
         .from('employees')
-        .select('id, name, phone, email, commission_percent, commission_fixed, is_active')
+        .select('id, name, phone, email, commission_percent, is_active')
         .eq('business_id', businessId)
         .order('name');
 

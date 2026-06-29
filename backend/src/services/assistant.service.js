@@ -3292,7 +3292,7 @@ async function executeTool(toolName, toolInput, businessId) {
       }
 
       const [{ data: empleados }, { data: citas }] = await Promise.all([
-        supabaseAdmin.from('employees').select('id, name, commission_percent, commission_fixed').eq('business_id', businessId).eq('is_active', true),
+        supabaseAdmin.from('employees').select('id, name, commission_percent, is_active').eq('business_id', businessId),
         supabaseAdmin.from('appointments').select('employee_id, price').eq('business_id', businessId).eq('status', 'completed').gte('scheduled_at', `${fechaInicio}T00:00:00-05:00`).lte('scheduled_at', `${fechaFin}T23:59:59-05:00`)
       ]);
 
@@ -3306,19 +3306,18 @@ async function executeTool(toolName, toolInput, businessId) {
 
       const liquidacion = (empleados || []).map(e => {
         const datos = citasPorEmpleado[e.id] || { citas: 0, ingresos: 0 };
-        const comisionFija = e.commission_fixed || 0;
         const comisionPct = e.commission_percent || 0;
-        const comisionCalculada = comisionFija > 0
-          ? comisionFija * datos.citas
-          : Math.round(datos.ingresos * (comisionPct / 100));
+        const comisionCalculada = Math.round(datos.ingresos * (comisionPct / 100));
         return {
           nombre: e.name,
+          activo: e.is_active,
           citas_completadas: datos.citas,
           ingresos_generados: datos.ingresos,
-          tipo_comision: comisionFija > 0 ? `$${comisionFija.toLocaleString('es-CO')} por cita` : `${comisionPct}%`,
+          tipo_comision: `${comisionPct}%`,
           comision_a_pagar: comisionCalculada
         };
-      }).sort((a, b) => b.comision_a_pagar - a.comision_a_pagar);
+      }).sort((a, b) => b.comision_a_pagar - a.comision_a_pagar)
+        .filter(e => e.citas_completadas > 0);
 
       const totalAPagar = liquidacion.reduce((s, e) => s + e.comision_a_pagar, 0);
 

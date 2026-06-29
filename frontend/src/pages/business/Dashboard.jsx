@@ -669,7 +669,7 @@ export default function Dashboard() {
             />
             <MetricCard
               icon={overview?.utilidad_neta_mes >= 0 ? TrendingUp : TrendingDown}
-              label="Utilidad neta"
+              label="Ganancia neta"
               value={formatCOP(overview?.utilidad_neta_mes ?? 0)}
               sub="Ganancia real del mes"
               color={overview?.utilidad_neta_mes >= 0 ? 'bg-emerald-600' : 'bg-red-600'}

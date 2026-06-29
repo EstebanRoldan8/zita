@@ -1784,6 +1784,118 @@ async function processWhatsAppMessage({ from, phoneNumberId, messageText, messag
 
     logger.info('Cliente e historial cargados', { clientId: client_info?.id, historyLength: history.length });
 
+    // Detección rápida de confirmación/cancelación de cita (respuesta a recordatorio)
+    const msgLower = messageText.toLowerCase().trim();
+    const esConfirmacion = ['si', 'sí', 'confirmo', 'confirmado', 'ahí estaré', 'ahi estare', 'voy', 'allá voy', 'alla voy', 'ok', 'okay', 'dale', 'claro', 'por supuesto', 'si voy', 'sí voy'].some(p => msgLower === p || msgLower.startsWith(p + ' ') || msgLower.endsWith(' ' + p));
+    const esCancelacion = ['no', 'no puedo', 'cancela', 'cancelar', 'no voy', 'no puedo ir', 'no iré', 'no ire', 'cancela mi cita', 'no asisto'].some(p => msgLower === p || msgLower.startsWith(p + ' '));
+
+    if (esConfirmacion || esCancelacion) {
+      const { data: clienteCheck } = await supabaseAdmin
+        .from('clients')
+        .select('id')
+        .eq('business_id', business.id)
+        .eq('phone', from)
+        .limit(1);
+
+      const clienteId = clienteCheck?.[0]?.id;
+
+      if (clienteId) {
+        const hoyCheck = new Date().toLocaleDateString('en-CA', { timeZone: 'America/Bogota' });
+        const { data: citasProximas } = await supabaseAdmin
+          .from('appointments')
+          .select('id, scheduled_at, services(name), status')
+          .eq('business_id', business.id)
+          .eq('client_id', clienteId)
+          .in('status', ['pending', 'confirmed'])
+          .gte('scheduled_at', `${hoyCheck}T00:00:00-05:00`)
+          .order('scheduled_at')
+          .limit(1);
+
+        const citaProxima = citasProximas?.[0];
+
+        if (citaProxima) {
+          const horaFormateada = new Date(citaProxima.scheduled_at).toLocaleString('es-CO', {
+            timeZone: 'America/Bogota',
+            weekday: 'long',
+            day: 'numeric',
+            month: 'long',
+            hour: '2-digit',
+            minute: '2-digit',
+            hour12: true
+          });
+
+          if (esConfirmacion) {
+            await supabaseAdmin
+              .from('appointments')
+              .update({ status: 'confirmed' })
+              .eq('id', citaProxima.id);
+
+            const respuestaConfirm = `✅ ¡Perfecto! Tu cita de ${citaProxima.services?.name} el ${horaFormateada} está confirmada. ¡Te esperamos! 😊`;
+            await sendMessage(from, respuestaConfirm, businessToken, business.whatsapp_phone_number_id);
+
+            await saveConversationHistory(business.id, from, [
+              ...history,
+              { role: 'user', content: messageText },
+              { role: 'assistant', content: respuestaConfirm }
+            ]);
+
+            if (messageId) {
+              const { data: existingMsg2 } = await supabaseAdmin
+                .from('whatsapp_conversations')
+                .select('processed_message_ids')
+                .eq('business_id', business.id)
+                .eq('client_phone', from)
+                .maybeSingle();
+              const processedIds2 = existingMsg2?.processed_message_ids || [];
+              await supabaseAdmin
+                .from('whatsapp_conversations')
+                .update({ processed_message_ids: [...processedIds2, messageId].slice(-50) })
+                .eq('business_id', business.id)
+                .eq('client_phone', from);
+            }
+            return;
+
+          } else if (esCancelacion) {
+            await supabaseAdmin
+              .from('income')
+              .delete()
+              .eq('appointment_id', citaProxima.id)
+              .eq('business_id', business.id);
+
+            await supabaseAdmin
+              .from('appointments')
+              .update({ status: 'cancelled' })
+              .eq('id', citaProxima.id);
+
+            const respuestaCancel = `Entendido, cancelé tu cita de ${citaProxima.services?.name} del ${horaFormateada} 😊 Cuando quieras reagendar aquí estoy.`;
+            await sendMessage(from, respuestaCancel, businessToken, business.whatsapp_phone_number_id);
+
+            await saveConversationHistory(business.id, from, [
+              ...history,
+              { role: 'user', content: messageText },
+              { role: 'assistant', content: respuestaCancel }
+            ]);
+
+            if (messageId) {
+              const { data: existingMsg3 } = await supabaseAdmin
+                .from('whatsapp_conversations')
+                .select('processed_message_ids')
+                .eq('business_id', business.id)
+                .eq('client_phone', from)
+                .maybeSingle();
+              const processedIds3 = existingMsg3?.processed_message_ids || [];
+              await supabaseAdmin
+                .from('whatsapp_conversations')
+                .update({ processed_message_ids: [...processedIds3, messageId].slice(-50) })
+                .eq('business_id', business.id)
+                .eq('client_phone', from);
+            }
+            return;
+          }
+        }
+      }
+    }
+
     let result;
     try {
       result = await processChatbotMessage(business.id, from, messageText, history, business, client_info);

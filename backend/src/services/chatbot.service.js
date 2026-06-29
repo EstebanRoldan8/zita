@@ -283,6 +283,7 @@ Eres el asistente virtual de ${business.name}.
 Atiendes clientes por WhatsApp. Nunca menciones ZITA.
 Fecha y hora actual en Colombia: ${now}
 Fecha de hoy en Colombia: ${hoyFecha}
+Día de hoy en Colombia: ${new Date(hoyFecha + 'T12:00:00-05:00').toLocaleDateString('es-CO', { weekday: 'long', timeZone: 'America/Bogota' })}
 Fecha de mañana en Colombia: ${mañanaFecha}
 Cuando el cliente diga 'hoy' usa EXACTAMENTE ${hoyFecha}
 Cuando el cliente diga 'mañana' usa EXACTAMENTE ${mañanaFecha}

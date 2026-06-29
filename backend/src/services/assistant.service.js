@@ -122,7 +122,7 @@ REGLA DE CLIENTES:
 - Cuando el usuario mencione un nombre, SIEMPRE usa buscar_cliente primero
 - Si buscar_cliente encuentra el cliente → usar ese cliente directamente, NUNCA pedir teléfono ni datos adicionales
 - Solo pedir datos si buscar_cliente retorna found: false
-- Si buscar_cliente retorna exact_match: true → usar ese cliente DIRECTAMENTE sin preguntar ni mostrar opciones.
+- Si buscar_cliente retorna exact_match: true O solo hay 1 resultado → usar ese cliente DIRECTAMENTE sin preguntar ni mostrar opciones. NUNCA pidas confirmación cuando hay un único resultado claro.
 - Si buscar_cliente retorna multiple_found: true → muestra TODOS los clientes en all_matches en formato lista numerada con nombre y teléfono. NUNCA cortes la lista ni muestres solo algunos. Muestra todos los que vengan en all_matches.
 
 ⚠️ OBLIGATORIO: Para eliminar un cliente, SIEMPRE llama buscar_cliente primero para obtener el client_id. NUNCA inventes o asumas un client_id.
@@ -1528,14 +1528,16 @@ async function executeTool(toolName, toolInput, businessId) {
       const matchExacto = conPuntaje[0].puntaje >= puntajeMaximo && (
         conPuntaje.length === 1 || conPuntaje[1].puntaje < puntajeMaximo
       );
+      const soloUnResultado = conPuntaje.length === 1;
+      const esExacto = matchExacto || soloUnResultado;
 
       const topMatches = conPuntaje.slice(0, 10).map(c => ({ id: c.id, name: c.name, phone: c.phone }));
       return {
         found: true,
         client: conPuntaje[0],
-        multiple_found: !matchExacto && conPuntaje.length > 1,
-        all_matches: !matchExacto && conPuntaje.length > 1 ? topMatches : undefined,
-        exact_match: matchExacto
+        multiple_found: !esExacto && conPuntaje.length > 1,
+        all_matches: !esExacto && conPuntaje.length > 1 ? topMatches : undefined,
+        exact_match: esExacto
       };
     }
 
@@ -3366,12 +3368,17 @@ async function executeTool(toolName, toolInput, businessId) {
         const datos = citasPorEmpleado[e.id] || { citas: 0, ingresos: 0 };
         const comisionPct = e.commission_percent || 0;
         const comisionCalculada = Math.round(datos.ingresos * (comisionPct / 100));
+        const identificador = e.phone
+          ? `${e.name} (${e.phone})`
+          : e.email
+          ? `${e.name} (${e.email})`
+          : e.name;
         return {
-          nombre: e.name,
+          nombre: identificador,
           activo: e.is_active,
           citas_completadas: datos.citas,
           ingresos_generados: datos.ingresos,
-          tipo_comision: `${comisionPct}%`,
+          tipo_comision: comisionPct > 0 ? `${comisionPct}%` : 'sin comisión',
           comision_a_pagar: comisionCalculada
         };
       }).sort((a, b) => b.comision_a_pagar - a.comision_a_pagar)

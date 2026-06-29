@@ -6,6 +6,29 @@ const logger = require('../utils/logger');
 const { getAvailableEmployee, getNextAvailableSlots } = require('../utils/availability');
 const Groq = require('groq-sdk');
 
+// Cache de horarios por negocio (5 minutos)
+const businessHoursCache = new Map();
+const HOURS_CACHE_TTL = 5 * 60 * 1000;
+
+function getCachedHours(businessId) {
+  const cached = businessHoursCache.get(businessId);
+  if (!cached) return null;
+  if (Date.now() - cached.timestamp > HOURS_CACHE_TTL) {
+    businessHoursCache.delete(businessId);
+    return null;
+  }
+  return cached.hours;
+}
+
+function setCachedHours(businessId, hours) {
+  businessHoursCache.set(businessId, { hours, timestamp: Date.now() });
+  if (businessHoursCache.size > 100) {
+    const oldest = [...businessHoursCache.entries()]
+      .sort((a, b) => a[1].timestamp - b[1].timestamp)[0];
+    if (oldest) businessHoursCache.delete(oldest[0]);
+  }
+}
+
 async function transcribeAudio(audioUrl, accessToken) {
   try {
     const audioResponse = await fetch(audioUrl, {
@@ -434,7 +457,7 @@ async function saveConversationHistory(businessId, clientPhone, messages) {
     .upsert({
       business_id: businessId,
       client_phone: clientPhone,
-      messages: mensajesLimpios.slice(-6)
+      messages: mensajesLimpios.slice(-8)
     }, { onConflict: 'business_id,client_phone' });
 
   if (error) logger.error('Error guardando historial:', error.message);
@@ -443,11 +466,16 @@ async function saveConversationHistory(businessId, clientPhone, messages) {
 async function processChatbotMessage(businessId, clientPhone, messageText, history, business, clientInfo = null) {
   logger.info('Procesando mensaje del chatbot', { businessId, clientPhone, messageLength: messageText.length, historyLength: history.length });
 
-  const { data: businessHours } = await supabaseAdmin
-    .from('business_hours')
-    .select('day_of_week, open_time, close_time, is_open')
-    .eq('business_id', businessId)
-    .order('day_of_week');
+  let businessHours = getCachedHours(businessId);
+  if (!businessHours) {
+    const { data: hoursData } = await supabaseAdmin
+      .from('business_hours')
+      .select('day_of_week, open_time, close_time, is_open')
+      .eq('business_id', businessId)
+      .order('day_of_week');
+    businessHours = hoursData;
+    if (hoursData) setCachedHours(businessId, hoursData);
+  }
 
   const anthropicClient = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
   const systemPrompt = getBusinessSystemPrompt(business, clientInfo, businessHours || []);
@@ -1568,7 +1596,7 @@ async function processChatbotMessage(businessId, clientPhone, messageText, histo
     cleanHistory.shift();
   }
 
-  cleanHistory = cleanHistory.slice(-6);
+  cleanHistory = cleanHistory.slice(-8);
 
   const messages = [...cleanHistory, { role: 'user', content: messageText }];
 
@@ -1577,7 +1605,7 @@ async function processChatbotMessage(businessId, clientPhone, messageText, histo
     response = await anthropicClient.messages.create({
       model: 'claude-haiku-4-5-20251001',
       max_tokens: 600,
-      system: systemPrompt,
+      system: [{ type: 'text', text: systemPrompt, cache_control: { type: 'ephemeral' } }],
       tools,
       messages
     });
@@ -1628,7 +1656,7 @@ async function processChatbotMessage(businessId, clientPhone, messageText, histo
       response = await anthropicClient.messages.create({
         model: 'claude-haiku-4-5-20251001',
         max_tokens: 600,
-        system: systemPrompt,
+        system: [{ type: 'text', text: systemPrompt, cache_control: { type: 'ephemeral' } }],
         tools,
         messages: allMessages
       });

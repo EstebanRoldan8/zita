@@ -259,7 +259,7 @@ ${clientInfo?.name && clientInfo.name !== 'Cliente WhatsApp'
   : `Este cliente es NUEVO o desconocido.
      Si saluda es su primer mensaje → responde: "¡Hola! Bienvenido a ${business.name} 👋 ¿En qué te puedo ayudar? Puedo agendarte una cita o contarte sobre nuestros servicios 😊"`
 }
-</bienvenida_inteligente>\`;
+</bienvenida_inteligente>`;
 }
 
 async function getOrCreateClient(businessId, phone, name = null) {
@@ -553,7 +553,7 @@ async function processChatbotMessage(businessId, clientPhone, messageText, histo
               cerrado: true,
               festivo: true,
               razon: diaCerradoEsp.reason,
-              mensaje: `Ese día estamos cerrados: ${diaCerradoEsp.reason}`
+              mensaje: `Ese dia estamos cerrados: ${diaCerradoEsp.reason}`
             };
           }
 

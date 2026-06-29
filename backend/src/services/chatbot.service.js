@@ -1023,6 +1023,58 @@ async function processChatbotMessage(businessId, clientPhone, messageText, histo
             } catch (empErr) {
               logger.error('Error actualizando employee:', empErr.message);
             }
+
+            // Notificar al dueño de la nueva cita
+            try {
+              const { data: negocioNotif } = await supabaseAdmin
+                .from('businesses')
+                .select('phone, name, whatsapp_phone_number_id')
+                .eq('id', businessId)
+                .single();
+
+              if (negocioNotif?.phone) {
+                const clienteNombre = data && clienteExistente?.name && clienteExistente.name !== 'Cliente WhatsApp'
+                  ? clienteExistente.name
+                  : 'Cliente nuevo';
+
+                const horaFormateadaNotif = new Date(`${toolInput.fecha}T${toolInput.hora}:00-05:00`)
+                  .toLocaleString('es-CO', {
+                    timeZone: 'America/Bogota',
+                    weekday: 'long',
+                    day: 'numeric',
+                    month: 'long',
+                    hour: '2-digit',
+                    minute: '2-digit',
+                    hour12: true
+                  });
+
+                const empleadoNombreNotif = empleadoDisponible?.name && empleadoDisponible.name !== 'Sin asignar'
+                  ? ` — ${empleadoDisponible.name}`
+                  : '';
+
+                const mensajeDueno = `📅 *Nueva cita por WhatsApp*\n\n` +
+                  `👤 *Cliente:* ${clienteNombre}\n` +
+                  `📱 *Teléfono:* ${clientPhone}\n` +
+                  `✂️ *Servicio:* ${servicio.name}${empleadoNombreNotif}\n` +
+                  `🕐 *Fecha y hora:* ${horaFormateadaNotif}\n` +
+                  `💰 *Precio:* $${servicio.price.toLocaleString('es-CO')}`;
+
+                const businessTokenNotif = business?.whatsapp_access_token
+                  ? require('../utils/encrypt').decrypt(business.whatsapp_access_token)
+                  : process.env.WHATSAPP_ACCESS_TOKEN;
+
+                await sendMessage(
+                  negocioNotif.phone,
+                  mensajeDueno,
+                  businessTokenNotif,
+                  negocioNotif.whatsapp_phone_number_id || business.whatsapp_phone_number_id
+                );
+
+                logger.info('Notificación enviada al dueño por nueva cita WhatsApp');
+              }
+            } catch (notifErr) {
+              logger.error('Error notificando al dueño: ' + notifErr.message);
+            }
           }
 
           const horaFormateada = new Date(scheduled_at).toLocaleString('es-CO', {

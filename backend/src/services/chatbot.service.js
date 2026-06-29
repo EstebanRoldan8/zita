@@ -145,6 +145,35 @@ PASO 2: Decide según lo que tienes:
     → Si el cliente va dando datos uno por uno → usa agregar_persona por cada persona → cuando el cliente diga "listo" o "eso es todo" → usa confirmar_todas
     → SIEMPRE confirma el resumen antes de confirmar_todas: lista nombres, servicios y horas
     → Si un horario no está disponible → informa y sugiere el siguiente slot disponible
+
+  SI el cliente pregunta horarios, días de atención, a qué hora abren/cierran:
+    → Ejecuta ver_horarios
+    → Responde con el horario del día específico si lo preguntó, o toda la semana
+    → Si hay días cerrados próximos (festivos) → mencionarlos
+
+  SI el cliente dice "sí", "confirmo", "ahí estaré", "sí voy", "confirmado"
+  Y el mensaje parece respuesta a un recordatorio de cita:
+    → Ejecuta ver_mis_citas para obtener la cita pendiente más próxima
+    → Ejecuta confirmar_asistencia con ese appointment_id
+    → Responde: "¡Perfecto! Tu cita está confirmada ✅ Te esperamos 😊"
+
+  SI el cliente dice "no", "no puedo", "cancela", "no voy"
+  Y el mensaje parece respuesta a un recordatorio de cita:
+    → Ejecuta ver_mis_citas para obtener la cita pendiente más próxima
+    → Ejecuta cancelar_cita con ese appointment_id
+    → Responde: "Entendido, cancelé tu cita 😊 Cuando quieras reagendar aquí estoy"
+
+  SI el cliente quiere reagendar su cita (cambiar fecha/hora):
+    → FLUJO OBLIGATORIO:
+      1. ver_mis_citas → obtener citas activas
+      2. Preguntar SOLO: "¿Para cuándo la quieres cambiar?"
+      3. verificar_disponibilidad en la nueva fecha/hora
+      4. actualizar_cita con appointment_id + nueva_fecha + nueva_hora
+    → NUNCA saltes pasos ni pidas datos que ya tienes
+
+  SI el cliente pregunta "¿con quién tengo mi cita?" o "¿quién me atiende?":
+    → ver_mis_citas → mostrar empleado asignado
+    → Si no tiene empleado asignado: "Cualquiera de nuestros empleados disponibles te atenderá 😊"
 </decision_tree>`;
 
 const BOOKING_RULES_TEXT = `<booking_rules>
@@ -314,7 +343,32 @@ Si el cliente pregunta por puntos, visitas o recompensa:
 - Máximo 3 citas por conversación
 - Máximo 5 iteraciones de tools por mensaje
 - Si algo falla técnicamente: "Tuve un problemita, ¿puedes intentarlo de nuevo?"
-</limits>`;
+</limits>
+
+<fuera_de_horario>
+RESPUESTA FUERA DE HORARIO:
+Hora actual del negocio: ${horaColombia}
+Horario de atención incluido arriba.
+
+SI la hora actual está FUERA del horario de atención del día de hoy:
+  → Responde con calidez que están cerrados
+  → Indica a qué hora abren (hoy si es antes de apertura, mañana si ya cerraron)
+  → Ofrece agendar de todas formas: "Pero puedo agendarte ahora mismo para cuando estemos abiertos 😊"
+  → NO bloquees el agendamiento — el cliente puede agendar fuera de horario para fechas futuras
+
+SI el cliente escribe en horario de atención:
+  → Responde normalmente sin mencionar el horario
+</fuera_de_horario>
+
+<bienvenida_inteligente>
+BIENVENIDA SEGÚN TIPO DE CLIENTE:
+${clientInfo?.name && clientInfo.name !== 'Cliente WhatsApp'
+  ? `Este cliente YA ES CONOCIDO: ${clientInfo.name}.
+     Si saluda o es su primer mensaje → responde: "Hola ${clientInfo.name} 👋 ¿Vuelves a visitarnos? ¿Qué necesitas?"`
+  : `Este cliente es NUEVO o desconocido.
+     Si saluda o es su primer mensaje → responde: "¡Hola! Bienvenido a ${business.name} 👋 ¿En qué te puedo ayudar? Puedo agendarte una cita o contarte sobre nuestros servicios 😊"`
+}
+</bienvenida_inteligente>`;
 }
 
 async function getOrCreateClient(businessId, phone, name = null) {
@@ -475,6 +529,27 @@ async function processChatbotMessage(businessId, clientPhone, messageText, histo
       name: 'ver_empleados',
       description: 'Ver empleados disponibles para que el cliente pueda escoger con quién quiere su cita',
       input_schema: { type: 'object', properties: {} }
+    },
+    {
+      name: 'ver_horarios',
+      description: 'Ver horarios de atención del negocio y días cerrados próximos. Usar cuando el cliente pregunte a qué hora abren, si atienden un día específico, o cuándo están disponibles.',
+      input_schema: {
+        type: 'object',
+        properties: {
+          dia: { type: 'string', description: 'Día específico a consultar (opcional). Ej: lunes, martes' }
+        }
+      }
+    },
+    {
+      name: 'confirmar_asistencia',
+      description: 'Confirma la asistencia del cliente a su próxima cita. Cambiar estado de pending a confirmed. Usar cuando el cliente diga "sí voy", "confirmo", "ahí estaré", "sí" en respuesta a un recordatorio.',
+      input_schema: {
+        type: 'object',
+        properties: {
+          appointment_id: { type: 'string', description: 'ID de la cita a confirmar (obtener de ver_mis_citas)' }
+        },
+        required: ['appointment_id']
+      }
     },
     {
       name: 'escalar_a_humano',
@@ -1059,6 +1134,54 @@ async function processChatbotMessage(businessId, clientPhone, messageText, histo
             .eq('is_active', true);
 
           return { empleados: empleados || [] };
+        }
+
+        case 'ver_horarios': {
+          const { data: horarios } = await supabaseAdmin
+            .from('business_hours')
+            .select('day_of_week, open_time, close_time, is_open')
+            .eq('business_id', businessId)
+            .order('day_of_week');
+
+          const diasNombres = ['Domingo','Lunes','Martes','Miércoles','Jueves','Viernes','Sábado'];
+
+          const horariosFormateados = (horarios || []).map(h => ({
+            dia: diasNombres[h.day_of_week],
+            abierto: h.is_open,
+            apertura: h.open_time,
+            cierre: h.close_time
+          }));
+
+          const hoy = new Date().toLocaleDateString('en-CA', { timeZone: 'America/Bogota' });
+          const en30 = new Date(Date.now() + 30*86400000).toLocaleDateString('en-CA', { timeZone: 'America/Bogota' });
+          const { data: diasCerrados } = await supabaseAdmin
+            .from('business_closed_days')
+            .select('date, reason')
+            .eq('business_id', businessId)
+            .gte('date', hoy)
+            .lte('date', en30)
+            .order('date');
+
+          if (toolInput.dia) {
+            const diaLower = toolInput.dia.toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '');
+            const horarioDia = horariosFormateados.find(h =>
+              h.dia.toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '').includes(diaLower)
+            );
+            return { horario_dia: horarioDia || null, dias_cerrados: diasCerrados || [] };
+          }
+
+          return { horarios: horariosFormateados, dias_cerrados: diasCerrados || [] };
+        }
+
+        case 'confirmar_asistencia': {
+          const { error } = await supabaseAdmin
+            .from('appointments')
+            .update({ status: 'confirmed' })
+            .eq('id', toolInput.appointment_id)
+            .eq('business_id', businessId);
+
+          if (error) return { success: false, error: error.message };
+          return { success: true, message: 'Asistencia confirmada correctamente' };
         }
 
         case 'actualizar_cita': {

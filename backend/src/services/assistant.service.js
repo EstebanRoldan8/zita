@@ -167,7 +167,7 @@ REGLA DE CLIENTES:
 - Cuando el usuario mencione un nombre, SIEMPRE usa buscar_cliente primero
 - Si buscar_cliente encuentra el cliente → usar ese cliente directamente, NUNCA pedir teléfono ni datos adicionales
 - Solo pedir datos si buscar_cliente retorna found: false
-- Si buscar_cliente retorna múltiples clientes (found: true, multiple: true), muestra los 2-3 primeros con nombre y teléfono y pregunta al usuario cuál es el correcto. NUNCA asumas el primero automáticamente cuando hay ambigüedad.
+- Si buscar_cliente retorna multiple_found: true → muestra TODOS los clientes en all_matches en formato lista numerada con nombre y teléfono. NUNCA cortes la lista ni muestres solo algunos. Muestra todos los que vengan en all_matches.
 
 ⚠️ OBLIGATORIO: Para eliminar un cliente, SIEMPRE llama buscar_cliente primero para obtener el client_id. NUNCA inventes o asumas un client_id.
 
@@ -1535,11 +1535,13 @@ async function executeTool(toolName, toolInput, businessId) {
       .filter(c => c.puntaje >= 4)
       .sort((a, b) => b.puntaje - a.puntaje);
 
+      logger.info('[buscar_cliente] matches encontrados: ' + conPuntaje.length + ' para query: ' + toolInput.nombre);
+
       if (!conPuntaje.length) {
         return { not_found: true, searched_for: toolInput.nombre, can_create: true };
       }
 
-      const topMatches = conPuntaje.slice(0, 5).map(c => ({ id: c.id, name: c.name, phone: c.phone }));
+      const topMatches = conPuntaje.slice(0, 10).map(c => ({ id: c.id, name: c.name, phone: c.phone }));
       return {
         found: true,
         client: conPuntaje[0],

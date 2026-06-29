@@ -82,7 +82,7 @@ async function autoCompleteAppointments() {
         continue;
       }
 
-      if (appointment.services?.price && appointment.services.price > 0) {
+      if (appointment.price && appointment.price > 0) {
         const { data: existingIncome } = await supabaseAdmin
           .from('income')
           .select('id')
@@ -94,9 +94,9 @@ async function autoCompleteAppointments() {
             .from('income')
             .insert({
               business_id: appointment.business_id,
-              amount: appointment.services.price,
+              amount: appointment.price,
               category: 'servicios',
-              description: `${appointment.services.name} - auto-completado`,
+              description: `${appointment.services?.name || 'Servicio'} - auto-completado`,
               source: 'appointment',
               appointment_id: appointment.id,
               date: new Date().toLocaleDateString('en-CA', { timeZone: 'America/Bogota' })

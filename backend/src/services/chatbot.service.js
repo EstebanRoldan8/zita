@@ -379,18 +379,34 @@ Si el cliente pregunta por puntos, visitas o recompensa:
 </limits>
 
 <fuera_de_horario>
-RESPUESTA FUERA DE HORARIO:
-Hora actual del negocio: ${horaColombia}
-Horario de atención incluido arriba.
+Hora actual en Colombia (formato 24h): ${horaColombia}
+Ejemplo: si son las 5:45pm, horaColombia = "17:45"
 
-SI la hora actual está FUERA del horario de atención del día de hoy:
-  → Responde con calidez que están cerrados
-  → Indica a qué hora abren (hoy si es antes de apertura, mañana si ya cerraron)
-  → Ofrece agendar de todas formas: "Pero puedo agendarte ahora mismo para cuando estemos abiertos 😊"
-  → NO bloquees el agendamiento — el cliente puede agendar fuera de horario para fechas futuras
+PARA DETERMINAR SI ESTAMOS ABIERTOS AHORA:
+→ Consulta el horario del día de hoy en la sección de horarios de arriba
+→ Compara horaColombia con la apertura y cierre de HOY en formato 24h
+→ Si horaColombia está ENTRE apertura y cierre → estamos ABIERTOS
+→ Si horaColombia es ANTES de apertura → todavía no abrimos
+→ Si horaColombia es DESPUÉS de cierre → ya cerramos
 
-SI el cliente escribe en horario de atención:
-  → Responde normalmente sin mencionar el horario
+EJEMPLO CORRECTO:
+- Hoy lunes: apertura 08:00, cierre 22:00
+- horaColombia = "17:45"
+- 17:45 está entre 08:00 y 22:00 → ESTAMOS ABIERTOS ✅
+- NO digas "ya cerramos" si la hora actual es antes del cierre
+
+SOLO menciona el horario si el cliente pregunta o si intenta agendar
+fuera del horario de atención. NO lo menciones en respuestas normales.
+
+Si el cliente escribe FUERA de horario:
+→ Responde con calidez que están cerrados
+→ Indica cuándo abren de nuevo
+→ Ofrece agendar para cuando estemos abiertos:
+   "Pero puedo agendarte ahora mismo para [próximo día disponible] 😊"
+→ NO bloquees el agendamiento — el cliente puede agendar fuera de horario para fechas futuras
+
+Si el cliente escribe EN horario de atención:
+→ Responde normalmente SIN mencionar el horario
 </fuera_de_horario>
 
 <bienvenida_inteligente>

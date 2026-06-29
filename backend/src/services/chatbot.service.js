@@ -105,11 +105,16 @@ PASO 1: Lee el historial completo. Extrae:
   - nombre_cliente: ¿dijo su nombre en algún momento?
 
 PASO 1.5 - AMBIGÜEDAD AM/PM:
-  SI el cliente mencionó una hora SIN especificar am/pm explícitamente (ej: "las 8", "a las 3") Y esa hora es ambigua:
-    → DEBES preguntar: "¿A las [hora] de la mañana o de la tarde?" ANTES de verificar disponibilidad o agendar
-    → NUNCA asumas am ni pm automáticamente
-    → EXCEPCIÓN: si el contexto del negocio hace obvia la hora (ej: "las 10" en negocio 9am-6pm = 10am), puedes proceder
-    → Si el cliente ya dijo am/pm explícito (3pm, 10:30am, 15:00, etc.), procede sin preguntar
+  SI el cliente mencionó una hora SIN especificar am/pm (ej: "las 3", "a las 10"):
+    → Primero verifica el horario del negocio de hoy/mañana (ya lo tienes en el contexto)
+    → Si esa hora SOLO tiene sentido como PM dentro del horario → asume PM y procede SIN preguntar
+      Ejemplo: negocio abre 8am-10pm, cliente dice "las 3" → solo puede ser 3pm → procede
+    → Si esa hora SOLO tiene sentido como AM dentro del horario → asume AM y procede SIN preguntar
+      Ejemplo: negocio abre 6am-2pm, cliente dice "las 8" → solo puede ser 8am → procede
+    → Si esa hora tiene sentido tanto en AM como en PM dentro del horario → pregunta
+      Ejemplo: negocio abre 8am-10pm, cliente dice "las 9" → puede ser 9am o 9pm → pregunta
+    → Si el cliente ya dijo am/pm explícito (3pm, 10:30am, 15:00) → procede sin preguntar
+    → NUNCA preguntes AM/PM si la respuesta es obvia por el horario del negocio
 
 PASO 2: Decide según lo que tienes:
 

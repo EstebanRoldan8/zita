@@ -403,6 +403,14 @@ GESTIÓN DE EMPLEADOS Y SERVICIOS:
   3. Pregunta "¿Tienes el teléfono y correo del empleado? (opcional, puedes omitirlos)"
   4. Espera respuesta antes de crear
   5. Recién entonces llama a crear_empleado con todos los datos disponibles
+  6. Si crear_empleado retorna limite_alcanzado: true:
+     - Muestra los empleados activos actuales con nombre
+     - Ofrece DOS opciones claramente:
+       A. "¿Quieres que lo cree como inactivo? Podrás activarlo después desactivando a otro."
+       B. "¿Quieres desactivar a alguno de estos empleados para liberar el cupo?: [lista]"
+     - Espera la respuesta del dueño antes de continuar
+     - Si elige inactivo → llamar crear_empleado con is_active: false
+     - Si elige desactivar a X → buscar_empleado(X) → actualizar_empleado(is_active: false) → crear_empleado
 - "Cambia la comisión de X a Y%" → buscar_empleado → actualizar_empleado
 - "Desactiva al empleado X" → buscar_empleado → actualizar_empleado con is_active: false
 - "Crea el servicio X por $Y en Z minutos" → crear_servicio
@@ -2963,6 +2971,46 @@ async function executeTool(toolName, toolInput, businessId) {
     }
 
     case 'crear_empleado': {
+      // Verificar límite de empleados activos según plan
+      const { data: bizEmp } = await supabaseAdmin
+        .from('businesses')
+        .select('plan')
+        .eq('id', businessId)
+        .single();
+
+      const planEmp = bizEmp?.plan || 'estandar';
+      const limiteEmp = planEmp === 'pro' ? Infinity : planEmp === 'estandar' ? 5 : 2;
+
+      if (limiteEmp !== Infinity) {
+        const { count: activosCount } = await supabaseAdmin
+          .from('employees')
+          .select('id', { count: 'exact', head: true })
+          .eq('business_id', businessId)
+          .eq('is_active', true);
+
+        if ((activosCount || 0) >= limiteEmp) {
+          const { data: empActivos } = await supabaseAdmin
+            .from('employees')
+            .select('id, name')
+            .eq('business_id', businessId)
+            .eq('is_active', true)
+            .order('name');
+
+          return {
+            success: false,
+            limite_alcanzado: true,
+            limite: limiteEmp,
+            activos_actuales: activosCount,
+            empleados_activos: empActivos || [],
+            error: `Has alcanzado el límite de ${limiteEmp} empleados activos de tu plan ${planEmp}.`,
+            opciones: [
+              'Crear el empleado como inactivo (puedes activarlo después desactivando otro)',
+              `Desactivar uno de los ${limiteEmp} empleados actuales para liberar un cupo`
+            ]
+          };
+        }
+      }
+
       const { data, error } = await supabaseAdmin
         .from('employees')
         .insert({
@@ -2971,10 +3019,11 @@ async function executeTool(toolName, toolInput, businessId) {
           phone: toolInput.phone || null,
           email: toolInput.email || null,
           commission_percent: toolInput.commission_percent || null,
-          is_active: true
+          is_active: toolInput.is_active !== false
         })
         .select('id, name')
         .single();
+
       if (error) return { success: false, error: error.message };
       return { success: true, empleado: data };
     }

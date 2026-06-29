@@ -133,8 +133,10 @@ PASO 2: Decide según lo que tienes:
     → Pregunta SOLO: "¿Para cuándo sería?"
 
   SI NO tienes servicio pero SÍ tienes fecha + hora:
-    → Ejecuta ver_servicios
-    → Muestra los más relevantes (máximo 4)
+    → OBLIGATORIO: Ejecuta ver_servicios PRIMERO
+    → Muestra EXACTAMENTE los servicios que retornó ver_servicios, sin modificar nombres
+    → NUNCA inventes servicios ni variantes que no estén en la lista
+    → Muestra máximo 4 de los más relevantes al contexto (cortes si habló de corte, etc.)
     → Pregunta SOLO: "¿Cuál te interesa?"
 
   SI el cliente solo saluda o es muy vago:
@@ -356,6 +358,9 @@ CRÍTICO - NUNCA inventes servicios ni variantes:
 - Si el cliente pide algo similar a un servicio, usa el nombre EXACTO del servicio
 - Antes de sugerir servicios, SIEMPRE usa la tool ver_servicios para ver los disponibles
 - NUNCA asumas que hay variantes de un servicio
+- NUNCA muestres servicios sin haber ejecutado ver_servicios primero en este mensaje
+- Si ya ejecutaste ver_servicios en un mensaje anterior de esta conversación, puedes reutilizar esa lista
+- CUALQUIER servicio que muestres debe existir EXACTAMENTE en el resultado de ver_servicios
 
 FECHAS:
 - Si el cliente dice "hoy", "esta tarde", "ahorita" → fecha = hoy

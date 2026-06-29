@@ -829,14 +829,8 @@ async function processChatbotMessage(businessId, clientPhone, messageText, histo
           const servicio = servicios?.[0];
           if (!servicio) return { success: false, error: 'Servicio no encontrado' };
 
-          const diaSemanaPasado = new Date(toolInput.fecha);
-          const colombiaStr = diaSemanaPasado.toLocaleString('en-CA', {
-            timeZone: 'America/Bogota',
-            hour12: false
-          });
-          const [datePart] = colombiaStr.split(', ');
-          const [year, month, day] = datePart.split('-').map(Number);
-          const tempDate = new Date(year, month - 1, day);
+          const [yearF, monthF, dayF] = toolInput.fecha.split('-').map(Number);
+          const tempDate = new Date(yearF, monthF - 1, dayF);
           const diaDeLaSemana = tempDate.getDay();
 
           const { data: horario } = await supabaseAdmin

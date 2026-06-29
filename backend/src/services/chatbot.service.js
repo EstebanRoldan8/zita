@@ -128,9 +128,18 @@ PASO 2: Decide según lo que tienes:
     → Agenda y confirma con precio incluido
 
   SI tienes servicio + fecha pero NO hora:
-    → Ejecuta verificar_disponibilidad para esa fecha
-    → Muestra máximo 4 horarios disponibles como opciones
+    → Ejecuta verificar_disponibilidad para esa fecha SIN hora específica
+    → De los horas_disponibles que retorne, muestra máximo 4 opciones
     → Pregunta SOLO: "¿A qué hora te queda mejor?"
+    → Si el cliente elige una hora que NO está en horas_disponibles:
+      → Ejecuta verificar_disponibilidad con esa hora específica
+      → Si disponible: true → agenda
+      → Si disponible: false → informa y ofrece alternativas de slots_alternativos
+
+  SI tienes fecha pero NO servicio y NO hora:
+    → Pregunta SOLO: "¿Qué servicio buscas?"
+    → NO muestres horarios disponibles sin saber el servicio primero
+    → Espera la respuesta antes de continuar
 
   SI tienes servicio pero NO fecha/hora:
     → Pregunta SOLO: "¿Para cuándo sería?"
@@ -223,6 +232,10 @@ PASO 2: Decide según lo que tienes:
 
   SI verificar_disponibilidad retorna disponible: false por hora ocupada:
     → "Ese horario ya está lleno 😅 Tengo disponible: [slots_alternativos]. ¿Cuál te queda bien?"
+
+IMPORTANTE: Si el cliente menciona una hora y verificar_disponibilidad retorna
+disponible: false con slots_alternativos, SIEMPRE muestra esos slots_alternativos
+exactos. NUNCA inventes horarios alternativos.
 </decision_tree>`;
 
 const BOOKING_RULES_TEXT = `<booking_rules>

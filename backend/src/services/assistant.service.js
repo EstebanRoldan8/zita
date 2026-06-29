@@ -383,6 +383,26 @@ RECORDATORIOS A CLIENTES EN RIESGO:
 - Informa siempre cuántos mensajes quedan disponibles hoy
 - Si el dueño quiere enviar a otros segmentos → "Para campañas masivas necesitas el Plan Pro"
 - Si el dueño quiere agregar foto → "El mensaje se enviará con la foto configurada en Configuración → Recordatorio"
+
+AGENDA SEMANAL Y BÚSQUEDA DE CITAS:
+- "¿Qué tengo esta semana?" / "agenda de la semana" → ver_agenda_semana
+- "¿Qué citas tiene Juan?" → buscar_cliente → buscar_cita(client_id)
+- Para cancelar/modificar cita por nombre: SIEMPRE buscar_cliente → buscar_cita → cancelar_cita o actualizar_cita con el appointment_id real. NUNCA inventes un appointment_id.
+- "Confirma la cita de Juan" → buscar_cliente → buscar_cita → confirmar_cita
+- "La cita de las 3 ya se hizo" → buscar_cita(fecha=hoy) → completar_cita
+
+INGRESOS MANUALES Y CORRECCIONES:
+- "Registra un ingreso de $X por Y" → registrar_ingreso
+- "Borra ese egreso / me equivoqué en el gasto" → ver_egresos → eliminar_egreso(expense_id)
+- "Borra ese ingreso / me equivoqué" → ver_ingresos → eliminar_ingreso(income_id)
+- Solo se eliminan ingresos manuales (source=manual). Los de citas y ventas no se pueden borrar.
+- Solo se eliminan egresos que NO sean costo_producto (esos son automáticos del sistema).
+
+ACTUALIZAR CLIENTE:
+- "Cambia el teléfono de Juan" → buscar_cliente → actualizar_cliente(client_id, phone)
+- "Actualiza el email de María" → buscar_cliente → actualizar_cliente(client_id, email)
+- "Corrige el nombre de ese cliente" → buscar_cliente → actualizar_cliente(client_id, name)
+
 </gestion_avanzada>
 
 <testing>
@@ -502,6 +522,20 @@ const tools = [
     }
   },
   {
+    name: 'actualizar_cliente',
+    description: 'Actualiza nombre, teléfono o email de un cliente existente. Usar buscar_cliente primero para obtener el ID.',
+    input_schema: {
+      type: 'object',
+      properties: {
+        client_id: { type: 'string', description: 'ID del cliente a actualizar' },
+        name: { type: 'string', description: 'Nuevo nombre (opcional)' },
+        phone: { type: 'string', description: 'Nuevo teléfono (opcional)' },
+        email: { type: 'string', description: 'Nuevo email (opcional)' }
+      },
+      required: ['client_id']
+    }
+  },
+  {
     name: 'buscar_empleado',
     description: 'Busca un empleado por nombre para obtener su ID internamente.',
     input_schema: {
@@ -540,6 +574,16 @@ const tools = [
       type: 'object',
       properties: {
         fecha: { type: 'string', description: 'Fecha en formato YYYY-MM-DD. Opcional, default hoy.' }
+      }
+    }
+  },
+  {
+    name: 'ver_agenda_semana',
+    description: 'Muestra las citas de los próximos 7 días agrupadas por día. Usar cuando pregunten "¿qué tengo esta semana?", "agenda de la semana", "próximas citas".',
+    input_schema: {
+      type: 'object',
+      properties: {
+        dias: { type: 'number', description: 'Número de días a mostrar. Default 7, máximo 14.' }
       }
     }
   },
@@ -589,6 +633,40 @@ const tools = [
       type: 'object',
       properties: {
         appointment_id: { type: 'string' }
+      },
+      required: ['appointment_id']
+    }
+  },
+  {
+    name: 'buscar_cita',
+    description: 'Busca citas de un cliente específico o por fecha. Usar SIEMPRE antes de cancelar o actualizar una cita cuando el usuario menciona un nombre de cliente. NUNCA inventes un appointment_id.',
+    input_schema: {
+      type: 'object',
+      properties: {
+        client_id: { type: 'string', description: 'ID del cliente (opcional, usar si ya se buscó el cliente)' },
+        fecha: { type: 'string', description: 'Fecha en formato YYYY-MM-DD (opcional)' },
+        solo_futuras: { type: 'boolean', description: 'Si true, solo retorna citas futuras. Default true.' }
+      }
+    }
+  },
+  {
+    name: 'confirmar_cita',
+    description: 'Confirma una cita cambiando su estado de pendiente a confirmada.',
+    input_schema: {
+      type: 'object',
+      properties: {
+        appointment_id: { type: 'string', description: 'ID de la cita a confirmar' }
+      },
+      required: ['appointment_id']
+    }
+  },
+  {
+    name: 'completar_cita',
+    description: 'Marca una cita como completada. Crea el ingreso en caja automáticamente si no existe. Usar cuando el dueño dice que una cita ya se realizó.',
+    input_schema: {
+      type: 'object',
+      properties: {
+        appointment_id: { type: 'string', description: 'ID de la cita a completar' }
       },
       required: ['appointment_id']
     }
@@ -885,6 +963,53 @@ const tools = [
     }
   },
   {
+    name: 'registrar_ingreso',
+    description: 'Registra un ingreso manual en caja (efectivo, transferencia, domicilio, otro no registrado automáticamente). Usar cuando el dueño dice que recibió dinero que no está en el sistema.',
+    input_schema: {
+      type: 'object',
+      properties: {
+        amount: { type: 'number', description: 'Monto en COP' },
+        description: { type: 'string', description: 'Descripción del ingreso' },
+        category: { type: 'string', description: 'Categoría: servicios, productos, otro' },
+        date: { type: 'string', description: 'Fecha YYYY-MM-DD. Si no se especifica usa hoy.' }
+      },
+      required: ['amount', 'description', 'category']
+    }
+  },
+  {
+    name: 'eliminar_egreso',
+    description: 'Elimina un egreso registrado por error. Usar buscar_egreso primero para identificar el ID. No puede eliminar egresos de costo_producto (automáticos).',
+    input_schema: {
+      type: 'object',
+      properties: {
+        expense_id: { type: 'string', description: 'ID del egreso a eliminar' }
+      },
+      required: ['expense_id']
+    }
+  },
+  {
+    name: 'eliminar_ingreso',
+    description: 'Elimina un ingreso manual registrado por error. Solo puede eliminar ingresos con source=manual. No puede eliminar ingresos de citas o ventas de productos.',
+    input_schema: {
+      type: 'object',
+      properties: {
+        income_id: { type: 'string', description: 'ID del ingreso a eliminar' }
+      },
+      required: ['income_id']
+    }
+  },
+  {
+    name: 'ver_ingresos',
+    description: 'Ver ingresos del negocio por período con detalle y desglose por categoría y fuente.',
+    input_schema: {
+      type: 'object',
+      properties: {
+        period: { type: 'string', enum: ['today', 'week', 'month'], description: 'Período a consultar' }
+      },
+      required: ['period']
+    }
+  },
+  {
     name: 'actualizar_configuracion',
     description: 'Actualiza configuraciones del negocio: nombre, teléfono, dirección, meta mensual, horarios.',
     input_schema: {
@@ -1152,6 +1277,25 @@ async function executeTool(toolName, toolInput, businessId) {
       return { success: true, message: 'Cliente eliminado correctamente.' };
     }
 
+    case 'actualizar_cliente': {
+      const updateData = {};
+      if (toolInput.name !== undefined) updateData.name = formatName(toolInput.name);
+      if (toolInput.email !== undefined) updateData.email = toolInput.email;
+      if (toolInput.phone !== undefined) {
+        let phone = toolInput.phone.trim();
+        if (phone.startsWith('+57')) phone = phone.slice(3);
+        else if (phone.startsWith('57') && phone.length > 10) phone = phone.slice(2);
+        updateData.phone = phone;
+      }
+      if (Object.keys(updateData).length === 0) return { success: false, error: 'No hay datos para actualizar' };
+      const { error } = await supabaseAdmin
+        .from('clients')
+        .update(updateData)
+        .eq('id', toolInput.client_id)
+        .eq('business_id', businessId);
+      return { success: !error, error: error?.message };
+    }
+
     case 'buscar_empleado': {
       const palabras = toolInput.nombre.toLowerCase().split(' ');
       const { data } = await supabaseAdmin
@@ -1260,6 +1404,47 @@ async function executeTool(toolName, toolInput, businessId) {
         })
       }));
       return { appointments: appointmentsCol, date: fecha };
+    }
+
+    case 'ver_agenda_semana': {
+      const bogota = { timeZone: 'America/Bogota' };
+      const hoy = new Date().toLocaleDateString('en-CA', bogota);
+      const dias = Math.min(toolInput.dias || 7, 14);
+      const fechaFin = new Date(Date.now() + dias * 86400000).toLocaleDateString('en-CA', bogota);
+
+      const { data } = await supabaseAdmin
+        .from('appointments')
+        .select('id, scheduled_at, status, price, clients(name), services(name, duration_minutes), employees(name)')
+        .eq('business_id', businessId)
+        .gte('scheduled_at', `${hoy}T00:00:00-05:00`)
+        .lte('scheduled_at', `${fechaFin}T23:59:59-05:00`)
+        .not('status', 'in', '("cancelled")')
+        .order('scheduled_at');
+
+      const porDia = {};
+      (data || []).forEach(a => {
+        const diaKey = new Date(a.scheduled_at).toLocaleDateString('en-CA', bogota);
+        const diaNombre = new Date(a.scheduled_at).toLocaleDateString('es-CO', {
+          timeZone: 'America/Bogota', weekday: 'long', day: 'numeric', month: 'long'
+        });
+        if (!porDia[diaKey]) porDia[diaKey] = { fecha: diaKey, nombre: diaNombre, citas: [], total_dia: 0 };
+        porDia[diaKey].citas.push({
+          id: a.id,
+          hora: new Date(a.scheduled_at).toLocaleTimeString('es-CO', { timeZone: 'America/Bogota', hour: '2-digit', minute: '2-digit', hour12: true }),
+          cliente: a.clients?.name || 'Walk-in',
+          servicio: a.services?.name || 'Sin servicio',
+          empleado: a.employees?.name || 'Sin asignar',
+          precio: a.price || 0,
+          status: a.status
+        });
+        porDia[diaKey].total_dia += Number(a.price || 0);
+      });
+
+      const agenda = Object.values(porDia).sort((a, b) => a.fecha.localeCompare(b.fecha));
+      const totalCitas = (data || []).length;
+      const totalIngresos = agenda.reduce((s, d) => s + d.total_dia, 0);
+
+      return { agenda, total_citas: totalCitas, total_ingresos_proyectados: totalIngresos, periodo: `${hoy} al ${fechaFin}` };
     }
 
     case 'crear_cita': {
@@ -1522,6 +1707,92 @@ async function executeTool(toolName, toolInput, businessId) {
         .eq('id', toolInput.appointment_id)
         .eq('business_id', businessId);
       return { success: !error };
+    }
+
+    case 'buscar_cita': {
+      const bogota = { timeZone: 'America/Bogota' };
+      const hoy = new Date().toLocaleDateString('en-CA', bogota);
+      const soloFuturas = toolInput.solo_futuras !== false;
+
+      let query = supabaseAdmin
+        .from('appointments')
+        .select('id, scheduled_at, status, price, clients(name), services(name), employees(name)')
+        .eq('business_id', businessId)
+        .not('status', 'in', '("cancelled")')
+        .order('scheduled_at');
+
+      if (toolInput.client_id) query = query.eq('client_id', toolInput.client_id);
+      if (toolInput.fecha) {
+        query = query
+          .gte('scheduled_at', `${toolInput.fecha}T00:00:00-05:00`)
+          .lte('scheduled_at', `${toolInput.fecha}T23:59:59-05:00`);
+      } else if (soloFuturas) {
+        query = query.gte('scheduled_at', `${hoy}T00:00:00-05:00`);
+      }
+
+      query = query.limit(10);
+      const { data } = await query;
+
+      if (!data || data.length === 0) return { found: false, message: 'No se encontraron citas' };
+
+      const citas = data.map(a => ({
+        id: a.id,
+        fecha_hora: new Date(a.scheduled_at).toLocaleString('es-CO', {
+          timeZone: 'America/Bogota', weekday: 'long', day: 'numeric',
+          month: 'long', hour: '2-digit', minute: '2-digit', hour12: true
+        }),
+        cliente: a.clients?.name || 'Walk-in',
+        servicio: a.services?.name || 'Sin servicio',
+        empleado: a.employees?.name || 'Sin asignar',
+        precio: a.price || 0,
+        status: a.status
+      }));
+
+      return { found: true, citas, total: citas.length };
+    }
+
+    case 'confirmar_cita': {
+      const { error } = await supabaseAdmin
+        .from('appointments')
+        .update({ status: 'confirmed' })
+        .eq('id', toolInput.appointment_id)
+        .eq('business_id', businessId);
+      return { success: !error, error: error?.message };
+    }
+
+    case 'completar_cita': {
+      const { data: appt, error: apptError } = await supabaseAdmin
+        .from('appointments')
+        .update({ status: 'completed' })
+        .eq('id', toolInput.appointment_id)
+        .eq('business_id', businessId)
+        .select('id, price, scheduled_at')
+        .single();
+
+      if (apptError) return { success: false, error: apptError.message };
+
+      if (appt?.price > 0) {
+        const { data: existingIncome } = await supabaseAdmin
+          .from('income')
+          .select('id')
+          .eq('appointment_id', appt.id)
+          .maybeSingle();
+
+        if (!existingIncome) {
+          const incomeDate = new Date(appt.scheduled_at).toLocaleDateString('en-CA', { timeZone: 'America/Bogota' });
+          await supabaseAdmin.from('income').insert({
+            business_id: businessId,
+            appointment_id: appt.id,
+            amount: appt.price,
+            category: 'servicios',
+            description: 'Cita completada',
+            date: incomeDate,
+            source: 'appointment'
+          });
+        }
+      }
+
+      return { success: true, message: 'Cita marcada como completada e ingreso registrado' };
     }
 
     case 'contactar_soporte': {
@@ -2451,6 +2722,77 @@ async function executeTool(toolName, toolInput, businessId) {
       delete porCategoria['costo_producto'];
 
       return { egresos: data || [], total, por_categoria: porCategoria, period: toolInput.period };
+    }
+
+    case 'registrar_ingreso': {
+      const bogota = { timeZone: 'America/Bogota' };
+      const hoy = new Date().toLocaleDateString('en-CA', bogota);
+      const { error } = await supabaseAdmin
+        .from('income')
+        .insert({
+          business_id: businessId,
+          amount: toolInput.amount,
+          description: toolInput.description,
+          category: toolInput.category,
+          date: toolInput.date || hoy,
+          source: 'manual'
+        });
+      return { success: !error, error: error?.message };
+    }
+
+    case 'eliminar_egreso': {
+      const { data, error } = await supabaseAdmin
+        .from('expenses')
+        .delete()
+        .eq('id', toolInput.expense_id)
+        .eq('business_id', businessId)
+        .neq('category', 'costo_producto')
+        .select('id');
+
+      if (error) return { success: false, error: error.message };
+      if (!data || data.length === 0) return { success: false, error: 'Egreso no encontrado o no se puede eliminar (es un costo automático de venta).' };
+      return { success: true, message: 'Egreso eliminado correctamente' };
+    }
+
+    case 'eliminar_ingreso': {
+      const { data, error } = await supabaseAdmin
+        .from('income')
+        .delete()
+        .eq('id', toolInput.income_id)
+        .eq('business_id', businessId)
+        .eq('source', 'manual')
+        .select('id');
+
+      if (error) return { success: false, error: error.message };
+      if (!data || data.length === 0) return { success: false, error: 'Ingreso no encontrado. Solo se pueden eliminar ingresos manuales, no los de citas o ventas.' };
+      return { success: true, message: 'Ingreso eliminado correctamente' };
+    }
+
+    case 'ver_ingresos': {
+      const bogota = { timeZone: 'America/Bogota' };
+      const hoy = new Date().toLocaleDateString('en-CA', bogota);
+      const inicios = {
+        today: hoy,
+        week: new Date(Date.now() - 7*86400000).toLocaleDateString('en-CA', bogota),
+        month: hoy.slice(0,7) + '-01'
+      };
+      const { data } = await supabaseAdmin
+        .from('income')
+        .select('id, amount, description, category, source, date')
+        .eq('business_id', businessId)
+        .gte('date', inicios[toolInput.period])
+        .lte('date', hoy)
+        .order('date', { ascending: false });
+
+      const total = (data || []).reduce((s, i) => s + Number(i.amount), 0);
+      const porCategoria = {};
+      const porFuente = {};
+      (data || []).forEach(i => {
+        porCategoria[i.category || 'otro'] = (porCategoria[i.category || 'otro'] || 0) + Number(i.amount);
+        porFuente[i.source || 'manual'] = (porFuente[i.source || 'manual'] || 0) + Number(i.amount);
+      });
+
+      return { ingresos: data || [], total, por_categoria: porCategoria, por_fuente: porFuente, period: toolInput.period };
     }
 
     case 'actualizar_configuracion': {

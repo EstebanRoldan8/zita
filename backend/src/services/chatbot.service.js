@@ -697,6 +697,24 @@ async function processChatbotMessage(businessId, clientPhone, messageText, histo
             };
           }
 
+          // Verificar días cerrados especiales (festivos)
+          const { data: diaCerradoEsp } = await supabaseAdmin
+            .from('business_closed_days')
+            .select('reason')
+            .eq('business_id', businessId)
+            .eq('date', toolInput.fecha)
+            .maybeSingle();
+
+          if (diaCerradoEsp) {
+            return {
+              disponible: false,
+              cerrado: true,
+              festivo: true,
+              razon: diaCerradoEsp.reason,
+              mensaje: `Ese día estamos cerrados: ${diaCerradoEsp.reason}`
+            };
+          }
+
           const { data: empleados } = await supabaseAdmin
             .from('employees')
             .select('id, name')

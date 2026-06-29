@@ -489,6 +489,7 @@ PROGRAMA DE FIDELIZACIÓN:
 - "Canjéale la recompensa a María" → buscar_cliente → ver_fidelizacion_cliente (verificar puede_canjear: true) → canjear_recompensa
 - NUNCA canjees sin verificar primero que puede_canjear sea true
 - "¿Quién está cerca de la recompensa?" → clientes_cerca_recompensa
+- "¿Quién ya puede canjear?" / "¿Quién tiene la recompensa disponible?" → clientes_cerca_recompensa(solo_listos: true)
 - "¿Cómo está configurada la fidelización?" → ver_config_fidelizacion
 
 CIERRE DE CAJA:
@@ -1245,11 +1246,12 @@ const tools = [
   },
   {
     name: 'clientes_cerca_recompensa',
-    description: 'Lista clientes que están a 1, 2 o 3 visitas de obtener su recompensa de fidelización. Ideal para motivarlos a volver.',
+    description: 'Lista clientes que están cerca de obtener su recompensa o que ya pueden canjearla.',
     input_schema: {
       type: 'object',
       properties: {
-        margen: { type: 'number', description: 'Visitas de diferencia máximo. Default 2.' }
+        margen: { type: 'number', description: 'Visitas de diferencia máximo para "cerca". Default 2.' },
+        solo_listos: { type: 'boolean', description: 'Si true, muestra SOLO los que ya pueden canjear ahora.' }
       }
     }
   },
@@ -3701,26 +3703,46 @@ async function executeTool(toolName, toolInput, businessId) {
       if (!config?.visits_for_reward) return { error: 'No hay programa de fidelización configurado.' };
 
       const meta = config.visits_for_reward;
-      const minVisitas = Math.max(0, meta - margen);
 
-      const { data: loyalty } = await supabaseAdmin
+      let loyaltyQuery = supabaseAdmin
         .from('client_loyalty')
         .select('client_id, loyalty_visits')
-        .eq('business_id', businessId)
-        .gte('loyalty_visits', minVisitas)
-        .lt('loyalty_visits', meta);
+        .eq('business_id', businessId);
 
-      if (!loyalty || loyalty.length === 0) return { clientes: [], total: 0, mensaje: 'No hay clientes cerca de la recompensa actualmente.' };
+      if (toolInput.solo_listos) {
+        loyaltyQuery = loyaltyQuery.gte('loyalty_visits', meta);
+      } else {
+        const minVisitas = Math.max(0, meta - margen);
+        loyaltyQuery = loyaltyQuery.gte('loyalty_visits', minVisitas).lt('loyalty_visits', meta);
+      }
+
+      const { data: loyalty } = await loyaltyQuery;
+
+      if (!loyalty || loyalty.length === 0) {
+        const msgVacio = toolInput.solo_listos ? 'No hay clientes listos para canjear recompensa.' : 'No hay clientes cerca de la recompensa actualmente.';
+        return { clientes: [], total: 0, mensaje: msgVacio };
+      }
 
       const ids = loyalty.map(l => l.client_id);
       const { data: clients } = await supabaseAdmin.from('clients').select('id, name, phone').in('id', ids);
 
       const resultado = loyalty.map(l => {
         const c = clients?.find(cl => cl.id === l.client_id);
-        return { nombre: c?.name || 'Desconocido', phone: c?.phone, visitas_actuales: l.loyalty_visits, faltan: meta - l.loyalty_visits, meta };
+        return {
+          nombre: c?.name || 'Desconocido',
+          phone: c?.phone,
+          visitas_actuales: l.loyalty_visits,
+          faltan: toolInput.solo_listos ? 0 : meta - l.loyalty_visits,
+          puede_canjear: toolInput.solo_listos || l.loyalty_visits >= meta,
+          meta
+        };
       }).sort((a, b) => a.faltan - b.faltan);
 
-      return { clientes: resultado, total: resultado.length, recompensa: config.rewards_description, mensaje: `${resultado.length} cliente(s) a ${margen} visita(s) o menos de su recompensa` };
+      const msgFinal = toolInput.solo_listos
+        ? `${resultado.length} cliente(s) listo(s) para canjear recompensa`
+        : `${resultado.length} cliente(s) a ${margen} visita(s) o menos de su recompensa`;
+
+      return { clientes: resultado, total: resultado.length, recompensa: config.rewards_description, mensaje: msgFinal };
     }
 
     case 'canjear_recompensa': {
@@ -4304,9 +4326,15 @@ async function processMessage(businessId, userMessage, conversationHistory = [])
     const mensajesHoy = esHoy ? (biz.ai_messages_today || 0) : 0;
 
     if (mensajesHoy >= limite) {
+      const planActual = plan;
+      const mensajeUpgrade = planActual === 'estandar'
+        ? '🚀 ¿Quieres mensajes ilimitados? Mejora al **Plan Pro** desde Mi Suscripción en el panel.'
+        : planActual === 'lite'
+        ? '🚀 ¿Quieres usar el asistente? Mejora al **Plan Estándar** desde Mi Suscripción en el panel.'
+        : '';
       return {
         success: false,
-        error: `Has alcanzado el límite de ${limite} mensajes diarios del plan Estándar. Para aumentar tu límite o gestionar tu negocio, visita la sección de Citas, Clientes o Servicios en el panel. También puedes actualizar a un plan superior desde Mi Suscripción.`,
+        error: `Has alcanzado el límite de ${limite} mensajes diarios de tu plan ${planActual}. ${mensajeUpgrade} Puedes seguir gestionando tu negocio desde el panel en Citas, Clientes, Servicios y Caja.`,
         code: 'AI_LIMIT_REACHED'
       };
     }

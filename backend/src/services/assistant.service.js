@@ -452,6 +452,18 @@ GESTIÓN DE EMPLEADOS Y SERVICIOS:
 - "Desactiva al empleado X" → buscar_empleado → actualizar_empleado con is_active: false
 - "Crea el servicio X por $Y en Z minutos" → crear_servicio
 
+LISTAR EMPLEADOS:
+- "¿qué empleados tengo?" / "muéstrame el equipo" → listar_empleados (solo activos)
+- "¿quiénes están inactivos?" / "muéstrame todos los empleados" → listar_empleados(incluir_inactivos: true)
+- Al presentar: separar en dos secciones ✅ Activos e ❌ Inactivos con nombre, teléfono y comisión
+- NUNCA digas que no puedes ver inactivos — sí puedes con incluir_inactivos: true
+
+ACTIVAR / DESACTIVAR EMPLEADOS:
+- "inactiva a Andrés Morales" → buscar_empleado → actualizar_empleado(is_active: false)
+- "activa a Miguel Torres" → buscar_empleado → actualizar_empleado(is_active: true)
+- Ejecutar sin pedir confirmación adicional
+- Confirmar con: "✅ [Nombre] fue [activado/desactivado] correctamente"
+
 EGRESOS:
 - "Registra un gasto de $X por Y" → registrar_egreso
 - "¿Cuánto gasté esta semana?" → ver_egresos con period: 'week'
@@ -707,8 +719,13 @@ const tools = [
   },
   {
     name: 'listar_empleados',
-    description: 'Lista todos los empleados activos del negocio.',
-    input_schema: { type: 'object', properties: {} }
+    description: 'Lista empleados del negocio. Por defecto solo activos. Usar incluir_inactivos=true para ver todos.',
+    input_schema: {
+      type: 'object',
+      properties: {
+        incluir_inactivos: { type: 'boolean', description: 'Si true, muestra también los inactivos. Default false.' }
+      }
+    }
   },
   {
     name: 'listar_citas',
@@ -1707,12 +1724,28 @@ async function executeTool(toolName, toolInput, businessId) {
     }
 
     case 'listar_empleados': {
-      const { data } = await supabaseAdmin
+      let query = supabaseAdmin
         .from('employees')
-        .select('id, name, phone, commission_percent')
-        .eq('business_id', businessId);
+        .select('id, name, phone, email, commission_percent, commission_fixed, is_active')
+        .eq('business_id', businessId)
+        .order('name');
+
+      if (!toolInput.incluir_inactivos) {
+        query = query.eq('is_active', true);
+      }
+
+      const { data } = await query;
+      const activos = (data || []).filter(e => e.is_active);
+      const inactivos = (data || []).filter(e => !e.is_active);
+
       logger.info('Empleados encontrados:', data?.length);
-      return { employees: data || [] };
+      return {
+        empleados: data || [],
+        activos: activos.length,
+        inactivos: inactivos.length,
+        detalle_activos: activos,
+        detalle_inactivos: inactivos
+      };
     }
 
     case 'listar_citas': {

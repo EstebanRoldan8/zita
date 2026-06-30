@@ -367,6 +367,36 @@ async function update(req, res) {
             { onConflict: 'business_id,client_id' }
           );
 
+        // Crear income cuando la cita se completa manualmente desde el panel
+        if (price > 0) {
+          const { data: existingIncome } = await userClient
+            .from('income')
+            .select('id')
+            .eq('appointment_id', id)
+            .maybeSingle();
+
+          if (!existingIncome) {
+            const { data: serviceData } = await userClient
+              .from('services')
+              .select('name')
+              .eq('id', existing.service_id)
+              .maybeSingle();
+
+            await userClient
+              .from('income')
+              .insert({
+                business_id: req.businessId,
+                amount: price,
+                category: 'servicios',
+                description: `${serviceData?.name || 'Servicio'} - completado manualmente`,
+                source: 'appointment',
+                appointment_id: id,
+                client_id: existing.client_id || null,
+                date: new Date().toLocaleDateString('en-CA', { timeZone: 'America/Bogota' })
+              });
+          }
+        }
+
         // Si es cita de recompensa, registrar el costo como egreso automático
         if (isReward && price > 0) {
           await userClient

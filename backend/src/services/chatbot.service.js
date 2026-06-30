@@ -132,6 +132,8 @@ FLUJOS ESPECIALES:
   Horarios: ver_horarios
   Festivo: si verificar_disponibilidad retorna festivo:true → "Hoy estamos cerrados por [razon] 🎉 ¿Te agendo para mañana?"
   Lista de espera: si el cliente insiste en hora ocupada → ofrecer lista_espera
+  Productos ("tienen [producto]?", "venden algo para...", "qué productos hay"): ver_productos → muestra los que coincidan o todos si pregunta genérico
+  Empleados ("quiénes trabajan ahí", "con quién puedo ir"): ver_empleados → lista nombres
 
 REGLA DE PRECISIÓN DE HORA:
   Cuando el cliente da una hora en el mismo mensaje en que pregunta otra cosa

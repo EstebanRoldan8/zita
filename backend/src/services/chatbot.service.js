@@ -924,24 +924,6 @@ async function processChatbotMessage(businessId, clientPhone, messageText, histo
 
           if (data) {
             try {
-              logger.info('Creando ingreso automático', { precio: servicio.price, fecha: toolInput.fecha });
-              await supabaseAdmin
-                .from('income')
-                .insert({
-                  business_id: businessId,
-                  amount: servicio.price,
-                  category: 'servicios',
-                  description: `${servicio.name} - agendado por WhatsApp`,
-                  source: 'appointment',
-                  appointment_id: data.id,
-                  date: toolInput.fecha,
-                  client_id: clienteExistente?.id || null
-                });
-            } catch (incomeErr) {
-              logger.error('Error creando ingreso automático:', incomeErr.message);
-            }
-
-            try {
               await supabaseAdmin
                 .from('employees')
                 .update({ last_appointment_at: new Date().toISOString() })

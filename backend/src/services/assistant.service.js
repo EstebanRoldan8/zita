@@ -1850,10 +1850,10 @@ async function executeTool(toolName, toolInput, businessId) {
         }
       }
 
-      // Fetch service price for income creation
+      // Fetch service price and name for income creation
       const { data: service } = await supabaseAdmin
         .from('services')
-        .select('price')
+        .select('name, price')
         .eq('id', toolInput.service_id)
         .eq('business_id', businessId)
         .single();
@@ -1961,7 +1961,7 @@ async function executeTool(toolName, toolInput, businessId) {
             appointment_id: data.id,
             amount: service.price,
             date: incomeDate,
-            description: `Cita manual registrada`,
+            description: `${service.name} - agendado por Asistente IA`,
             source: 'appointment'
           };
           const { error: incomeError } = await supabaseAdmin

@@ -329,10 +329,10 @@ async function update(req, res) {
     // Actualizar contadores de visitas cuando la cita pasa a completada
     if (status === 'completed' && existing.status !== 'completed' && existing.client_id) {
       try {
-        // Obtener is_reward, price y client del appointment
+        // Obtener is_reward, price, source y client del appointment
         const { data: appt } = await userClient
           .from('appointments')
-          .select('is_reward, price, clients(name)')
+          .select('is_reward, price, source, clients(name)')
           .eq('id', id)
           .single();
 
@@ -376,7 +376,7 @@ async function update(req, res) {
             .maybeSingle();
 
           if (!existingIncome) {
-            const { data: serviceData } = await userClient
+            const { data: serviceData } = await supabaseAdmin
               .from('services')
               .select('name')
               .eq('id', existing.service_id)
@@ -388,7 +388,13 @@ async function update(req, res) {
                 business_id: req.businessId,
                 amount: price,
                 category: 'servicios',
-                description: `${serviceData?.name || 'Servicio'} - completado manualmente`,
+                description: (() => {
+                  const nombre = serviceData?.name || 'Servicio';
+                  const source = appt?.source || 'manual';
+                  if (source === 'whatsapp') return `${nombre} - agendado por WhatsApp`;
+                  if (source === 'assistant') return `${nombre} - agendado por Asistente IA`;
+                  return `${nombre} - agendado manualmente`;
+                })(),
                 source: 'appointment',
                 appointment_id: id,
                 client_id: existing.client_id || null,

@@ -130,12 +130,13 @@ de texto sobre horas NO es confiable, las tools sí lo son.
   ✅ servicio + fecha + hora conocidos (todos explícitos en la conversación) → agendar_cita YA, sin pedir nada más. Si la tool retorna error, informa el error real, no inventes uno.
   ⏰ servicio + fecha, sin hora → verificar_disponibilidad(fecha) sin hora → mostrar máx 4 slots → "¿Cuál hora te queda mejor? 😊"
   📅 servicio sin fecha → "¿Para cuándo te gustaría? 😊"
-  🔍 fecha + hora sin servicio → ver_servicios → mostrar relevantes → "¿Cuál de estos te late? 😊"
+  🔍 fecha + hora sin servicio → ver_servicios → mostrar relevantes → "¿Cuál de estos prefieres? 😊"
   💬 saludo vago → responder cálido → "¿Quieres agendar una cita o tienes alguna duda? 😊"
   🤷 falta más de un dato (ej: ni servicio ni fecha) → pregunta SOLO por el primero que falte, con calidez. NUNCA pidas dos cosas en la misma pregunta.
 
 FLUJOS ESPECIALES:
   Reagendar: ver_mis_citas → preguntar nueva fecha/hora → verificar_disponibilidad → actualizar_cita
+  Cambiar servicio de una cita existente: ver_mis_citas → si el cliente tiene más de una cita activa, pregunta CUÁL antes de continuar → actualizar_cita con appointment_id y nuevo_servicio (NUNCA uses agendar_cita para esto, crearía una cita duplicada)
   Cancelar: ver_mis_citas → cancelar_cita (elimina ingreso automáticamente)
   Ver citas: ver_mis_citas → mostrar con empleado asignado
   Empleado específico ("quiero con Carlos"): buscar ese empleado en agendar_cita con employee_name
@@ -156,7 +157,7 @@ REGLA DE PRECISIÓN DE HORA:
   nunca otro valor como "16:30". Si tienes dudas de la hora exacta, vuelve a confirmar
   con el cliente antes de agendar, no asumas un valor distinto al mencionado.
 
-TONO: Habla como un empleado de barbería real — relajado, amigable, nunca con tono de formulario o de orden. Evita frases como "necesito que me digas". Usa frases como "¿me cuentas...", "¿cuál te late...", "¿qué tal si...".
+TONO: Habla como un empleado de barbería real — relajado, amigable, nunca con tono de formulario o de orden. Evita frases como "necesito que me digas". Usa frases como "¿me cuentas...", "¿cuál prefieres...", "¿qué tal si...".
 </flujo>`;
 
 const BOOKING_RULES_TEXT = `<agendamiento>
@@ -430,14 +431,15 @@ async function processChatbotMessage(businessId, clientPhone, messageText, histo
     },
     {
       name: 'actualizar_cita',
-      description: 'Actualizar una cita existente — cambiar empleado, hora o fecha',
+      description: 'Actualizar una cita existente — cambiar empleado, hora, fecha o servicio',
       input_schema: {
         type: 'object',
         properties: {
           appointment_id: { type: 'string', description: 'ID de la cita a actualizar' },
           employee_name: { type: 'string', description: 'Nuevo empleado (opcional)' },
           nueva_fecha: { type: 'string', description: 'Nueva fecha YYYY-MM-DD (opcional)' },
-          nueva_hora: { type: 'string', description: 'Nueva hora HH:mm (opcional)' }
+          nueva_hora: { type: 'string', description: 'Nueva hora HH:mm (opcional)' },
+          nuevo_servicio: { type: 'string', description: 'Nombre del nuevo servicio si el cliente quiere cambiarlo (opcional)' }
         },
         required: ['appointment_id']
       }
@@ -1281,6 +1283,26 @@ async function processChatbotMessage(businessId, clientPhone, messageText, histo
             updateData.employee_id = empData.id;
           }
 
+          let nuevoPrecioServicio = null;
+          if (toolInput.nuevo_servicio) {
+            const { data: serviciosNuevo } = await supabaseAdmin
+              .from('services')
+              .select('id, name, price')
+              .eq('business_id', businessId)
+              .ilike('name', `%${toolInput.nuevo_servicio}%`)
+              .eq('active', true)
+              .limit(1);
+
+            const servicioNuevo = serviciosNuevo?.[0];
+            if (!servicioNuevo) {
+              return { success: false, error: 'No encontré ese servicio. ¿Cuál quieres exactamente?' };
+            }
+
+            updateData.service_id = servicioNuevo.id;
+            updateData.price = servicioNuevo.price;
+            nuevoPrecioServicio = servicioNuevo.price;
+          }
+
           if (toolInput.nueva_fecha && toolInput.nueva_hora) {
             updateData.scheduled_at = `${toolInput.nueva_fecha}T${toolInput.nueva_hora}:00-05:00`;
           }
@@ -1297,17 +1319,20 @@ async function processChatbotMessage(businessId, clientPhone, messageText, histo
 
           if (error) return { success: false, error: error.message };
 
-          if (toolInput.nueva_fecha || toolInput.nueva_hora) {
+          if (toolInput.nueva_fecha || toolInput.nueva_hora || toolInput.nuevo_servicio) {
             const { data: citaActualizada } = await supabaseAdmin
               .from('appointments')
-              .select('service_id, services(price)')
+              .select('service_id, services(name, price)')
               .eq('id', toolInput.appointment_id)
               .single();
 
             if (citaActualizada?.services?.price) {
               await supabaseAdmin
                 .from('income')
-                .update({ amount: citaActualizada.services.price })
+                .update({
+                  amount: citaActualizada.services.price,
+                  description: `${citaActualizada.services.name} - agendado por WhatsApp (actualizado)`
+                })
                 .eq('appointment_id', toolInput.appointment_id)
                 .eq('business_id', businessId);
             }
@@ -1316,7 +1341,8 @@ async function processChatbotMessage(businessId, clientPhone, messageText, histo
           const empleadoNombre = toolInput.employee_name || null;
           return {
             success: true,
-            message: `Cita actualizada correctamente${empleadoNombre ? ` — ahora con ${empleadoNombre}` : ''}.`
+            message: `Cita actualizada correctamente${empleadoNombre ? ` — ahora con ${empleadoNombre}` : ''}.`,
+            nuevo_precio: nuevoPrecioServicio
           };
         }
 

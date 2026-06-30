@@ -1869,6 +1869,27 @@ async function executeTool(toolName, toolInput, businessId) {
         }
       }
 
+      // Protección contra duplicados: si ya existe una cita idéntica creada
+      // en los últimos 30 segundos, no crear otra (evita doble-submit o reintentos)
+      const { data: posibleDuplicado } = await supabaseAdmin
+        .from('appointments')
+        .select('id, created_at')
+        .eq('business_id', businessId)
+        .eq('service_id', toolInput.service_id)
+        .eq('scheduled_at', scheduledAt)
+        .eq('client_id', toolInput.client_id || null)
+        .gte('created_at', new Date(Date.now() - 30000).toISOString())
+        .limit(1);
+
+      if (posibleDuplicado && posibleDuplicado.length > 0) {
+        logger.warn('Posible cita duplicada detectada y bloqueada', { businessId, scheduledAt, service_id: toolInput.service_id });
+        return {
+          success: true,
+          message: 'Esta cita ya había sido creada hace unos segundos, no se duplicó.',
+          appointment_id: posibleDuplicado[0].id
+        };
+      }
+
       const insertData = {
         business_id: businessId,
         client_id: toolInput.client_id || null,
@@ -4495,7 +4516,7 @@ Cuando diga "mañana" usar: ${mananaISO}
 
     apiMessages.push({ role: 'user', content: toolResults });
 
-    response = await client.messages.create({
+    response = await callClaudeWithRetry({
       model: 'claude-sonnet-4-6',
       max_tokens: 1500,
       system: [

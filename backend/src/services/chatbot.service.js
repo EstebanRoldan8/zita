@@ -1733,8 +1733,9 @@ async function processWhatsAppMessage({ from, phoneNumberId, messageText, messag
 
     // Detección rápida de confirmación/cancelación de cita (respuesta a recordatorio)
     const msgLower = messageText.toLowerCase().trim();
-    const esConfirmacion = ['si', 'sí', 'confirmo', 'confirmado', 'ahí estaré', 'ahi estare', 'voy', 'allá voy', 'alla voy', 'ok', 'okay', 'dale', 'claro', 'por supuesto', 'si voy', 'sí voy'].some(p => msgLower === p || msgLower.startsWith(p + ' ') || msgLower.endsWith(' ' + p));
-    const esCancelacion = ['no', 'no puedo', 'cancela', 'cancelar', 'no voy', 'no puedo ir', 'no iré', 'no ire', 'cancela mi cita', 'no asisto'].some(p => msgLower === p || msgLower.startsWith(p + ' '));
+    // SOLO activa si el mensaje es EXACTAMENTE una de estas frases, nada más (sin texto adicional)
+    const esConfirmacion = ['si', 'sí', 'confirmo', 'confirmado', 'ahí estaré', 'ahi estare', 'voy', 'allá voy', 'alla voy', 'ok', 'okay', 'dale', 'claro', 'por supuesto', 'si voy', 'sí voy'].includes(msgLower);
+    const esCancelacion = ['no', 'no puedo', 'cancela', 'cancelar', 'no voy', 'no puedo ir', 'no iré', 'no ire', 'cancela mi cita', 'no asisto'].includes(msgLower);
 
     if (esConfirmacion || esCancelacion) {
       const { data: clienteCheck } = await supabaseAdmin
@@ -1753,7 +1754,7 @@ async function processWhatsAppMessage({ from, phoneNumberId, messageText, messag
           .select('id, scheduled_at, services(name), status')
           .eq('business_id', business.id)
           .eq('client_id', clienteId)
-          .in('status', ['pending', 'confirmed'])
+          .eq('status', 'pending')
           .gte('scheduled_at', `${hoyCheck}T00:00:00-05:00`)
           .order('scheduled_at')
           .limit(1);

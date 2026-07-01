@@ -237,7 +237,7 @@ async function update(req, res) {
 
     const { data: existing } = await userClient
       .from('appointments')
-      .select('id, status, client_id')
+      .select('id, status, client_id, price, service_id, source')
       .eq('id', id)
       .eq('business_id', req.businessId)
       .single();

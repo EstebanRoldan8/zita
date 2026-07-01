@@ -108,6 +108,9 @@ export default function AIAssistant() {
       if (actions.includes('crear_cita') || actions.includes('registrar_venta_producto')) {
         queryClient.invalidateQueries({ queryKey: ['metrics-overview'] });
         queryClient.invalidateQueries({ queryKey: ['cash-summary'] });
+        queryClient.invalidateQueries({ queryKey: ['cash-income'] });
+        queryClient.invalidateQueries({ queryKey: ['cash-summary-month'] });
+        queryClient.invalidateQueries({ queryKey: ['cash-summary-period'] });
       }
       if (actions.includes('desactivar_servicio') || actions.includes('activar_servicio')) {
         queryClient.invalidateQueries({ queryKey: ['services'] });

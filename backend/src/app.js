@@ -47,6 +47,7 @@ const { initScheduler } = require('./services/scheduler.service');
 
 const app = express();
 
+app.set('etag', false);
 app.set('trust proxy', 1);
 
 app.use(helmet({

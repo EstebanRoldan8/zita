@@ -112,7 +112,7 @@ function SummaryTab({ month, period, onPeriodChange, dayDate, onDayDateChange })
 
   const { data: monthData } = useQuery({
     queryKey: ['cash-summary-month', month],
-    queryFn: () => api.get(`/api/cash/summary?month=${month}`).then((r) => r.data.data),
+    queryFn: () => api.get(`/api/cash/summary?month=${month}&_t=${Date.now()}`).then((r) => r.data.data),
     refetchInterval: 30 * 1000,
   });
 
@@ -121,11 +121,11 @@ function SummaryTab({ month, period, onPeriodChange, dayDate, onDayDateChange })
     queryFn: () => {
       let url = '/api/cash/summary';
       if (period === 'mes') {
-        url += `?month=${month}`;
+        url += `?month=${month}&_t=${Date.now()}`;
       } else if (period === 'día') {
-        url += `?period=day&date=${dayDate.toLocaleDateString('en-CA', { timeZone: 'America/Bogota' })}`;
+        url += `?period=day&date=${dayDate.toLocaleDateString('en-CA', { timeZone: 'America/Bogota' })}&_t=${Date.now()}`;
       } else {
-        url += `?period=week`;
+        url += `?period=week&_t=${Date.now()}`;
       }
       return api.get(url).then((r) => r.data.data);
     },
@@ -345,11 +345,11 @@ function IncomeTab({ month, period, onPeriodChange, dayDate, onDayDateChange }) 
     queryFn: () => {
       let url = '/api/cash/income';
       if (period === 'mes') {
-        url += `?month=${month}`;
+        url += `?month=${month}&_t=${Date.now()}`;
       } else if (period === 'día') {
-        url += `?period=day&date=${dayDate.toLocaleDateString('en-CA', { timeZone: 'America/Bogota' })}`;
+        url += `?period=day&date=${dayDate.toLocaleDateString('en-CA', { timeZone: 'America/Bogota' })}&_t=${Date.now()}`;
       } else {
-        url += `?period=week`;
+        url += `?period=week&_t=${Date.now()}`;
       }
       return api.get(url).then((r) => r.data.data);
     },

@@ -122,6 +122,10 @@ async function getSummary(req, res) {
     for (const r of (chartIncome   || [])) { const k = r.date.slice(0, 7);         if (chartMap[k]) chartMap[k].income   += Number(r.amount); }
     for (const r of (chartExpenses || [])) { const k = r.date.slice(0, 7);         if (chartMap[k]) chartMap[k].expenses += Number(r.amount); }
 
+    res.set('Cache-Control', 'no-store, no-cache, must-revalidate, proxy-revalidate');
+    res.set('Pragma', 'no-cache');
+    res.set('Expires', '0');
+
     return res.json({
       success: true,
       data: {

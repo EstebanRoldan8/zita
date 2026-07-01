@@ -115,13 +115,25 @@ export default function AIAssistant() {
       if (actions.includes('activar_producto') || actions.includes('desactivar_producto')) {
         queryClient.invalidateQueries({ queryKey: ['products'] });
       }
-    } catch {
-      setDisplay((prev) => [...prev, {
-        role: 'assistant',
-        text: 'Lo siento, tuve un problema al procesar tu mensaje. Intenta de nuevo.',
-        actions: [],
-        error: true,
-      }]);
+    } catch (err) {
+      const code = err.response?.data?.code;
+      const errorMsg = err.response?.data?.error;
+
+      if (code === 'AI_LIMIT_REACHED' && errorMsg) {
+        setDisplay((prev) => [...prev, {
+          role: 'assistant',
+          text: errorMsg,
+          actions: [],
+          error: false,
+        }]);
+      } else {
+        setDisplay((prev) => [...prev, {
+          role: 'assistant',
+          text: 'Lo siento, tuve un problema al procesar tu mensaje. Intenta de nuevo.',
+          actions: [],
+          error: true,
+        }]);
+      }
     } finally {
       setLoading(false);
     }

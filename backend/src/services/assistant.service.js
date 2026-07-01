@@ -1964,7 +1964,7 @@ async function executeTool(toolName, toolInput, businessId) {
 
       if (error) return { success: false, error: error.message };
 
-      return { success: true, appointment: data };
+      return { success: true, appointment: data, appointment_id: data.id };
     }
 
     case 'consultar_metricas': {

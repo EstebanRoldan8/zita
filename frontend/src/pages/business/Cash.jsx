@@ -113,7 +113,6 @@ function SummaryTab({ month, period, onPeriodChange, dayDate, onDayDateChange })
   const { data: monthData } = useQuery({
     queryKey: ['cash-summary-month', month],
     queryFn: () => api.get(`/api/cash/summary?month=${month}&_t=${Date.now()}`).then((r) => r.data.data),
-    refetchInterval: 30 * 1000,
   });
 
   const { data: periodData, isLoading } = useQuery({
@@ -129,7 +128,6 @@ function SummaryTab({ month, period, onPeriodChange, dayDate, onDayDateChange })
       }
       return api.get(url).then((r) => r.data.data);
     },
-    refetchInterval: 30 * 1000,
   });
 
   const handleSaveGoal = () => {
@@ -353,7 +351,6 @@ function IncomeTab({ month, period, onPeriodChange, dayDate, onDayDateChange }) 
       }
       return api.get(url).then((r) => r.data.data);
     },
-    refetchInterval: 30 * 1000,
   });
 
   const { data: clients = [] } = useQuery({

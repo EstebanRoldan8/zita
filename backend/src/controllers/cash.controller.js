@@ -72,7 +72,6 @@ async function getSummary(req, res) {
     const tz = getTimezone(req.business?.country);
     const offset = getOffsetForTz(tz);
     const { start, end } = periodRange(req.query, tz);
-    logger.info('CASH_DEBUG start=' + start + ' end=' + end + ' query=' + JSON.stringify(req.query));
 
     // Last 6 months for chart
     const chartFrom = new Date();
@@ -107,7 +106,6 @@ async function getSummary(req, res) {
     ]);
 
     const incomeTotal       = (periodIncome  || []).reduce((s, r) => s + Number(r.amount), 0);
-    logger.info('CASH_DEBUG incomeTotal=' + incomeTotal + ' periodIncome_count=' + (periodIncome || []).length);
     const costoVentas       = (periodExpenses|| []).filter(r => r.category === 'costo_producto').reduce((s, r) => s + Number(r.amount), 0);
     const egresosOperativos = (periodExpenses|| []).filter(r => r.category !== 'costo_producto').reduce((s, r) => s + Number(r.amount), 0);
     const expenseTotal      = costoVentas + egresosOperativos;

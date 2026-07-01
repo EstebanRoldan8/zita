@@ -1667,9 +1667,20 @@ async function executeTool(toolName, toolInput, businessId) {
           : null,
       });
 
-      const matches = allProducts.filter(p =>
-        normalize(p.name).includes(normalizedSearch) || normalizedSearch.split(' ').some(w => normalize(p.name).includes(w))
-      );
+      // Filtrar palabras cortas o vacías para evitar falsos positivos
+      const searchWords = normalizedSearch.split(' ').filter(w => w.length >= 3);
+
+      const matches = allProducts.filter(p => {
+        const normalizedName = normalize(p.name);
+        // Match exacto del término completo
+        if (normalizedName.includes(normalizedSearch)) return true;
+        // Match por palabras significativas (mínimo 3 chars)
+        // TODAS las palabras significativas deben estar presentes para considerar match
+        if (searchWords.length > 0) {
+          return searchWords.every(w => normalizedName.includes(w));
+        }
+        return false;
+      });
 
       if (matches.length === 0) {
         return { found: false, message: 'No encontré ese producto' };

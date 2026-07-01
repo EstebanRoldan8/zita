@@ -1897,7 +1897,7 @@ async function executeTool(toolName, toolInput, businessId) {
         employee_id: finalEmployeeId || null,
         scheduled_at: scheduledAt,
         status: 'confirmed',
-        source: 'manual',
+        source: 'assistant',
         notes: toolInput.notes || null,
         price: service?.price || 0
       };

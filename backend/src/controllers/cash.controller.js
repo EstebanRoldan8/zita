@@ -377,20 +377,16 @@ async function exportPdf(req, res) {
     const monthLabel = `${MONTHS[mo-1]} ${yr}`;
     const today = new Date().toLocaleDateString('es-CO', { timeZone: tz });
 
-    const [{ data: incomeData }, { data: allExpensesData }, { data: apptData }, { data: biz }] = await Promise.all([
+    const [{ data: incomeData }, { data: allExpensesData }, { data: biz }] = await Promise.all([
       userClient.from('income').select('amount,category,description,date,clients(name)').eq('business_id', req.businessId).gte('date', start).lte('date', end).order('date'),
       userClient.from('expenses').select('amount,category,description,date').eq('business_id', req.businessId).gte('date', start).lte('date', end).order('date'),
-      userClient.from('appointments').select('price,scheduled_at,clients(name),services(name)').eq('business_id', req.businessId).eq('status', 'completed').gte('scheduled_at', startTS).lt('scheduled_at', endTS),
       userClient.from('businesses').select('name').eq('id', req.businessId).single(),
     ]);
 
     const costExpenses = (allExpensesData || []).filter(r => r.category === 'costo_producto');
     const opExpenses   = (allExpensesData || []).filter(r => r.category !== 'costo_producto');
 
-    const allIncome = [
-      ...(incomeData || []).map(r => ({ date: r.date, desc: r.description || r.category, cat: r.category || 'otro', amount: Number(r.amount) })),
-      ...(apptData || []).filter(r => Number(r.price || 0) > 0).map(r => ({ date: r.scheduled_at.slice(0,10), desc: r.services?.name || 'Servicio', cat: 'servicios', amount: Number(r.price) })),
-    ].sort((a,b) => a.date.localeCompare(b.date));
+    const allIncome = (incomeData || []).map(r => ({ date: r.date, desc: r.description || r.category, cat: r.category || 'otro', amount: Number(r.amount) })).sort((a,b) => a.date.localeCompare(b.date));
 
     const CAT_LABELS = { nomina:'Nómina', materias_primas:'Materias primas', servicios:'Servicios', arriendo:'Arriendo', otro:'Otro', costo_producto:'Costo producto' };
 
@@ -611,19 +607,15 @@ async function getExcel(req, res) {
     const monthLabel = `${MONTHS[mo - 1]} ${yr}`;
     const today  = new Date().toLocaleDateString('es-CO', { timeZone: tz });
 
-    const [{ data: incomeData }, { data: allExpensesData }, { data: apptData }, { data: biz }] = await Promise.all([
+    const [{ data: incomeData }, { data: allExpensesData }, { data: biz }] = await Promise.all([
       userClient.from('income').select('amount,category,description,date,clients(name)').eq('business_id', req.businessId).gte('date', start).lte('date', end).order('date'),
       userClient.from('expenses').select('amount,category,description,date').eq('business_id', req.businessId).gte('date', start).lte('date', end).order('date'),
-      userClient.from('appointments').select('price,scheduled_at,clients(name),services(name)').eq('business_id', req.businessId).eq('status', 'completed').gte('scheduled_at', startTS).lt('scheduled_at', endTS),
       userClient.from('businesses').select('name').eq('id', req.businessId).single(),
     ]);
 
     const CAT = { nomina:'Nómina', materias_primas:'Materias primas', servicios:'Servicios', arriendo:'Arriendo', otro:'Otro', costo_producto:'Costo producto' };
 
-    const allIncome = [
-      ...(incomeData || []).map(r => ({ date: r.date, desc: r.description || r.category, client: r.clients?.name || '—', cat: r.category ? r.category.charAt(0).toUpperCase() + r.category.slice(1) : 'Otro', source: 'Manual', amount: Number(r.amount) })),
-      ...(apptData || []).filter(r => Number(r.price || 0) > 0).map(r => ({ date: r.scheduled_at.slice(0, 10), desc: r.services?.name || 'Servicio', client: r.clients?.name || '—', cat: 'Servicios', source: 'Cita', amount: Number(r.price) })),
-    ].sort((a, b) => a.date.localeCompare(b.date));
+    const allIncome = (incomeData || []).map(r => ({ date: r.date, desc: r.description || r.category, client: r.clients?.name || '—', cat: r.category ? r.category.charAt(0).toUpperCase() + r.category.slice(1) : 'Otro', source: 'Manual', amount: Number(r.amount) })).sort((a, b) => a.date.localeCompare(b.date));
 
     const costExpenses = (allExpensesData || []).filter(r => r.category === 'costo_producto')
       .map(r => ({ date: r.date, desc: r.description || '—', amount: Number(r.amount) }));

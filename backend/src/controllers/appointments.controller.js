@@ -367,42 +367,6 @@ async function update(req, res) {
             { onConflict: 'business_id,client_id' }
           );
 
-        // Crear income cuando la cita se completa manualmente desde el panel
-        if (price > 0) {
-          const { data: existingIncome } = await userClient
-            .from('income')
-            .select('id')
-            .eq('appointment_id', id)
-            .maybeSingle();
-
-          if (!existingIncome) {
-            const { data: serviceData } = await supabaseAdmin
-              .from('services')
-              .select('name')
-              .eq('id', existing.service_id)
-              .maybeSingle();
-
-            await userClient
-              .from('income')
-              .insert({
-                business_id: req.businessId,
-                amount: price,
-                category: 'servicios',
-                description: (() => {
-                  const nombre = serviceData?.name || 'Servicio';
-                  const source = appt?.source || 'manual';
-                  if (source === 'whatsapp') return `${nombre} - agendado por WhatsApp`;
-                  if (source === 'assistant') return `${nombre} - agendado por Asistente IA`;
-                  return `${nombre} - agendado manualmente`;
-                })(),
-                source: 'appointment',
-                appointment_id: id,
-                client_id: existing.client_id || null,
-                date: new Date().toLocaleDateString('en-CA', { timeZone: 'America/Bogota' })
-              });
-          }
-        }
-
         // Si es cita de recompensa, registrar el costo como egreso automático
         if (isReward && price > 0) {
           await userClient
@@ -424,6 +388,57 @@ async function update(req, res) {
         await awardLoyaltyPoints(req.businessId, existing.client_id, id);
       } catch (loyaltyError) {
         logger.error('Error otorgando puntos de fidelización:', loyaltyError.message);
+      }
+    }
+
+    // Crear income al completar manualmente — aplica con o sin cliente
+    if (status === 'completed' && existing.status !== 'completed') {
+      try {
+        const price = existing.price ?? 0;
+        if (price > 0) {
+          const { data: existingIncome } = await supabaseAdmin
+            .from('income')
+            .select('id')
+            .eq('appointment_id', id)
+            .maybeSingle();
+
+          if (!existingIncome) {
+            const { data: serviceData } = await supabaseAdmin
+              .from('services')
+              .select('name')
+              .eq('id', existing.service_id)
+              .maybeSingle();
+
+            const { data: apptSource } = await supabaseAdmin
+              .from('appointments')
+              .select('source')
+              .eq('id', id)
+              .maybeSingle();
+
+            const source = apptSource?.source || 'manual';
+            const nombre = serviceData?.name || 'Servicio';
+            const description = source === 'whatsapp'
+              ? `${nombre} - agendado por WhatsApp`
+              : source === 'assistant'
+              ? `${nombre} - agendado por Asistente IA`
+              : `${nombre} - agendado manualmente`;
+
+            await supabaseAdmin
+              .from('income')
+              .insert({
+                business_id: req.businessId,
+                amount: price,
+                category: 'servicios',
+                description,
+                source: 'appointment',
+                appointment_id: id,
+                client_id: existing.client_id || null,
+                date: new Date().toLocaleDateString('en-CA', { timeZone: 'America/Bogota' })
+              });
+          }
+        }
+      } catch (incomeErr) {
+        logger.error('Error creando income al completar cita:', incomeErr.message);
       }
     }
 

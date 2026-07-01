@@ -8,7 +8,7 @@ const Groq = require('groq-sdk');
 
 // Cache de horarios por negocio (5 minutos)
 const businessHoursCache = new Map();
-const HOURS_CACHE_TTL = 5 * 60 * 1000;
+const HOURS_CACHE_TTL = 1 * 60 * 1000;
 
 function getCachedHours(businessId) {
   const cached = businessHoursCache.get(businessId);

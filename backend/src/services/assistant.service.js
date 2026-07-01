@@ -10,7 +10,7 @@ const client = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
 
 // Cache de contexto enriquecido por negocio (5 minutos)
 const businessContextCache = new Map();
-const CONTEXT_CACHE_TTL = 5 * 60 * 1000;
+const CONTEXT_CACHE_TTL = 1 * 60 * 1000;
 
 function getCachedContext(businessId) {
   const cached = businessContextCache.get(businessId);

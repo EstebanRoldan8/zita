@@ -18,7 +18,8 @@ function periodRange(query, tz = 'America/Bogota') {
   if (query.month && /^\d{4}-\d{2}$/.test(query.month)) {
     const [yr, mo] = query.month.split('-').map(Number);
     const start = `${query.month}-01`;
-    const end = dateToString(new Date(yr, mo, 0));
+    const lastDay = new Date(yr, mo, 0).getDate();
+    const end = `${query.month}-${String(lastDay).padStart(2, '0')}`;
     return { start, end };
   }
 

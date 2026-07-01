@@ -120,7 +120,7 @@ export default function Dashboard() {
   const { data: overview, isLoading, isError, error: overviewError } = useQuery({
     queryKey: ['metrics-overview'],
     queryFn: () => api.get('/api/metrics/overview').then((r) => r.data.data),
-    refetchInterval: 30000,
+    refetchInterval: 60 * 1000,
   });
 
   useEffect(() => {
@@ -157,6 +157,7 @@ export default function Dashboard() {
     queryKey: ['metrics-clients'],
     queryFn: () => api.get('/api/metrics/clients').then((r) => r.data.data),
     staleTime: 5 * 60 * 1000,
+    refetchInterval: 60 * 1000,
   });
 
   const { data: appointments = [] } = useQuery({

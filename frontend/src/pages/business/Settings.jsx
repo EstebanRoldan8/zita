@@ -49,7 +49,6 @@ function HoursTab() {
   const qc = useQueryClient();
   const { toast, show } = useToast();
   const [hours, setHours] = useState(null);
-  const synced = useRef(false);
 
   const { data: savedHours, isLoading } = useQuery({
     queryKey: ['settings-hours'],
@@ -57,9 +56,8 @@ function HoursTab() {
   });
 
   useEffect(() => {
-    if (savedHours && !synced.current) {
+    if (savedHours) {
       setHours(savedHours);
-      synced.current = true;
     }
   }, [savedHours]);
 

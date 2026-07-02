@@ -674,6 +674,8 @@ Si verificar_disponibilidad retorna horas_disponibles → muestra máx 4 opcione
 Si verificar_disponibilidad retorna slots_alternativos → ofrécelos.
 Si ver_mis_citas retorna 0 citas → "No tienes citas registradas".
 Si ver_mis_citas retorna 2+ citas → SIEMPRE pregunta cuál si el cliente no fue específico.
+Si cualquier tool retorna error:'empleado_ambiguo' con campo opciones (array de empleados), enumera los nombres completos al cliente y pregunta cuál prefiere. NUNCA seleccione tú un empleado de la lista sin que el cliente elija específicamente.
+Si agendar_cita retorna error:'sin_disponibilidad' con slots_alternativos, ofrece esos horarios alternativos al cliente en vez de la hora que pidió originalmente. Formato: "Esa hora no está disponible. Alternativas: [lista slots]"
 </tool_results>
 
 <loyalty>
@@ -1211,13 +1213,23 @@ async function processChatbotMessage(businessId, clientPhone, messageText, histo
           // Si el cliente pidió un empleado específico, intentar asignarlo
           let empleadoDisponible = null;
           if (toolInput.employee_name) {
-            const { data: empPref } = await supabaseAdmin
+            const { data: empMatches } = await supabaseAdmin
               .from('employees')
               .select('id, name')
               .eq('business_id', businessId)
               .eq('is_active', true)
-              .ilike('name', `%${toolInput.employee_name}%`)
-              .single();
+              .ilike('name', `%${toolInput.employee_name}%`);
+
+            // Si hay 2+ matches, retorna error de ambigüedad
+            if (empMatches && empMatches.length > 1) {
+              return {
+                success: false,
+                error: 'empleado_ambiguo',
+                opciones: empMatches.map(e => ({ id: e.id, name: e.name }))
+              };
+            }
+
+            const empPref = empMatches && empMatches.length === 1 ? empMatches[0] : null;
 
             if (empPref) {
               // Verificar si está disponible en ese horario
@@ -1252,7 +1264,76 @@ async function processChatbotMessage(businessId, clientPhone, messageText, histo
             empleadoDisponible = await getAvailableEmployee(businessId, toolInput.fecha, toolInput.hora);
           }
           if (!empleadoDisponible) {
-            empleadoDisponible = { id: null, name: 'Sin asignar' };
+            // Nadie disponible: busca slots alternativos ese mismo día y rechaza
+            const { data: horariosNegocio } = await supabaseAdmin
+              .from('business_hours')
+              .select('open_time, close_time, is_open, day_of_week')
+              .eq('business_id', businessId);
+
+            const fechaDate = new Date(toolInput.fecha + 'T12:00:00-05:00');
+            const diaSemana = fechaDate.getDay();
+            const horarioDia = horariosNegocio?.find(h => h.day_of_week === diaSemana);
+
+            if (!horarioDia?.is_open) {
+              return { success: false, error: 'Ese día estamos cerrados.' };
+            }
+
+            // Obtener citas ese día
+            const { data: citasDia } = await supabaseAdmin
+              .from('appointments')
+              .select('employee_id, scheduled_at, services(duration_minutes)')
+              .eq('business_id', businessId)
+              .in('status', ['confirmed', 'pending'])
+              .gte('scheduled_at', toolInput.fecha + 'T00:00:00-05:00')
+              .lte('scheduled_at', toolInput.fecha + 'T23:59:59-05:00');
+
+            // Generar slots libres (lógica de verificar_disponibilidad)
+            const [aperturaH2, aperturaM2] = horarioDia.open_time.split(':').map(Number);
+            const [cierreH2, cierreM2] = horarioDia.close_time.split(':').map(Number);
+            const aperturaMin2 = aperturaH2 * 60 + aperturaM2;
+            const cierreMin2 = cierreH2 * 60 + cierreM2;
+
+            const todosSlots = [];
+            for (let m = aperturaMin2; m < cierreMin2; m += 30) {
+              const h = Math.floor(m / 60).toString().padStart(2, '0');
+              const min = (m % 60).toString().padStart(2, '0');
+              todosSlots.push(`${h}:${min}`);
+            }
+
+            // Obtener empleados
+            const { data: empleados } = await supabaseAdmin
+              .from('employees')
+              .select('id, name')
+              .eq('business_id', businessId)
+              .eq('is_active', true);
+
+            // Buscar slots libres (después de la hora solicitada)
+            const slotsLibres = [];
+
+            for (const slot of todosSlots) {
+              if (slot <= toolInput.hora) continue;
+              const slotMs = new Date(`${toolInput.fecha}T${slot}:00-05:00`).getTime();
+              const ocupadosSlot = new Set(
+                citasDia?.filter(c => {
+                  const inicio = new Date(c.scheduled_at).getTime();
+                  const duracion = (c.services?.duration_minutes || 30) * 60 * 1000;
+                  return slotMs >= inicio && slotMs < (inicio + duracion);
+                }).map(c => c.employee_id)
+              );
+              if (empleados.some(e => !ocupadosSlot.has(e.id))) {
+                slotsLibres.push(slot);
+              }
+              if (slotsLibres.length >= 3) break;
+            }
+
+            return {
+              success: false,
+              error: 'sin_disponibilidad',
+              slots_alternativos: slotsLibres.length > 0 ? slotsLibres : [],
+              mensaje: slotsLibres.length > 0
+                ? `No hay disponibilidad a las ${toolInput.hora}. Alternativas: ${slotsLibres.join(', ')}`
+                : 'No hay disponibilidad ese día.'
+            };
           }
 
           let { data: clienteExistente } = await supabaseAdmin
@@ -1478,13 +1559,19 @@ async function processChatbotMessage(businessId, clientPhone, messageText, histo
             .eq('appointment_id', toolInput.appointment_id)
             .eq('business_id', businessId);
 
-          const { error } = await supabaseAdmin
+          const { data, error } = await supabaseAdmin
             .from('appointments')
             .update({ status: 'cancelled' })
             .eq('id', toolInput.appointment_id)
-            .eq('business_id', businessId);
+            .eq('business_id', businessId)
+            .select('id');
 
-          return { success: !error };
+          if (error) return { success: false, error: error.message };
+          if (!data || data.length === 0) {
+            return { success: false, error: 'Cita no encontrada' };
+          }
+
+          return { success: true };
         }
 
         case 'ver_productos': {
@@ -1640,13 +1727,23 @@ async function processChatbotMessage(businessId, clientPhone, messageText, histo
           const updateData = {};
 
           if (toolInput.employee_name) {
-            const { data: empData } = await supabaseAdmin
+            const { data: empMatches } = await supabaseAdmin
               .from('employees')
               .select('id, name')
               .eq('business_id', businessId)
               .eq('is_active', true)
-              .ilike('name', `%${toolInput.employee_name}%`)
-              .maybeSingle();
+              .ilike('name', `%${toolInput.employee_name}%`);
+
+            // Si hay 2+ matches, retorna error antes de tocar updateData
+            if (empMatches && empMatches.length > 1) {
+              return {
+                success: false,
+                error: 'empleado_ambiguo',
+                opciones: empMatches.map(e => ({ id: e.id, name: e.name }))
+              };
+            }
+
+            const empData = empMatches && empMatches.length === 1 ? empMatches[0] : null;
 
             if (!empData) {
               return { success: false, error: `No encontré ningún empleado con ese nombre.` };
@@ -1709,8 +1806,99 @@ async function processChatbotMessage(businessId, clientPhone, messageText, histo
             nuevoPrecioServicio = servicioNuevo.price;
           }
 
-          if (toolInput.nueva_fecha && toolInput.nueva_hora) {
-            updateData.scheduled_at = `${toolInput.nueva_fecha}T${toolInput.nueva_hora}:00-05:00`;
+          // Si viene hora pero no fecha, usa la fecha actual de la cita
+          let nuevaFecha = toolInput.nueva_fecha;
+          let nuevaHora = toolInput.nueva_hora;
+
+          if ((toolInput.nueva_fecha || toolInput.nueva_hora) && toolInput.appointment_id) {
+            if (!nuevaFecha || !nuevaHora) {
+              const { data: citaActual } = await supabaseAdmin
+                .from('appointments')
+                .select('scheduled_at')
+                .eq('id', toolInput.appointment_id)
+                .single();
+
+              if (citaActual) {
+                const [fechaParte, horaParte] = citaActual.scheduled_at.split('T');
+                const horaActual = horaParte.slice(0, 5); // HH:mm
+
+                if (!nuevaFecha) nuevaFecha = fechaParte;
+                if (!nuevaHora) nuevaHora = horaActual;
+              }
+            }
+
+            if (nuevaFecha && nuevaHora) {
+              // Validar que el nuevo horario sea válido (dentro de business_hours, empleado disponible)
+              const [yearF, monthF, dayF] = nuevaFecha.split('-').map(Number);
+              const tempDate = new Date(yearF, monthF - 1, dayF);
+              const diaSemana = tempDate.getDay();
+
+              const { data: horario } = await supabaseAdmin
+                .from('business_hours')
+                .select('open_time, close_time, is_open')
+                .eq('business_id', businessId)
+                .eq('day_of_week', diaSemana)
+                .maybeSingle();
+
+              if (!horario?.is_open) {
+                return { success: false, error: 'Ese día estamos cerrados.' };
+              }
+
+              // Validar hora dentro de business_hours
+              const [horaH, horaM] = nuevaHora.split(':').map(Number);
+              const [aperturaH, aperturaM] = horario.open_time.split(':').map(Number);
+              const [cierreH, cierreM] = horario.close_time.split(':').map(Number);
+
+              const horaMin = horaH * 60 + horaM;
+              const aperturaMin = aperturaH * 60 + aperturaM;
+              const cierreMin = cierreH * 60 + cierreM;
+
+              if (horaMin < aperturaMin || horaMin >= cierreMin) {
+                return {
+                  success: false,
+                  error: `Fuera de horario. Atendemos de ${horario.open_time} a ${horario.close_time}.`
+                };
+              }
+
+              // Validar que empleado actual no tenga conflicto en el nuevo horario
+              if (updateData.employee_id || toolInput.appointment_id) {
+                const { data: citaActual } = await supabaseAdmin
+                  .from('appointments')
+                  .select('employee_id')
+                  .eq('id', toolInput.appointment_id)
+                  .single();
+
+                const empId = updateData.employee_id || citaActual?.employee_id;
+
+                if (empId) {
+                  const horaReservadaMs = new Date(`${nuevaFecha}T${nuevaHora}:00-05:00`).getTime();
+                  const { data: citasEmp } = await supabaseAdmin
+                    .from('appointments')
+                    .select('scheduled_at, services(duration_minutes)')
+                    .eq('business_id', businessId)
+                    .eq('employee_id', empId)
+                    .neq('id', toolInput.appointment_id)
+                    .in('status', ['confirmed', 'pending'])
+                    .gte('scheduled_at', `${nuevaFecha}T00:00:00-05:00`)
+                    .lte('scheduled_at', `${nuevaFecha}T23:59:59-05:00`);
+
+                  const ocupado = citasEmp?.some(c => {
+                    const inicio = new Date(c.scheduled_at).getTime();
+                    const duracion = (c.services?.duration_minutes || 30) * 60 * 1000;
+                    return horaReservadaMs >= inicio && horaReservadaMs < (inicio + duracion);
+                  });
+
+                  if (ocupado) {
+                    return {
+                      success: false,
+                      error: `Ese horario está ocupado para el empleado asignado.`
+                    };
+                  }
+                }
+              }
+
+              updateData.scheduled_at = `${nuevaFecha}T${nuevaHora}:00-05:00`;
+            }
           }
 
           if (Object.keys(updateData).length === 0) {
@@ -2096,7 +2284,6 @@ async function processChatbotMessage(businessId, clientPhone, messageText, histo
       // Si se escaló a humano, retornar el mensaje de confirmación sin seguir procesando
       if (shouldBreak) {
         const escaladaResponse = 'Listo, le avisé al dueño. Te contactarán pronto 😊';
-        allMessages.push({ role: 'assistant', content: assistantContent });
         allMessages.push({ role: 'assistant', content: [{ type: 'text', text: escaladaResponse }] });
         return {
           response: escaladaResponse,

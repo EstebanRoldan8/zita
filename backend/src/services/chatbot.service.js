@@ -198,7 +198,7 @@ async function getBusinessByPhoneNumberId(phoneNumberId) {
   return data;
 }
 
-function getBusinessSystemPrompt(business, clientInfo = null, businessHours = null) {
+function getBusinessSystemPrompt(business, clientInfo = null, businessHours = null, services = null) {
   const now = new Date().toLocaleString('es-CO', { timeZone: 'America/Bogota' });
   const hoyFecha = new Date().toLocaleDateString('en-CA', { timeZone: 'America/Bogota' });
   const mañanaFecha = new Date(Date.now() + 86400000).toLocaleDateString('en-CA', { timeZone: 'America/Bogota' });
@@ -261,6 +261,13 @@ Idioma: responde SIEMPRE en el mismo idioma que use el cliente.
 
 Horarios de atención:
 ${horariosTexto}
+
+${services && services.length > 0 ? `
+SERVICIOS DISPONIBLES EN ESTE NEGOCIO (úsalos para validar peticiones del cliente):
+${services.map(s => `- ${s.name}: $${Number(s.price).toLocaleString('es-CO')} / ${s.duration_minutes} min`).join('\n')}
+IMPORTANTE: Si el cliente pide un servicio, verifica que esté en esta lista antes de responder.
+Si está en la lista → procede normalmente. Si NO está → informa amablemente que no lo tenemos.
+` : ''}
 </identity>
 
 ${PERSONALITY_RULES}
@@ -380,8 +387,17 @@ async function processChatbotMessage(businessId, clientPhone, messageText, histo
     if (hoursData) setCachedHours(businessId, hoursData);
   }
 
+  let services = null;
+  const { data: servicesData } = await supabaseAdmin
+    .from('services')
+    .select('name, price, duration_minutes')
+    .eq('business_id', businessId)
+    .eq('active', true)
+    .order('name');
+  services = servicesData;
+
   const anthropicClient = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
-  const systemPrompt = getBusinessSystemPrompt(business, clientInfo, businessHours || []);
+  const systemPrompt = getBusinessSystemPrompt(business, clientInfo, businessHours || [], services || []);
 
   const tools = [
     {

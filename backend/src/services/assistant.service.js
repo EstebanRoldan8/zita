@@ -729,7 +729,8 @@ const tools = [
         service_id: { type: 'string' },
         scheduled_at: { type: 'string', description: 'Fecha y hora en formato ISO con timezone Colombia: YYYY-MM-DDTHH:mm:00-05:00. SIEMPRE incluir -05:00 al final. NUNCA usar Z o UTC.' },
         employee_id: { type: 'string', description: 'Opcional' },
-        notes: { type: 'string', description: 'Notas opcionales' }
+        notes: { type: 'string', description: 'Notas opcionales' },
+        status: { type: 'string', enum: ['confirmed', 'completed'], description: 'Status de la cita (default: confirmed). Usar completed solo para citas pasadas ya realizadas.' }
       },
       required: ['service_id', 'scheduled_at']
     }
@@ -1035,7 +1036,8 @@ const tools = [
         name: { type: 'string', description: 'Nombre completo del empleado' },
         phone: { type: 'string', description: 'Teléfono opcional' },
         email: { type: 'string', description: 'Email opcional' },
-        commission_percent: { type: 'number', description: 'Porcentaje de comisión opcional' }
+        commission_percent: { type: 'number', description: 'Porcentaje de comisión opcional' },
+        is_active: { type: 'boolean', description: 'Si el empleado está activo (default: true)' }
       },
       required: ['name']
     }
@@ -1626,12 +1628,19 @@ async function executeTool(toolName, toolInput, businessId) {
         updateData.phone = phone;
       }
       if (Object.keys(updateData).length === 0) return { success: false, error: 'No hay datos para actualizar' };
-      const { error } = await supabaseAdmin
+      const { data, error } = await supabaseAdmin
         .from('clients')
         .update(updateData)
         .eq('id', toolInput.client_id)
-        .eq('business_id', businessId);
-      return { success: !error, error: error?.message };
+        .eq('business_id', businessId)
+        .select('id');
+
+      if (error) return { success: false, error: error.message };
+      if (!data || data.length === 0) {
+        return { success: false, error: 'Registro no encontrado' };
+      }
+
+      return { success: true };
     }
 
     case 'buscar_empleado': {
@@ -1908,13 +1917,27 @@ async function executeTool(toolName, toolInput, businessId) {
         };
       }
 
+      const appointmentStatus = toolInput.status === 'completed' ? 'completed' : 'confirmed';
+
+      if (appointmentStatus === 'completed') {
+        const scheduledTime = new Date(scheduledAt).getTime();
+        const nowTime = Date.now();
+
+        if (scheduledTime > nowTime) {
+          return {
+            success: false,
+            error: 'No puedes crear una cita completada con fecha futura. Usa una fecha/hora pasada.'
+          };
+        }
+      }
+
       const insertData = {
         business_id: businessId,
         client_id: toolInput.client_id || null,
         service_id: toolInput.service_id,
         employee_id: finalEmployeeId || null,
         scheduled_at: scheduledAt,
-        status: 'confirmed',
+        status: appointmentStatus,
         source: 'assistant',
         notes: toolInput.notes || null,
         price: service?.price || 0
@@ -1957,12 +1980,36 @@ async function executeTool(toolName, toolInput, businessId) {
       const { data, error } = await supabaseAdmin
         .from('appointments')
         .insert(insertData)
-        .select('id, scheduled_at')
+        .select('id, scheduled_at, status')
         .single();
 
       logger.info('resultado:', JSON.stringify(data), 'error:', JSON.stringify(error));
 
       if (error) return { success: false, error: error.message };
+
+      // Si la cita se crea como completada, registrar el ingreso automáticamente
+      // (misma lógica que completar_cita)
+      if (appointmentStatus === 'completed' && data && (service?.price || 0) > 0) {
+        const { data: existingIncome } = await supabaseAdmin
+          .from('income')
+          .select('id')
+          .eq('appointment_id', data.id)
+          .limit(1);
+
+        if (!existingIncome || existingIncome.length === 0) {
+          const incomeDate = new Date(data.scheduled_at).toLocaleDateString('en-CA', { timeZone: 'America/Bogota' });
+          await supabaseAdmin.from('income').insert({
+            business_id: businessId,
+            appointment_id: data.id,
+            client_id: toolInput.client_id || null,
+            amount: service.price,
+            category: 'servicios',
+            description: `${service.name} - agendado por asistente (completado)`,
+            source: 'appointment',
+            date: incomeDate
+          });
+        }
+      }
 
       return { success: true, appointment: data, appointment_id: data.id };
     }
@@ -1999,8 +2046,9 @@ async function executeTool(toolName, toolInput, businessId) {
       const { data: product } = await supabaseAdmin
         .from('products')
         .select('stock, price, name, cost_price')
+        .eq('business_id', businessId)
         .eq('id', toolInput.product_id)
-        .single();
+        .maybeSingle();
 
       if (!product || product.stock < toolInput.quantity) {
         return { success: false, error: 'Stock insuficiente' };
@@ -2009,6 +2057,7 @@ async function executeTool(toolName, toolInput, businessId) {
       await supabaseAdmin
         .from('products')
         .update({ stock: product.stock - toolInput.quantity })
+        .eq('business_id', businessId)
         .eq('id', toolInput.product_id);
 
       const saleDate = new Date().toLocaleDateString('en-CA', { timeZone: 'America/Bogota' });
@@ -2060,12 +2109,19 @@ async function executeTool(toolName, toolInput, businessId) {
         .eq('appointment_id', toolInput.appointment_id)
         .eq('business_id', businessId);
 
-      const { error } = await supabaseAdmin
+      const { data, error } = await supabaseAdmin
         .from('appointments')
         .update({ status: 'cancelled' })
         .eq('id', toolInput.appointment_id)
-        .eq('business_id', businessId);
-      return { success: !error };
+        .eq('business_id', businessId)
+        .select('id');
+
+      if (error) return { success: false, error: error.message };
+      if (!data || data.length === 0) {
+        return { success: false, error: 'Registro no encontrado' };
+      }
+
+      return { success: true };
     }
 
     case 'buscar_cita': {
@@ -2111,12 +2167,19 @@ async function executeTool(toolName, toolInput, businessId) {
     }
 
     case 'confirmar_cita': {
-      const { error } = await supabaseAdmin
+      const { data, error } = await supabaseAdmin
         .from('appointments')
         .update({ status: 'confirmed' })
         .eq('id', toolInput.appointment_id)
-        .eq('business_id', businessId);
-      return { success: !error, error: error?.message };
+        .eq('business_id', businessId)
+        .select('id');
+
+      if (error) return { success: false, error: error.message };
+      if (!data || data.length === 0) {
+        return { success: false, error: 'Registro no encontrado' };
+      }
+
+      return { success: true };
     }
 
     case 'completar_cita': {
@@ -2166,12 +2229,19 @@ async function executeTool(toolName, toolInput, businessId) {
     }
 
     case 'desactivar_servicio': {
-      const { error } = await supabaseAdmin
+      const { data, error } = await supabaseAdmin
         .from('services')
         .update({ active: false })
         .eq('id', toolInput.service_id)
-        .eq('business_id', businessId);
-      return { success: !error };
+        .eq('business_id', businessId)
+        .select('id');
+
+      if (error) return { success: false, error: error.message };
+      if (!data || data.length === 0) {
+        return { success: false, error: 'Registro no encontrado' };
+      }
+
+      return { success: true };
     }
 
     case 'eliminar_servicio': {
@@ -2209,30 +2279,51 @@ async function executeTool(toolName, toolInput, businessId) {
     }
 
     case 'activar_producto': {
-      const { error } = await supabaseAdmin
+      const { data, error } = await supabaseAdmin
         .from('products')
         .update({ is_active: true })
         .eq('id', toolInput.product_id)
-        .eq('business_id', businessId);
-      return { success: !error };
+        .eq('business_id', businessId)
+        .select('id');
+
+      if (error) return { success: false, error: error.message };
+      if (!data || data.length === 0) {
+        return { success: false, error: 'Registro no encontrado' };
+      }
+
+      return { success: true };
     }
 
     case 'desactivar_producto': {
-      const { error } = await supabaseAdmin
+      const { data, error } = await supabaseAdmin
         .from('products')
         .update({ is_active: false })
         .eq('id', toolInput.product_id)
-        .eq('business_id', businessId);
-      return { success: !error };
+        .eq('business_id', businessId)
+        .select('id');
+
+      if (error) return { success: false, error: error.message };
+      if (!data || data.length === 0) {
+        return { success: false, error: 'Registro no encontrado' };
+      }
+
+      return { success: true };
     }
 
     case 'activar_servicio': {
-      const { error } = await supabaseAdmin
+      const { data, error } = await supabaseAdmin
         .from('services')
         .update({ active: true })
         .eq('id', toolInput.service_id)
-        .eq('business_id', businessId);
-      return { success: !error };
+        .eq('business_id', businessId)
+        .select('id');
+
+      if (error) return { success: false, error: error.message };
+      if (!data || data.length === 0) {
+        return { success: false, error: 'Registro no encontrado' };
+      }
+
+      return { success: true };
     }
 
     case 'actualizar_servicio': {
@@ -2240,12 +2331,19 @@ async function executeTool(toolName, toolInput, businessId) {
       if (toolInput.name !== undefined) updateData.name = toolInput.name;
       if (toolInput.price) updateData.price = toolInput.price;
       if (toolInput.duration_minutes) updateData.duration_minutes = toolInput.duration_minutes;
-      const { error } = await supabaseAdmin
+      const { data, error } = await supabaseAdmin
         .from('services')
         .update(updateData)
         .eq('id', toolInput.service_id)
-        .eq('business_id', businessId);
-      return { success: !error };
+        .eq('business_id', businessId)
+        .select('id');
+
+      if (error) return { success: false, error: error.message };
+      if (!data || data.length === 0) {
+        return { success: false, error: 'Registro no encontrado' };
+      }
+
+      return { success: true };
     }
 
     case 'historial_ventas': {
@@ -2524,13 +2622,19 @@ async function executeTool(toolName, toolInput, businessId) {
         updateData.scheduled_at = scheduledAt;
       }
 
-      const { error } = await supabaseAdmin
+      const { data, error } = await supabaseAdmin
         .from('appointments')
         .update(updateData)
         .eq('id', toolInput.appointment_id)
-        .eq('business_id', businessId);
+        .eq('business_id', businessId)
+        .select('id');
 
-      if (toolInput.service_id && !error) {
+      if (error) return { success: false, error: error.message };
+      if (!data || data.length === 0) {
+        return { success: false, error: 'Registro no encontrado' };
+      }
+
+      if (toolInput.service_id) {
         const { data: newSvc } = await supabaseAdmin
           .from('services')
           .select('price')
@@ -2545,7 +2649,7 @@ async function executeTool(toolName, toolInput, businessId) {
         }
       }
 
-      return { success: !error, error: error?.message };
+      return { success: true };
     }
 
     case 'proyeccion_mes': {
@@ -2874,7 +2978,7 @@ async function executeTool(toolName, toolInput, businessId) {
       const inicioMes = hoy.slice(0,7) + '-01';
 
       const [
-        { data: productosBajoStock },
+        { data: productosStockRaw },
         { data: citasUltimos7 },
         { data: empleados },
         { data: citasEmpleados },
@@ -2883,7 +2987,7 @@ async function executeTool(toolName, toolInput, businessId) {
         { data: citasRiesgo },
         { data: citasRecientes }
       ] = await Promise.all([
-        supabaseAdmin.from('products').select('name, stock, min_stock').eq('business_id', businessId).eq('is_active', true).filter('stock', 'lte', 'min_stock'),
+        supabaseAdmin.from('products').select('name, stock, min_stock').eq('business_id', businessId).eq('is_active', true),
         supabaseAdmin.from('appointments').select('scheduled_at').eq('business_id', businessId).gte('scheduled_at', hace7 + 'T00:00:00-05:00').lte('scheduled_at', hoy + 'T23:59:59-05:00'),
         supabaseAdmin.from('employees').select('id, name').eq('business_id', businessId).eq('is_active', true),
         supabaseAdmin.from('appointments').select('employee_id').eq('business_id', businessId).eq('status','completed').gte('scheduled_at', hace7 + 'T00:00:00-05:00'),
@@ -2892,6 +2996,8 @@ async function executeTool(toolName, toolInput, businessId) {
         supabaseAdmin.from('appointments').select('client_id').eq('business_id', businessId).eq('status','completed').gte('scheduled_at', hace90 + 'T00:00:00-05:00').lte('scheduled_at', hace30 + 'T23:59:59-05:00').not('client_id','is',null),
         supabaseAdmin.from('appointments').select('client_id').eq('business_id', businessId).eq('status','completed').gte('scheduled_at', hace30 + 'T00:00:00-05:00').not('client_id','is',null)
       ]);
+
+      const productosBajoStock = (productosStockRaw || []).filter(p => p.stock <= p.min_stock);
 
       const alertas = [];
 
@@ -3004,7 +3110,7 @@ async function executeTool(toolName, toolInput, businessId) {
       const planEmp = bizEmp?.plan || 'estandar';
       const limiteEmp = planEmp === 'pro' ? Infinity : planEmp === 'estandar' ? 5 : 2;
 
-      if (limiteEmp !== Infinity) {
+      if (toolInput.is_active !== false && limiteEmp !== Infinity) {
         const { count: activosCount } = await supabaseAdmin
           .from('employees')
           .select('id', { count: 'exact', head: true })
@@ -3057,12 +3163,19 @@ async function executeTool(toolName, toolInput, businessId) {
       if (toolInput.phone !== undefined) updateData.phone = toolInput.phone;
       if (toolInput.commission_percent !== undefined) updateData.commission_percent = toolInput.commission_percent;
       if (toolInput.is_active !== undefined) updateData.is_active = toolInput.is_active;
-      const { error } = await supabaseAdmin
+      const { data, error } = await supabaseAdmin
         .from('employees')
         .update(updateData)
         .eq('id', toolInput.employee_id)
-        .eq('business_id', businessId);
-      return { success: !error, error: error?.message };
+        .eq('business_id', businessId)
+        .select('id');
+
+      if (error) return { success: false, error: error.message };
+      if (!data || data.length === 0) {
+        return { success: false, error: 'Registro no encontrado' };
+      }
+
+      return { success: true };
     }
 
     case 'crear_servicio': {
@@ -3418,14 +3531,16 @@ async function executeTool(toolName, toolInput, businessId) {
         { data: ingresosHoy },
         { data: ingresosAyer },
         { data: citasPendientes },
-        { data: stockBajo }
+        { data: stockBajoRaw }
       ] = await Promise.all([
         supabaseAdmin.from('appointments').select('id, scheduled_at, status, price, clients(name), services(name), employees(name)').eq('business_id', businessId).gte('scheduled_at', `${hoy}T00:00:00-05:00`).lte('scheduled_at', `${hoy}T23:59:59-05:00`).not('status', 'in', '("cancelled")').order('scheduled_at'),
         supabaseAdmin.from('income').select('amount').eq('business_id', businessId).eq('date', hoy),
         supabaseAdmin.from('income').select('amount').eq('business_id', businessId).eq('date', ayer),
         supabaseAdmin.from('appointments').select('id').eq('business_id', businessId).eq('status', 'pending').gte('scheduled_at', `${hoy}T00:00:00-05:00`),
-        supabaseAdmin.from('products').select('name, stock, min_stock').eq('business_id', businessId).eq('is_active', true).filter('stock', 'lte', 'min_stock').limit(3)
+        supabaseAdmin.from('products').select('name, stock, min_stock').eq('business_id', businessId).eq('is_active', true)
       ]);
+
+      const stockBajo = (stockBajoRaw || []).filter(p => p.stock <= p.min_stock).slice(0, 3);
 
       const totalHoy = (ingresosHoy || []).reduce((s, i) => s + Number(i.amount), 0);
       const totalAyer = (ingresosAyer || []).reduce((s, i) => s + Number(i.amount), 0);
@@ -3486,7 +3601,7 @@ async function executeTool(toolName, toolInput, businessId) {
         { data: clientesNuevos },
         { data: citasRiesgo }, { data: citasRecientes },
         { data: empleados }, { data: citasEmpleados },
-        { data: stockBajo },
+        { data: stockBajoRawDiag },
         { data: meta }
       ] = await Promise.all([
         supabaseAdmin.from('income').select('amount').eq('business_id', businessId).gte('date', inicioMes).lte('date', hoy),
@@ -3498,9 +3613,11 @@ async function executeTool(toolName, toolInput, businessId) {
         supabaseAdmin.from('appointments').select('client_id').eq('business_id', businessId).eq('status', 'completed').gte('scheduled_at', `${hace30}T00:00:00-05:00`).not('client_id', 'is', null),
         supabaseAdmin.from('employees').select('id, name').eq('business_id', businessId).eq('is_active', true),
         supabaseAdmin.from('appointments').select('employee_id').eq('business_id', businessId).eq('status', 'completed').gte('scheduled_at', `${inicioMes}T00:00:00-05:00`),
-        supabaseAdmin.from('products').select('name, stock, min_stock').eq('business_id', businessId).eq('is_active', true).filter('stock', 'lte', 'min_stock'),
+        supabaseAdmin.from('products').select('name, stock, min_stock').eq('business_id', businessId).eq('is_active', true),
         supabaseAdmin.from('monthly_goals').select('income_goal').eq('business_id', businessId).order('month', { ascending: false }).limit(1).maybeSingle()
       ]);
+
+      const stockBajo = (stockBajoRawDiag || []).filter(p => p.stock <= p.min_stock);
 
       const totalMes = (ingMes || []).reduce((s, i) => s + Number(i.amount), 0);
       const totalMesAnt = (ingMesAnt || []).reduce((s, i) => s + Number(i.amount), 0);
@@ -3871,7 +3988,7 @@ async function executeTool(toolName, toolInput, businessId) {
           .insert({
             business_id: businessId,
             amount: costoTotal,
-            category: 'productos',
+            category: 'costo_producto',
             description: `Costo de venta: ${product.name} (${toolInput.quantity} unidades)`,
             date: saleDate
           });
@@ -3910,14 +4027,16 @@ async function executeTool(toolName, toolInput, businessId) {
       if (toolInput.stock !== undefined) updateData.stock = toolInput.stock;
       if (toolInput.category !== undefined) updateData.category = toolInput.category;
 
-      const { error } = await supabaseAdmin
+      const { data, error } = await supabaseAdmin
         .from('products')
         .update(updateData)
         .eq('id', toolInput.product_id)
-        .eq('business_id', businessId);
+        .eq('business_id', businessId)
+        .select('id');
 
-      if (error) {
-        return { success: false, error: error.message };
+      if (error) return { success: false, error: error.message };
+      if (!data || data.length === 0) {
+        return { success: false, error: 'Registro no encontrado' };
       }
 
       return { success: true };
@@ -4408,7 +4527,7 @@ async function processMessage(businessId, userMessage, conversationHistory = [])
       { data: ingresosMesCtx },
       { data: metaCtx },
       { count: totalClientesCtx },
-      { data: alertasStockCtx }
+      { data: alertasStockCtxRaw }
     ] = await Promise.all([
       supabaseAdmin.from('business_hours').select('day_of_week, open_time, close_time, is_open').eq('business_id', businessId).order('day_of_week'),
       supabaseAdmin.from('appointments').select('id, scheduled_at, status, clients(name), services(name)').eq('business_id', businessId).gte('scheduled_at', `${hoyCtx}T00:00:00-05:00`).lte('scheduled_at', `${hoyCtx}T23:59:59-05:00`).not('status', 'in', '("cancelled")').order('scheduled_at').limit(20),
@@ -4416,8 +4535,10 @@ async function processMessage(businessId, userMessage, conversationHistory = [])
       supabaseAdmin.from('income').select('amount').eq('business_id', businessId).gte('date', inicioMesCtx).lte('date', hoyCtx),
       supabaseAdmin.from('monthly_goals').select('income_goal').eq('business_id', businessId).order('month', { ascending: false }).limit(1).maybeSingle(),
       supabaseAdmin.from('clients').select('*', { count: 'exact', head: true }).eq('business_id', businessId),
-      supabaseAdmin.from('products').select('name, stock, min_stock').eq('business_id', businessId).eq('is_active', true).filter('stock', 'lte', 'min_stock').limit(5)
+      supabaseAdmin.from('products').select('name, stock, min_stock').eq('business_id', businessId).eq('is_active', true)
     ]);
+
+    const alertasStockCtx = (alertasStockCtxRaw || []).filter(p => p.stock <= p.min_stock).slice(0, 5);
 
     const diasSemanaCtx = ['Dom','Lun','Mar','Mié','Jue','Vie','Sáb'];
     const horariosTexto = (horariosCtx || [])
@@ -4495,7 +4616,13 @@ Cuando diga "mañana" usar: ${mananaISO}
     const toolResults = [];
     for (const block of assistantContent) {
       if (block.type === 'tool_use') {
-        const result = await executeTool(block.name, block.input, businessId);
+        let result;
+        try {
+          result = await executeTool(block.name, block.input, businessId);
+        } catch (toolError) {
+          logger.error(`Tool execution error [${block.name}]:`, toolError.message);
+          result = { is_error: true, content: 'Error ejecutando la acción, intenta de nuevo' };
+        }
         toolResults.push({
           type: 'tool_result',
           tool_use_id: block.id,

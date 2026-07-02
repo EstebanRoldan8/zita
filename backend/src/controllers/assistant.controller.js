@@ -31,12 +31,10 @@ async function message(req, res) {
 
     res.json({ success: true, data: result });
   } catch (error) {
-    logger.error('assistant error completo:', error);
-    logger.error('stack:', error.stack);
+    logger.error('Process message error:', error.stack);
     res.status(500).json({
       success: false,
-      error: error.message,
-      detail: error.stack
+      error: 'Error procesando tu solicitud'
     });
   }
 }

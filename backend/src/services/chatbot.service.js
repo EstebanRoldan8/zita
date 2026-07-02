@@ -321,17 +321,30 @@ async function getOrCreateClient(businessId, phone, name = null) {
 
   if (existing) return existing;
 
-  const { data: newClient } = await supabaseAdmin
-    .from('clients')
-    .insert({
-      business_id: businessId,
-      phone: phone,
-      name: name || 'Cliente WhatsApp'
-    })
-    .select('id, name')
-    .single();
+  try {
+    const { data: newClient } = await supabaseAdmin
+      .from('clients')
+      .insert({
+        business_id: businessId,
+        phone: phone,
+        name: name || 'Cliente WhatsApp'
+      })
+      .select('id, name')
+      .single();
 
-  return newClient;
+    return newClient;
+  } catch (err) {
+    if (err.code === '23505' || err.message?.includes('unique')) {
+      const { data: retryArr } = await supabaseAdmin
+        .from('clients')
+        .select('id, name')
+        .eq('business_id', businessId)
+        .eq('phone', phone)
+        .limit(1);
+      return retryArr?.[0] || null;
+    }
+    throw err;
+  }
 }
 
 async function getConversationHistory(businessId, clientPhone) {
@@ -1024,7 +1037,6 @@ async function processChatbotMessage(businessId, clientPhone, messageText, histo
             precio: servicio.price,
             empleado: empleadoDisponible?.name && empleadoDisponible.name !== 'Sin asignar' ? empleadoDisponible.name : null,
             scheduled_at,
-            empleado: empleadoDisponible?.name && empleadoDisponible.name !== 'Sin asignar' ? empleadoDisponible.name : null,
             hora_colombia: horaFormateada
           };
         }
@@ -1045,6 +1057,7 @@ async function processChatbotMessage(businessId, clientPhone, messageText, histo
             .select('id, scheduled_at, status, services(name, price), employees(name)')
             .eq('business_id', businessId)
             .eq('client_id', clienteDB.id)
+            .neq('status', 'cancelled')
             .gte('scheduled_at', hoy + 'T00:00:00-05:00')
             .order('scheduled_at');
 
@@ -1599,7 +1612,7 @@ async function processChatbotMessage(businessId, clientPhone, messageText, histo
                 nombre: p.nombre,
                 success: true,
                 servicio: servicio.name,
-            empleado: empleadoDisponible?.name && empleadoDisponible.name !== 'Sin asignar' ? empleadoDisponible.name : null,
+            empleado: empleado.name && empleado.name !== 'Sin asignar' ? empleado.name : null,
                 hora_colombia: horaFormateada,
                 precio: servicio.price
               });

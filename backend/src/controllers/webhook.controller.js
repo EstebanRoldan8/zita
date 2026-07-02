@@ -2,6 +2,7 @@ const logger = require('../utils/logger');
 const { processWhatsAppMessage } = require('../services/chatbot.service');
 
 const processingClients = new Map();
+const pendingMessages = new Map();
 
 // Limpiar Map periódicamente (entries más viejas de 30 segundos)
 setInterval(() => {
@@ -65,7 +66,11 @@ async function handleWebhook(req, res) {
       const now = Date.now();
 
       if (lastProcessing && (now - lastProcessing) < 15000) {
-        logger.info('Cliente ya en procesamiento - ignorando mensaje duplicado:', { clientKey, tiempoDesdeUltimo: now - lastProcessing });
+        logger.info('Cliente ya en procesamiento - encolando mensaje:', { clientKey, tiempoDesdeUltimo: now - lastProcessing });
+        if (!pendingMessages.has(clientKey)) {
+          pendingMessages.set(clientKey, []);
+        }
+        pendingMessages.get(clientKey).push({ from, phoneNumberId, messageText, messageId: message.id });
         res.sendStatus(200);
         return;
       }
@@ -198,6 +203,18 @@ async function handleWebhook(req, res) {
       .finally(() => {
         if (clientKey) {
           processingClients.delete(clientKey);
+          const pending = pendingMessages.get(clientKey);
+          if (pending && pending.length > 0) {
+            logger.info('Procesando mensajes encolados para:', { clientKey, cantidad: pending.length });
+            const combinedText = pending.map(m => m.messageText).join('\n');
+            pendingMessages.delete(clientKey);
+            processWhatsAppMessage({
+              from: pending[0].from,
+              phoneNumberId: pending[0].phoneNumberId,
+              messageText: combinedText,
+              messageId: pending[pending.length - 1].messageId
+            }).catch(err => logger.error('Error procesando mensajes encolados:', err));
+          }
         }
       });
 

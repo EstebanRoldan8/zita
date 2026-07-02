@@ -517,6 +517,15 @@ REGLA DE SERVICIO:
   - Si NO mencionó servicio: pregunta SOLO "¿Qué servicio buscas?"
   - NUNCA menciones servicios de memoria, SIEMPRE ejecuta ver_servicios para mostrar opciones
 
+EJEMPLO OBLIGATORIO:
+  Cliente: "quiero un corte"
+  CHEQUEAR: ¿Los servicios inyectados en <identity> incluyen 2+ que contienen "corte"?
+  (ej: Corte clásico, Corte + barba, Corte niño)
+  ├─ SÍ (hay 2+) → NUNCA asumas cuál. Ejecuta ver_servicios, enumera y pregunta:
+  │  "¿Cuál de estos prefieres? Corte clásico, Corte + barba o Corte niño"
+  │  (usa los nombres EXACTOS inyectados, no de ejemplo)
+  └─ NO (solo 1 servicio contiene "corte") → procede sin preguntar
+
 REGLA DE HORA AMBIGUA (sin AM/PM):
   - Si la hora solo cabe en AM (negocio abre 9am-5pm, cliente dice "las 2") → asume 2pm, no preguntes
   - Si la hora solo cabe en PM → asume PM, no preguntes

@@ -104,9 +104,10 @@ async function handleWebhook(req, res) {
     const country = 'colombia';
     const provider = getPaymentProvider(country);
 
-    if (signature && !validateWebhookSignature(payload, signature, provider.eventsSecret)) {
-      logger.warn('Wompi webhook: firma inválida');
-      return res.status(200).json({ received: true });
+    // CRÍTICO: Rechaza inmediatamente si NO hay firma O si la firma es inválida
+    if (!signature || !validateWebhookSignature(payload, signature, provider.eventsSecret)) {
+      logger.warn('Wompi webhook rechazado: firma faltante o inválida', { hasSignature: !!signature });
+      return res.status(403).json({ received: false, error: 'Firma inválida o faltante' });
     }
 
     if (event === 'transaction.updated') {
@@ -126,7 +127,9 @@ async function handleWebhook(req, res) {
         : tx.status === 'VOIDED' ? 'voided'
         : 'error';
 
-      await supabaseAdmin
+      // FIX 2: Agregar cross-tenant protection — verifica business_id
+      // FIX 3: Captura error y retorna 500 si falla
+      const { data: updateData, error: updateError } = await supabaseAdmin
         .from('payments')
         .update({
           status: newStatus,
@@ -134,7 +137,18 @@ async function handleWebhook(req, res) {
           payment_method: tx.payment_method?.type || null,
           updated_at: new Date().toISOString(),
         })
-        .eq('id', payment.id);
+        .eq('id', payment.id)
+        .eq('business_id', payment.business_id); // FIX 2: Protección cross-tenant
+
+      if (updateError) {
+        logger.error('payment.handleWebhook: error al actualizar payment', {
+          payment_id: payment.id,
+          business_id: payment.business_id,
+          wompi_reference: tx.reference,
+          error: updateError.message
+        });
+        return res.status(500).json({ received: false, error: 'Error al procesar webhook' });
+      }
 
       if (newStatus === 'approved') {
         const { data: business } = await supabaseAdmin

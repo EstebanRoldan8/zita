@@ -40,15 +40,18 @@ function generateIntegritySignature(reference, amountInCents, currency, integrit
 }
 
 function validateWebhookSignature(payload, signature, eventsSecret) {
-  const properties = payload.event
-    ? [
-        payload.data?.transaction?.id,
-        payload.data?.transaction?.status,
-        payload.data?.transaction?.amount_in_cents,
-        payload.timestamp,
-        eventsSecret,
-      ]
-    : [];
+  // Payload malformado — rechaza sin intentar validar
+  if (!payload.event || !payload.data?.transaction) {
+    return false;
+  }
+
+  const properties = [
+    payload.data.transaction.id,
+    payload.data.transaction.status,
+    payload.data.transaction.amount_in_cents,
+    payload.timestamp,
+    eventsSecret,
+  ];
 
   const raw = properties.join('');
   const expected = crypto.createHash('sha256').update(raw).digest('hex');

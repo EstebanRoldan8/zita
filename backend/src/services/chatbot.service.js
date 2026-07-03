@@ -1684,13 +1684,17 @@ async function processChatbotMessage(businessId, clientPhone, messageText, histo
         }
 
         case 'confirmar_asistencia': {
-          const { error } = await supabaseAdmin
+          const { data, error } = await supabaseAdmin
             .from('appointments')
             .update({ status: 'confirmed' })
             .eq('id', toolInput.appointment_id)
-            .eq('business_id', businessId);
+            .eq('business_id', businessId)
+            .select('id');
 
           if (error) return { success: false, error: error.message };
+          if (!data || data.length === 0) {
+            return { success: false, error: 'Cita no encontrada' };
+          }
           return { success: true, message: 'Asistencia confirmada correctamente' };
         }
 
@@ -1763,7 +1767,12 @@ async function processChatbotMessage(businessId, clientPhone, messageText, histo
               .from('appointments')
               .select('scheduled_at, services(duration_minutes)')
               .eq('id', toolInput.appointment_id)
+              .eq('business_id', businessId)
               .single();
+
+            if (!citaActual) {
+              return { success: false, error: 'Cita no encontrada' };
+            }
 
             if (citaActual) {
               const horaReservadaMs = new Date(citaActual.scheduled_at).getTime();
@@ -1825,7 +1834,12 @@ async function processChatbotMessage(businessId, clientPhone, messageText, histo
                 .from('appointments')
                 .select('scheduled_at')
                 .eq('id', toolInput.appointment_id)
+                .eq('business_id', businessId)
                 .single();
+
+              if (!citaActual) {
+                return { success: false, error: 'Cita no encontrada' };
+              }
 
               if (citaActual) {
                 const [fechaParte, horaParte] = citaActual.scheduled_at.split('T');
@@ -1875,7 +1889,12 @@ async function processChatbotMessage(businessId, clientPhone, messageText, histo
                   .from('appointments')
                   .select('employee_id')
                   .eq('id', toolInput.appointment_id)
+                  .eq('business_id', businessId)
                   .single();
+
+                if (!citaActual) {
+                  return { success: false, error: 'Cita no encontrada' };
+                }
 
                 const empId = updateData.employee_id || citaActual?.employee_id;
 
@@ -1914,13 +1933,17 @@ async function processChatbotMessage(businessId, clientPhone, messageText, histo
             return { success: false, error: 'No hay cambios que aplicar.' };
           }
 
-          const { error } = await supabaseAdmin
+          const { data, error } = await supabaseAdmin
             .from('appointments')
             .update(updateData)
             .eq('id', toolInput.appointment_id)
-            .eq('business_id', businessId);
+            .eq('business_id', businessId)
+            .select('id');
 
           if (error) return { success: false, error: error.message };
+          if (!data || data.length === 0) {
+            return { success: false, error: 'Cita no encontrada' };
+          }
 
           if (toolInput.nueva_fecha || toolInput.nueva_hora || toolInput.nuevo_servicio) {
             const { data: citaActualizada } = await supabaseAdmin

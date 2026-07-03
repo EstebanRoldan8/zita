@@ -1527,7 +1527,7 @@ async function executeTool(toolName, toolInput, businessId) {
       .filter(c => c.puntaje >= 4)
       .sort((a, b) => b.puntaje - a.puntaje);
 
-      logger.info('[buscar_cliente] matches encontrados: ' + conPuntaje.length + ' para query: ' + toolInput.nombre);
+      logger.info('[buscar_cliente] matches encontrados: ' + conPuntaje.length);
 
       if (!conPuntaje.length) {
         return { not_found: true, searched_for: toolInput.nombre, can_create: true };
@@ -1561,7 +1561,7 @@ async function executeTool(toolName, toolInput, businessId) {
         }
       }
 
-      logger.info('crear_cliente_intent: name='+toolInput.name+' phone='+toolInput.phone+' normalized='+normalizedPhone);
+      logger.info('crear_cliente_intent:', { phone_last4: toolInput.phone?.slice(-4) || 'N/A' });
 
       const { data, error } = await supabaseAdmin
         .from('clients')
@@ -1573,7 +1573,7 @@ async function executeTool(toolName, toolInput, businessId) {
         .select('id, name')
         .single();
 
-      logger.info('crear_cliente_result: data='+JSON.stringify(data)+' error='+JSON.stringify(error));
+      logger.info('crear_cliente_result:', { id: data?.id || null, error_code: error?.code || null });
 
       if (error) {
         if (error.code === '23505' && normalizedPhone) {
@@ -1823,8 +1823,8 @@ async function executeTool(toolName, toolInput, businessId) {
 
     case 'crear_cita': {
       logger.info('=== CREAR CITA ===');
-      logger.info('input:', JSON.stringify(toolInput));
-      logger.info('businessId:', businessId);
+      logger.info('input: ' + JSON.stringify({ service_id: toolInput.service_id, scheduled_at: toolInput.scheduled_at, client_id: toolInput.client_id || null, employee_id: toolInput.employee_id || null, status: toolInput.status || 'confirmed' }));
+      logger.info('businessId: ' + businessId);
 
       let scheduledAt = toolInput.scheduled_at;
       if (scheduledAt) {
@@ -1943,7 +1943,7 @@ async function executeTool(toolName, toolInput, businessId) {
         price: service?.price || 0
       };
 
-      logger.info('insertData:', JSON.stringify(insertData));
+      logger.info('insertData: ' + JSON.stringify({ ...insertData, notes: insertData.notes ? '[redacted]' : null }));
 
       // Validar límite de citas del mes
       const { data: bizPlan } = await supabaseAdmin
@@ -4436,14 +4436,14 @@ async function executeTool(toolName, toolInput, businessId) {
     logger.error('executeTool error completo:', error);
     logger.error('executeTool stack:', error.stack);
     logger.error('toolName:', toolName);
-    logger.error('toolInput:', JSON.stringify(toolInput));
+    logger.error('toolInput keys:', Object.keys(toolInput || {}).join(','));
     throw error;
   }
 }
 
 async function processMessage(businessId, userMessage, conversationHistory = []) {
   logger.info('[processMessage] businessId recibido:', businessId);
-  logger.info('[processMessage] userMessage:', userMessage?.substring(0, 50));
+  logger.info('[processMessage] userMessageLength:', userMessage?.length || 0);
   logger.info('[processMessage] historyLength:', conversationHistory.length);
 
   // Verificar límite de mensajes IA
@@ -4573,9 +4573,11 @@ ${stockAlerta}
     setCachedContext(businessId, businessContext);
   }
 
-  const dynamicSystemPrompt = SYSTEM_PROMPT + `
+  // Bloque estático (reglas, nunca cambia) — cacheable de forma estable
+  const staticSystemPrompt = SYSTEM_PROMPT;
 
-${businessContext}
+  // Bloque dinámico (datos por-negocio + fecha) — cambia en cada request
+  const dynamicSystemPrompt = `${businessContext}
 
 <fecha_actual>
 FECHA Y HORA ACTUAL: ${fechaHoy}, ${horaActual}
@@ -4596,8 +4598,12 @@ Cuando diga "mañana" usar: ${mananaISO}
     system: [
       {
         type: 'text',
-        text: dynamicSystemPrompt,
+        text: staticSystemPrompt,
         cache_control: { type: 'ephemeral' }
+      },
+      {
+        type: 'text',
+        text: dynamicSystemPrompt
       }
     ],
     tools: tools,
@@ -4640,8 +4646,12 @@ Cuando diga "mañana" usar: ${mananaISO}
       system: [
         {
           type: 'text',
-          text: dynamicSystemPrompt,
+          text: staticSystemPrompt,
           cache_control: { type: 'ephemeral' }
+        },
+        {
+          type: 'text',
+          text: dynamicSystemPrompt
         }
       ],
       tools: tools,
@@ -4664,8 +4674,12 @@ Cuando diga "mañana" usar: ${mananaISO}
           system: [
             {
               type: 'text',
-              text: dynamicSystemPrompt,
+              text: staticSystemPrompt,
               cache_control: { type: 'ephemeral' }
+            },
+            {
+              type: 'text',
+              text: dynamicSystemPrompt
             }
           ],
           tools: tools,

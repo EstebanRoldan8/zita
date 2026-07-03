@@ -7,7 +7,7 @@ async function message(req, res) {
 
     logger.info('=== ASSISTANT DEBUG ===');
     logger.info('businessId:', businessId);
-    logger.info('message:', userMessage);
+    logger.info('messageLength:', userMessage?.length || 0);
 
     if (!businessId) {
       return res.status(400).json({
@@ -15,16 +15,6 @@ async function message(req, res) {
         error: 'No se encontró el businessId'
       });
     }
-
-    // Probar query directo de servicios antes de llamar al assistant
-    const { supabaseAdmin } = require('../config/supabase');
-    const { data: testServices, error: testError } = await supabaseAdmin
-      .from('services')
-      .select('id, name')
-      .eq('business_id', businessId)
-      .eq('is_active', true);
-
-    logger.info('Servicios encontrados directamente:', testServices?.length, testError?.message);
 
     const { processMessage } = require('../services/assistant.service');
     const result = await processMessage(businessId, userMessage, history || []);

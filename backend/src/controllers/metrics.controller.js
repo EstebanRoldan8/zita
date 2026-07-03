@@ -299,7 +299,7 @@ async function employeeMetrics(req, res) {
   }
 }
 
-async function getHeatmap(req, res) {
+async   function getHeatmap(req, res) {
   try {
     const userClient = createUserClient(req.headers.authorization);
     const tz = getTimezone(req.business?.country);

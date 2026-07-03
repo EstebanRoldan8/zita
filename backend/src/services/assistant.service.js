@@ -1716,6 +1716,7 @@ async function executeTool(toolName, toolInput, businessId) {
         .from('appointments')
         .select('id')
         .eq('client_id', toolInput.client_id)
+        .eq('business_id', businessId)
         .neq('status', 'cancelled')
         .gt('scheduled_at', new Date().toISOString())
         .limit(1);
@@ -3813,7 +3814,8 @@ async function executeTool(toolName, toolInput, businessId) {
         const { data: clientes } = await supabaseAdmin
           .from('clients')
           .select('id, name, phone')
-          .in('id', toolInput.client_ids.slice(0,10));
+          .in('id', toolInput.client_ids.slice(0,10))
+          .eq('business_id', businessId);
 
         const conTelefono = (clientes || []).filter(c => c.phone);
         const sinTelefono = (clientes || []).filter(c => !c.phone);
@@ -3874,6 +3876,7 @@ async function executeTool(toolName, toolInput, businessId) {
         .from('clients')
         .select('id, name, phone')
         .in('id', idsAEnviar)
+        .eq('business_id', businessId)
         .not('phone', 'is', null);
 
       const { sendMessage } = require('../config/whatsapp');
@@ -3942,7 +3945,7 @@ async function executeTool(toolName, toolInput, businessId) {
       const [{ data: loyalty }, { data: config }, { data: clientFid }] = await Promise.all([
         supabaseAdmin.from('client_loyalty').select('points, total_visits, loyalty_visits, last_visit, last_redeemed_at').eq('client_id', toolInput.client_id).eq('business_id', businessId).maybeSingle(),
         supabaseAdmin.from('loyalty_config').select('visits_for_reward, rewards_description').eq('business_id', businessId).maybeSingle(),
-        supabaseAdmin.from('clients').select('name').eq('id', toolInput.client_id).single()
+        supabaseAdmin.from('clients').select('name').eq('id', toolInput.client_id).eq('business_id', businessId).single()
       ]);
 
       const visitasActuales = loyalty?.loyalty_visits || 0;
@@ -4274,7 +4277,7 @@ async function executeTool(toolName, toolInput, businessId) {
       const limite = toolInput.limit || 20;
 
       const [{ data: clientHist }, { data: citas }] = await Promise.all([
-        supabaseAdmin.from('clients').select('name, phone, notes, total_spent, visits_count').eq('id', toolInput.client_id).single(),
+        supabaseAdmin.from('clients').select('name, phone, notes, total_spent, visits_count').eq('id', toolInput.client_id).eq('business_id', businessId).single(),
         supabaseAdmin.from('appointments').select('id, scheduled_at, status, price, notes, services(name), employees(name)').eq('client_id', toolInput.client_id).eq('business_id', businessId).gte('scheduled_at', `${desde}T00:00:00-05:00`).order('scheduled_at', { ascending: false }).limit(limite)
       ]);
 
@@ -4300,7 +4303,7 @@ async function executeTool(toolName, toolInput, businessId) {
       let notaFinal = toolInput.nota;
 
       if (toolInput.agregar) {
-        const { data: clientNota } = await supabaseAdmin.from('clients').select('notes').eq('id', toolInput.client_id).single();
+        const { data: clientNota } = await supabaseAdmin.from('clients').select('notes').eq('id', toolInput.client_id).eq('business_id', businessId).single();
         if (clientNota?.notes) notaFinal = clientNota.notes + '\n' + toolInput.nota;
       }
 
@@ -4386,7 +4389,7 @@ async function executeTool(toolName, toolInput, businessId) {
       const fecha = toolInput.fecha || hoy;
 
       const [{ data: empAgenda }, { data: citasEmp }] = await Promise.all([
-        supabaseAdmin.from('employees').select('name').eq('id', toolInput.employee_id).single(),
+        supabaseAdmin.from('employees').select('name').eq('id', toolInput.employee_id).eq('business_id', businessId).single(),
         supabaseAdmin.from('appointments').select('id, scheduled_at, status, price, clients(name), services(name, duration_minutes)').eq('business_id', businessId).eq('employee_id', toolInput.employee_id).gte('scheduled_at', `${fecha}T00:00:00-05:00`).lte('scheduled_at', `${fecha}T23:59:59-05:00`).not('status', 'in', '("cancelled")').order('scheduled_at')
       ]);
 

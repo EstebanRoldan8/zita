@@ -5,6 +5,7 @@ const { PLANS } = require('../config/plans');
 const logger = require('../utils/logger');
 const { getTimezone, getOffsetForTz } = require('../utils/timezone');
 const { getAvailableEmployee } = require('../utils/availability');
+const { periodRange } = require('../controllers/cash.controller');
 
 const client = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
 
@@ -248,18 +249,24 @@ NUNCA inventes una categoría nueva. SI dudas entre dos → usa "otro".
 </categorias_egresos>
 
 <metricas_rango>
-PERÍODOS DE MÉTRICAS — LÍMITE DURO DEL SISTEMA:
-- consultar_metricas SOLO acepta: day, week, month.
+PERÍODOS DE MÉTRICAS — SISTEMA AMPLIADO:
+- consultar_metricas AHORA ACEPTA:
+  * periodo: day, week, month (hoy, esta semana, este mes)
+  * mes: YYYY-MM (ej: "2026-03" para marzo 2026 — CUALQUIER mes pasado o futuro)
+  * fecha_inicio + fecha_fin: YYYY-MM-DD (ej: "del 5 al 15 de mayo" → fecha_inicio="2026-05-05", fecha_fin="2026-05-15")
 - historial_ventas SOLO acepta: today, yesterday, week, month, year.
 - ver_ingresos / ver_egresos SOLO aceptan: today, week, month.
 
-SI el dueño pide un rango que NO es uno de esos períodos completos (ejemplos: "del 1 al 15", "marzo", "los últimos 3 días", "del 5 al 15 de julio", "la primera quincena"):
-→ Responde EXACTAMENTE esto (adaptando el saludo):
-"Por ahora consulto día/semana/mes/año completos 📊. Para rangos como 'del 1 al 15' o un mes específico, revisa el reporte en el panel de Analíticas."
+SI el dueño pide un rango NO soportado por consultar_metricas (ejemplos: gráficos, comparativas visuales, reportes exportables):
+→ Responde: "Para eso, revisa el panel de Analíticas 📊. Puedo consultar métricas de día/semana/mes completos, o de cualquier mes específico del pasado."
+
+EJEMPLOS DE USO:
+- "¿cuánto vendí en marzo?" → consultar_metricas con mes:"2026-03"
+- "¿cómo fue la primera quincena de mayo?" → consultar_metricas con fecha_inicio:"2026-05-01", fecha_fin:"2026-05-15"
+- "¿cuánto hoy?" → consultar_metricas con periodo:"day"
 
 - NUNCA inventes cifras.
-- NUNCA digas que puedes consultar rangos arbitrarios.
-- NUNCA sumes ni restes períodos para "aproximar" un rango.
+- NUNCA sumes ni restes períodos para "aproximar" un rango que no puedas consultar.
 (Excepción: calcular_comisiones sí acepta quincena — solo para comisiones de empleados.)
 </metricas_rango>
 
@@ -294,10 +301,15 @@ Usuario: "véndele 10 ceras a un cliente". La tool retorna {success:false, error
 ❌ MAL: responder "✅ Venta registrada, 10 ceras".
 ✅ BIEN: "⚠️ Solo hay 4 ceras en stock. ¿Registro las 4 o una cantidad diferente?"
 
-EJEMPLO 6 (rango de métricas):
-Usuario: "¿cuánto vendí del 5 al 15 de julio?"
-❌ MAL: inventar una cifra, o llamar consultar_metricas con month y presentarlo como si fuera el rango.
-✅ BIEN: "Por ahora consulto día/semana/mes/año completos 📊. Para rangos como 'del 5 al 15', revisa el reporte en el panel de Analíticas."
+EJEMPLO 6 (rango de métricas — mes específico):
+Usuario: "¿cuánto vendí en marzo?"
+❌ MAL: responder "no puedo", o devolver datos del mes actual con otro nombre.
+✅ BIEN: consultar_metricas con mes:"2026-03" → retorna cifras reales de marzo → "En marzo ganaste $2.150.000 netos 💰. Margen del 35%."
+
+EJEMPLO 7 (rango custom):
+Usuario: "¿cómo fue del 5 al 15 de julio?"
+❌ MAL: inventar, o decir que no puedo.
+✅ BIEN: consultar_metricas con fecha_inicio:"2026-07-05", fecha_fin:"2026-07-15" → responder con las métricas reales de ese rango.
 </ejemplos_criticos>
 
 <efficiency_rules>
@@ -842,13 +854,15 @@ const tools = [
   },
   {
     name: 'consultar_metricas',
-    description: 'Consulta mÃ©tricas del negocio.',
+    description: 'Consulta métricas del negocio. Usa periodo para hoy/esta semana/este mes. Usa mes para un mes específico (YYYY-MM). Usa fecha_inicio + fecha_fin para rangos custom (YYYY-MM-DD).',
     input_schema: {
       type: 'object',
       properties: {
-        periodo: { type: 'string', enum: ['day', 'week', 'month'] }
-      },
-      required: ['periodo']
+        periodo: { type: 'string', enum: ['day', 'week', 'month'], description: 'Período relativo: day (hoy), week (esta semana), month (este mes).' },
+        mes: { type: 'string', description: 'Mes específico en formato YYYY-MM (ej: "2026-03" para marzo 2026).' },
+        fecha_inicio: { type: 'string', description: 'Fecha de inicio en formato YYYY-MM-DD para rango custom. Requiere fecha_fin.' },
+        fecha_fin: { type: 'string', description: 'Fecha de fin en formato YYYY-MM-DD para rango custom. Requiere fecha_inicio.' }
+      }
     }
   },
   {
@@ -2120,17 +2134,33 @@ async function executeTool(toolName, toolInput, businessId) {
     }
 
     case 'consultar_metricas': {
-      const bogota = { timeZone: 'America/Bogota' };
-      const hoy = new Date().toLocaleDateString('en-CA', bogota);
-      const inicioFecha = toolInput.periodo === 'day'
-        ? hoy
-        : toolInput.periodo === 'week'
-          ? new Date(Date.now() - 7 * 86400000).toLocaleDateString('en-CA', bogota)
-          : new Date().toLocaleDateString('en-CA', { timeZone: 'America/Bogota' }).slice(0, 7) + '-01';
+      const tz = 'America/Bogota';
+      let { start, end } = {};
+      let periodLabel = '';
+
+      // Determinar rango de fechas usando periodRange() o parámetros custom
+      if (toolInput.mes && /^\d{4}-\d{2}$/.test(toolInput.mes)) {
+        // Rango por mes específico
+        const [yr, mo] = toolInput.mes.split('-').map(Number);
+        start = `${toolInput.mes}-01`;
+        end = `${toolInput.mes}-${String(new Date(yr, mo, 0).getDate()).padStart(2, '0')}`;
+        periodLabel = toolInput.mes;
+      } else if (toolInput.fecha_inicio && toolInput.fecha_fin) {
+        // Rango custom
+        start = toolInput.fecha_inicio;
+        end = toolInput.fecha_fin;
+        periodLabel = `${start} a ${end}`;
+      } else {
+        // Período relativo (day/week/month) — usar periodRange()
+        const { start: s, end: e } = periodRange({ period: toolInput.periodo || 'month' }, tz);
+        start = s;
+        end = e;
+        periodLabel = toolInput.periodo || 'month';
+      }
 
       const [{ data: ingresos }, { data: egresos }] = await Promise.all([
-        supabaseAdmin.from('income').select('amount').eq('business_id', businessId).gte('date', inicioFecha),
-        supabaseAdmin.from('expenses').select('amount, category').eq('business_id', businessId).gte('date', inicioFecha),
+        supabaseAdmin.from('income').select('amount').eq('business_id', businessId).gte('date', start).lte('date', end),
+        supabaseAdmin.from('expenses').select('amount, category').eq('business_id', businessId).gte('date', start).lte('date', end),
       ]);
 
       const total_ingresos    = (ingresos || []).reduce((s, i) => s + Number(i.amount || 0), 0);
@@ -2143,7 +2173,7 @@ async function executeTool(toolName, toolInput, businessId) {
       return {
         total_ingresos, costo_ventas, egresos_operativos,
         margen_bruto, utilidad_neta, margen_pct,
-        period: toolInput.periodo, currency: 'COP',
+        period: periodLabel, currency: 'COP',
       };
     }
 

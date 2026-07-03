@@ -834,4 +834,5 @@ module.exports = {
   createIncome, updateIncome, deleteIncome,
   createExpense, updateExpense, deleteExpense,
   exportPdf, getExcel, getProductsSold,
+  periodRange, dateToString,
 };

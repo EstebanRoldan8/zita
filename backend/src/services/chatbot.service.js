@@ -592,7 +592,7 @@ async function getBusinessByPhoneNumberId(phoneNumberId) {
   return data;
 }
 
-function getBusinessSystemPrompt(business, clientInfo = null, businessHours = null, services = null) {
+function getBusinessSystemPrompt(business, clientInfo = null, businessHours = null, services = null, citasActivas = null) {
   const now = new Date().toLocaleString('es-CO', { timeZone: 'America/Bogota' });
   const hoyFecha = new Date().toLocaleDateString('en-CA', { timeZone: 'America/Bogota' });
   const mañanaFecha = new Date(Date.now() + 86400000).toLocaleDateString('en-CA', { timeZone: 'America/Bogota' });
@@ -673,6 +673,34 @@ ${services && services.length > 0 ? `
 SERVICIOS DISPONIBLES EN ESTE NEGOCIO:
 ${services.map(s => `- ${s.name}: $${Number(s.price).toLocaleString('es-CO')} / ${s.duration_minutes} min`).join('\n')}
 ` : ''}
+
+<active_appointments>
+${citasActivas && citasActivas.length > 0
+  ? `Citas activas del cliente en este momento:\n${citasActivas.map(c => {
+      const fechaHora = new Date(c.scheduled_at).toLocaleString('es-CO', {
+        timeZone: 'America/Bogota',
+        weekday: 'long',
+        day: 'numeric',
+        month: 'long',
+        hour: '2-digit',
+        minute: '2-digit',
+        hour12: true
+      });
+      const servicioNombre = c.services?.name || 'Servicio';
+      const empleadoNombre = c.employees?.name || 'Sin asignar';
+      return `- ${fechaHora} - ${servicioNombre} con ${empleadoNombre} (ID: ${c.id})`;
+    }).join('\n')}`
+  : 'El cliente no tiene citas activas en este momento.'}
+</active_appointments>
+
+REGLA CRÍTICA sobre appointment_ids:
+Las citas listadas arriba son las REALES y ACTUALIZADAS del cliente en este momento.
+- Si necesitas cancelar, actualizar o confirmar una cita, usa EXCLUSIVAMENTE el
+  appointment_id que aparece en la lista arriba.
+- NUNCA uses un ID mencionado en un mensaje anterior de la conversación.
+- NUNCA inventes ni adivines un ID.
+- Si el cliente se refiere a una cita que no aparece en la lista, informa que no
+  la encuentras activa y sugiere que verifique.
 </identity>
 
 <tool_results>
@@ -812,8 +840,38 @@ async function processChatbotMessage(businessId, clientPhone, messageText, histo
     .order('name');
   services = servicesData;
 
+  let citasActivas = [];
+  try {
+    const { data: clienteParaCitas } = await supabaseAdmin
+      .from('clients')
+      .select('id')
+      .eq('business_id', businessId)
+      .eq('phone', clientPhone)
+      .single();
+
+    if (clienteParaCitas) {
+      const { data: citasData, error: citasError } = await supabaseAdmin
+        .from('appointments')
+        .select('id, scheduled_at, status, services(name), employees(name)')
+        .eq('business_id', businessId)
+        .eq('client_id', clienteParaCitas.id)
+        .in('status', ['pending', 'confirmed'])
+        .order('scheduled_at', { ascending: true })
+        .limit(10);
+
+      if (citasError) {
+        logger.error('Error consultando citas activas del cliente:', citasError.message);
+      } else {
+        citasActivas = citasData || [];
+      }
+    }
+  } catch (err) {
+    logger.error('Error inesperado consultando citas activas del cliente:', err.message);
+    citasActivas = [];
+  }
+
   const anthropicClient = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
-  const { staticPrompt, dynamicPrompt } = getBusinessSystemPrompt(business, clientInfo, businessHours || [], services || []);
+  const { staticPrompt, dynamicPrompt } = getBusinessSystemPrompt(business, clientInfo, businessHours || [], services || [], citasActivas);
 
   const tools = [
     {

@@ -135,6 +135,9 @@ async function activatePlanExtension(paymentId) {
 // cuyo webhook nunca llegó (o llegó y falló). No está conectada a cron —
 // se dispara manualmente vía POST /api/internal/reconcile-wompi-payments.
 async function reconcileWompiPayments() {
+  const startTime = Date.now();
+  console.log('[WOMPI_RECONCILIATION_JOB_START] Iniciando reconciliación de pagos...');
+
   const oneHourAgo = new Date(Date.now() - 60 * 60 * 1000).toISOString();
 
   const { data: pendingPayments, error } = await supabaseAdmin
@@ -145,6 +148,13 @@ async function reconcileWompiPayments() {
 
   if (error) {
     logger.error('[WOMPI_RECONCILIATION] Error al obtener payments pendientes', { error: error.message });
+    const summary = {
+      totalPendingReviewed: 0,
+      discrepanciesFound: 0,
+      corrected: 0,
+      duration_ms: Date.now() - startTime
+    };
+    console.log('[WOMPI_RECONCILIATION_JOB_COMPLETE]', JSON.stringify(summary));
     return { checked: 0, corrected: 0, discrepancies: [], errors: [error.message] };
   }
 
@@ -191,6 +201,14 @@ async function reconcileWompiPayments() {
       });
     }
   }
+
+  const summary = {
+    totalPendingReviewed: result.checked,
+    discrepanciesFound: result.discrepancies.length,
+    corrected: result.corrected,
+    duration_ms: Date.now() - startTime
+  };
+  console.log('[WOMPI_RECONCILIATION_JOB_COMPLETE]', JSON.stringify(summary));
 
   return result;
 }

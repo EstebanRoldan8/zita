@@ -1,18 +1,12 @@
 const { supabaseAdmin } = require('../config/supabase');
 const { getPaymentProvider, PLAN_PRICES_COP } = require('../config/payments');
-const { generateIntegritySignature, validateWebhookSignature } = require('../services/wompi.service');
+const { generateIntegritySignature, validateWebhookSignature, activatePlanExtension } = require('../services/wompi.service');
 const logger = require('../utils/logger');
 
 const PLAN_PRICES_BY_PERIOD = {
   lite: { monthly: 6000000, biannual: 32400000, annual: 57600000 },
   estandar: { monthly: 10000000, biannual: 54000000, annual: 96000000 },
   pro: { monthly: 15000000, biannual: 81000000, annual: 144000000 }
-};
-
-const PERIOD_DAYS = {
-  monthly: 30,
-  biannual: 180,
-  annual: 365
 };
 
 async function createSession(req, res) {
@@ -116,7 +110,7 @@ async function handleWebhook(req, res) {
 
       const { data: payment } = await supabaseAdmin
         .from('payments')
-        .select('id, business_id, plan, period')
+        .select('id, business_id, plan, period, status, wompi_transaction_id, payment_method')
         .eq('wompi_reference', tx.reference)
         .single();
 
@@ -126,6 +120,35 @@ async function handleWebhook(req, res) {
         : tx.status === 'DECLINED' ? 'declined'
         : tx.status === 'VOIDED' ? 'voided'
         : 'error';
+
+      // FIX 1: Idempotencia — si el payment ya estaba 'approved', el webhook es un
+      // reenvío duplicado. No volver a extender el plan; solo sincronizar metadata.
+      if (payment.status === 'approved') {
+        logger.info(`[WOMPI] Duplicado detectado: webhook reenviado para transaction ${tx.id}, ya procesado anteriormente`);
+
+        const nuevoPaymentMethod = tx.payment_method?.type || null;
+        if (payment.wompi_transaction_id !== tx.id || payment.payment_method !== nuevoPaymentMethod) {
+          const { error: syncError } = await supabaseAdmin
+            .from('payments')
+            .update({
+              wompi_transaction_id: tx.id,
+              payment_method: nuevoPaymentMethod,
+              updated_at: new Date().toISOString(),
+            })
+            .eq('id', payment.id)
+            .eq('business_id', payment.business_id);
+
+          if (syncError) {
+            logger.error('payment.handleWebhook: error al sincronizar datos de duplicado', {
+              payment_id: payment.id,
+              business_id: payment.business_id,
+              error: syncError.message
+            });
+          }
+        }
+
+        return res.status(200).json({ received: true });
+      }
 
       // FIX 2: Agregar cross-tenant protection — verifica business_id
       // FIX 3: Captura error y retorna 500 si falla
@@ -151,32 +174,7 @@ async function handleWebhook(req, res) {
       }
 
       if (newStatus === 'approved') {
-        const { data: business } = await supabaseAdmin
-          .from('businesses')
-          .select('plan_expires_at')
-          .eq('id', payment.business_id)
-          .single();
-
-        const period = payment.period || 'monthly';
-        const days = PERIOD_DAYS[period] || 30;
-        const baseDate = business?.plan_expires_at && new Date(business.plan_expires_at) > new Date()
-          ? new Date(business.plan_expires_at)
-          : new Date();
-
-        const expiresAt = new Date(baseDate);
-        expiresAt.setDate(expiresAt.getDate() + days);
-
-        await supabaseAdmin
-          .from('businesses')
-          .update({ plan: payment.plan, plan_expires_at: expiresAt.toISOString() })
-          .eq('id', payment.business_id);
-
-        await supabaseAdmin
-          .from('scheduled_downgrades')
-          .delete()
-          .eq('business_id', payment.business_id);
-
-        logger.info(`Plan activado: business=${payment.business_id} plan=${payment.plan} period=${period}`);
+        await activatePlanExtension(payment.id);
       }
     }
 

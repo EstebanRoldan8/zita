@@ -43,7 +43,7 @@ async function autoCompleteAppointments() {
 
     const { data: toComplete, error: selectError } = await supabaseAdmin
       .from('appointments')
-      .select('id, business_id, services(name, price)')
+      .select('id, business_id, price, scheduled_at, services(name, price)')
       .in('status', ['confirmed', 'pending'])
       .lt('scheduled_at', unaHoraAtras)
       .limit(200);
@@ -57,6 +57,7 @@ async function autoCompleteAppointments() {
     logger.info(`Encontradas ${toComplete?.length || 0} citas para auto-completar`);
 
     let completed = 0;
+    let incomeCreados = 0;
     for (const appointment of toComplete || []) {
       const { data: existingIncome } = await supabaseAdmin
         .from('income')
@@ -83,6 +84,7 @@ async function autoCompleteAppointments() {
       }
 
       if (appointment.price && appointment.price > 0) {
+        // Verificar que no exista income previo para esta cita
         const { data: existingIncome } = await supabaseAdmin
           .from('income')
           .select('id')
@@ -90,26 +92,32 @@ async function autoCompleteAppointments() {
           .limit(1);
 
         if (!existingIncome || existingIncome.length === 0) {
-          await supabaseAdmin
+          // Insert del income sin .catch() — desestructura el resultado
+          const { error: incomeError } = await supabaseAdmin
             .from('income')
             .insert({
               business_id: appointment.business_id,
+              appointment_id: appointment.id,
               amount: appointment.price,
               category: 'servicios',
-              description: `${appointment.services?.name || 'Servicio'} - auto-completado`,
+              description: `${appointment.services?.name} - cita completada por cron`,
               source: 'appointment',
-              appointment_id: appointment.id,
-              date: new Date().toLocaleDateString('en-CA', { timeZone: 'America/Bogota' })
-            })
-            .catch(err => {
-              logger.error(`Error creando income para appointment ${appointment.id}:`, err.message);
-              errors.push(`income ${appointment.id}: ${err.message}`);
+              date: new Date(appointment.scheduled_at).toISOString().split('T')[0]
             });
+
+          if (incomeError) {
+            logger.error(`Income creation failed for appointment ${appointment.id}:`, incomeError.message);
+            errors.push(`income ${appointment.id}: ${incomeError.message}`);
+            // NO abortar el loop — continuar con el siguiente appointment
+          } else {
+            incomeCreados++;
+          }
         }
       }
     }
 
     logger.info(`Auto-completadas ${completed} citas`);
+    logger.info(`AUTO_COMPLETE_completadas_${completed}_income_creados_${incomeCreados}`);
     return { completed, errors };
   } catch (error) {
     logger.error('Error en scheduler de auto-completar:', error.message);

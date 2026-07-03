@@ -4023,8 +4023,10 @@ async function executeTool(toolName, toolInput, businessId) {
       const [{ data: loyalty }, { data: config }, { data: clientCanje }] = await Promise.all([
         supabaseAdmin.from('client_loyalty').select('id, loyalty_visits').eq('client_id', toolInput.client_id).eq('business_id', businessId).maybeSingle(),
         supabaseAdmin.from('loyalty_config').select('visits_for_reward, rewards_description').eq('business_id', businessId).maybeSingle(),
-        supabaseAdmin.from('clients').select('name').eq('id', toolInput.client_id).single()
+        supabaseAdmin.from('clients').select('name').eq('id', toolInput.client_id).eq('business_id', businessId).single()
       ]);
+
+      if (!clientCanje) return { success: false, error: 'Cliente no encontrado' };
 
       if (!config?.visits_for_reward) return { success: false, error: 'No hay programa de fidelización configurado.' };
       if (!loyalty) return { success: false, error: 'Este cliente no tiene visitas registradas en el programa de fidelización.' };

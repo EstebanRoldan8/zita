@@ -151,7 +151,7 @@ export default function Register() {
             </div>
 
             <div className="inline-block px-4 py-2 bg-violet-500/10 border border-violet-500/30 rounded-full">
-              <p className="text-white text-sm">⚡ 14 días gratis · Sin tarjeta de crédito</p>
+              <p className="text-white text-sm">⚡ 30 días gratis · Sin tarjeta de crédito</p>
             </div>
           </div>
         </div>
@@ -250,7 +250,7 @@ export default function Register() {
           </div>
 
           <div className="inline-block px-4 py-2 bg-violet-500/10 border border-violet-500/30 rounded-full">
-            <p className="text-white text-sm">⚡ 14 días gratis · Sin tarjeta de crédito</p>
+            <p className="text-white text-sm">⚡ 30 días gratis · Sin tarjeta de crédito</p>
           </div>
         </div>
       </div>
@@ -273,7 +273,7 @@ export default function Register() {
             <p className="text-white text-3xl font-semibold mb-4">ZITA</p>
             <h2 className="text-2xl font-bold text-white mb-2">Crea tu cuenta gratis</h2>
             <div className="flex items-center justify-center gap-2">
-              <p className="text-slate-400">14 días gratis · Sin tarjeta de crédito</p>
+              <p className="text-slate-400">30 días gratis · Sin tarjeta de crédito</p>
               <span className="inline-block px-2 py-1 bg-green-500/20 border border-green-500/30 rounded text-xs text-green-400">✓</span>
             </div>
           </div>

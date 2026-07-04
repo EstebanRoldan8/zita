@@ -4,6 +4,7 @@ const { decrypt } = require('../utils/encrypt');
 const Anthropic = require('@anthropic-ai/sdk');
 const logger = require('../utils/logger');
 const { getAvailableEmployee, getNextAvailableSlots, isAppointmentWithinBusinessHours } = require('../utils/availability');
+const { isPlanExpired } = require('../utils/planStatus');
 const Groq = require('groq-sdk');
 
 // Cache de horarios por negocio (5 minutos)
@@ -583,13 +584,54 @@ Ejemplo: "Claro, [respuesta]. ¿Necesitas algo del negocio? 😊"
 async function getBusinessByPhoneNumberId(phoneNumberId) {
   const { data, error } = await supabaseAdmin
     .from('businesses')
-    .select('id, name, business_type, whatsapp_phone_number_id, whatsapp_access_token')
+    .select('id, name, business_type, whatsapp_phone_number_id, whatsapp_access_token, status, trial_ends_at, plan_expires_at, phone, owner_email, last_trial_expiry_notification')
     .eq('whatsapp_phone_number_id', phoneNumberId)
     .single();
   if (error) {
     logger.error('Error buscando business por phoneNumberId:', { phoneNumberId, error: error.message });
   }
   return data;
+}
+
+// Notifica al dueño del negocio que su plan/trial expiró y un cliente le está
+// escribiendo. Máximo una notificación cada 24h (por WhatsApp + email).
+async function notifyOwnerPlanExpired(business) {
+  try {
+    const ahora = new Date();
+    const ultimaNotif = business.last_trial_expiry_notification ? new Date(business.last_trial_expiry_notification) : null;
+    const yaNotificado24h = ultimaNotif && (ahora - ultimaNotif) < 24 * 60 * 60 * 1000;
+    if (yaNotificado24h) return;
+
+    const mensajeDueno = '⚠️ Tu plan ZITA expiró y un cliente te está escribiendo. Renueva para seguir atendiendo por WhatsApp.';
+
+    if (business.phone) {
+      const businessTokenNotif = business.whatsapp_access_token
+        ? decrypt(business.whatsapp_access_token)
+        : process.env.WHATSAPP_ACCESS_TOKEN;
+      await sendMessage(business.phone, mensajeDueno, businessTokenNotif, business.whatsapp_phone_number_id);
+    }
+
+    if (business.owner_email) {
+      try {
+        const resend = require('../config/resend');
+        await resend.emails.send({
+          from: 'ZITA <onboarding@resend.dev>',
+          to: business.owner_email,
+          subject: 'Tu plan ZITA expiró — un cliente te está escribiendo',
+          html: `<h2>Tu plan ZITA expiró</h2><p>Un cliente le escribió a <b>${business.name}</b> por WhatsApp, pero no se le pudo responder porque el plan/trial está vencido.</p><p>Renueva tu plan para seguir atendiendo a tus clientes por WhatsApp.</p>`,
+        });
+      } catch (emailErr) {
+        logger.error('Error enviando email de trial expirado: ' + emailErr.message);
+      }
+    }
+
+    await supabaseAdmin
+      .from('businesses')
+      .update({ last_trial_expiry_notification: ahora.toISOString() })
+      .eq('id', business.id);
+  } catch (err) {
+    logger.error('Error notificando dueño de plan expirado: ' + err.message);
+  }
 }
 
 function getBusinessSystemPrompt(business, clientInfo = null, businessHours = null, services = null, citasActivas = null) {
@@ -2405,6 +2447,16 @@ async function processWhatsAppMessage({ from, phoneNumberId, messageText, messag
 
     if (!business) {
       logger.warn('Negocio no encontrado', { phoneNumberId });
+      return;
+    }
+
+    if (isPlanExpired(business)) {
+      logger.warn('Negocio con plan/trial expirado, bot bloqueado', { businessId: business.id });
+      const businessTokenExp = business.whatsapp_access_token
+        ? decrypt(business.whatsapp_access_token)
+        : null;
+      await sendMessage(from, 'Este negocio no está disponible en este momento, intenta más tarde 🙏', businessTokenExp, business.whatsapp_phone_number_id);
+      await notifyOwnerPlanExpired(business);
       return;
     }
 

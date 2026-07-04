@@ -19,6 +19,9 @@ async function register(req, res) {
       return res.status(400).json({ success: false, error: authError.message });
     }
 
+    const trialDays = parseInt(process.env.TRIAL_DAYS) || 30;
+    const trialEndsAt = new Date(Date.now() + trialDays * 24 * 60 * 60 * 1000).toISOString();
+
     const { data: business, error: businessError } = await supabaseAdmin
       .from('businesses')
       .insert({
@@ -30,6 +33,7 @@ async function register(req, res) {
         phone: phone || null,
         address: ciudad || null,
         country: country || 'colombia',
+        trial_ends_at: trialEndsAt,
       })
       .select()
       .single();

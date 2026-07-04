@@ -177,7 +177,7 @@ export default function Login() {
 
           {/* Bottom badge */}
           <div className="inline-block px-4 py-2 bg-violet-500/10 border border-violet-500/30 rounded-full">
-            <p className="text-white text-sm">⚡ 14 días gratis · Sin tarjeta de crédito</p>
+            <p className="text-white text-sm">⚡ 30 días gratis · Sin tarjeta de crédito</p>
           </div>
         </div>
       </div>

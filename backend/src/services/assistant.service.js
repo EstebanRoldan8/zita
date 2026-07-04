@@ -6,6 +6,7 @@ const logger = require('../utils/logger');
 const { getTimezone, getOffsetForTz } = require('../utils/timezone');
 const { getAvailableEmployee } = require('../utils/availability');
 const { periodRange } = require('../controllers/cash.controller');
+const { isPlanExpired } = require('../utils/planStatus');
 
 const client = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
 
@@ -4638,9 +4639,16 @@ async function processMessage(businessId, userMessage, conversationHistory = [])
   // Verificar límite de mensajes IA
   const { data: biz } = await supabaseAdmin
     .from('businesses')
-    .select('plan, ai_messages_today, ai_messages_date, trial_ends_at, plan_expires_at, name, business_type, address, phone')
+    .select('plan, ai_messages_today, ai_messages_date, trial_ends_at, plan_expires_at, name, business_type, address, phone, status')
     .eq('id', businessId)
     .single();
+
+  if (isPlanExpired(biz)) {
+    return {
+      success: false,
+      error: '🔒 Tu plan ZITA expiró. Renueva en https://app.zita.co/dashboard/suscripcion para seguir usando el asistente.'
+    };
+  }
 
   const plan = biz.plan || 'estandar';
   const planConfig = PLANS[plan];

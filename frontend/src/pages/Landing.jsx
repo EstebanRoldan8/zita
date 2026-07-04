@@ -209,7 +209,7 @@ export default function Landing() {
                   to="/register"
                   className="px-8 py-3 bg-gradient-to-r from-violet-600 to-violet-700 rounded-lg font-semibold hover:from-violet-700 hover:to-violet-800 transition text-center hover:shadow-lg hover:shadow-violet-500/50"
                 >
-                  Empezar gratis 14 días
+                  Empezar gratis 30 días
                 </Link>
                 <button
                   onClick={() => scrollToSection('como-funciona')}
@@ -626,7 +626,7 @@ export default function Landing() {
             ¿Listo para automatizar tu negocio?
           </h2>
           <p className="text-sm sm:text-lg text-gray-300">
-            14 días gratis. Sin tarjeta de crédito.
+            30 días gratis. Sin tarjeta de crédito.
           </p>
           <Link
             to="/register"

@@ -228,7 +228,7 @@ export default function Demo() {
             to="/register"
             className="inline-block px-8 py-3 bg-gradient-to-r from-violet-600 to-violet-700 rounded-lg font-semibold hover:from-violet-700 hover:to-violet-800 transition"
           >
-            Empezar gratis 14 días →
+            Empezar gratis 30 días →
           </Link>
         </div>
       </section>

@@ -92,7 +92,7 @@ export default function PublicFooter() {
             >
               Empezar gratis →
             </Link>
-            <p className="text-xs text-gray-500">14 días gratis · Sin tarjeta</p>
+            <p className="text-xs text-gray-500">30 días gratis · Sin tarjeta</p>
           </div>
         </div>
 

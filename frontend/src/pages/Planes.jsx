@@ -197,7 +197,7 @@ export default function Planes() {
         <div className="max-w-3xl mx-auto text-center space-y-6">
           <h1 className="text-4xl sm:text-5xl md:text-6xl font-black px-4 break-words overflow-hidden w-full text-center">Elige el plan perfecto para tu negocio</h1>
           <p className="text-lg text-gray-400 max-w-2xl mx-auto">
-            Precio de lanzamiento · 14 días gratis · Sin tarjeta de crédito
+            Precio de lanzamiento · 30 días gratis · Sin tarjeta de crédito
           </p>
         </div>
       </section>

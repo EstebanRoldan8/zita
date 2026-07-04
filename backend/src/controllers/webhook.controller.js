@@ -54,6 +54,7 @@ async function handleWebhook(req, res) {
     const message = value.messages[0];
     const phoneNumberId = value.metadata?.phone_number_id;
     const from = message.from;
+    const messageText = message.text?.body;
 
     // Verificar si el bot está pausado para este cliente
     const business = await require('../services/chatbot.service')
@@ -109,7 +110,6 @@ async function handleWebhook(req, res) {
       // }
     }
 
-    const messageText = message.text?.body;
     const messageType = message.type;
 
     if (messageType !== 'text' || !messageText) {

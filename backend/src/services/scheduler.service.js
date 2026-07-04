@@ -43,7 +43,7 @@ async function autoCompleteAppointments() {
 
     const { data: toComplete, error: selectError } = await supabaseAdmin
       .from('appointments')
-      .select('id, business_id, price, scheduled_at, services(name, price)')
+      .select('id, business_id, price, scheduled_at, source, services(name, price)')
       .in('status', ['confirmed', 'pending'])
       .lt('scheduled_at', unaHoraAtras)
       .limit(200);
@@ -92,6 +92,12 @@ async function autoCompleteAppointments() {
           .limit(1);
 
         if (!existingIncome || existingIncome.length === 0) {
+          const canalLabel = appointment.source === 'whatsapp'
+            ? 'agendado por WhatsApp'
+            : appointment.source === 'assistant'
+              ? 'agendado por Asistente IA'
+              : 'agendado manualmente';
+
           // Insert del income sin .catch() — desestructura el resultado
           const { error: incomeError } = await supabaseAdmin
             .from('income')
@@ -100,7 +106,7 @@ async function autoCompleteAppointments() {
               appointment_id: appointment.id,
               amount: appointment.price,
               category: 'servicios',
-              description: `${appointment.services?.name} - cita completada por cron`,
+              description: `${appointment.services?.name} - ${canalLabel} (auto-completado)`,
               source: 'appointment',
               date: new Date(appointment.scheduled_at).toISOString().split('T')[0]
             });

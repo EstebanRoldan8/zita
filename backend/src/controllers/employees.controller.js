@@ -167,18 +167,101 @@ async function deleteEmployee(req, res) {
   try {
     const { id } = req.params;
     const userClient = createUserClient(req.headers.authorization);
+    const { getAvailableEmployee } = require('../utils/availability');
+    const { sendMessage } = require('../config/whatsapp');
+    const { decrypt } = require('../utils/encrypt');
 
-    const { data: existing } = await userClient
+    // Verificar que el empleado existe
+    const { data: existing, error: getErr } = await userClient
       .from('employees')
-      .select('id')
+      .select('id, name')
       .eq('id', id)
       .eq('business_id', req.businessId)
       .single();
 
-    if (!existing) {
+    if (getErr || !existing) {
       return res.status(404).json({ success: false, error: 'No encontrado' });
     }
 
+    // Buscar citas futuras del empleado
+    const { data: futureCitas } = await userClient
+      .from('appointments')
+      .select('id, scheduled_at, services(name, duration_minutes), clients(phone, name)')
+      .eq('employee_id', id)
+      .in('status', ['pending', 'confirmed'])
+      .gt('scheduled_at', new Date().toISOString())
+      .order('scheduled_at');
+
+    if (futureCitas && futureCitas.length > 0) {
+      // Verificar si hay otros empleados activos
+      const { data: otherEmployees } = await userClient
+        .from('employees')
+        .select('id')
+        .eq('business_id', req.businessId)
+        .eq('is_active', true)
+        .neq('id', id)
+        .limit(1);
+
+      if (!otherEmployees || otherEmployees.length === 0) {
+        return res.status(409).json({
+          success: false,
+          error: 'No puedes eliminar al único empleado con citas futuras agendadas. Cancela o reagenda esas citas primero.'
+        });
+      }
+
+      // Reasignar cada cita futura
+      const business = require('../config/supabase').supabaseAdmin;
+      const { data: bizData } = await business
+        .from('businesses')
+        .select('whatsapp_phone_number_id, whatsapp_access_token')
+        .eq('id', req.businessId)
+        .single();
+
+      for (const cita of futureCitas) {
+        const fecha = cita.scheduled_at.split('T')[0];
+        const hora = cita.scheduled_at.split('T')[1].slice(0, 5);
+
+        // Reasignar automáticamente
+        const nuevoEmpleado = await getAvailableEmployee(req.businessId, fecha, hora);
+
+        if (nuevoEmpleado) {
+          await userClient
+            .from('appointments')
+            .update({ employee_id: nuevoEmpleado.id })
+            .eq('id', cita.id);
+
+          // Notificar al cliente por WhatsApp
+          if (cita.clients?.phone) {
+            const fechaFormato = new Date(cita.scheduled_at).toLocaleString('es-CO', {
+              timeZone: 'America/Bogota',
+              weekday: 'long',
+              day: 'numeric',
+              month: 'long',
+              hour: '2-digit',
+              minute: '2-digit'
+            });
+            const mensaje = `Tu cita de ${cita.services?.name || 'servicio'} el ${fechaFormato} ahora será atendida por ${nuevoEmpleado.name} 😊`;
+
+            try {
+              const token = bizData?.whatsapp_access_token
+                ? decrypt(bizData.whatsapp_access_token)
+                : process.env.WHATSAPP_ACCESS_TOKEN;
+
+              await sendMessage(
+                cita.clients.phone,
+                mensaje,
+                token,
+                bizData?.whatsapp_phone_number_id || process.env.WHATSAPP_PHONE_NUMBER_ID
+              );
+            } catch (whatsappErr) {
+              logger.warn(`WhatsApp notification failed for appointment ${cita.id}: ${whatsappErr.message}`);
+            }
+          }
+        }
+      }
+    }
+
+    // Eliminar empleado
     const { data, error } = await userClient
       .from('employees')
       .delete()

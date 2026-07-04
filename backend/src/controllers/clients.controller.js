@@ -8,12 +8,19 @@ const capitalizeName = (str) => str.trim().replace(/\b\w/g, c => c.toUpperCase()
 async function getAll(req, res) {
   try {
     const userClient = createUserClient(req.headers.authorization);
+    const { includeArchived } = req.query;
 
-    // 1. Traer todos los clientes
-    const { data: clients, error: clientsError } = await userClient
+    // 1. Traer todos los clientes (excluir archivados por defecto)
+    let clientsQuery = userClient
       .from('clients')
       .select('id, name, phone, email, notes, created_at')
-      .eq('business_id', req.businessId)
+      .eq('business_id', req.businessId);
+
+    if (includeArchived !== 'true') {
+      clientsQuery = clientsQuery.eq('archived', false);
+    }
+
+    const { data: clients, error: clientsError } = await clientsQuery
       .order('name');
 
     if (clientsError) throw clientsError;
@@ -245,9 +252,10 @@ async function destroy(req, res) {
       return res.status(409).json({ success: false, error: 'No se puede eliminar el cliente porque tiene citas futuras programadas.' });
     }
 
+    // Archivar en vez de borrar (soft-delete)
     const { data, error } = await userClient
       .from('clients')
-      .delete()
+      .update({ archived: true })
       .eq('id', id)
       .eq('business_id', req.businessId)
       .select('id');
@@ -256,7 +264,7 @@ async function destroy(req, res) {
     if (!data || data.length === 0) {
       return res.status(404).json({ success: false, error: 'Cliente no encontrado.' });
     }
-    return res.json({ success: true, message: 'Cliente eliminado correctamente.' });
+    return res.json({ success: true, message: 'Cliente archivado correctamente.' });
   } catch (err) {
     logger.error(`clients.destroy: ${err.message}`);
     return res.status(500).json({ success: false, error: 'Error interno del servidor.' });

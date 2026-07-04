@@ -119,6 +119,7 @@ async function toggle(req, res) {
 async function remove(req, res) {
   try {
     const { id } = req.params;
+    const { confirm } = req.query;
 
     const userClient = createUserClient(req.headers.authorization);
 
@@ -131,6 +132,23 @@ async function remove(req, res) {
 
     if (!existing) {
       return res.status(404).json({ success: false, error: 'No encontrado' });
+    }
+
+    // Contar citas históricas que referencian este servicio
+    const { count: affectedCount } = await userClient
+      .from('appointments')
+      .select('id', { count: 'exact', head: true })
+      .eq('service_id', id)
+      .eq('business_id', req.businessId);
+
+    // Si hay historial y no hay confirmación, pedir confirmación
+    if (affectedCount > 0 && confirm !== 'true') {
+      return res.status(409).json({
+        success: false,
+        requiresConfirmation: true,
+        affectedAppointments: affectedCount,
+        message: `Este servicio tiene ${affectedCount} cita${affectedCount !== 1 ? 's' : ''} en el historial. Requiere confirmación.`
+      });
     }
 
     const { data, error } = await userClient

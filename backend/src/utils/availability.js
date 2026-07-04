@@ -73,6 +73,88 @@ async function getAvailableEmployee(businessId, fecha, hora) {
   return disponibles[0];
 }
 
+/**
+ * Valida que una cita (fecha + hora + duración) quepa dentro del horario de atención
+ * del negocio ese día, y que ese día no esté marcado como cerrado (día especial/festivo).
+ *
+ * Regla estricta: la cita debe TERMINAR a más tardar a la hora de cierre.
+ * Ej: cierre 18:00, servicio de 30 min -> última hora válida de inicio es 17:30.
+ *
+ * @param {string} businessId
+ * @param {string} fecha - 'YYYY-MM-DD'
+ * @param {string} hora - 'HH:mm'
+ * @param {object} [opts]
+ * @param {number} [opts.durationMinutes] - duración del servicio en minutos, si ya se conoce
+ * @param {string} [opts.serviceId] - id del servicio, para obtener la duración si no viene en durationMinutes
+ * @returns {Promise<{valid: boolean, reason?: string, open_time?: string, close_time?: string}>}
+ */
+async function isAppointmentWithinBusinessHours(businessId, fecha, hora, opts = {}) {
+  const { durationMinutes, serviceId } = opts;
+
+  const [yearF, monthF, dayF] = fecha.split('-').map(Number);
+  const diaDeLaSemana = new Date(yearF, monthF - 1, dayF).getDay();
+
+  const { data: horario } = await supabaseAdmin
+    .from('business_hours')
+    .select('open_time, close_time, is_open')
+    .eq('business_id', businessId)
+    .eq('day_of_week', diaDeLaSemana)
+    .maybeSingle();
+
+  if (!horario?.is_open) {
+    return { valid: false, reason: 'Ese día estamos cerrados.' };
+  }
+
+  // Verificar días cerrados especiales (festivos)
+  const { data: diaCerrado } = await supabaseAdmin
+    .from('business_closed_days')
+    .select('reason')
+    .eq('business_id', businessId)
+    .eq('date', fecha)
+    .maybeSingle();
+
+  if (diaCerrado) {
+    return {
+      valid: false,
+      reason: `Ese día estamos cerrados: ${diaCerrado.reason}. ¿Te agendo otro día?`
+    };
+  }
+
+  let duracion = durationMinutes;
+  if (duracion == null && serviceId) {
+    const { data: servicioDur } = await supabaseAdmin
+      .from('services')
+      .select('duration_minutes')
+      .eq('id', serviceId)
+      .maybeSingle();
+    duracion = servicioDur?.duration_minutes;
+  }
+  if (duracion == null) duracion = 30;
+
+  const [horaH, horaM] = hora.split(':').map(Number);
+  const appointmentMinutes = horaH * 60 + horaM;
+  const [aperturaH, aperturaM] = horario.open_time.split(':').map(Number);
+  const aperturaMinutes = aperturaH * 60 + aperturaM;
+  const [cierreH, cierreM] = horario.close_time.split(':').map(Number);
+  const cierreMinutes = cierreH * 60 + cierreM;
+
+  if (appointmentMinutes < aperturaMinutes) {
+    return {
+      valid: false,
+      reason: `Fuera de horario. Atendemos de ${horario.open_time} a ${horario.close_time}.`
+    };
+  }
+
+  if (appointmentMinutes + duracion > cierreMinutes) {
+    return {
+      valid: false,
+      reason: `Fuera de horario. Atendemos de ${horario.open_time} a ${horario.close_time}.`
+    };
+  }
+
+  return { valid: true, open_time: horario.open_time, close_time: horario.close_time };
+}
+
 async function getNextAvailableSlots(businessId, fecha, hora, cantidad = 3) {
   const { data: settings } = await supabaseAdmin
     .from('business_settings')
@@ -110,4 +192,4 @@ async function getNextAvailableSlots(businessId, fecha, hora, cantidad = 3) {
   return slots;
 }
 
-module.exports = { getAvailableEmployee, getNextAvailableSlots };
+module.exports = { getAvailableEmployee, getNextAvailableSlots, isAppointmentWithinBusinessHours };

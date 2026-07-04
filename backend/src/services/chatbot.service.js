@@ -3,7 +3,7 @@ const { supabaseAdmin } = require('../config/supabase');
 const { decrypt } = require('../utils/encrypt');
 const Anthropic = require('@anthropic-ai/sdk');
 const logger = require('../utils/logger');
-const { getAvailableEmployee, getNextAvailableSlots } = require('../utils/availability');
+const { getAvailableEmployee, getNextAvailableSlots, isAppointmentWithinBusinessHours } = require('../utils/availability');
 const Groq = require('groq-sdk');
 
 // Cache de horarios por negocio (5 minutos)
@@ -1206,7 +1206,7 @@ async function processChatbotMessage(businessId, clientPhone, messageText, histo
         case 'agendar_cita': {
           const { data: servicios } = await supabaseAdmin
             .from('services')
-            .select('id, name, price')
+            .select('id, name, price, duration_minutes')
             .eq('business_id', businessId)
             .ilike('name', `%${toolInput.service_name}%`)
             .eq('active', true)
@@ -1215,49 +1215,21 @@ async function processChatbotMessage(businessId, clientPhone, messageText, histo
           const servicio = servicios?.[0];
           if (!servicio) return { success: false, error: 'Servicio no encontrado' };
 
-          const [yearF, monthF, dayF] = toolInput.fecha.split('-').map(Number);
-          const tempDate = new Date(yearF, monthF - 1, dayF);
-          const diaDeLaSemana = tempDate.getDay();
+          const horarioValido = await isAppointmentWithinBusinessHours(
+            businessId,
+            toolInput.fecha,
+            toolInput.hora,
+            { durationMinutes: servicio.duration_minutes }
+          );
 
-          const { data: horario } = await supabaseAdmin
-            .from('business_hours')
-            .select('open_time, close_time, is_open')
-            .eq('business_id', businessId)
-            .eq('day_of_week', diaDeLaSemana)
-            .maybeSingle();
-
-          if (!horario?.is_open) {
-            return { success: false, error: 'Ese día estamos cerrados.' };
+          if (!horarioValido.valid) {
+            return { success: false, error: horarioValido.reason };
           }
 
-          // Verificar días cerrados especiales (festivos)
-          const { data: diaCerrado } = await supabaseAdmin
-            .from('business_closed_days')
-            .select('reason')
-            .eq('business_id', businessId)
-            .eq('date', toolInput.fecha)
-            .maybeSingle();
-
-          if (diaCerrado) {
-            return {
-              success: false,
-              error: `Ese día estamos cerrados: ${diaCerrado.reason}. ¿Te agendo otro día?`
-            };
-          }
-
-          const [horaH, horaM] = toolInput.hora.split(':').map(Number);
-          const appointmentMinutes = horaH * 60 + horaM;
-          const [aperturaH, aperturaM] = horario.open_time.split(':').map(Number);
-          const aperturaMinutes = aperturaH * 60 + aperturaM;
-          const [cierreH, cierreM] = horario.close_time.split(':').map(Number);
-          const cierreMinutes = cierreH * 60 + cierreM;
-
-          if (appointmentMinutes < aperturaMinutes || appointmentMinutes >= cierreMinutes) {
-            return {
-              success: false,
-              error: `Fuera de horario. Atendemos de ${horario.open_time} a ${horario.close_time}.`
-            };
-          }
+          const appointmentMinutes = (() => {
+            const [h, m] = toolInput.hora.split(':').map(Number);
+            return h * 60 + m;
+          })();
 
           // Validar que la hora no haya pasado si es hoy
           const hoyCol = new Date().toLocaleDateString('en-CA', { timeZone: 'America/Bogota' });
@@ -2195,6 +2167,20 @@ async function processChatbotMessage(businessId, clientPhone, messageText, histo
               const servicio = servicios?.[0];
               if (!servicio) {
                 resultados.push({ nombre: p.nombre, success: false, error: 'Servicio no encontrado' });
+                continue;
+              }
+
+              // Validar horario de atención del negocio (cierre, días cerrados) — misma
+              // validación que usa agendar_cita individual
+              const horarioValidoGrp = await isAppointmentWithinBusinessHours(
+                businessId,
+                p.fecha,
+                p.hora,
+                { durationMinutes: servicio.duration_minutes }
+              );
+
+              if (!horarioValidoGrp.valid) {
+                resultados.push({ nombre: p.nombre, success: false, error: horarioValidoGrp.reason });
                 continue;
               }
 

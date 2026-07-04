@@ -1764,24 +1764,54 @@ async function executeTool(toolName, toolInput, businessId) {
     }
 
     case 'buscar_empleado': {
-      const palabras = toolInput.nombre.toLowerCase().split(' ');
+      const searchNormalized = normalizeForSearch(toolInput.nombre);
+      const searchWords = searchNormalized.split(/\s+/).filter(w => w.length > 0);
+
       const { data } = await supabaseAdmin
         .from('employees')
-        .select('id, name, commission_percent')
-        .eq('business_id', businessId);
+        .select('id, name, phone, commission_percent')
+        .eq('business_id', businessId)
+        .eq('is_active', true);
 
-      const conPuntaje = data?.map(e => {
-        const nombreLower = e.name.toLowerCase();
-        const puntaje = palabras.filter(p =>
-          nombreLower.includes(p) || p.includes(nombreLower.split(' ')[0])
-        ).length;
+      if (!data || data.length === 0) return { found: false, searched_for: toolInput.nombre };
+
+      const conPuntaje = data.map(e => {
+        const empNormalized = normalizeForSearch(e.name);
+        const empWords = empNormalized.split(/\s+/).filter(w => w.length > 0);
+        let puntaje = 0;
+
+        for (const sw of searchWords) {
+          for (const ew of empWords) {
+            if (ew === sw) { puntaje += 10; }
+            else if (ew.startsWith(sw) && sw.length >= 3) { puntaje += 6; }
+            else if (ew.includes(sw) && sw.length >= 3) { puntaje += 4; }
+            else if (sw.length >= 5 && levenshtein(sw, ew) === 1) { puntaje += 2; }
+          }
+        }
+
         return { ...e, puntaje };
       }).filter(e => e.puntaje > 0)
         .sort((a, b) => b.puntaje - a.puntaje);
 
-      if (!conPuntaje?.length) return { found: false };
-      if (conPuntaje[0].puntaje >= 1) return { found: true, employee: conPuntaje[0] };
-      return { found: false, searched_for: toolInput.nombre };
+      if (!conPuntaje.length) return { found: false, searched_for: toolInput.nombre };
+
+      // Si hay 2+ empleados activos con puntaje empatado en el tope, es ambiguo:
+      // NO elegir uno arbitrariamente, forzar a que el asistente pregunte cuál.
+      const puntajeMaximo = searchWords.length * 10;
+      const matchExacto = conPuntaje[0].puntaje >= puntajeMaximo && (
+        conPuntaje.length === 1 || conPuntaje[1].puntaje < puntajeMaximo
+      );
+      const soloUnResultado = conPuntaje.length === 1;
+      const esExacto = matchExacto || soloUnResultado;
+
+      const topMatches = conPuntaje.slice(0, 10).map(e => ({ id: e.id, name: e.name, phone: e.phone }));
+      return {
+        found: true,
+        employee: conPuntaje[0],
+        multiple_found: !esExacto && conPuntaje.length > 1,
+        all_matches: !esExacto && conPuntaje.length > 1 ? topMatches : undefined,
+        exact_match: esExacto
+      };
     }
 
         case 'buscar_producto': {
@@ -4774,7 +4804,26 @@ Cuando diga "mañana" usar: ${mananaISO}
   let actionsExecuted = [];
 
   // Loop para manejar tool use
+  const MAX_TOOL_ITERATIONS = 10;
+  let iterations = 0;
   while (response.stop_reason === 'tool_use') {
+    iterations++;
+    if (iterations > MAX_TOOL_ITERATIONS) {
+      logger.error('[ASSISTANT_LOOP_TIMEOUT]', { businessId, iterations });
+      const errorMessage = 'Hubo un problema procesando tu solicitud. Intenta de nuevo o sé más específico.';
+      return {
+        success: false,
+        error: errorMessage,
+        response: errorMessage,
+        history: [
+          ...limitedConversationHistory,
+          { role: 'user', content: userMessage },
+          { role: 'assistant', content: errorMessage }
+        ].slice(-12),
+        actionsExecuted
+      };
+    }
+
     const assistantContent = response.content;
     apiMessages.push({ role: 'assistant', content: assistantContent });
 

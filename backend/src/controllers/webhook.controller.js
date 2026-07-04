@@ -103,90 +103,9 @@ async function handleWebhook(req, res) {
 
     const messageType = message.type;
 
-    if (messageType !== 'text' || !messageText) {
-      if (messageType === 'audio') {
-        res.sendStatus(200);
-
-        try {
-          const audioId = message.audio?.id;
-          if (!audioId) {
-            logger.error('Audio sin ID');
-            return;
-          }
-
-          const business = await require('../services/chatbot.service').getBusinessByPhoneNumberId(phoneNumberId);
-          if (!business) {
-            logger.error('Negocio no encontrado para procesar audio');
-            return;
-          }
-
-          const businessToken = business?.whatsapp_access_token
-            ? require('../utils/encrypt').decrypt(business.whatsapp_access_token)
-            : null;
-
-          if (!businessToken) {
-            logger.error('Token de WhatsApp no disponible');
-            return;
-          }
-
-          const audioUrlRes = await fetch(`https://graph.facebook.com/v18.0/${audioId}`, {
-            headers: { Authorization: `Bearer ${businessToken}` }
-          });
-
-          const audioData = await audioUrlRes.json();
-          const audioUrl = audioData.url;
-
-          if (!audioUrl) {
-            logger.error('No se obtuvo URL del audio');
-            const { sendMessage } = require('../config/whatsapp');
-            await sendMessage(
-              from,
-              'No pude procesar tu nota de voz. ¿Puedes escribirme el mensaje?',
-              businessToken,
-              phoneNumberId
-            );
-            return;
-          }
-
-          const { transcribeAudio } = require('../services/chatbot.service');
-          const transcribedText = await transcribeAudio(audioUrl, businessToken);
-
-          if (!transcribedText) {
-            const { sendMessage } = require('../config/whatsapp');
-            await sendMessage(
-              from,
-              'No pude escuchar tu nota de voz, ¿puedes escribirlo?',
-              businessToken,
-              phoneNumberId
-            );
-            return;
-          }
-
-          logger.info('Procesando audio transcrito como texto:', { from, texto: transcribedText });
-
-          await require('../services/chatbot.service').processWhatsAppMessage({
-            from,
-            phoneNumberId,
-            messageText: transcribedText,
-            messageId: message.id
-          });
-        } catch (err) {
-          logger.error('Error procesando audio:', err.message);
-        } finally {
-          // Liberar el lock para permitir otros mensajes (si existe clientKey y Promise)
-          if (clientKey && processingClients.has(clientKey)) {
-            processingClients.delete(clientKey);
-          }
-        }
-      } else {
-        res.sendStatus(200);
-      }
-      return;
-    }
-
     res.sendStatus(200);
 
-    // Crear una Promise para este procesamiento y guardarla (bloquea otros mensajes del mismo cliente)
+    // Manejar según tipo de mensaje: siempre liberar el lock al final
     if (clientKey) {
       let resolveProcessing;
       const processingPromise = new Promise(resolve => {
@@ -194,15 +113,89 @@ async function handleWebhook(req, res) {
       });
       processingClients.set(clientKey, processingPromise);
 
-      // Procesar el mensaje y luego resolver la Promise
-      processWhatsAppMessage({
-        from,
-        phoneNumberId,
-        messageText,
-        messageId: message.id
-      }).catch(err => logger.error('Error procesando mensaje WA:', err))
-        .finally(async () => {
-          // Procesar mensajes encolados (si existen) antes de resolver
+      // Procesar según tipo de mensaje
+      (async () => {
+        try {
+          if (messageType === 'audio') {
+            // Procesar audio: transcribir y convertir a texto
+            const audioId = message.audio?.id;
+            if (!audioId) {
+              logger.error('Audio sin ID');
+              return;
+            }
+
+            const business = await require('../services/chatbot.service').getBusinessByPhoneNumberId(phoneNumberId);
+            if (!business) {
+              logger.error('Negocio no encontrado para procesar audio');
+              return;
+            }
+
+            const businessToken = business?.whatsapp_access_token
+              ? require('../utils/encrypt').decrypt(business.whatsapp_access_token)
+              : null;
+
+            if (!businessToken) {
+              logger.error('Token de WhatsApp no disponible');
+              return;
+            }
+
+            const audioUrlRes = await fetch(`https://graph.facebook.com/v18.0/${audioId}`, {
+              headers: { Authorization: `Bearer ${businessToken}` }
+            });
+
+            const audioData = await audioUrlRes.json();
+            const audioUrl = audioData.url;
+
+            if (!audioUrl) {
+              logger.error('No se obtuvo URL del audio');
+              const { sendMessage } = require('../config/whatsapp');
+              await sendMessage(
+                from,
+                'No pude procesar tu nota de voz. ¿Puedes escribirme el mensaje?',
+                businessToken,
+                phoneNumberId
+              );
+              return;
+            }
+
+            const { transcribeAudio } = require('../services/chatbot.service');
+            const transcribedText = await transcribeAudio(audioUrl, businessToken);
+
+            if (!transcribedText) {
+              const { sendMessage } = require('../config/whatsapp');
+              await sendMessage(
+                from,
+                'No pude escuchar tu nota de voz, ¿puedes escribirlo?',
+                businessToken,
+                phoneNumberId
+              );
+              return;
+            }
+
+            logger.info('Procesando audio transcrito como texto:', { from, texto: transcribedText });
+
+            await require('../services/chatbot.service').processWhatsAppMessage({
+              from,
+              phoneNumberId,
+              messageText: transcribedText,
+              messageId: message.id
+            });
+          } else if (messageType === 'text' && messageText) {
+            // Procesar texto normalmente
+            await processWhatsAppMessage({
+              from,
+              phoneNumberId,
+              messageText,
+              messageId: message.id
+            });
+          } else {
+            // Otros tipos (stickers, imágenes, etc.): ignorar pero aún así serializar
+            logger.info('Tipo de mensaje no soportado, ignorando:', { messageType, from });
+          }
+        } catch (err) {
+          logger.error(`Error procesando mensaje ${messageType}:`, err.message);
+        } finally {
+          // Procesar mensajes encolados (si existen) antes de liberar
           const pending = pendingMessages.get(clientKey);
           if (pending && pending.length > 0) {
             logger.info('Procesando mensajes encolados para:', { clientKey, cantidad: pending.length });
@@ -223,7 +216,8 @@ async function handleWebhook(req, res) {
           // Liberar el lock resolviendo la Promise
           processingClients.delete(clientKey);
           resolveProcessing();
-        });
+        }
+      })();
     }
 
   } catch (error) {

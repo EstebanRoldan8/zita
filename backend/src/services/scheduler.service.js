@@ -3,6 +3,7 @@ const { sendMessage } = require('../config/whatsapp');
 const { supabaseAdmin } = require('../config/supabase');
 const { reconcileWompiPaymentsWithAPI } = require('./wompi.service');
 const { checkTrialExpiringWarnings } = require('./notification.service');
+const { decrypt } = require('../utils/encrypt');
 const logger = require('../utils/logger');
 
 let schedulerInitialized = false;
@@ -154,10 +155,15 @@ cron.schedule('0 12 * * *', async () => {
 
   const { data: negocios } = await supabaseAdmin
     .from('businesses')
-    .select('id, name, owner_whatsapp, whatsapp_phone_number_id')
+    .select('id, name, owner_whatsapp, whatsapp_phone_number_id, whatsapp_access_token')
     .not('owner_whatsapp', 'is', null);
 
   for (const negocio of negocios || []) {
+    if (!negocio.whatsapp_phone_number_id || !negocio.whatsapp_access_token) {
+      logger.warn('[SCHEDULER] Skipping reminder for business without WhatsApp', { business_id: negocio.id });
+      continue;
+    }
+
     try {
       const { data: citas } = await supabaseAdmin
         .from('appointments')
@@ -184,7 +190,8 @@ cron.schedule('0 12 * * *', async () => {
 
       const mensaje = `🗓️ *Buenos días! Resumen de citas para hoy:*\n\n${lista}\n\n💰 *Total estimado: $${total.toLocaleString('es-CO')}*\n\n¡Que sea un gran día! 💪`;
 
-      await sendMessage(negocio.owner_whatsapp, mensaje);
+      const token = decrypt(negocio.whatsapp_access_token);
+      await sendMessage(negocio.owner_whatsapp, mensaje, token, negocio.whatsapp_phone_number_id);
       logger.info(`Resumen enviado a ${negocio.name}`);
     } catch (error) {
       logger.error(`Error enviando resumen a ${negocio.name}:`, error.message);
@@ -205,7 +212,7 @@ cron.schedule('*/5 * * * *', async () => {
 
     const { data: citas } = await supabaseAdmin
       .from('appointments')
-      .select('id, scheduled_at, clients(name, phone), services(name), businesses(name)')
+      .select('id, business_id, scheduled_at, clients(name, phone), services(name), businesses(name, whatsapp_phone_number_id, whatsapp_access_token)')
       .eq('status', 'confirmed')
       .gte('scheduled_at', en2h.toISOString())
       .lte('scheduled_at', en2h5m.toISOString())
@@ -220,14 +227,22 @@ cron.schedule('*/5 * * * *', async () => {
 
     for (const cita of citas || []) {
       try {
+        const negocio = cita.businesses;
+
+        if (!negocio?.whatsapp_phone_number_id || !negocio?.whatsapp_access_token) {
+          logger.warn('[SCHEDULER] Skipping reminder for business without WhatsApp', { business_id: cita.business_id });
+          continue;
+        }
+
         const hora = new Date(cita.scheduled_at).toLocaleTimeString('es-CO', {
           hour: '2-digit', minute: '2-digit',
           timeZone: 'America/Bogota'
         });
 
-        const mensaje = `⏰ *Recordatorio de tu cita*\n\nHola ${cita.clients?.name}! Te recordamos que tienes una cita en *${cita.businesses?.name}* a las *${hora}* para un *${cita.services?.name}*.\n\n¡Te esperamos! 💈`;
+        const mensaje = `⏰ *Recordatorio de tu cita*\n\nHola ${cita.clients?.name}! Te recordamos que tienes una cita en *${negocio?.name}* a las *${hora}* para un *${cita.services?.name}*.\n\n¡Te esperamos! 💈`;
 
-        await sendMessage(cita.clients.phone, mensaje);
+        const token = decrypt(negocio.whatsapp_access_token);
+        await sendMessage(cita.clients.phone, mensaje, token, negocio.whatsapp_phone_number_id);
         logger.info(`Recordatorio enviado a ${cita.clients.name}`);
       } catch (error) {
         logger.error('Error enviando recordatorio:', error.message);

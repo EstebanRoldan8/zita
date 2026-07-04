@@ -7,7 +7,6 @@ import 'react-datepicker/dist/react-datepicker.css';
 import api from '../../lib/api';
 import { supabase } from '../../lib/supabase';
 import AppointmentModal from '../../components/appointments/AppointmentModal';
-import SubscriptionExpiredBanner from '../../components/ui/SubscriptionExpiredBanner';
 import { useAuth } from '../../context/AuthContext';
 import { timeFromISO } from '../../lib/timezone';
 

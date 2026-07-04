@@ -7,8 +7,13 @@ const {
 } = require('../controllers/cash.controller');
 const { verifyToken } = require('../middlewares/auth');
 const { businessContext } = require('../middlewares/businessContext');
+const { checkFeatureAccess } = require('../middlewares/featureCheck');
 
 router.use(verifyToken, businessContext);
+
+// 'reportes_pdf' es exclusiva de Pro (ver backend/src/config/plans.js);
+// el resto de /api/cash ya está protegido por 'caja' (Estándar/Pro) en app.js.
+const requireReportesPdf = checkFeatureAccess('reportes_pdf');
 
 router.get('/summary',         getSummary);
 router.get('/products-sold',   getProductsSold);
@@ -20,8 +25,8 @@ router.delete('/income/:id',  deleteIncome);
 router.post('/expenses',      createExpense);
 router.put('/expenses/:id',   updateExpense);
 router.delete('/expenses/:id',deleteExpense);
-router.get('/export/pdf',      exportPdf);
-router.get('/report/monthly',  exportPdf);
-router.get('/report/excel',    getExcel);
+router.get('/export/pdf',      requireReportesPdf, exportPdf);
+router.get('/report/monthly',  requireReportesPdf, exportPdf);
+router.get('/report/excel',    requireReportesPdf, getExcel);
 
 module.exports = router;

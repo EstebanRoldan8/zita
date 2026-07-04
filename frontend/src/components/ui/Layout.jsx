@@ -6,6 +6,7 @@ import Sidebar from './Sidebar';
 import AlertsPanel from './AlertsPanel';
 import AIAssistant from './AIAssistant';
 import SubscriptionWarning from './SubscriptionWarning';
+import SubscriptionExpiredBanner from './SubscriptionExpiredBanner';
 
 export default function Layout() {
   const navigate = useNavigate();
@@ -44,6 +45,7 @@ export default function Layout() {
       </main>
       <AlertsPanel />
       <AIAssistant />
+      <SubscriptionExpiredBanner />
     </div>
   );
 }

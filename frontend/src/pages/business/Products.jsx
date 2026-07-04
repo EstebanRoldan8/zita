@@ -7,7 +7,6 @@ import DatePicker, { registerLocale } from 'react-datepicker';
 import 'react-datepicker/dist/react-datepicker.css';
 import { es } from 'date-fns/locale';
 import api from '../../lib/api';
-import SubscriptionExpiredBanner from '../../components/ui/SubscriptionExpiredBanner';
 import { useAuth } from '../../context/AuthContext';
 
 registerLocale('es', es);

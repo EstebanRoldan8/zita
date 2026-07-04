@@ -1,17 +1,31 @@
 import { Lock } from 'lucide-react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useLocation } from 'react-router-dom';
 import { useEffect, useState } from 'react';
 
 export default function SubscriptionExpiredBanner() {
-  const [isExpired, setIsExpired] = useState(false);
+  const [isExpired, setIsExpired] = useState(
+    () => localStorage.getItem('subscription_expired') === 'true'
+  );
   const navigate = useNavigate();
+  const location = useLocation();
 
+  // Vive en Layout (fuera del Outlet), así que no vuelve a montarse al
+  // navegar entre Citas/Clientes/Caja/etc. Re-chequeamos el flag en cada
+  // cambio de ruta y también al volver a la pestaña, para que el aviso
+  // aparezca apenas el backend marque la suscripción como vencida.
   useEffect(() => {
-    const expired = localStorage.getItem('subscription_expired') === 'true';
-    setIsExpired(expired);
-  }, []);
+    const check = () => setIsExpired(localStorage.getItem('subscription_expired') === 'true');
+    check();
+    window.addEventListener('storage', check);
+    window.addEventListener('focus', check);
+    return () => {
+      window.removeEventListener('storage', check);
+      window.removeEventListener('focus', check);
+    };
+  }, [location.pathname]);
 
-  if (!isExpired) return null;
+  // No bloquear la propia página de suscripción: ahí es donde el usuario renueva.
+  if (!isExpired || location.pathname === '/dashboard/suscripcion') return null;
 
   return (
     <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50">

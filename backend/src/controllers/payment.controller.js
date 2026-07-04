@@ -1,6 +1,7 @@
 const { supabaseAdmin } = require('../config/supabase');
 const { getPaymentProvider, PLAN_PRICES_COP } = require('../config/payments');
 const { generateIntegritySignature, validateWebhookSignature, activatePlanExtension } = require('../services/wompi.service');
+const { notifyPaymentDeclined } = require('../services/notification.service');
 const logger = require('../utils/logger');
 
 const PLAN_PRICES_BY_PERIOD = {
@@ -131,7 +132,7 @@ async function handleWebhook(req, res) {
 
       const { data: payment } = await supabaseAdmin
         .from('payments')
-        .select('id, business_id, plan, period, status, wompi_transaction_id, payment_method')
+        .select('id, business_id, plan, period, amount, status, wompi_transaction_id, payment_method')
         .eq('wompi_reference', tx.reference)
         .single();
 
@@ -211,6 +212,31 @@ async function handleWebhook(req, res) {
 
       if (newStatus === 'approved') {
         await activatePlanExtension(payment.id);
+      }
+
+      if (newStatus === 'declined' || newStatus === 'error') {
+        // La notificación al dueño no debe romper el webhook si falla
+        // (WhatsApp caído, negocio sin teléfono, etc.) — Wompi solo necesita el 200.
+        try {
+          const { data: business } = await supabaseAdmin
+            .from('businesses')
+            .select('id, name, phone')
+            .eq('id', payment.business_id)
+            .single();
+
+          if (business) {
+            await notifyPaymentDeclined(business, {
+              amount: payment.amount,
+              decline_reason: tx.status_message || null
+            });
+          }
+        } catch (notifError) {
+          logger.error('[PAYMENT_DECLINED_NOTIFICATION] Error al notificar pago rechazado:', {
+            payment_id: payment.id,
+            business_id: payment.business_id,
+            error: notifError.message
+          });
+        }
       }
     }
 

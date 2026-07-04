@@ -2,6 +2,7 @@ const cron = require('node-cron');
 const { sendMessage } = require('../config/whatsapp');
 const { supabaseAdmin } = require('../config/supabase');
 const { reconcileWompiPaymentsWithAPI } = require('./wompi.service');
+const { checkTrialExpiringWarnings } = require('./notification.service');
 const logger = require('../utils/logger');
 
 let schedulerInitialized = false;
@@ -256,12 +257,29 @@ cron.schedule('0 */2 * * *', async () => {
   }
 });
 
+// Aviso de trial por vencer (3 días antes) — 09:00 UTC = 04:00 AM Bogotá.
+// Corre temprano para que trial_warning_sent_at quede marcado antes de que el
+// dueño revise su WhatsApp en la mañana.
+cron.schedule('0 9 * * *', async () => {
+  const acquired = await acquireLock('trial_warning', 30);
+  if (!acquired) return;
+
+  logger.info('[TRIAL_WARNING_CRON] Job started');
+  try {
+    const resultado = await checkTrialExpiringWarnings();
+    logger.info('[TRIAL_WARNING_CRON] Job finished', resultado);
+  } catch (error) {
+    logger.error('[TRIAL_WARNING_CRON] Job failed:', error.message);
+  }
+});
+
   logger.info('=== SCHEDULER CARGADO ===');
   logger.info('Tareas activas:');
   logger.info('  • Resumen diario a las 12:00 UTC (7am Colombia)');
   logger.info('  • Recordatorio 2 horas antes cada 5 minutos (testing)');
   logger.info('  • Auto-completar citas cada 15 minutos (1 hora después de scheduled_at)');
   logger.info('  • Reconciliación de pagos Wompi cada 2 horas');
+  logger.info('  • Aviso de trial por vencer a las 09:00 UTC (4am Colombia)');
   logger.info('Usando database locks para evitar duplicados en múltiples instancias');
 };
 

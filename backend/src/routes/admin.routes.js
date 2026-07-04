@@ -7,6 +7,8 @@ const {
   getConversationDetail,
   getNotifications,
   markNotificationRead,
+  getSystemAlerts,
+  markSystemAlertRead,
   changePlan,
   getCaja,
   createExpense,
@@ -36,6 +38,9 @@ router.post('/support/reply', replyAsAdmin);
 
 router.get('/notifications', getNotifications);
 router.patch('/notifications/:id/read', markNotificationRead);
+
+router.get('/system-alerts', getSystemAlerts);
+router.patch('/system-alerts/:id/read', markSystemAlertRead);
 
 router.get('/caja', getCaja);
 router.post('/caja/expenses', createExpense);

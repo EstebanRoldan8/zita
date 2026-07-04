@@ -8,6 +8,7 @@ const { getAvailableEmployee } = require('../utils/availability');
 const { periodRange } = require('../controllers/cash.controller');
 const { isPlanExpired } = require('../utils/planStatus');
 const { deleteCitaIncome } = require('./scheduler.service');
+const { logSystemAlert } = require('../utils/systemAlerts');
 
 const client = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
 
@@ -4958,6 +4959,10 @@ Cuando diga "mañana" usar: ${mananaISO}
     iterations++;
     if (iterations > MAX_TOOL_ITERATIONS) {
       logger.error('[ASSISTANT_LOOP_TIMEOUT]', { businessId, iterations });
+      await logSystemAlert('assistant_loop_timeout',
+        `Asistente alcanzó máximo de iteraciones (${MAX_TOOL_ITERATIONS})`,
+        businessId,
+        { iterations });
       const errorMessage = 'Hubo un problema procesando tu solicitud. Intenta de nuevo o sé más específico.';
       return {
         success: false,

@@ -3,6 +3,7 @@ const crypto = require('crypto');
 const { getPaymentProvider } = require('../config/payments');
 const { supabaseAdmin } = require('../config/supabase');
 const logger = require('../utils/logger');
+const { logSystemAlert } = require('../utils/systemAlerts');
 
 const PERIOD_DAYS = {
   monthly: 30,
@@ -143,6 +144,10 @@ async function activatePlanExtension(paymentId) {
       paymentId,
       error: updateError?.message
     });
+    await logSystemAlert('wompi_plan_activation_failed',
+      `Falló activación de plan para negocio ${payment.business_id}`,
+      payment.business_id,
+      { paymentId, error: updateError?.message });
     return { success: false, error: updateError?.message || 'No se pudo actualizar el plan del negocio' };
   }
 
@@ -234,6 +239,10 @@ async function reconcileWompiPayments() {
       } else if (wompiStatus && wompiStatus !== 'PENDING') {
         result.discrepancies.push({ paymentId: payment.id, zitaStatus: payment.status, wompiStatus });
         logger.warn(`[WOMPI_RECONCILIATION] Discrepancia: payment ${payment.id} ZITA=pending Wompi=${wompiStatus}`);
+        await logSystemAlert('wompi_reconciliation_discrepancy',
+          `Discrepancia en pago: ZITA=pending, Wompi=${wompiStatus}`,
+          payment.business_id,
+          { paymentId: payment.id, zitaStatus: payment.status, wompiStatus });
       }
     } catch (err) {
       result.errors.push(`payment ${payment.id}: ${err.message}`);

@@ -211,6 +211,38 @@ async function markNotificationRead(req, res) {
   }
 }
 
+async function getSystemAlerts(req, res) {
+  try {
+    const { data, error } = await supabaseAdmin
+      .from('system_alerts')
+      .select('id, tipo, mensaje, business_id, metadata, read_at, created_at')
+      .order('created_at', { ascending: false })
+      .limit(50);
+
+    if (error) throw error;
+    return res.json({ success: true, data: data || [] });
+  } catch (err) {
+    logger.error(`admin.getSystemAlerts: ${err.message}`);
+    return res.status(500).json({ success: false, error: 'Error interno del servidor.' });
+  }
+}
+
+async function markSystemAlertRead(req, res) {
+  try {
+    const { id } = req.params;
+    const { error } = await supabaseAdmin
+      .from('system_alerts')
+      .update({ read_at: new Date().toISOString() })
+      .eq('id', id);
+
+    if (error) throw error;
+    return res.json({ success: true });
+  } catch (err) {
+    logger.error(`admin.markSystemAlertRead: ${err.message}`);
+    return res.status(500).json({ success: false, error: 'Error interno del servidor.' });
+  }
+}
+
 async function changePlan(req, res) {
   try {
     const { id } = req.params;
@@ -485,6 +517,8 @@ module.exports = {
   getConversationDetail,
   getNotifications,
   markNotificationRead,
+  getSystemAlerts,
+  markSystemAlertRead,
   changePlan,
   getCaja,
   createExpense,

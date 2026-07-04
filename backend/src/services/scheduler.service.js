@@ -5,6 +5,7 @@ const { reconcileWompiPaymentsWithAPI } = require('./wompi.service');
 const { checkTrialExpiringWarnings } = require('./notification.service');
 const { decrypt } = require('../utils/encrypt');
 const logger = require('../utils/logger');
+const { logSystemAlert } = require('../utils/systemAlerts');
 
 let schedulerInitialized = false;
 
@@ -191,6 +192,10 @@ async function autoCompleteAppointments() {
     return { completed, errors };
   } catch (error) {
     logger.error('Error en scheduler de auto-completar:', error.message);
+    await logSystemAlert('scheduler_autocomplete_failed',
+      `Error en scheduler de auto-completar citas: ${error.message}`,
+      null,
+      { error: error.message });
     errors.push(error.message);
     return { completed: 0, errors };
   }

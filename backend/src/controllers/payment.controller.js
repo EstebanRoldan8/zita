@@ -3,6 +3,7 @@ const { getPaymentProvider, PLAN_PRICES_COP } = require('../config/payments');
 const { generateIntegritySignature, validateWebhookSignature, isPaymentAlreadyProcessed, activatePlanExtension } = require('../services/wompi.service');
 const { notifyPaymentDeclined } = require('../services/notification.service');
 const logger = require('../utils/logger');
+const { logSystemAlert } = require('../utils/systemAlerts');
 
 const PLAN_PRICES_BY_PERIOD = {
   lite: { monthly: 6000000, biannual: 32400000, annual: 57600000 },
@@ -79,6 +80,10 @@ async function createSession(req, res) {
 
     if (insertError || !insertedPayment?.id) {
       logger.error('[PAYMENT_INSERT_FAILED]', { error: insertError?.message, businessId });
+      await logSystemAlert('payment_insert_failed',
+        `Falló inserción de pago para negocio ${businessId}`,
+        businessId,
+        { error: insertError?.message, plan, period, amount: amountInCents });
       return res.status(400).json({ success: false, error: 'No pudimos crear el pago, intenta de nuevo.' });
     }
 
@@ -211,6 +216,10 @@ async function handleWebhook(req, res) {
       if (newStatus === 'declined' || newStatus === 'error') {
         // La notificación al dueño no debe romper el webhook si falla
         // (WhatsApp caído, negocio sin teléfono, etc.) — Wompi solo necesita el 200.
+        await logSystemAlert('payment_declined',
+          `Pago rechazado/error para negocio ${payment.business_id}`,
+          payment.business_id,
+          { paymentId: payment.id, status: newStatus, decline_reason: tx.status_message || null });
         try {
           const { data: business } = await supabaseAdmin
             .from('businesses')
@@ -240,6 +249,10 @@ async function handleWebhook(req, res) {
     // validación. Responder 5xx para que Wompi reintente el webhook más tarde,
     // en vez de responder 200 y perder el evento silenciosamente.
     logger.error('[WOMPI_WEBHOOK_ERROR]', { error: err.message, wompi_transaction_id: tx?.id });
+    await logSystemAlert('wompi_webhook_error',
+      `Error procesando webhook de Wompi: ${err.message}`,
+      null,
+      { error: err.message, wompi_transaction_id: tx?.id });
     return res.status(500).json({ received: false, error: 'Error al procesar webhook' });
   }
 }

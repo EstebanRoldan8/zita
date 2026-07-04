@@ -17,14 +17,19 @@ router.use(verifyToken, businessContext);
 // a propósito: configuran el número de WhatsApp del negocio, que es parte de
 // 'bot_whatsapp', una feature incluida en TODOS los planes (incluido Lite).
 // Bloquearlas dejaría a un negocio Lite sin poder conectar su WhatsApp.
+//
+// Lite tiene acceso reducido (no bloqueado) a Configuración: horarios,
+// días cerrados, perfil del negocio y WhatsApp quedan disponibles para
+// todos los planes. Solo 'goals' (metas mensuales personalizadas) sigue
+// siendo exclusivo de Estándar/Pro.
 const requireConfiguracion = checkFeatureAccess('configuracion');
 
-router.get('/hours',                  requireConfiguracion, getHours);
-router.put('/hours',                  requireConfiguracion, updateHours);
+router.get('/hours',                  getHours);
+router.put('/hours',                  updateHours);
 
-router.get('/closed-days',            requireConfiguracion, getClosedDays);
-router.post('/closed-days',           requireConfiguracion, addClosedDay);
-router.delete('/closed-days/:id',     requireConfiguracion, removeClosedDay);
+router.get('/closed-days',            getClosedDays);
+router.post('/closed-days',           addClosedDay);
+router.delete('/closed-days/:id',     removeClosedDay);
 
 router.get('/goals',                  requireConfiguracion, getGoal);
 router.put('/goals',                  requireConfiguracion, updateGoal);
@@ -32,7 +37,7 @@ router.put('/goals',                  requireConfiguracion, updateGoal);
 router.put('/whatsapp-notify',        updateWhatsappNotify);
 router.put('/whatsapp',               updateWhatsapp);
 
-router.get('/profile',                requireConfiguracion, getProfile);
-router.put('/profile',                requireConfiguracion, updateProfile);
+router.get('/profile',                getProfile);
+router.put('/profile',                updateProfile);
 
 module.exports = router;

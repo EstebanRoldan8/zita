@@ -63,6 +63,21 @@ function fmtCOP(v) {
   return `$${new Intl.NumberFormat('es-CO').format(Math.round(v ?? 0))}`;
 }
 
+// Respeta el trial (que da acceso equivalente a Estándar) igual que
+// checkFeatureAccess; cae a req.business.plan si no hay planInfo.
+function isLitePlan(req) {
+  const plan = req.planInfo?.plan || req.business?.plan;
+  return plan === 'lite';
+}
+
+function blockLite(req, res) {
+  if (isLitePlan(req)) {
+    res.status(403).json({ success: false, error: 'Esta función requiere el plan Estándar o superior' });
+    return true;
+  }
+  return false;
+}
+
 // ──────────────────────────────────────────
 // GET /api/cash/summary?period=day|week|month
 // ──────────────────────────────────────────
@@ -72,6 +87,36 @@ async function getSummary(req, res) {
     const tz = getTimezone(req.business?.country);
     const offset = getOffsetForTz(tz);
     const { start, end } = periodRange(req.query, tz);
+
+    // Lite: acceso reducido — solo ingresos + meta mensual, sin egresos
+    // ni desglose Resumen/Ingresos/Egresos.
+    if (isLitePlan(req)) {
+      const monthStart = `${start.slice(0, 7)}-01`;
+      const [{ data: periodIncome }, { data: goalRow }] = await Promise.all([
+        userClient.from('income').select('amount')
+          .eq('business_id', req.businessId)
+          .gte('date', start)
+          .lte('date', end),
+        userClient.from('monthly_goals').select('income_goal')
+          .eq('business_id', req.businessId)
+          .eq('month', monthStart)
+          .maybeSingle(),
+      ]);
+
+      const ingresos = (periodIncome || []).reduce((s, r) => s + Number(r.amount), 0);
+
+      res.set('Cache-Control', 'no-store, no-cache, must-revalidate, proxy-revalidate');
+      res.set('Pragma', 'no-cache');
+      res.set('Expires', '0');
+
+      return res.json({
+        success: true,
+        data: {
+          ingresos,
+          meta_mensual: goalRow?.income_goal ?? null,
+        },
+      });
+    }
 
     // Last 6 months for chart
     const chartFrom = new Date();
@@ -181,6 +226,7 @@ async function getIncome(req, res) {
 // ──────────────────────────────────────────
 async function getExpenses(req, res) {
   try {
+    if (blockLite(req, res)) return;
     const userClient = createUserClient(req.headers.authorization);
     const { start, end } = periodRange(req.query);
 
@@ -290,6 +336,7 @@ async function deleteIncome(req, res) {
 // ──────────────────────────────────────────
 async function createExpense(req, res) {
   try {
+    if (blockLite(req, res)) return;
     const userClient = createUserClient(req.headers.authorization);
     const { amount, category, description, date } = req.body;
 
@@ -321,6 +368,7 @@ async function createExpense(req, res) {
 // ──────────────────────────────────────────
 async function updateExpense(req, res) {
   try {
+    if (blockLite(req, res)) return;
     const userClient = createUserClient(req.headers.authorization);
     const { id } = req.params;
     const { amount, category, description, date } = req.body;
@@ -353,6 +401,7 @@ async function updateExpense(req, res) {
 // ──────────────────────────────────────────
 async function deleteExpense(req, res) {
   try {
+    if (blockLite(req, res)) return;
     const userClient = createUserClient(req.headers.authorization);
     const { error } = await userClient.from('expenses').delete()
       .eq('id', req.params.id).eq('business_id', req.businessId);
@@ -774,6 +823,10 @@ async function getExcel(req, res) {
 
 async function getProductsSold(req, res) {
   try {
+    // Reporte de productos vendidos: parte del módulo 'productos', que
+    // permanece exclusivo de Estándar/Pro (no está en el acceso reducido
+    // de Lite a Caja, que es solo ingresos).
+    if (blockLite(req, res)) return;
     const businessId = req.businessId;
 
     logger.info('Req business completo:', { business: JSON.stringify(req.business) });

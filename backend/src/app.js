@@ -146,7 +146,11 @@ app.use('/api/metrics', verifyToken, businessContext, checkPlanAccess, checkFeat
 app.use('/api/support', supportRouter);
 app.use('/api/admin', adminRoutes);
 app.use('/api/employees', verifyToken, businessContext, checkPlanAccess, employeesRoutes);
-app.use('/api/cash', verifyToken, businessContext, checkPlanAccess, checkFeatureAccess('caja'), cashRoutes);
+// 'caja' ya NO bloquea la ruta completa: Lite tiene acceso reducido (solo
+// ingresos), y la lógica de qué datos devolver vive en cash.controller.js.
+// Los endpoints exclusivos de Pro (export/pdf, report/*) se gatean con
+// 'reportes_pdf' dentro de cash.routes.js.
+app.use('/api/cash', verifyToken, businessContext, checkPlanAccess, cashRoutes);
 app.use('/api/settings', settingsRoutes);
 app.use('/api/loyalty', loyaltyRoutes);
 app.use('/api/alerts', verifyToken, businessContext, checkPlanAccess, alertsRoutes);

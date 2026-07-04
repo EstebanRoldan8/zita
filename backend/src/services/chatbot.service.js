@@ -584,7 +584,7 @@ Ejemplo: "Claro, [respuesta]. ¿Necesitas algo del negocio? 😊"
 async function getBusinessByPhoneNumberId(phoneNumberId) {
   const { data, error } = await supabaseAdmin
     .from('businesses')
-    .select('id, name, business_type, whatsapp_phone_number_id, whatsapp_access_token, status, trial_ends_at, plan_expires_at, phone, owner_email, last_trial_expiry_notification')
+    .select('id, name, business_type, whatsapp_phone_number_id, whatsapp_access_token, status, trial_ends_at, plan_expires_at, phone, owner_email')
     .eq('whatsapp_phone_number_id', phoneNumberId)
     .single();
   if (error) {
@@ -595,10 +595,26 @@ async function getBusinessByPhoneNumberId(phoneNumberId) {
 
 // Notifica al dueño del negocio que su plan/trial expiró y un cliente le está
 // escribiendo. Máximo una notificación cada 24h (por WhatsApp + email).
+// La columna last_trial_expiry_notification se consulta aparte (no en
+// getBusinessByPhoneNumberId) para que, si la migración 039 todavía no se
+// aplicó en la base de datos, el bot no se caiga por completo — en el peor
+// caso, solo se pierde el throttle de 24h y se notifica más seguido.
 async function notifyOwnerPlanExpired(business) {
   try {
     const ahora = new Date();
-    const ultimaNotif = business.last_trial_expiry_notification ? new Date(business.last_trial_expiry_notification) : null;
+    let ultimaNotif = null;
+    try {
+      const { data: notifData } = await supabaseAdmin
+        .from('businesses')
+        .select('last_trial_expiry_notification')
+        .eq('id', business.id)
+        .single();
+      if (notifData?.last_trial_expiry_notification) {
+        ultimaNotif = new Date(notifData.last_trial_expiry_notification);
+      }
+    } catch (colErr) {
+      logger.error('Columna last_trial_expiry_notification no disponible (¿falta migración 039?): ' + colErr.message);
+    }
     const yaNotificado24h = ultimaNotif && (ahora - ultimaNotif) < 24 * 60 * 60 * 1000;
     if (yaNotificado24h) return;
 

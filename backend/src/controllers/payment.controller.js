@@ -485,14 +485,20 @@ async function scheduleDowngrade(req, res) {
       return res.status(400).json({ success: false, error: 'Solo puedes programar un downgrade a un plan inferior.' });
     }
 
-    await supabaseAdmin
+    const { data: downgradeData, error: downgradeError } = await supabaseAdmin
       .from('scheduled_downgrades')
       .upsert({
         business_id: businessId,
         new_plan: plan,
         applies_at: business.plan_expires_at,
         created_at: new Date().toISOString()
-      }, { onConflict: 'business_id' });
+      }, { onConflict: 'business_id' })
+      .select('business_id');
+
+    if (downgradeError || !downgradeData || downgradeData.length === 0) {
+      logger.error('[SCHEDULE_DOWNGRADE_UPSERT_FAILED]', { businessId, plan, error: downgradeError?.message });
+      return res.status(500).json({ success: false, error: 'No se pudo programar el downgrade.' });
+    }
 
     return res.json({
       success: true,

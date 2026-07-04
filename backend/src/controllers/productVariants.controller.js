@@ -142,12 +142,16 @@ async function deactivate(req, res) {
       return res.status(404).json({ success: false, error: 'Variante no encontrada.' });
     }
 
-    const { error } = await sb
+    const { data, error } = await sb
       .from('product_variants')
       .update({ is_active: false })
-      .eq('id', variantId);
+      .eq('id', variantId)
+      .select('id');
 
     if (error) throw error;
+    if (!data || data.length === 0) {
+      return res.status(404).json({ success: false, error: 'Variante no encontrada.' });
+    }
 
     return res.json({ success: true, data: { id: variantId } });
   } catch (err) {

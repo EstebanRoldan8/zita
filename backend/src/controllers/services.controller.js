@@ -133,12 +133,16 @@ async function remove(req, res) {
       return res.status(404).json({ success: false, error: 'No encontrado' });
     }
 
-    const { error } = await userClient
+    const { data, error } = await userClient
       .from('services')
       .delete()
-      .eq('id', id);
+      .eq('id', id)
+      .select('id');
 
     if (error) throw error;
+    if (!data || data.length === 0) {
+      return res.status(404).json({ success: false, error: 'No encontrado' });
+    }
     return res.json({ success: true, data: null });
   } catch (err) {
     logger.error(`services.remove: ${err.message}`);

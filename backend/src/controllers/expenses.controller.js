@@ -120,13 +120,17 @@ async function remove(req, res) {
     const userClient = createUserClient(req.headers.authorization);
     const { id } = req.params;
 
-    const { error } = await userClient
+    const { data, error } = await userClient
       .from('expenses')
       .delete()
       .eq('id', id)
-      .eq('business_id', req.businessId);
+      .eq('business_id', req.businessId)
+      .select('id');
 
     if (error) throw error;
+    if (!data || data.length === 0) {
+      return res.status(404).json({ success: false, error: 'Egreso no encontrado.' });
+    }
     return res.json({ success: true });
   } catch (err) {
     logger.error(`expenses.remove: ${err.message}`);

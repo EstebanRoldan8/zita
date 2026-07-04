@@ -169,11 +169,15 @@ async function deactivate(req, res) {
   try {
     const sb = createUserClient(req.headers.authorization);
     const { id } = req.params;
-    const { error } = await sb
+    const { data, error } = await sb
       .from('products')
       .update({ is_active: false, updated_at: new Date().toISOString() })
-      .eq('id', id);
+      .eq('id', id)
+      .select('id');
     if (error) throw error;
+    if (!data || data.length === 0) {
+      return res.status(404).json({ success: false, error: 'Producto no encontrado.' });
+    }
     return res.json({ success: true, data: { id } });
   } catch (err) {
     logger.error('products.deactivate: ' + err.message);
@@ -197,12 +201,16 @@ async function deleteProduct(req, res) {
       return res.status(404).json({ success: false, error: 'Producto no encontrado.' });
     }
 
-    const { error } = await sb
+    const { data, error } = await sb
       .from('products')
       .delete()
-      .eq('id', id);
+      .eq('id', id)
+      .select('id');
 
     if (error) throw error;
+    if (!data || data.length === 0) {
+      return res.status(404).json({ success: false, error: 'Producto no encontrado.' });
+    }
     return res.json({ success: true, message: 'Producto eliminado' });
   } catch (err) {
     logger.error('products.deleteProduct: ' + err.message);
@@ -281,7 +289,7 @@ async function sell(req, res) {
 
     const saleDate = new Date().toLocaleDateString('en-CA', { timeZone: getTimezone(req.business?.country) });
 
-    const { error: incomeErr } = await sb
+    const { data: incomeData, error: incomeErr } = await sb
       .from('income')
       .insert({
         business_id: req.businessId,
@@ -291,12 +299,15 @@ async function sell(req, res) {
         date:        saleDate,
         client_id:   client_id || null,
         source:      'product_sale',
-      });
-    if (incomeErr) logger.warn('products.sell income: ' + incomeErr.message);
+      })
+      .select('id');
+    if (incomeErr || !incomeData || incomeData.length === 0) {
+      logger.warn('products.sell income: ' + (incomeErr?.message || 'no row inserted'));
+    }
 
     if (product.cost_price != null) {
       const costoTotal = Number(product.cost_price) * qty;
-      const { error: expErr } = await sb
+      const { data: expData, error: expErr } = await sb
         .from('expenses')
         .insert({
           business_id: req.businessId,
@@ -304,8 +315,11 @@ async function sell(req, res) {
           category:    'productos',
           description: `Costo de venta: ${product.name} (${qty} unidades)`,
           date:        saleDate,
-        });
-      if (expErr) logger.warn('products.sell expense: ' + expErr.message);
+        })
+        .select('id');
+      if (expErr || !expData || expData.length === 0) {
+        logger.warn('products.sell expense: ' + (expErr?.message || 'no row inserted'));
+      }
     }
 
     return res.json({ success: true, data: { stock: newStock, total_amount: totalAmount } });

@@ -62,12 +62,17 @@ async function acquireLock(lockName, expiresInMinutes = 10) {
     return false;
   }
 
-  await supabaseAdmin
+  const { data: lockData, error: lockError } = await supabaseAdmin
     .from('scheduler_locks')
     .upsert({
       lock_key: lockKey,
       expires_at: expiresAt
-    }, { onConflict: 'lock_key' });
+    }, { onConflict: 'lock_key' })
+    .select('lock_key');
+
+  if (lockError || !lockData || lockData.length === 0) {
+    logger.warn('[ACQUIRE_LOCK_UPSERT_FAILED]', { lockKey, error: lockError?.message });
+  }
 
   return true;
 }

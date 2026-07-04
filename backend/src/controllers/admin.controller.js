@@ -225,15 +225,19 @@ async function changePlan(req, res) {
       });
     }
 
-    const { error } = await supabaseAdmin
+    const { data, error } = await supabaseAdmin
       .from('businesses')
       .update({
         plan,
         plan_expires_at: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString()
       })
-      .eq('id', id);
+      .eq('id', id)
+      .select('id');
 
     if (error) throw error;
+    if (!data || data.length === 0) {
+      return res.status(404).json({ success: false, error: 'Negocio no encontrado.' });
+    }
 
     return res.json({ success: true, data: { plan } });
   } catch (err) {

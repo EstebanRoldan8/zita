@@ -807,7 +807,7 @@ async function getOrCreateClient(businessId, phone, name = null) {
   if (existing) return existing;
 
   try {
-    const { data: newClient } = await supabaseAdmin
+    const { data: newClient, error: newClientError } = await supabaseAdmin
       .from('clients')
       .insert({
         business_id: businessId,
@@ -816,6 +816,11 @@ async function getOrCreateClient(businessId, phone, name = null) {
       })
       .select('id, name')
       .single();
+
+    if (newClientError || !newClient) {
+      logger.warn('[GET_OR_CREATE_CLIENT_INSERT_FAILED]', { businessId, phone, error: newClientError?.message });
+      return null;
+    }
 
     return newClient;
   } catch (err) {
@@ -1452,7 +1457,7 @@ async function processChatbotMessage(businessId, clientPhone, messageText, histo
           }
 
           if (!clienteExistente) {
-            const { data: nuevoCliente } = await supabaseAdmin
+            const { data: nuevoCliente, error: nuevoClienteError } = await supabaseAdmin
               .from('clients')
               .insert({
                 business_id: businessId,
@@ -1461,6 +1466,11 @@ async function processChatbotMessage(businessId, clientPhone, messageText, histo
               })
               .select('id, name')
               .single();
+
+            if (nuevoClienteError || !nuevoCliente) {
+              logger.warn('[AGENDAR_CITA_CLIENT_INSERT_FAILED]', { businessId, clientPhone, error: nuevoClienteError?.message });
+              return { success: false, error: 'No se pudo registrar el cliente para agendar la cita' };
+            }
             clienteExistente = nuevoCliente;
           } else if (toolInput.client_name && clienteExistente.name === 'Cliente WhatsApp') {
             await supabaseAdmin
@@ -2024,14 +2034,20 @@ async function processChatbotMessage(businessId, clientPhone, messageText, histo
               .single();
 
             if (citaActualizada?.services?.price) {
-              await supabaseAdmin
+              const { error: incomeUpdError } = await supabaseAdmin
                 .from('income')
                 .update({
                   amount: citaActualizada.services.price,
                   description: `${citaActualizada.services.name} - agendado por WhatsApp (actualizado)`
                 })
                 .eq('appointment_id', toolInput.appointment_id)
-                .eq('business_id', businessId);
+                .eq('business_id', businessId)
+                .select('id');
+
+              if (incomeUpdError) {
+                logger.error('[REAGENDAR_INCOME_UPDATE_FAILED]', { businessId, appointmentId: toolInput.appointment_id, error: incomeUpdError.message });
+                return { success: false, message: 'La cita se actualizó pero no se pudo ajustar el monto del ingreso.' };
+              }
             }
           }
 
@@ -2151,13 +2167,18 @@ async function processChatbotMessage(businessId, clientPhone, messageText, histo
               agendada: false
             });
 
-            await supabaseAdmin
+            const { data: grupoData, error: grupoError } = await supabaseAdmin
               .from('whatsapp_conversations')
               .upsert({
                 business_id: businessId,
                 client_phone: clientPhone,
                 context: { ...contexto, grupo }
-              }, { onConflict: 'business_id,client_phone' });
+              }, { onConflict: 'business_id,client_phone' })
+              .select('id');
+
+            if (grupoError || !grupoData || grupoData.length === 0) {
+              logger.warn('[GESTIONAR_GRUPO_UPSERT_FAILED]', { businessId, clientPhone, error: grupoError?.message });
+            }
 
             return {
               success: true,

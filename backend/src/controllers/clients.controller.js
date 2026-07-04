@@ -245,13 +245,17 @@ async function destroy(req, res) {
       return res.status(409).json({ success: false, error: 'No se puede eliminar el cliente porque tiene citas futuras programadas.' });
     }
 
-    const { error } = await userClient
+    const { data, error } = await userClient
       .from('clients')
       .delete()
       .eq('id', id)
-      .eq('business_id', req.businessId);
+      .eq('business_id', req.businessId)
+      .select('id');
 
     if (error) throw error;
+    if (!data || data.length === 0) {
+      return res.status(404).json({ success: false, error: 'Cliente no encontrado.' });
+    }
     return res.json({ success: true, message: 'Cliente eliminado correctamente.' });
   } catch (err) {
     logger.error(`clients.destroy: ${err.message}`);

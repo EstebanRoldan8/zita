@@ -192,7 +192,7 @@ async function contact(req, res) {
     const title = `Soporte: ${business?.name || req.businessId}`;
     const body  = message?.trim() || '(sin mensaje)';
 
-    await supabaseAdmin.from('notifications').insert({
+    const { error: notifError } = await supabaseAdmin.from('notifications').insert({
       type:     'support_contact',
       title,
       body,
@@ -202,7 +202,11 @@ async function contact(req, res) {
         owner_email:   business?.owner_email,
         message:       body,
       },
-    });
+    }).select('id');
+
+    if (notifError) {
+      logger.warn(`support.contact notification insert failed: ${notifError.message}`, { businessId: req.businessId });
+    }
 
     return res.json({ success: true, data: { sent: true } });
   } catch (err) {

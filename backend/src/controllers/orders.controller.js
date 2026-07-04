@@ -261,14 +261,19 @@ async function deleteOrder(req, res) {
       throw deleteError;
     }
 
-    const { error } = await sb
+    const { data, error } = await sb
       .from('orders')
       .delete()
-      .eq('id', id);
+      .eq('id', id)
+      .select('id');
 
     if (error) {
       logger.error('orders.deleteOrder error: ' + error.message);
       throw error;
+    }
+
+    if (!data || data.length === 0) {
+      return res.status(404).json({ success: false, error: 'Pedido no encontrado.' });
     }
 
     return res.json({ success: true, data: { id } });

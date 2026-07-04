@@ -179,12 +179,16 @@ async function deleteEmployee(req, res) {
       return res.status(404).json({ success: false, error: 'No encontrado' });
     }
 
-    const { error } = await userClient
+    const { data, error } = await userClient
       .from('employees')
       .delete()
-      .eq('id', id);
+      .eq('id', id)
+      .select('id');
 
     if (error) throw error;
+    if (!data || data.length === 0) {
+      return res.status(404).json({ success: false, error: 'No encontrado' });
+    }
     return res.json({ success: true, data: { id } });
   } catch (err) {
     logger.error(`employees.deleteEmployee: ${err.message}`);

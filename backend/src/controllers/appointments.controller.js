@@ -17,15 +17,23 @@ async function awardLoyaltyPoints(businessId, clientId, appointmentId) {
     const { data: client } = await supabaseAdmin
       .from('clients').select('loyalty_points').eq('id', clientId).single();
 
-    await Promise.all([
+    const [pointsResult, transactionResult] = await Promise.all([
       supabaseAdmin.from('clients')
         .update({ loyalty_points: (client?.loyalty_points || 0) + pts })
-        .eq('id', clientId),
+        .eq('id', clientId)
+        .select('id'),
       supabaseAdmin.from('loyalty_transactions').insert({
         business_id: businessId, client_id: clientId,
         points: pts, reason: 'Cita completada', appointment_id: appointmentId,
-      }),
+      }).select('id'),
     ]);
+
+    if (pointsResult.error || !pointsResult.data || pointsResult.data.length === 0) {
+      logger.error('[AWARD_LOYALTY_POINTS_UPDATE_FAILED]', { businessId, clientId, appointmentId, error: pointsResult.error?.message });
+    }
+    if (transactionResult.error || !transactionResult.data || transactionResult.data.length === 0) {
+      logger.error('[AWARD_LOYALTY_TRANSACTION_INSERT_FAILED]', { businessId, clientId, appointmentId, error: transactionResult.error?.message });
+    }
   } catch (err) {
     logger.error('awardLoyaltyPoints: ' + err.message);
   }
@@ -355,7 +363,7 @@ async function update(req, res) {
           : (loyalty?.loyalty_visits ?? 0) + 1;
 
         // Upsert a client_loyalty
-        await userClient
+        const { data: loyaltyUpsertData, error: loyaltyUpsertError } = await userClient
           .from('client_loyalty')
           .upsert(
             {
@@ -365,7 +373,16 @@ async function update(req, res) {
               loyalty_visits: newLoyaltyVisits,
             },
             { onConflict: 'business_id,client_id' }
-          );
+          )
+          .select('id');
+
+        if (loyaltyUpsertError || !loyaltyUpsertData || loyaltyUpsertData.length === 0) {
+          logger.error('[CLIENT_LOYALTY_UPSERT_FAILED]', {
+            businessId: req.businessId,
+            clientId: existing.client_id,
+            error: loyaltyUpsertError?.message
+          });
+        }
 
         // Si es cita de recompensa, registrar el costo como egreso automático
         if (isReward && price > 0) {

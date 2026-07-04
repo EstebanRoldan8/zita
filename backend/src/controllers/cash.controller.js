@@ -321,9 +321,12 @@ async function updateIncome(req, res) {
 async function deleteIncome(req, res) {
   try {
     const userClient = createUserClient(req.headers.authorization);
-    const { error } = await userClient.from('income').delete()
-      .eq('id', req.params.id).eq('business_id', req.businessId);
+    const { data, error } = await userClient.from('income').delete()
+      .eq('id', req.params.id).eq('business_id', req.businessId).select('id');
     if (error) throw error;
+    if (!data || data.length === 0) {
+      return res.status(404).json({ success: false, error: 'Ingreso no encontrado.' });
+    }
     return res.json({ success: true });
   } catch (err) {
     logger.error(`cash.deleteIncome: ${err.message}`);
@@ -403,9 +406,12 @@ async function deleteExpense(req, res) {
   try {
     if (blockLite(req, res)) return;
     const userClient = createUserClient(req.headers.authorization);
-    const { error } = await userClient.from('expenses').delete()
-      .eq('id', req.params.id).eq('business_id', req.businessId);
+    const { data, error } = await userClient.from('expenses').delete()
+      .eq('id', req.params.id).eq('business_id', req.businessId).select('id');
     if (error) throw error;
+    if (!data || data.length === 0) {
+      return res.status(404).json({ success: false, error: 'Egreso no encontrado.' });
+    }
     return res.json({ success: true });
   } catch (err) {
     logger.error(`cash.deleteExpense: ${err.message}`);

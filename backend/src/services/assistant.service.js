@@ -2404,13 +2404,18 @@ async function executeTool(toolName, toolInput, businessId) {
     }
 
     case 'contactar_soporte': {
-      await supabaseAdmin
+      const { error: soporteError } = await supabaseAdmin
         .from('notifications')
         .insert({
           business_id: businessId,
           type: 'support_contact',
           message: toolInput.mensaje
-        });
+        })
+        .select('id');
+
+      if (soporteError) {
+        logger.warn('[CONTACTAR_SOPORTE_INSERT_FAILED]', { businessId, error: soporteError.message });
+      }
       return { success: true };
     }
 
@@ -2847,11 +2852,17 @@ async function executeTool(toolName, toolInput, businessId) {
           .eq('id', toolInput.service_id)
           .single();
         if (newSvc?.price) {
-          await supabaseAdmin
+          const { data: incomeUpdData, error: incomeUpdError } = await supabaseAdmin
             .from('income')
             .update({ amount: newSvc.price })
             .eq('appointment_id', toolInput.appointment_id)
-            .eq('business_id', businessId);
+            .eq('business_id', businessId)
+            .select('id');
+
+          if (incomeUpdError) {
+            logger.error('[ACTUALIZAR_CITA_INCOME_UPDATE_FAILED]', { businessId, appointmentId: toolInput.appointment_id, error: incomeUpdError.message });
+            return { success: false, error: 'La cita se actualizó pero no se pudo ajustar el monto del ingreso' };
+          }
         }
       }
 
@@ -3404,7 +3415,7 @@ async function executeTool(toolName, toolInput, businessId) {
     case 'registrar_egreso': {
       const bogota = { timeZone: 'America/Bogota' };
       const hoy = new Date().toLocaleDateString('en-CA', bogota);
-      const { error } = await supabaseAdmin
+      const { data: egresoData, error } = await supabaseAdmin
         .from('expenses')
         .insert({
           business_id: businessId,
@@ -3412,7 +3423,12 @@ async function executeTool(toolName, toolInput, businessId) {
           description: toolInput.description,
           category: toolInput.category,
           date: toolInput.date || hoy
-        });
+        })
+        .select('id');
+
+      if (error || !egresoData || egresoData.length === 0) {
+        logger.warn('[REGISTRAR_EGRESO_INSERT_FAILED]', { businessId, error: error?.message });
+      }
       return { success: !error, error: error?.message };
     }
 
@@ -3513,7 +3529,7 @@ async function executeTool(toolName, toolInput, businessId) {
     case 'registrar_ingreso': {
       const bogota = { timeZone: 'America/Bogota' };
       const hoy = new Date().toLocaleDateString('en-CA', bogota);
-      const { error } = await supabaseAdmin
+      const { data: ingresoData, error } = await supabaseAdmin
         .from('income')
         .insert({
           business_id: businessId,
@@ -3522,7 +3538,12 @@ async function executeTool(toolName, toolInput, businessId) {
           category: toolInput.category,
           date: toolInput.date || hoy,
           source: 'manual'
-        });
+        })
+        .select('id');
+
+      if (error || !ingresoData || ingresoData.length === 0) {
+        logger.warn('[REGISTRAR_INGRESO_INSERT_FAILED]', { businessId, error: error?.message });
+      }
       return { success: !error, error: error?.message };
     }
 
@@ -4111,7 +4132,7 @@ async function executeTool(toolName, toolInput, businessId) {
 
       if (updateError) return { success: false, error: updateError.message };
 
-      await supabaseAdmin.from('loyalty_transactions').insert({
+      const { data: canjeTxData, error: canjeTxError } = await supabaseAdmin.from('loyalty_transactions').insert({
         business_id: businessId,
         client_id: toolInput.client_id,
         type: 'redeem',
@@ -4119,7 +4140,11 @@ async function executeTool(toolName, toolInput, businessId) {
         reward_description: config.rewards_description || 'Recompensa canjeada',
         notes: toolInput.notas || null,
         created_at: new Date().toISOString()
-      }).catch(() => {});
+      }).select('id');
+
+      if (canjeTxError || !canjeTxData || canjeTxData.length === 0) {
+        logger.warn('[CANJEAR_RECOMPENSA_TX_INSERT_FAILED]', { businessId, clientId: toolInput.client_id, error: canjeTxError?.message });
+      }
 
       return {
         success: true,
@@ -4402,13 +4427,19 @@ async function executeTool(toolName, toolInput, businessId) {
         if (clientNota?.notes) notaFinal = clientNota.notes + '\n' + toolInput.nota;
       }
 
-      const { error } = await supabaseAdmin
+      const { data: notaData, error } = await supabaseAdmin
         .from('clients')
         .update({ notes: notaFinal })
         .eq('id', toolInput.client_id)
-        .eq('business_id', businessId);
+        .eq('business_id', businessId)
+        .select('id');
 
-      return { success: !error, error: error?.message };
+      if (error) return { success: false, error: error.message };
+      if (!notaData || notaData.length === 0) {
+        return { success: false, error: 'Cliente no encontrado' };
+      }
+
+      return { success: true };
     }
 
     case 'ajustar_stock': {

@@ -1,18 +1,11 @@
 const logger = require('../utils/logger');
 const { processWhatsAppMessage } = require('../services/chatbot.service');
 
-const processingClients = new Map();
+const processingClients = new Map(); // Map<clientKey, Promise> para serializar mensajes por cliente
 const pendingMessages = new Map();
 
-// Limpiar Map periódicamente (entries más viejas de 30 segundos)
-setInterval(() => {
-  const now = Date.now();
-  for (const [key, timestamp] of processingClients) {
-    if (now - timestamp > 30000) {
-      processingClients.delete(key);
-    }
-  }
-}, 10000);
+// Nota: processingClients ahora contiene Promises que se resuelven cuando termina el procesamiento.
+// El cleanup automático ocurre cuando la Promise se resuelve (sin necesidad de interval).
 
 function verifyWebhook(req, res) {
   const mode = req.query['hub.mode'];
@@ -60,14 +53,14 @@ async function handleWebhook(req, res) {
     const business = await require('../services/chatbot.service')
       .getBusinessByPhoneNumberId(phoneNumberId);
 
-    // Race condition fix: verificar si este cliente ya está siendo procesado
+    // Serialización basada en estado real: si el cliente está siendo procesado, encolar
     if (business) {
       clientKey = business.id + ':' + from;
-      const lastProcessing = processingClients.get(clientKey);
-      const now = Date.now();
+      const processingPromise = processingClients.get(clientKey);
 
-      if (lastProcessing && (now - lastProcessing) < 15000) {
-        logger.info('Cliente ya en procesamiento - encolando mensaje:', { clientKey, tiempoDesdeUltimo: now - lastProcessing });
+      // Si hay procesamiento activo, encolar y esperar
+      if (processingPromise) {
+        logger.info('Cliente ya en procesamiento - encolando mensaje:', { clientKey });
         if (!pendingMessages.has(clientKey)) {
           pendingMessages.set(clientKey, []);
         }
@@ -75,8 +68,6 @@ async function handleWebhook(req, res) {
         res.sendStatus(200);
         return;
       }
-
-      processingClients.set(clientKey, now);
     }
 
     if (business) {
@@ -182,7 +173,8 @@ async function handleWebhook(req, res) {
         } catch (err) {
           logger.error('Error procesando audio:', err.message);
         } finally {
-          if (clientKey) {
+          // Liberar el lock para permitir otros mensajes (si existe clientKey y Promise)
+          if (clientKey && processingClients.has(clientKey)) {
             processingClients.delete(clientKey);
           }
         }
@@ -194,29 +186,45 @@ async function handleWebhook(req, res) {
 
     res.sendStatus(200);
 
-    processWhatsAppMessage({
-      from,
-      phoneNumberId,
-      messageText,
-      messageId: message.id
-    }).catch(err => logger.error('Error procesando mensaje WA:', err))
-      .finally(() => {
-        if (clientKey) {
-          processingClients.delete(clientKey);
+    // Crear una Promise para este procesamiento y guardarla (bloquea otros mensajes del mismo cliente)
+    if (clientKey) {
+      let resolveProcessing;
+      const processingPromise = new Promise(resolve => {
+        resolveProcessing = resolve;
+      });
+      processingClients.set(clientKey, processingPromise);
+
+      // Procesar el mensaje y luego resolver la Promise
+      processWhatsAppMessage({
+        from,
+        phoneNumberId,
+        messageText,
+        messageId: message.id
+      }).catch(err => logger.error('Error procesando mensaje WA:', err))
+        .finally(async () => {
+          // Procesar mensajes encolados (si existen) antes de resolver
           const pending = pendingMessages.get(clientKey);
           if (pending && pending.length > 0) {
             logger.info('Procesando mensajes encolados para:', { clientKey, cantidad: pending.length });
             const combinedText = pending.map(m => m.messageText).join('\n');
             pendingMessages.delete(clientKey);
-            processWhatsAppMessage({
-              from: pending[0].from,
-              phoneNumberId: pending[0].phoneNumberId,
-              messageText: combinedText,
-              messageId: pending[pending.length - 1].messageId
-            }).catch(err => logger.error('Error procesando mensajes encolados:', err));
+            try {
+              await processWhatsAppMessage({
+                from: pending[0].from,
+                phoneNumberId: pending[0].phoneNumberId,
+                messageText: combinedText,
+                messageId: pending[pending.length - 1].messageId
+              });
+            } catch (err) {
+              logger.error('Error procesando mensajes encolados:', err);
+            }
           }
-        }
-      });
+
+          // Liberar el lock resolviendo la Promise
+          processingClients.delete(clientKey);
+          resolveProcessing();
+        });
+    }
 
   } catch (error) {
     logger.error('webhook error:', error.message);

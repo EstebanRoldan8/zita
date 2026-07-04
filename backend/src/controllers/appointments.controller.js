@@ -262,14 +262,29 @@ async function update(req, res) {
     if (status !== undefined) updates.status = status;
     if (notes !== undefined) updates.notes = notes;
 
-    const { data, error } = await userClient
+    // Construir UPDATE con guard optimista: si status cambia, verificar que no haya sido modificado
+    let updateQuery = userClient
       .from('appointments')
       .update(updates)
       .eq('id', id)
-      .select()
-      .single();
+      .eq('business_id', req.businessId);
+
+    // Guard de status: solo permitir si el status actual es el que esperamos (evita race conditions)
+    if (status !== undefined && existing.status !== status) {
+      updateQuery = updateQuery.eq('status', existing.status);
+    }
+
+    const { data, error } = await updateQuery.select().single();
 
     if (error) throw error;
+
+    // Si se intentó cambiar status pero otro proceso ya lo cambió, error
+    if (status !== undefined && existing.status !== status && (!data || data.status !== status)) {
+      return res.status(409).json({
+        success: false,
+        error: 'Esta cita ya fue modificada, refresca para ver el estado actual'
+      });
+    }
 
     // Enviar notificación por WhatsApp cuando se cancela una cita
     if (status === 'cancelled') {

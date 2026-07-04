@@ -121,14 +121,22 @@ async function autoCompleteAppointments() {
         .eq('appointment_id', appointment.id)
         .maybeSingle();
 
-      const { error: updateError } = await supabaseAdmin
+      // Guard optimista: solo marcar como completed si está en pending/confirmed (evita race conditions)
+      const { data: updateData, error: updateError } = await supabaseAdmin
         .from('appointments')
         .update({ status: 'completed' })
-        .eq('id', appointment.id);
+        .eq('id', appointment.id)
+        .eq('status', 'pending') // Solo desde pending
+        .select('id');
 
       if (updateError) {
         logger.error(`Error marcando appointment ${appointment.id} como completed:`, updateError.message);
         errors.push(`appointment ${appointment.id}: ${updateError.message}`);
+        continue;
+      }
+
+      if (!updateData || updateData.length === 0) {
+        logger.warn(`Appointment ${appointment.id} ya fue modificado (status no es pending), saltando`);
         continue;
       }
 

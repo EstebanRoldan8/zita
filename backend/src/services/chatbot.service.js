@@ -2492,6 +2492,67 @@ async function processChatbotMessage(businessId, clientPhone, messageText, histo
   }
 }
 
+// Registra atomicamente que estamos procesando un message_id (dedupe de Meta reintents).
+// Usa INSERT con ON CONFLICT DO NOTHING: si el message_id ya existe, retorna 0 filas
+// (otro proceso lo está procesando), y debe ignorarse. Si INSERT exitoso, retorna 1 fila.
+async function registerProcessingMessage(businessId, clientPhone, messageId) {
+  if (!messageId) return true; // Sin message_id, no se puede deduplicar
+
+  const { data, error } = await supabaseAdmin
+    .from('whatsapp_conversations')
+    .insert({
+      business_id: businessId,
+      client_phone: clientPhone,
+      processed_message_ids: [messageId],
+      updated_at: new Date().toISOString()
+    })
+    .select('id');
+
+  // Si la conversación no existe, créala con processed_message_ids inicial
+  if (error?.code === '23505' || error?.message?.includes('unique')) {
+    // Ya existe, chequear si el message_id ya se procesó
+    const { data: existingConv } = await supabaseAdmin
+      .from('whatsapp_conversations')
+      .select('processed_message_ids')
+      .eq('business_id', businessId)
+      .eq('client_phone', clientPhone)
+      .maybeSingle();
+
+    const processedIds = existingConv?.processed_message_ids || [];
+    if (processedIds.includes(messageId)) {
+      return false; // Ya procesado, ignorar
+    }
+
+    // Agregar message_id a la lista (guardar últimos 50)
+    const { error: updateError } = await supabaseAdmin
+      .from('whatsapp_conversations')
+      .update({
+        processed_message_ids: [...processedIds, messageId].slice(-50),
+        updated_at: new Date().toISOString()
+      })
+      .eq('business_id', businessId)
+      .eq('client_phone', clientPhone);
+
+    if (updateError) {
+      logger.warn('[REGISTER_PROCESSING_MESSAGE_UPDATE_FAILED]', {
+        businessId,
+        clientPhone,
+        messageId,
+        error: updateError.message
+      });
+    }
+  } else if (error) {
+    logger.warn('[REGISTER_PROCESSING_MESSAGE_INSERT_FAILED]', {
+      businessId,
+      clientPhone,
+      messageId,
+      error: error?.message
+    });
+  }
+
+  return true; // Procesar el mensaje
+}
+
 async function processWhatsAppMessage({ from, phoneNumberId, messageText, messageId }) {
   logger.info('Mensaje WhatsApp recibido', { from, phoneNumberId, messageId });
 
@@ -2513,16 +2574,11 @@ async function processWhatsAppMessage({ from, phoneNumberId, messageText, messag
       return;
     }
 
+    // Dedupe atómico: registrar inmediatamente que estamos procesando este message_id.
+    // Si ya está procesado (reintento de Meta), ignorar sin reprocesar.
     if (messageId) {
-      const { data: existingMsg } = await supabaseAdmin
-        .from('whatsapp_conversations')
-        .select('processed_message_ids')
-        .eq('business_id', business.id)
-        .eq('client_phone', from)
-        .maybeSingle();
-
-      const processedIds = existingMsg?.processed_message_ids || [];
-      if (processedIds.includes(messageId)) {
+      const shouldProcess = await registerProcessingMessage(business.id, from, messageId);
+      if (!shouldProcess) {
         logger.info('Mensaje duplicado ignorado:', messageId);
         return;
       }

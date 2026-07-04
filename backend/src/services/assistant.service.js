@@ -2358,31 +2358,38 @@ async function executeTool(toolName, toolInput, businessId) {
     }
 
     case 'confirmar_cita': {
+      // Guard optimista: solo confirmar si está en pending (evita race conditions con cancelación)
       const { data, error } = await supabaseAdmin
         .from('appointments')
         .update({ status: 'confirmed' })
         .eq('id', toolInput.appointment_id)
         .eq('business_id', businessId)
+        .eq('status', 'pending') // Guard: solo desde pending
         .select('id');
 
       if (error) return { success: false, error: error.message };
       if (!data || data.length === 0) {
-        return { success: false, error: 'Registro no encontrado' };
+        return { success: false, error: 'La cita ya fue modificada o no existe' };
       }
 
       return { success: true };
     }
 
     case 'completar_cita': {
+      // Guard optimista: solo completar si está en pending o confirmed (evita race conditions)
       const { data: appt, error: apptError } = await supabaseAdmin
         .from('appointments')
         .update({ status: 'completed' })
         .eq('id', toolInput.appointment_id)
         .eq('business_id', businessId)
+        .in('status', ['pending', 'confirmed']) // Guard: solo desde pending o confirmed
         .select('id, price, scheduled_at')
         .single();
 
       if (apptError) return { success: false, error: apptError.message };
+      if (!appt) {
+        return { success: false, error: 'La cita ya fue completada o cancelada' };
+      }
 
       if (appt?.price > 0) {
         const { data: existingIncome } = await supabaseAdmin

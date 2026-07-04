@@ -8,6 +8,46 @@ const logger = require('../utils/logger');
 
 let schedulerInitialized = false;
 
+// Cancela una cita: borra el income asociado (si existe, no crítico) y marca el appointment
+// como cancelado, validando que el UPDATE haya afectado una fila real antes de reportar éxito.
+// Compartido entre el tool cancelar_cita del asistente y el fast-path de cancelación por WhatsApp
+// en chatbot.service.js, para evitar que ambos caminos diverjan.
+async function deleteCitaIncome(appointmentId, businessId) {
+  const { error: incomeError } = await supabaseAdmin
+    .from('income')
+    .delete()
+    .eq('appointment_id', appointmentId)
+    .eq('business_id', businessId);
+
+  if (incomeError) {
+    // No crítico: es limpieza del ingreso asociado. Continuamos con la cancelación de la cita.
+    logger.error('[CANCELAR_CITA_INCOME_DELETE_FAILED]', {
+      appointmentId,
+      businessId,
+      error: incomeError.message
+    });
+  }
+
+  const { data, error } = await supabaseAdmin
+    .from('appointments')
+    .update({ status: 'cancelled' })
+    .eq('id', appointmentId)
+    .eq('business_id', businessId)
+    .select('id');
+
+  if (error) {
+    logger.error('[CANCELAR_CITA_UPDATE_FAILED]', { appointmentId, businessId, error: error.message });
+    return { success: false, error: error.message };
+  }
+
+  if (!data || data.length === 0) {
+    logger.error('[CANCELAR_CITA_NOT_FOUND]', { appointmentId, businessId });
+    return { success: false, error: 'Cita no encontrada' };
+  }
+
+  return { success: true };
+}
+
 async function acquireLock(lockName, expiresInMinutes = 10) {
   const expiresAt = new Date(Date.now() + expiresInMinutes * 60 * 1000).toISOString();
   const lockKey = `scheduler_${lockName}`;
@@ -298,4 +338,4 @@ cron.schedule('0 14 * * *', async () => {
   logger.info('Usando database locks para evitar duplicados en múltiples instancias');
 };
 
-module.exports = { initScheduler, autoCompleteAppointments };
+module.exports = { initScheduler, autoCompleteAppointments, deleteCitaIncome };

@@ -60,18 +60,27 @@ async function createSession(req, res) {
       provider.integritySecret
     );
 
-    await supabaseAdmin.from('payments').insert({
-      business_id: businessId,
-      plan,
-      period,
-      amount: amountInCents,
-      currency,
-      status: 'pending',
-      payment_method: payment_method_type || null,
-      wompi_reference: reference,
-      country,
-      provider: provider.provider,
-    });
+    const { data: insertedPayment, error: insertError } = await supabaseAdmin
+      .from('payments')
+      .insert({
+        business_id: businessId,
+        plan,
+        period,
+        amount: amountInCents,
+        currency,
+        status: 'pending',
+        payment_method: payment_method_type || null,
+        wompi_reference: reference,
+        country,
+        provider: provider.provider,
+      })
+      .select('id')
+      .single();
+
+    if (insertError || !insertedPayment?.id) {
+      logger.error('[PAYMENT_INSERT_FAILED]', { error: insertError?.message, businessId });
+      return res.status(400).json({ success: false, error: 'No pudimos crear el pago, intenta de nuevo.' });
+    }
 
     const redirectUrl = `${process.env.FRONTEND_URL}/dashboard/suscripcion?payment_ref=${reference}`;
     logger.info('[PAYMENT_REDIRECT]', { redirect_to: redirectUrl, payment_id: reference });
@@ -308,16 +317,25 @@ async function adminGeneratePaymentLink(req, res) {
     const reference = `ZITA-${id.slice(0, 8)}-${Date.now()}`;
     const integritySignature = generateIntegritySignature(reference, amountInCents, currency, provider.integritySecret);
 
-    await supabaseAdmin.from('payments').insert({
-      business_id: id,
-      plan,
-      amount: amountInCents,
-      currency,
-      status: 'pending',
-      wompi_reference: reference,
-      country,
-      provider: provider.provider,
-    });
+    const { data: insertedPayment, error: insertError } = await supabaseAdmin
+      .from('payments')
+      .insert({
+        business_id: id,
+        plan,
+        amount: amountInCents,
+        currency,
+        status: 'pending',
+        wompi_reference: reference,
+        country,
+        provider: provider.provider,
+      })
+      .select('id')
+      .single();
+
+    if (insertError || !insertedPayment?.id) {
+      logger.error('[PAYMENT_INSERT_FAILED]', { error: insertError?.message, businessId: id });
+      return res.status(400).json({ success: false, error: 'No pudimos crear el pago, intenta de nuevo.' });
+    }
 
     const checkoutUrl =
       `https://checkout.wompi.co/p/?` +

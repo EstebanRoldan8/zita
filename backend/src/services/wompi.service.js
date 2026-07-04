@@ -100,7 +100,7 @@ async function activatePlanExtension(paymentId) {
       paymentId,
       error: paymentError?.message
     });
-    return;
+    return { success: false, error: paymentError?.message || 'payment no encontrado' };
   }
 
   const { data: business } = await supabaseAdmin
@@ -118,17 +118,40 @@ async function activatePlanExtension(paymentId) {
   const expiresAt = new Date(baseDate);
   expiresAt.setDate(expiresAt.getDate() + days);
 
-  await supabaseAdmin
+  const { data: updatedBusiness, error: updateError } = await supabaseAdmin
     .from('businesses')
     .update({ plan: payment.plan, plan_expires_at: expiresAt.toISOString() })
-    .eq('id', payment.business_id);
+    .eq('id', payment.business_id)
+    .select('id')
+    .single();
 
-  await supabaseAdmin
+  if (updateError || !updatedBusiness?.id) {
+    logger.error('[WOMPI_PLAN_ACTIVATION_FAILED]', {
+      businessId: payment.business_id,
+      paymentId,
+      error: updateError?.message
+    });
+    return { success: false, error: updateError?.message || 'No se pudo actualizar el plan del negocio' };
+  }
+
+  const { data: deletedDowngrades, error: deleteError } = await supabaseAdmin
     .from('scheduled_downgrades')
     .delete()
-    .eq('business_id', payment.business_id);
+    .eq('business_id', payment.business_id)
+    .select('id');
+
+  if (deleteError) {
+    // No es crítico: es limpieza de downgrades programados. El plan ya quedó activado
+    // correctamente arriba, así que continuamos sin abortar la operación.
+    logger.error('[WOMPI_SCHEDULED_DOWNGRADE_DELETE_FAILED]', {
+      businessId: payment.business_id,
+      paymentId,
+      error: deleteError.message
+    });
+  }
 
   logger.info(`Plan activado: business=${payment.business_id} plan=${payment.plan} period=${period}`);
+  return { success: true };
 }
 
 // Reconciliación batch: detecta payments 'pending' que Wompi ya resolvió pero

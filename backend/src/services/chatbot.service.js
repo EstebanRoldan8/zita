@@ -5,6 +5,7 @@ const Anthropic = require('@anthropic-ai/sdk');
 const logger = require('../utils/logger');
 const { getAvailableEmployee, getNextAvailableSlots, isAppointmentWithinBusinessHours } = require('../utils/availability');
 const { isPlanExpired } = require('../utils/planStatus');
+const { deleteCitaIncome } = require('./scheduler.service');
 const Groq = require('groq-sdk');
 
 // Cache de horarios por negocio (5 minutos)
@@ -1650,25 +1651,7 @@ async function processChatbotMessage(businessId, clientPhone, messageText, histo
         }
 
         case 'cancelar_cita': {
-          await supabaseAdmin
-            .from('income')
-            .delete()
-            .eq('appointment_id', toolInput.appointment_id)
-            .eq('business_id', businessId);
-
-          const { data, error } = await supabaseAdmin
-            .from('appointments')
-            .update({ status: 'cancelled' })
-            .eq('id', toolInput.appointment_id)
-            .eq('business_id', businessId)
-            .select('id');
-
-          if (error) return { success: false, error: error.message };
-          if (!data || data.length === 0) {
-            return { success: false, error: 'Cita no encontrada' };
-          }
-
-          return { success: true };
+          return await deleteCitaIncome(toolInput.appointment_id, businessId);
         }
 
         case 'ver_productos': {
@@ -2560,10 +2543,28 @@ async function processWhatsAppMessage({ from, phoneNumberId, messageText, messag
           });
 
           if (esConfirmacion) {
-            await supabaseAdmin
+            const { data: confirmedRows, error: confirmError } = await supabaseAdmin
               .from('appointments')
               .update({ status: 'confirmed' })
-              .eq('id', citaProxima.id);
+              .eq('id', citaProxima.id)
+              .eq('business_id', business.id)
+              .select('id');
+
+            if (confirmError || !confirmedRows || confirmedRows.length === 0) {
+              logger.error('[FASTPATH_CONFIRMAR_CITA_FAILED]', {
+                appointmentId: citaProxima.id,
+                businessId: business.id,
+                error: confirmError?.message
+              });
+              const respuestaError = 'Uy, no pude confirmar tu cita en este momento. Por favor intenta de nuevo en unos minutos o escríbenos.';
+              await sendMessage(from, respuestaError, businessToken, business.whatsapp_phone_number_id);
+              await saveConversationHistory(business.id, from, [
+                ...history,
+                { role: 'user', content: messageText },
+                { role: 'assistant', content: respuestaError }
+              ]);
+              return;
+            }
 
             const respuestaConfirm = `✅ ¡Perfecto! Tu cita de ${citaProxima.services?.name} el ${horaFormateada} está confirmada. ¡Te esperamos! 😊`;
             await sendMessage(from, respuestaConfirm, businessToken, business.whatsapp_phone_number_id);
@@ -2591,16 +2592,23 @@ async function processWhatsAppMessage({ from, phoneNumberId, messageText, messag
             return;
 
           } else if (esCancelacion) {
-            await supabaseAdmin
-              .from('income')
-              .delete()
-              .eq('appointment_id', citaProxima.id)
-              .eq('business_id', business.id);
+            const cancelResult = await deleteCitaIncome(citaProxima.id, business.id);
 
-            await supabaseAdmin
-              .from('appointments')
-              .update({ status: 'cancelled' })
-              .eq('id', citaProxima.id);
+            if (!cancelResult.success) {
+              logger.error('[FASTPATH_CANCELAR_CITA_FAILED]', {
+                appointmentId: citaProxima.id,
+                businessId: business.id,
+                error: cancelResult.error
+              });
+              const respuestaError = 'Uy, no pude cancelar tu cita en este momento. Por favor intenta de nuevo en unos minutos o escríbenos.';
+              await sendMessage(from, respuestaError, businessToken, business.whatsapp_phone_number_id);
+              await saveConversationHistory(business.id, from, [
+                ...history,
+                { role: 'user', content: messageText },
+                { role: 'assistant', content: respuestaError }
+              ]);
+              return;
+            }
 
             const respuestaCancel = `Entendido, cancelé tu cita de ${citaProxima.services?.name} del ${horaFormateada} 😊 Cuando quieras reagendar aquí estoy.`;
             await sendMessage(from, respuestaCancel, businessToken, business.whatsapp_phone_number_id);

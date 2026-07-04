@@ -1,6 +1,7 @@
 const cron = require('node-cron');
 const { sendMessage } = require('../config/whatsapp');
 const { supabaseAdmin } = require('../config/supabase');
+const { reconcileWompiPaymentsWithAPI } = require('./wompi.service');
 const logger = require('../utils/logger');
 
 let schedulerInitialized = false;
@@ -239,11 +240,28 @@ cron.schedule('*/5 * * * *', async () => {
 // Auto-completar citas cada 15 minutos
 cron.schedule('*/15 * * * *', autoCompleteAppointments);
 
+// Reconciliación de pagos Wompi cada 2 horas — Wompi reintenta webhooks hasta 24h,
+// pero no queremos esperar tanto si el webhook se perdió definitivamente. Compara
+// las transacciones APROBADAS en Wompi (últimos 2 días) contra la tabla payments
+// de ZITA y activa el plan si encuentra una aprobación que nunca llegó por webhook.
+cron.schedule('0 */2 * * *', async () => {
+  const acquired = await acquireLock('wompi_reconciliation', 30);
+  if (!acquired) return;
+
+  logger.info('[WOMPI_CRON] Reconciliation job started');
+  try {
+    await reconcileWompiPaymentsWithAPI();
+  } catch (error) {
+    logger.error('[WOMPI_CRON] Reconciliation job failed:', error.message);
+  }
+});
+
   logger.info('=== SCHEDULER CARGADO ===');
   logger.info('Tareas activas:');
   logger.info('  • Resumen diario a las 12:00 UTC (7am Colombia)');
   logger.info('  • Recordatorio 2 horas antes cada 5 minutos (testing)');
   logger.info('  • Auto-completar citas cada 15 minutos (1 hora después de scheduled_at)');
+  logger.info('  • Reconciliación de pagos Wompi cada 2 horas');
   logger.info('Usando database locks para evitar duplicados en múltiples instancias');
 };
 

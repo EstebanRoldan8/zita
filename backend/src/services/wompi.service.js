@@ -213,6 +213,132 @@ async function reconcileWompiPayments() {
   return result;
 }
 
+// Reconciliación batch v2: en vez de partir de payments 'pending' en ZITA (que
+// requiere que ya tengamos wompi_transaction_id guardado), parte de la lista de
+// transacciones APROBADAS que Wompi reporta en los últimos 2 días (Wompi reintenta
+// webhooks hasta 24h, damos margen extra) y busca la contraparte en ZITA. Esto
+// cubre el caso en que el webhook se perdió por completo y ZITA nunca se enteró.
+// Registrada como cron cada 2h en scheduler.service.js.
+async function reconcileWompiPaymentsWithAPI(country = 'colombia') {
+  const startTime = Date.now();
+  const result = { checked: 0, activated: 0, errors: [] };
+
+  const provider = getPaymentProvider(country);
+  const now = new Date();
+  const twoDaysAgo = new Date(now.getTime() - 2 * 24 * 60 * 60 * 1000);
+
+  let transactions = [];
+  try {
+    const response = await axios.get(`${provider.apiUrl}/transactions`, {
+      headers: { Authorization: `Bearer ${provider.privateKey}` },
+      params: {
+        'filter[created_at][gte]': twoDaysAgo.toISOString(),
+        'filter[created_at][lte]': now.toISOString(),
+        'filter[status]': 'APPROVED',
+      },
+      timeout: 15000,
+    });
+    transactions = response.data?.data || [];
+  } catch (err) {
+    logger.error('[WOMPI_RECONCILIATION] Error consultando lista de transacciones en Wompi', { error: err.message });
+    result.errors.push(`fetch_transactions: ${err.message}`);
+    return result;
+  }
+
+  for (const tx of transactions) {
+    if (!tx || tx.status !== 'APPROVED') continue;
+    result.checked++;
+
+    try {
+      let payment = null;
+
+      // 1) match por wompi_transaction_id
+      if (tx.id) {
+        const { data } = await supabaseAdmin
+          .from('payments')
+          .select('id, business_id, status, plan, period, amount, created_at')
+          .eq('wompi_transaction_id', tx.id)
+          .maybeSingle();
+        payment = data || null;
+      }
+
+      // 2) match por wompi_reference
+      if (!payment && tx.reference) {
+        const { data } = await supabaseAdmin
+          .from('payments')
+          .select('id, business_id, status, plan, period, amount, created_at')
+          .eq('wompi_reference', tx.reference)
+          .maybeSingle();
+        payment = data || null;
+      }
+
+      // 3) fallback: match por amount + timestamp cercano (ventana de 15 min)
+      if (!payment && tx.amount_in_cents && tx.created_at) {
+        const txTime = new Date(tx.created_at);
+        const windowStart = new Date(txTime.getTime() - 15 * 60 * 1000).toISOString();
+        const windowEnd = new Date(txTime.getTime() + 15 * 60 * 1000).toISOString();
+
+        const { data } = await supabaseAdmin
+          .from('payments')
+          .select('id, business_id, status, plan, period, amount, created_at')
+          .eq('amount', tx.amount_in_cents)
+          .gte('created_at', windowStart)
+          .lte('created_at', windowEnd)
+          .maybeSingle();
+        payment = data || null;
+      }
+
+      if (!payment) {
+        logger.warn(`[WOMPI_RECONCILIATION] No se encontró payment en ZITA para transacción Wompi aprobada: reference=${tx.reference} id=${tx.id}`);
+        continue;
+      }
+
+      if (payment.status === 'approved') {
+        continue; // ya sincronizado — nada que hacer
+      }
+
+      const { error: updateError } = await supabaseAdmin
+        .from('payments')
+        .update({
+          status: 'approved',
+          wompi_transaction_id: tx.id,
+          updated_at: new Date().toISOString(),
+        })
+        .eq('id', payment.id)
+        .eq('business_id', payment.business_id)
+        .eq('status', payment.status); // guard optimista contra carreras con el webhook
+
+      if (updateError) {
+        result.errors.push(`payment ${payment.id}: ${updateError.message}`);
+        logger.error('[WOMPI_RECONCILIATION] Error actualizando payment a approved', {
+          paymentId: payment.id,
+          error: updateError.message
+        });
+        continue;
+      }
+
+      await activatePlanExtension(payment.id);
+      result.activated++;
+      logger.warn(`[WOMPI_RECONCILIATION] Found approved payment in Wompi not reflected in ZITA, activating plan: reference=${tx.reference || payment.id}`);
+    } catch (err) {
+      result.errors.push(`transaction ${tx.id}: ${err.message}`);
+      logger.error('[WOMPI_RECONCILIATION] Error procesando transacción Wompi', {
+        transactionId: tx.id,
+        error: err.message
+      });
+    }
+  }
+
+  logger.info('[WOMPI_CRON] Reconciliation job summary', {
+    checked: result.checked,
+    activated: result.activated,
+    errors: result.errors.length,
+    duration_ms: Date.now() - startTime
+  });
+
+  return result;
+}
+
 module.exports = {
   createTransaction,
   getTransaction,
@@ -220,5 +346,6 @@ module.exports = {
   validateWebhookSignature,
   activatePlanExtension,
   reconcileWompiPayments,
+  reconcileWompiPaymentsWithAPI,
   PERIOD_DAYS,
 };

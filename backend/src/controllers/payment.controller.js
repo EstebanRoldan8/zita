@@ -90,6 +90,7 @@ async function createSession(req, res) {
 }
 
 async function handleWebhook(req, res) {
+  let tx;
   try {
     const signature = req.headers['x-event-checksum'];
     const payload = req.body;
@@ -98,15 +99,32 @@ async function handleWebhook(req, res) {
     const country = 'colombia';
     const provider = getPaymentProvider(country);
 
-    // CRÍTICO: Rechaza inmediatamente si NO hay firma O si la firma es inválida
+    // CRÍTICO: Rechaza inmediatamente si NO hay firma O si la firma es inválida.
+    // Esto es un error de VALIDACIÓN (petición malformada o no auténtica), no una
+    // falla de servidor — Wompi no debe reintentar, por eso 403 y no 5xx.
     if (!signature || !validateWebhookSignature(payload, signature, provider.eventsSecret)) {
       logger.warn('Wompi webhook rechazado: firma faltante o inválida', { hasSignature: !!signature });
       return res.status(403).json({ received: false, error: 'Firma inválida o faltante' });
     }
 
     if (event === 'transaction.updated') {
-      const tx = payload?.data?.transaction;
-      if (!tx) return res.status(200).json({ received: true });
+      tx = payload?.data?.transaction;
+      if (!tx) return res.status(400).json({ received: false, error: 'Payload malformado: falta data.transaction' });
+
+      // ISSUE #5: idempotencia — si ya existe un payment aprobado con este
+      // wompi_transaction_id, este webhook es un reenvío duplicado (Wompi reintenta
+      // webhooks durante 24h). Cortamos aquí antes de tocar el plan de nuevo.
+      const { data: alreadyApproved } = await supabaseAdmin
+        .from('payments')
+        .select('id')
+        .eq('wompi_transaction_id', tx.id)
+        .eq('status', 'approved')
+        .maybeSingle();
+
+      if (alreadyApproved) {
+        logger.info(`[WOMPI] Duplicado detectado: transaction ${tx.id} ya procesado (wompi_transaction_id+status=approved)`);
+        return res.json({ success: true, message: 'Already processed' });
+      }
 
       const { data: payment } = await supabaseAdmin
         .from('payments')
@@ -121,8 +139,9 @@ async function handleWebhook(req, res) {
         : tx.status === 'VOIDED' ? 'voided'
         : 'error';
 
-      // FIX 1: Idempotencia — si el payment ya estaba 'approved', el webhook es un
-      // reenvío duplicado. No volver a extender el plan; solo sincronizar metadata.
+      // Fallback: el payment ya estaba 'approved' (encontrado por reference, no por
+      // wompi_transaction_id — p.ej. si el transaction_id no se guardó por alguna
+      // razón). Mismo criterio de duplicado: no volver a extender el plan.
       if (payment.status === 'approved') {
         logger.info(`[WOMPI] Duplicado detectado: webhook reenviado para transaction ${tx.id}, ya procesado anteriormente`);
 
@@ -147,11 +166,14 @@ async function handleWebhook(req, res) {
           }
         }
 
-        return res.status(200).json({ received: true });
+        return res.json({ success: true, message: 'Already processed' });
       }
 
-      // FIX 2: Agregar cross-tenant protection — verifica business_id
-      // FIX 3: Captura error y retorna 500 si falla
+      // ISSUE #5 (carrera real): update condicional con guard optimista sobre el
+      // status leído (.eq('status', payment.status)). Si dos webhooks concurrentes
+      // llegan casi al mismo tiempo, solo uno logra actualizar (0 filas afectadas
+      // para el otro) y solo ese activa el plan — evita doble extensión.
+      // Cross-tenant protection: también filtra por business_id.
       const { data: updateData, error: updateError } = await supabaseAdmin
         .from('payments')
         .update({
@@ -161,7 +183,9 @@ async function handleWebhook(req, res) {
           updated_at: new Date().toISOString(),
         })
         .eq('id', payment.id)
-        .eq('business_id', payment.business_id); // FIX 2: Protección cross-tenant
+        .eq('business_id', payment.business_id)
+        .eq('status', payment.status)
+        .select();
 
       if (updateError) {
         logger.error('payment.handleWebhook: error al actualizar payment', {
@@ -170,7 +194,16 @@ async function handleWebhook(req, res) {
           wompi_reference: tx.reference,
           error: updateError.message
         });
+        // ISSUE #4: esto es una falla de servidor (BD), no de validación —
+        // responde 5xx para que Wompi reintente el webhook.
         return res.status(500).json({ received: false, error: 'Error al procesar webhook' });
+      }
+
+      if (!updateData || updateData.length === 0) {
+        // Carrera: otro proceso concurrente (webhook duplicado o reconciliación)
+        // ya cambió el status entre nuestro SELECT y este UPDATE. No duplicar la activación.
+        logger.info(`[WOMPI] Carrera detectada en payment ${payment.id}: status ya fue modificado por otro proceso, omitiendo activación duplicada`);
+        return res.json({ success: true, message: 'Already processed' });
       }
 
       if (newStatus === 'approved') {
@@ -180,8 +213,11 @@ async function handleWebhook(req, res) {
 
     return res.status(200).json({ received: true });
   } catch (err) {
-    logger.error('payment.handleWebhook error:', { message: err.message });
-    return res.status(200).json({ received: true });
+    // ISSUE #4: excepción real (BD caída, timeout, bug) — no un error de
+    // validación. Responder 5xx para que Wompi reintente el webhook más tarde,
+    // en vez de responder 200 y perder el evento silenciosamente.
+    logger.error('[WOMPI_WEBHOOK_ERROR]', { error: err.message, wompi_transaction_id: tx?.id });
+    return res.status(500).json({ received: false, error: 'Error al procesar webhook' });
   }
 }
 

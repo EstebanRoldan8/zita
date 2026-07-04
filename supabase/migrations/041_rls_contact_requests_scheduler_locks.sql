@@ -45,3 +45,4 @@ CREATE POLICY "service_role_scheduler_locks_all" ON scheduler_locks
   FOR ALL
   USING (auth.role() = 'service_role')
   WITH CHECK (auth.role() = 'service_role');
+

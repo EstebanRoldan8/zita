@@ -72,6 +72,9 @@ async function createSession(req, res) {
       provider: provider.provider,
     });
 
+    const redirectUrl = `${process.env.FRONTEND_URL}/dashboard/suscripcion?payment_ref=${reference}`;
+    logger.info('[PAYMENT_REDIRECT]', { redirect_to: redirectUrl, payment_id: reference });
+
     return res.json({
       success: true,
       data: {
@@ -80,7 +83,7 @@ async function createSession(req, res) {
         amountInCents,
         currency,
         integritySignature,
-        redirectUrl: `${process.env.FRONTEND_URL}/dashboard/suscripcion?ref=${reference}`,
+        redirectUrl,
       },
     });
   } catch (err) {

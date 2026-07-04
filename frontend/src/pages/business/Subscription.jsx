@@ -88,7 +88,7 @@ export default function Subscription() {
   const [loading, setLoading] = useState(true);
   const [upgradeModal, setUpgradeModal] = useState(null);
   const [paymentLoading, setPaymentLoading] = useState(false);
-  const [paymentBanner, setPaymentBanner] = useState(null); // 'success' | 'error' | null
+  const [paymentBanner, setPaymentBanner] = useState(null); // { type: 'approved'|'pending'|'declined'|'not_found', message } | null
   const [paymentPreview, setPaymentPreview] = useState(null);
   const [previewLoading, setPreviewLoading] = useState(false);
   const [downgradeModal, setDowngradeModal] = useState(null);
@@ -112,13 +112,34 @@ export default function Subscription() {
 
   useEffect(() => {
     const params = new URLSearchParams(location.search);
-    const paymentParam = params.get('payment');
-    if (paymentParam === 'success') {
-      setPaymentBanner('success');
-      fetchSub();
-    } else if (paymentParam === 'error') {
-      setPaymentBanner('error');
-    }
+    const ref = params.get('payment_ref');
+    if (!ref) return;
+
+    const checkPaymentStatus = async () => {
+      let banner;
+      try {
+        const { data } = await api.get(`/api/payments/status/${encodeURIComponent(ref)}`);
+        const status = data?.success ? data.data.status : null;
+
+        if (status === 'approved') {
+          banner = { type: 'approved', message: '✓ ¡Pago completado! Tu suscripción fue activada.' };
+          fetchSub();
+        } else if (status === 'pending') {
+          banner = { type: 'pending', message: '⏳ Estamos confirmando tu pago. Puede tardar unos minutos...' };
+        } else if (status === 'declined' || status === 'error' || status === 'voided') {
+          banner = { type: 'declined', message: '❌ Tu pago fue rechazado. Por favor intenta de nuevo.' };
+        } else {
+          banner = { type: 'not_found', message: 'No pudimos encontrar tu pago. Contacta a soporte si el dinero fue debitado.' };
+        }
+      } catch (err) {
+        console.error('Error checking payment status:', err);
+        banner = { type: 'not_found', message: 'No pudimos encontrar tu pago. Contacta a soporte si el dinero fue debitado.' };
+      }
+      setPaymentBanner(banner);
+      window.history.replaceState({}, document.title, '/dashboard/suscripcion');
+    };
+
+    checkPaymentStatus();
   }, [location.search]);
 
   const handlePayment = async (plan) => {
@@ -268,16 +289,28 @@ export default function Subscription() {
         <p className="text-slate-400 text-xs sm:text-sm mt-1">Gestiona tu plan y revisa el uso</p>
       </div>
 
-      {paymentBanner === 'success' && (
+      {paymentBanner?.type === 'approved' && (
         <div className="mb-4 flex items-center gap-3 bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 text-sm rounded-xl px-4 py-3">
           <CheckCircle2 size={18} className="shrink-0" />
-          ¡Plan activado exitosamente! Tu suscripción está ahora activa.
+          {paymentBanner.message}
         </div>
       )}
-      {paymentBanner === 'error' && (
+      {paymentBanner?.type === 'pending' && (
+        <div className="mb-4 flex items-center gap-3 bg-yellow-500/10 border border-yellow-500/20 text-yellow-400 text-sm rounded-xl px-4 py-3">
+          <AlertTriangle size={18} className="shrink-0" />
+          {paymentBanner.message}
+        </div>
+      )}
+      {paymentBanner?.type === 'declined' && (
         <div className="mb-4 flex items-center gap-3 bg-red-500/10 border border-red-500/20 text-red-400 text-sm rounded-xl px-4 py-3">
           <XCircle size={18} className="shrink-0" />
-          El pago no pudo procesarse. Intenta nuevamente o contáctanos.
+          {paymentBanner.message}
+        </div>
+      )}
+      {paymentBanner?.type === 'not_found' && (
+        <div className="mb-4 flex items-center gap-3 bg-slate-500/10 border border-slate-500/20 text-slate-300 text-sm rounded-xl px-4 py-3">
+          <AlertCircle size={18} className="shrink-0" />
+          {paymentBanner.message}
         </div>
       )}
 

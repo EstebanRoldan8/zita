@@ -52,28 +52,36 @@ async function acquireLock(lockName, expiresInMinutes = 10) {
   const expiresAt = new Date(Date.now() + expiresInMinutes * 60 * 1000).toISOString();
   const lockKey = `scheduler_${lockName}`;
 
-  const { data: existing } = await supabaseAdmin
+  // Cleanup: borrar locks expirados para permitir reciclaje. No es críticamente atómico,
+  // pero DELETE es idempotent y seguro (si otro proceso lo borra, no hay problema).
+  await supabaseAdmin
     .from('scheduler_locks')
-    .select('expires_at')
-    .eq('lock_key', lockKey)
-    .maybeSingle();
+    .delete()
+    .lt('expires_at', new Date().toISOString());
 
-  if (existing && new Date(existing.expires_at) > new Date()) {
+  // Atomic lock: INSERT directo. Si hay conflicto UNIQUE (otro proceso lo tiene),
+  // retorna error 23505. Si INSERT es exitoso, obtuvo el lock.
+  const { data: lockData, error: lockError } = await supabaseAdmin
+    .from('scheduler_locks')
+    .insert({
+      lock_key: lockKey,
+      expires_at: expiresAt
+    })
+    .select('lock_key');
+
+  // Otro proceso ya tiene el lock (UNIQUE violation)
+  if (lockError?.code === '23505') {
+    logger.debug('[ACQUIRE_LOCK_ALREADY_HELD]', { lockKey });
     return false;
   }
 
-  const { data: lockData, error: lockError } = await supabaseAdmin
-    .from('scheduler_locks')
-    .upsert({
-      lock_key: lockKey,
-      expires_at: expiresAt
-    }, { onConflict: 'lock_key' })
-    .select('lock_key');
-
-  if (lockError || !lockData || lockData.length === 0) {
-    logger.warn('[ACQUIRE_LOCK_UPSERT_FAILED]', { lockKey, error: lockError?.message });
+  // Error genuino (esquema, permisos, etc.)
+  if (lockError) {
+    logger.warn('[ACQUIRE_LOCK_INSERT_FAILED]', { lockKey, error: lockError?.message });
+    return false;
   }
 
+  // INSERT exitoso: obtuvo el lock
   return true;
 }
 

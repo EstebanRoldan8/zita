@@ -806,35 +806,36 @@ async function getOrCreateClient(businessId, phone, name = null) {
 
   if (existing) return existing;
 
-  try {
-    const { data: newClient, error: newClientError } = await supabaseAdmin
-      .from('clients')
-      .insert({
-        business_id: businessId,
-        phone: phone,
-        name: name || 'Cliente WhatsApp'
-      })
-      .select('id, name')
-      .single();
+  const { data: newClient, error: newClientError } = await supabaseAdmin
+    .from('clients')
+    .insert({
+      business_id: businessId,
+      phone: phone,
+      name: name || 'Cliente WhatsApp'
+    })
+    .select('id, name')
+    .single();
 
-    if (newClientError || !newClient) {
-      logger.warn('[GET_OR_CREATE_CLIENT_INSERT_FAILED]', { businessId, phone, error: newClientError?.message });
-      return null;
-    }
-
-    return newClient;
-  } catch (err) {
-    if (err.code === '23505' || err.message?.includes('unique')) {
-      const { data: retryArr } = await supabaseAdmin
-        .from('clients')
-        .select('id, name')
-        .eq('business_id', businessId)
-        .eq('phone', phone)
-        .limit(1);
-      return retryArr?.[0] || null;
-    }
-    throw err;
+  // Caso normal: cliente creado exitosamente
+  if (!newClientError) {
+    return newClient || null;
   }
+
+  // Race condition: otro proceso creó el cliente casi simultáneamente (UNIQUE violation)
+  if (newClientError.code === '23505') {
+    logger.info('[GET_OR_CREATE_CLIENT_UNIQUE_COLLISION]', { businessId, phone });
+    const { data: recoveredArr } = await supabaseAdmin
+      .from('clients')
+      .select('id, name')
+      .eq('business_id', businessId)
+      .eq('phone', phone)
+      .limit(1);
+    return recoveredArr?.[0] || null;
+  }
+
+  // Error genuino (no UNIQUE violation)
+  logger.warn('[GET_OR_CREATE_CLIENT_INSERT_FAILED]', { businessId, phone, error: newClientError?.message });
+  return null;
 }
 
 async function getConversationHistory(businessId, clientPhone) {

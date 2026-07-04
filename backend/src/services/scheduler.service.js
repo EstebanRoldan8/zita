@@ -257,10 +257,10 @@ cron.schedule('0 */2 * * *', async () => {
   }
 });
 
-// Aviso de trial por vencer (3 días antes) — 09:00 UTC = 04:00 AM Bogotá.
-// Corre temprano para que trial_warning_sent_at quede marcado antes de que el
-// dueño revise su WhatsApp en la mañana.
-cron.schedule('0 9 * * *', async () => {
+// Aviso de trial por vencer (3 días antes) — 14:00 UTC = 09:00 AM Bogotá.
+// Corre en la mañana para que el dueño reciba el aviso por WhatsApp a una
+// hora razonable.
+cron.schedule('0 14 * * *', async () => {
   const acquired = await acquireLock('trial_warning', 30);
   if (!acquired) return;
 

@@ -270,6 +270,10 @@ async function sell(req, res) {
         .from('products')
         .update({ stock: newStock, updated_at: new Date().toISOString() })
         .eq('id', id);
+      if (updateErr?.code === '23514' || updateErr?.message?.includes('check_products_stock_non_negative')) {
+        logger.error('[STOCK_NEGATIVE_BLOCKED]', { product_id: id, attempted_qty: qty, current_stock: availableStock });
+        return res.status(400).json({ success: false, error: 'Ya no hay stock suficiente de este producto.' });
+      }
       if (updateErr) throw updateErr;
     }
 

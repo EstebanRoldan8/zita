@@ -23,7 +23,9 @@
 -- ------------------------------------------------------------
 ALTER TABLE contact_requests ENABLE ROW LEVEL SECURITY;
 
-CREATE POLICY IF NOT EXISTS "superadmin_contact_requests_all" ON contact_requests
+DROP POLICY IF EXISTS "superadmin_contact_requests_all" ON contact_requests;
+
+CREATE POLICY "superadmin_contact_requests_all" ON contact_requests
   FOR ALL
   USING (auth.email() = 'esteban.zita.ia@gmail.com');
 
@@ -37,7 +39,9 @@ CREATE POLICY IF NOT EXISTS "superadmin_contact_requests_all" ON contact_request
 -- ------------------------------------------------------------
 ALTER TABLE scheduler_locks ENABLE ROW LEVEL SECURITY;
 
-CREATE POLICY IF NOT EXISTS "service_role_scheduler_locks_all" ON scheduler_locks
+DROP POLICY IF EXISTS "service_role_scheduler_locks_all" ON scheduler_locks;
+
+CREATE POLICY "service_role_scheduler_locks_all" ON scheduler_locks
   FOR ALL
   USING (auth.role() = 'service_role')
   WITH CHECK (auth.role() = 'service_role');

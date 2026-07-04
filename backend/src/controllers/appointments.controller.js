@@ -214,6 +214,10 @@ async function create(req, res) {
       .select()
       .single();
 
+    if (error?.code === '23505') {
+      logger.warn('[DOUBLE_BOOKING_ATTEMPT]', { business_id: req.businessId, employee_id: finalEmployeeId, scheduled_at: scheduledAtWithTZ });
+      return res.status(409).json({ success: false, error: 'Ese horario ya no está disponible, alguien más lo tomó justo ahora. Elige otro.' });
+    }
     if (error) throw error;
 
     if (finalEmployeeId) {
@@ -455,7 +459,9 @@ async function update(req, res) {
               .select('id')
               .single();
 
-            if (incomeInsertError || !incomeInsertData?.id) {
+            if (incomeInsertError?.code === '23505') {
+              logger.warn('[INCOME_DUPLICATE_BLOCKED]', { appointment_id: id });
+            } else if (incomeInsertError || !incomeInsertData?.id) {
               logger.error('[COMPLETAR_CITA_MANUAL_INCOME_INSERT_FAILED]', {
                 businessId: req.businessId,
                 appointmentId: id,

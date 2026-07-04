@@ -2137,7 +2137,13 @@ async function executeTool(toolName, toolInput, businessId) {
 
       logger.info('resultado:', JSON.stringify(data), 'error:', JSON.stringify(error));
 
-      if (error) return { success: false, error: error.message };
+      if (error) {
+        if (error.code === '23505') {
+          logger.warn('[DOUBLE_BOOKING_ATTEMPT]', { business_id: businessId, employee_id: finalEmployeeId, scheduled_at: scheduledAt });
+          return { success: false, error: 'Ese horario ya no está disponible, alguien más lo tomó justo ahora. Elige otro.' };
+        }
+        return { success: false, error: error.message };
+      }
 
       // Si la cita se crea como completada, registrar el ingreso automáticamente
       // (misma lógica que completar_cita)
@@ -2150,7 +2156,7 @@ async function executeTool(toolName, toolInput, businessId) {
 
         if (!existingIncome || existingIncome.length === 0) {
           const incomeDate = new Date(data.scheduled_at).toLocaleDateString('en-CA', { timeZone: 'America/Bogota' });
-          await supabaseAdmin.from('income').insert({
+          const { error: incomeInsError } = await supabaseAdmin.from('income').insert({
             business_id: businessId,
             appointment_id: data.id,
             client_id: toolInput.client_id || null,
@@ -2160,6 +2166,9 @@ async function executeTool(toolName, toolInput, businessId) {
             source: 'appointment',
             date: incomeDate
           });
+          if (incomeInsError?.code === '23505') {
+            logger.warn('[INCOME_DUPLICATE_BLOCKED]', { appointment_id: data.id });
+          }
         }
       }
 
@@ -2228,6 +2237,11 @@ async function executeTool(toolName, toolInput, businessId) {
         .eq('business_id', businessId)
         .eq('id', toolInput.product_id)
         .select('id');
+
+      if (stockError?.code === '23514' || stockError?.message?.includes('check_products_stock_non_negative')) {
+        logger.error('[STOCK_NEGATIVE_BLOCKED]', { product_id: toolInput.product_id, attempted_qty: toolInput.quantity, current_stock: product.stock });
+        return { success: false, error: 'Ya no hay stock suficiente de este producto.' };
+      }
 
       if (stockError || !stockData || stockData.length === 0) {
         logger.error('[REGISTRAR_VENTA_STOCK_UPDATE_FAILED]', { businessId, productId: toolInput.product_id, error: stockError?.message });
@@ -2393,7 +2407,9 @@ async function executeTool(toolName, toolInput, businessId) {
             .select('id')
             .single();
 
-          if (incomeError || !incomeData?.id) {
+          if (incomeError?.code === '23505') {
+            logger.warn('[INCOME_DUPLICATE_BLOCKED]', { appointment_id: appt.id });
+          } else if (incomeError || !incomeData?.id) {
             logger.error('[COMPLETAR_CITA_INCOME_INSERT_FAILED]', { businessId, appointmentId: appt.id, error: incomeError?.message });
             return { success: false, error: 'La cita se marcó completada pero no se pudo registrar el ingreso' };
           }
@@ -4186,6 +4202,11 @@ async function executeTool(toolName, toolInput, businessId) {
         .update({ stock: product.stock - toolInput.quantity })
         .eq('id', product.id)
         .select('id');
+
+      if (stockError?.code === '23514' || stockError?.message?.includes('check_products_stock_non_negative')) {
+        logger.error('[STOCK_NEGATIVE_BLOCKED]', { product_id: product.id, attempted_qty: toolInput.quantity, current_stock: product.stock });
+        return { success: false, error: 'Ya no hay stock suficiente de este producto.' };
+      }
 
       if (stockError || !stockData || stockData.length === 0) {
         logger.error('[VENDER_PRODUCTO_STOCK_UPDATE_FAILED]', { businessId, productId: product.id, error: stockError?.message });

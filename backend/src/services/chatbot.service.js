@@ -1533,7 +1533,13 @@ async function processChatbotMessage(businessId, clientPhone, messageText, histo
             .select('id, scheduled_at')
             .single();
 
-          if (error) return { success: false, error: error.message };
+          if (error) {
+            if (error.code === '23505') {
+              logger.warn('[DOUBLE_BOOKING_ATTEMPT]', { business_id: businessId, employee_id: empleadoDisponible.id, scheduled_at });
+              return { success: false, error: 'Ese horario ya no está disponible, alguien más lo tomó justo ahora. Elige otro.' };
+            }
+            return { success: false, error: error.message };
+          }
 
           if (data) {
             try {
@@ -2322,7 +2328,9 @@ async function processChatbotMessage(businessId, clientPhone, messageText, histo
                   .select('id')
                   .single();
 
-                if (incomeGrupalError || !incomeGrupalData?.id) {
+                if (incomeGrupalError?.code === '23505') {
+                  logger.warn('[INCOME_DUPLICATE_BLOCKED]', { appointment_id: cita.id });
+                } else if (incomeGrupalError || !incomeGrupalData?.id) {
                   logger.error('[GRUPO_INCOME_INSERT_FAILED]', {
                     businessId,
                     appointmentId: cita.id,

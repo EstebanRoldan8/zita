@@ -86,6 +86,18 @@ function validateWebhookSignature(payload, signature, eventsSecret) {
   return expected === signature;
 }
 
+// Idempotencia: detecta si un pago ya fue procesado exitosamente.
+// Evita doble-extensión en carreras entre webhook + cron de reconciliación.
+async function isPaymentAlreadyProcessed(paymentId) {
+  const { data: payment } = await supabaseAdmin
+    .from('payments')
+    .select('id, status')
+    .eq('id', paymentId)
+    .single();
+
+  return payment?.status === 'approved';
+}
+
 // Lógica compartida de extensión de plan, usada tanto por el webhook normal
 // como por la reconciliación batch, para evitar divergencia entre ambos caminos.
 async function activatePlanExtension(paymentId) {
@@ -193,6 +205,13 @@ async function reconcileWompiPayments() {
       const wompiStatus = wompiData?.data?.status;
 
       if (wompiStatus === 'APPROVED') {
+        // Idempotencia: si el webhook ya procesó este pago, no lo volvemos a activar
+        const alreadyProcessed = await isPaymentAlreadyProcessed(payment.id);
+        if (alreadyProcessed) {
+          logger.info(`[WOMPI_RECONCILIATION] Payment ${payment.id} ya procesado por webhook, skipping`);
+          continue;
+        }
+
         const { error: updateError } = await supabaseAdmin
           .from('payments')
           .update({ status: 'approved', updated_at: new Date().toISOString() })
@@ -320,6 +339,13 @@ async function reconcileWompiPaymentsWithAPI(country = 'colombia') {
         continue; // ya sincronizado — nada que hacer
       }
 
+      // Idempotencia: si el webhook ya procesó este pago, no lo volvemos a activar
+      const alreadyProcessed = await isPaymentAlreadyProcessed(payment.id);
+      if (alreadyProcessed) {
+        logger.info(`[WOMPI_RECONCILIATION] Payment ${payment.id} ya procesado por webhook, skipping`);
+        continue;
+      }
+
       const { error: updateError } = await supabaseAdmin
         .from('payments')
         .update({
@@ -367,6 +393,7 @@ module.exports = {
   getTransaction,
   generateIntegritySignature,
   validateWebhookSignature,
+  isPaymentAlreadyProcessed,
   activatePlanExtension,
   reconcileWompiPayments,
   reconcileWompiPaymentsWithAPI,

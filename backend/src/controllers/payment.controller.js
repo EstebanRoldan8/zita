@@ -1,6 +1,6 @@
 const { supabaseAdmin } = require('../config/supabase');
 const { getPaymentProvider, PLAN_PRICES_COP } = require('../config/payments');
-const { generateIntegritySignature, validateWebhookSignature, activatePlanExtension } = require('../services/wompi.service');
+const { generateIntegritySignature, validateWebhookSignature, isPaymentAlreadyProcessed, activatePlanExtension } = require('../services/wompi.service');
 const { notifyPaymentDeclined } = require('../services/notification.service');
 const logger = require('../utils/logger');
 
@@ -124,21 +124,6 @@ async function handleWebhook(req, res) {
       tx = payload?.data?.transaction;
       if (!tx) return res.status(400).json({ received: false, error: 'Payload malformado: falta data.transaction' });
 
-      // ISSUE #5: idempotencia — si ya existe un payment aprobado con este
-      // wompi_transaction_id, este webhook es un reenvío duplicado (Wompi reintenta
-      // webhooks durante 24h). Cortamos aquí antes de tocar el plan de nuevo.
-      const { data: alreadyApproved } = await supabaseAdmin
-        .from('payments')
-        .select('id')
-        .eq('wompi_transaction_id', tx.id)
-        .eq('status', 'approved')
-        .maybeSingle();
-
-      if (alreadyApproved) {
-        logger.info(`[WOMPI] Duplicado detectado: transaction ${tx.id} ya procesado (wompi_transaction_id+status=approved)`);
-        return res.json({ success: true, message: 'Already processed' });
-      }
-
       const { data: payment } = await supabaseAdmin
         .from('payments')
         .select('id, business_id, plan, period, amount, status, wompi_transaction_id, payment_method')
@@ -147,17 +132,12 @@ async function handleWebhook(req, res) {
 
       if (!payment) return res.status(200).json({ received: true });
 
-      const newStatus = tx.status === 'APPROVED' ? 'approved'
-        : tx.status === 'DECLINED' ? 'declined'
-        : tx.status === 'VOIDED' ? 'voided'
-        : 'error';
+      // Idempotencia: si el payment ya fue procesado (status='approved'), es un reenvío duplicado
+      const alreadyProcessed = await isPaymentAlreadyProcessed(payment.id);
+      if (alreadyProcessed) {
+        logger.info(`[WOMPI] Duplicado detectado: transaction ${tx.id} ya procesado`);
 
-      // Fallback: el payment ya estaba 'approved' (encontrado por reference, no por
-      // wompi_transaction_id — p.ej. si el transaction_id no se guardó por alguna
-      // razón). Mismo criterio de duplicado: no volver a extender el plan.
-      if (payment.status === 'approved') {
-        logger.info(`[WOMPI] Duplicado detectado: webhook reenviado para transaction ${tx.id}, ya procesado anteriormente`);
-
+        // Sincroniza wompi_transaction_id y payment_method si faltaban
         const nuevoPaymentMethod = tx.payment_method?.type || null;
         if (payment.wompi_transaction_id !== tx.id || payment.payment_method !== nuevoPaymentMethod) {
           const { error: syncError } = await supabaseAdmin
@@ -181,6 +161,11 @@ async function handleWebhook(req, res) {
 
         return res.json({ success: true, message: 'Already processed' });
       }
+
+      const newStatus = tx.status === 'APPROVED' ? 'approved'
+        : tx.status === 'DECLINED' ? 'declined'
+        : tx.status === 'VOIDED' ? 'voided'
+        : 'error';
 
       // ISSUE #5 (carrera real): update condicional con guard optimista sobre el
       // status leído (.eq('status', payment.status)). Si dos webhooks concurrentes

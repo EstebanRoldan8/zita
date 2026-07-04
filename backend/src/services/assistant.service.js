@@ -7,6 +7,7 @@ const { getTimezone, getOffsetForTz } = require('../utils/timezone');
 const { getAvailableEmployee } = require('../utils/availability');
 const { periodRange } = require('../controllers/cash.controller');
 const { isPlanExpired } = require('../utils/planStatus');
+const { deleteCitaIncome } = require('./scheduler.service');
 
 const client = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
 
@@ -2221,15 +2222,21 @@ async function executeTool(toolName, toolInput, businessId) {
         return { success: false, error: 'Stock insuficiente' };
       }
 
-      await supabaseAdmin
+      const { data: stockData, error: stockError } = await supabaseAdmin
         .from('products')
         .update({ stock: product.stock - toolInput.quantity })
         .eq('business_id', businessId)
-        .eq('id', toolInput.product_id);
+        .eq('id', toolInput.product_id)
+        .select('id');
+
+      if (stockError || !stockData || stockData.length === 0) {
+        logger.error('[REGISTRAR_VENTA_STOCK_UPDATE_FAILED]', { businessId, productId: toolInput.product_id, error: stockError?.message });
+        return { success: false, error: 'No se pudo actualizar el stock del producto' };
+      }
 
       const saleDate = new Date().toLocaleDateString('en-CA', { timeZone: 'America/Bogota' });
 
-      const { data } = await supabaseAdmin
+      const { data, error: saleError } = await supabaseAdmin
         .from('product_sales')
         .insert({
           business_id: businessId,
@@ -2239,12 +2246,17 @@ async function executeTool(toolName, toolInput, businessId) {
           client_id: toolInput.client_id || null,
           sold_via: 'presencial'
         })
-        .select()
+        .select('id')
         .single();
+
+      if (saleError || !data?.id) {
+        logger.error('[REGISTRAR_VENTA_SALE_INSERT_FAILED]', { businessId, productId: toolInput.product_id, error: saleError?.message });
+        return { success: false, error: 'No se pudo registrar la venta' };
+      }
 
       if (product.cost_price != null) {
         const costoTotal = Number(product.cost_price) * toolInput.quantity;
-        await supabaseAdmin
+        const { data: expenseData, error: expenseError } = await supabaseAdmin
           .from('expenses')
           .insert({
             business_id: businessId,
@@ -2252,43 +2264,41 @@ async function executeTool(toolName, toolInput, businessId) {
             category:    'costo_producto',
             description: `Costo de venta: ${product.name} (${toolInput.quantity} unidades)`,
             date:        saleDate,
-          });
+          })
+          .select('id')
+          .single();
+
+        if (expenseError || !expenseData?.id) {
+          logger.error('[REGISTRAR_VENTA_EXPENSE_INSERT_FAILED]', { businessId, productId: toolInput.product_id, error: expenseError?.message });
+          return { success: false, error: 'No se pudo registrar el costo de la venta' };
+        }
       }
 
       const saleDateRV = new Date().toLocaleDateString('en-CA', { timeZone: 'America/Bogota' });
-      await supabaseAdmin.from('income').insert({
-        business_id: businessId,
-        amount: product.price * toolInput.quantity,
-        category: 'productos',
-        description: `Venta: ${product.name}${toolInput.quantity > 1 ? ` ×${toolInput.quantity}` : ''}`,
-        date: saleDateRV,
-        client_id: toolInput.client_id || null,
-        source: 'product_sale'
-      });
+      const { data: incomeData, error: incomeError } = await supabaseAdmin
+        .from('income')
+        .insert({
+          business_id: businessId,
+          amount: product.price * toolInput.quantity,
+          category: 'productos',
+          description: `Venta: ${product.name}${toolInput.quantity > 1 ? ` ×${toolInput.quantity}` : ''}`,
+          date: saleDateRV,
+          client_id: toolInput.client_id || null,
+          source: 'product_sale'
+        })
+        .select('id')
+        .single();
+
+      if (incomeError || !incomeData?.id) {
+        logger.error('[REGISTRAR_VENTA_INCOME_INSERT_FAILED]', { businessId, productId: toolInput.product_id, error: incomeError?.message });
+        return { success: false, error: 'No se pudo registrar el ingreso de la venta' };
+      }
 
       return { success: true, sale: data };
     }
 
     case 'cancelar_cita': {
-      await supabaseAdmin
-        .from('income')
-        .delete()
-        .eq('appointment_id', toolInput.appointment_id)
-        .eq('business_id', businessId);
-
-      const { data, error } = await supabaseAdmin
-        .from('appointments')
-        .update({ status: 'cancelled' })
-        .eq('id', toolInput.appointment_id)
-        .eq('business_id', businessId)
-        .select('id');
-
-      if (error) return { success: false, error: error.message };
-      if (!data || data.length === 0) {
-        return { success: false, error: 'Registro no encontrado' };
-      }
-
-      return { success: true };
+      return await deleteCitaIncome(toolInput.appointment_id, businessId);
     }
 
     case 'buscar_cita': {
@@ -2369,15 +2379,24 @@ async function executeTool(toolName, toolInput, businessId) {
 
         if (!existingIncome) {
           const incomeDate = new Date(appt.scheduled_at).toLocaleDateString('en-CA', { timeZone: 'America/Bogota' });
-          await supabaseAdmin.from('income').insert({
-            business_id: businessId,
-            appointment_id: appt.id,
-            amount: appt.price,
-            category: 'servicios',
-            description: 'Cita completada',
-            date: incomeDate,
-            source: 'appointment'
-          });
+          const { data: incomeData, error: incomeError } = await supabaseAdmin
+            .from('income')
+            .insert({
+              business_id: businessId,
+              appointment_id: appt.id,
+              amount: appt.price,
+              category: 'servicios',
+              description: 'Cita completada',
+              date: incomeDate,
+              source: 'appointment'
+            })
+            .select('id')
+            .single();
+
+          if (incomeError || !incomeData?.id) {
+            logger.error('[COMPLETAR_CITA_INCOME_INSERT_FAILED]', { businessId, appointmentId: appt.id, error: incomeError?.message });
+            return { success: false, error: 'La cita se marcó completada pero no se pudo registrar el ingreso' };
+          }
         }
       }
 
@@ -2412,21 +2431,41 @@ async function executeTool(toolName, toolInput, businessId) {
     }
 
     case 'eliminar_servicio': {
-      const { error } = await supabaseAdmin
+      const { data, error } = await supabaseAdmin
         .from('services')
         .delete()
         .eq('id', toolInput.service_id)
-        .eq('business_id', businessId);
-      return { success: !error, message: 'Servicio eliminado' };
+        .eq('business_id', businessId)
+        .select('id');
+
+      if (error) {
+        logger.error('[ELIMINAR_SERVICIO_FAILED]', { businessId, serviceId: toolInput.service_id, error: error.message });
+        return { success: false, error: error.message };
+      }
+      if (!data || data.length === 0) {
+        return { success: false, error: 'Servicio no encontrado' };
+      }
+
+      return { success: true, message: 'Servicio eliminado' };
     }
 
     case 'eliminar_producto': {
-      const { error } = await supabaseAdmin
+      const { data, error } = await supabaseAdmin
         .from('products')
         .delete()
         .eq('id', toolInput.product_id)
-        .eq('business_id', businessId);
-      return { success: !error, message: 'Producto eliminado' };
+        .eq('business_id', businessId)
+        .select('id');
+
+      if (error) {
+        logger.error('[ELIMINAR_PRODUCTO_FAILED]', { businessId, productId: toolInput.product_id, error: error.message });
+        return { success: false, error: error.message };
+      }
+      if (!data || data.length === 0) {
+        return { success: false, error: 'Producto no encontrado' };
+      }
+
+      return { success: true, message: 'Producto eliminado' };
     }
 
     case 'listar_productos': {
@@ -4117,14 +4156,20 @@ async function executeTool(toolName, toolInput, businessId) {
         return { success: false, error: `Stock insuficiente. Disponible: ${product.stock}` };
       }
 
-      await supabaseAdmin
+      const { data: stockData, error: stockError } = await supabaseAdmin
         .from('products')
         .update({ stock: product.stock - toolInput.quantity })
-        .eq('id', product.id);
+        .eq('id', product.id)
+        .select('id');
+
+      if (stockError || !stockData || stockData.length === 0) {
+        logger.error('[VENDER_PRODUCTO_STOCK_UPDATE_FAILED]', { businessId, productId: product.id, error: stockError?.message });
+        return { success: false, error: 'No se pudo actualizar el stock del producto' };
+      }
 
       const saleDate = new Date().toLocaleDateString('en-CA', { timeZone: 'America/Bogota' });
 
-      const { data: saleData } = await supabaseAdmin
+      const { data: saleData, error: saleError } = await supabaseAdmin
         .from('product_sales')
         .insert({
           business_id: businessId,
@@ -4135,10 +4180,15 @@ async function executeTool(toolName, toolInput, businessId) {
           appointment_id: toolInput.appointment_id || null,
           sold_via: 'presencial'
         })
-        .select()
+        .select('id')
         .single();
 
-      const { data: incomeData } = await supabaseAdmin
+      if (saleError || !saleData?.id) {
+        logger.error('[VENDER_PRODUCTO_SALE_INSERT_FAILED]', { businessId, productId: product.id, error: saleError?.message });
+        return { success: false, error: 'No se pudo registrar la venta' };
+      }
+
+      const { data: incomeData, error: incomeError } = await supabaseAdmin
         .from('income')
         .insert({
           business_id: businessId,
@@ -4149,12 +4199,17 @@ async function executeTool(toolName, toolInput, businessId) {
           client_id: toolInput.client_id || null,
           source: 'product_sale'
         })
-        .select()
+        .select('id')
         .single();
+
+      if (incomeError || !incomeData?.id) {
+        logger.error('[VENDER_PRODUCTO_INCOME_INSERT_FAILED]', { businessId, productId: product.id, error: incomeError?.message });
+        return { success: false, error: 'No se pudo registrar el ingreso de la venta' };
+      }
 
       if (product.cost_price != null) {
         const costoTotal = Number(product.cost_price) * toolInput.quantity;
-        await supabaseAdmin
+        const { data: expenseData, error: expenseError } = await supabaseAdmin
           .from('expenses')
           .insert({
             business_id: businessId,
@@ -4162,7 +4217,14 @@ async function executeTool(toolName, toolInput, businessId) {
             category: 'costo_producto',
             description: `Costo de venta: ${product.name} (${toolInput.quantity} unidades)`,
             date: saleDate
-          });
+          })
+          .select('id')
+          .single();
+
+        if (expenseError || !expenseData?.id) {
+          logger.error('[VENDER_PRODUCTO_EXPENSE_INSERT_FAILED]', { businessId, productId: product.id, error: expenseError?.message });
+          return { success: false, error: 'No se pudo registrar el costo de la venta' };
+        }
       }
 
       return { success: true, product_name: product.name, quantity: toolInput.quantity, total_amount: product.price * toolInput.quantity };
@@ -4455,13 +4517,22 @@ async function executeTool(toolName, toolInput, businessId) {
         return { success: false, error: `Este empleado tiene ${citasEmpCount} cita(s) en el historial. Para preservar el historial usa "desactivar empleado" en su lugar.` };
       }
 
-      const { error } = await supabaseAdmin
+      const { data, error } = await supabaseAdmin
         .from('employees')
         .delete()
         .eq('id', toolInput.employee_id)
-        .eq('business_id', businessId);
+        .eq('business_id', businessId)
+        .select('id');
 
-      return { success: !error, error: error?.message };
+      if (error) {
+        logger.error('[ELIMINAR_EMPLEADO_FAILED]', { businessId, employeeId: toolInput.employee_id, error: error.message });
+        return { success: false, error: error.message };
+      }
+      if (!data || data.length === 0) {
+        return { success: false, error: 'Empleado no encontrado' };
+      }
+
+      return { success: true };
     }
 
     case 'test_sistema': {

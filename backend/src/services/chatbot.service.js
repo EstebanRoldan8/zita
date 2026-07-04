@@ -2079,13 +2079,25 @@ async function processChatbotMessage(businessId, clientPhone, messageText, histo
             const pausadoHasta = new Date();
             pausadoHasta.setHours(pausadoHasta.getHours() + 3);
 
-            const { error: updateError } = await supabaseAdmin
+            const { data: pauseData, error: updateError } = await supabaseAdmin
               .from('whatsapp_conversations')
               .update({ bot_paused_until: pausadoHasta.toISOString() })
               .eq('business_id', businessId)
-              .eq('client_phone', clientPhone);
+              .eq('client_phone', clientPhone)
+              .select('id');
 
-            logger.info('Pausa guardada en BD:', { businessId, clientPhone, pausadoHasta: pausadoHasta.toISOString(), error: updateError });
+            if (updateError || !pauseData || pauseData.length === 0) {
+              logger.error('[ESCALAR_PAUSE_FAILED]', {
+                businessId,
+                clientPhone,
+                error: updateError?.message
+              });
+              return {
+                success: false,
+                message: 'Le avisé al dueño pero no pude pausar el bot correctamente. Por favor intenta de nuevo o escribe directamente.'
+              };
+            }
+
             logger.info('Bot pausado por 3 horas para cliente:', { clientPhone, hasta: pausadoHasta.toISOString() });
 
             return {
@@ -2272,18 +2284,30 @@ async function processChatbotMessage(businessId, clientPhone, messageText, histo
                 continue;
               }
 
-              // Crear ingreso
+              // Crear ingreso (secundario: no bloquea la confirmación de la cita grupal)
               try {
-                await supabaseAdmin.from('income').insert({
-                  business_id: businessId,
-                  amount: servicio.price,
-                  category: 'servicios',
-                  description: `${servicio.name}${notaNombre ? ' - ' + notaNombre : ''} - WhatsApp`,
-                  source: 'appointment',
-                  appointment_id: cita.id,
-                  date: p.fecha,
-                  client_id: clientePrincipal?.id || null
-                });
+                const { data: incomeGrupalData, error: incomeGrupalError } = await supabaseAdmin
+                  .from('income')
+                  .insert({
+                    business_id: businessId,
+                    amount: servicio.price,
+                    category: 'servicios',
+                    description: `${servicio.name}${notaNombre ? ' - ' + notaNombre : ''} - WhatsApp`,
+                    source: 'appointment',
+                    appointment_id: cita.id,
+                    date: p.fecha,
+                    client_id: clientePrincipal?.id || null
+                  })
+                  .select('id')
+                  .single();
+
+                if (incomeGrupalError || !incomeGrupalData?.id) {
+                  logger.error('[GRUPO_INCOME_INSERT_FAILED]', {
+                    businessId,
+                    appointmentId: cita.id,
+                    error: incomeGrupalError?.message
+                  });
+                }
               } catch(e) {
                 logger.error('Error creando ingreso grupal:', e.message);
               }

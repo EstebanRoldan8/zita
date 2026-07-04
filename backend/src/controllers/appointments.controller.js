@@ -423,7 +423,7 @@ async function update(req, res) {
               ? `${nombre} - agendado por Asistente IA`
               : `${nombre} - agendado manualmente`;
 
-            await supabaseAdmin
+            const { data: incomeInsertData, error: incomeInsertError } = await supabaseAdmin
               .from('income')
               .insert({
                 business_id: req.businessId,
@@ -434,7 +434,17 @@ async function update(req, res) {
                 appointment_id: id,
                 client_id: existing.client_id || null,
                 date: new Date().toLocaleDateString('en-CA', { timeZone: 'America/Bogota' })
+              })
+              .select('id')
+              .single();
+
+            if (incomeInsertError || !incomeInsertData?.id) {
+              logger.error('[COMPLETAR_CITA_MANUAL_INCOME_INSERT_FAILED]', {
+                businessId: req.businessId,
+                appointmentId: id,
+                error: incomeInsertError?.message
               });
+            }
           }
         }
       } catch (incomeErr) {

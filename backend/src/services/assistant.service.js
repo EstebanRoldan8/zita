@@ -4550,22 +4550,41 @@ async function executeTool(toolName, toolInput, businessId) {
     }
 
     case 'cerrar_dia_especial': {
-      const { date, reason } = toolInput;
-      if (!date || !/^\d{4}-\d{2}-\d{2}$/.test(date)) {
+      let { date, reason } = toolInput;
+      if (!date || typeof date !== 'string') {
+        return { success: false, error: 'Fecha inválida. Usa formato YYYY-MM-DD.' };
+      }
+      // Si la IA envía la fecha sin año (ej: "07-16" o "--07-16"), se asume el año
+      // actual en zona horaria de Bogotá; si esa fecha ya pasó, se usa el próximo año.
+      const soloMesDia = date.match(/^-{0,2}(\d{2})-(\d{2})$/);
+      if (soloMesDia) {
+        const [, mes, dia] = soloMesDia;
+        const hoyBogota = new Date().toLocaleDateString('en-CA', { timeZone: 'America/Bogota' });
+        const anioActual = parseInt(hoyBogota.slice(0, 4), 10);
+        let candidata = `${anioActual}-${mes}-${dia}`;
+        if (candidata < hoyBogota) {
+          candidata = `${anioActual + 1}-${mes}-${dia}`;
+        }
+        date = candidata;
+      }
+      if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) {
         return { success: false, error: 'Fecha inválida. Usa formato YYYY-MM-DD.' };
       }
       if (!reason || reason.trim().length === 0) {
         return { success: false, error: 'Motivo del cierre es requerido.' };
       }
-      const { error } = await supabaseAdmin
+      const { data: inserted, error } = await supabaseAdmin
         .from('business_closed_days')
         .insert({
           business_id: businessId,
           date: date,
           reason: reason.trim(),
           is_full_day: true
-        });
+        })
+        .select()
+        .single();
       if (error) return { success: false, error: error.message };
+      if (!inserted) return { success: false, error: 'El registro no se pudo confirmar en la base de datos.' };
       return { success: true, message: `Día ${date} registrado como cerrado por: ${reason}` };
     }
 
@@ -4803,10 +4822,22 @@ Cuando diga "mañana" usar: ${mananaISO}
       const tieneTexto = response.content.some(b => b.type === 'text' && b.text?.trim());
       if (!tieneTexto) {
         const ultimasTools = actionsExecuted.slice(-3).join(', ');
+        // Revisa si alguna tool de esta ronda falló (success:false / error / is_error) para
+        // NO forzar un mensaje de éxito falso cuando la acción realmente no se completó.
+        const huboError = toolResults.some(tr => {
+          try {
+            const parsed = JSON.parse(tr.content);
+            return parsed?.success === false || !!parsed?.error || !!parsed?.is_error;
+          } catch {
+            return false;
+          }
+        });
         apiMessages.push({ role: 'assistant', content: response.content });
         apiMessages.push({
           role: 'user',
-          content: 'Confirma brevemente al usuario lo que acabas de hacer en español colombiano informal.'
+          content: huboError
+            ? 'La acción anterior NO se completó (revisa el resultado de la tool: contiene error o success:false). Explica breve y claramente al usuario, en español colombiano informal, qué falló y qué necesita corregir para intentarlo de nuevo. NO confirmes éxito ni digas que quedó listo.'
+            : 'Confirma brevemente al usuario lo que acabas de hacer en español colombiano informal.'
         });
         response = await callClaudeWithRetry({
           model: 'claude-haiku-4-5-20251001',

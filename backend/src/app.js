@@ -88,6 +88,14 @@ const globalLimiter = rateLimit({
 });
 app.use(globalLimiter);
 
+// Capturar raw body ANTES de express.json para validación HMAC de webhook
+// Este middleware guarda el body crudo en req.rawBody antes de que se parsee
+app.use((req, res, buf, encoding) => {
+  if (buf && buf.length) {
+    req.rawBody = buf.toString(encoding || 'utf8');
+  }
+});
+
 app.use(express.json({ limit: '100kb' }));
 app.use(express.urlencoded({ extended: true, limit: '100kb' }));
 

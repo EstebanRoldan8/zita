@@ -19,14 +19,13 @@ const authenticatedLimiter = rateLimit({
 // Rate limiter más estricto para auth (login/register)
 const authLimiter = rateLimit({
   windowMs: 15 * 60 * 1000, // 15 minutos
-  max: 100, // 100 intentos por ventana (más durante desarrollo)
+  max: 10, // 10 intentos por ventana (protección contra brute-force)
   message: {
     success: false,
     error: 'Demasiados intentos de autenticación. Intenta de nuevo en 15 minutos.'
   },
   standardHeaders: true,
-  legacyHeaders: false,
-  skip: (req) => process.env.NODE_ENV !== 'production'
+  legacyHeaders: false
 });
 
 // Rate limiter para webhook de WhatsApp (menos estricto)

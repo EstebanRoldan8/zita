@@ -7,6 +7,7 @@ const { getAvailableEmployee, getNextAvailableSlots, isAppointmentWithinBusiness
 const { isPlanExpired } = require('../utils/planStatus');
 const { deleteCitaIncome } = require('./scheduler.service');
 const { logSystemAlert } = require('../utils/systemAlerts');
+const { callClaudeWithRetry } = require('../utils/anthropicRetry');
 const Groq = require('groq-sdk');
 
 // Cache de horarios por negocio (5 minutos)
@@ -955,7 +956,10 @@ async function processChatbotMessage(businessId, clientPhone, messageText, histo
     citasActivas = [];
   }
 
-  const anthropicClient = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
+  const anthropicClient = new Anthropic({
+    apiKey: process.env.ANTHROPIC_API_KEY,
+    timeout: 30 * 1000
+  });
   const { staticPrompt, dynamicPrompt } = getBusinessSystemPrompt(business, clientInfo, businessHours || [], services || [], citasActivas);
 
   const tools = [
@@ -2462,7 +2466,7 @@ async function processChatbotMessage(businessId, clientPhone, messageText, histo
 
   let response;
   try {
-    response = await anthropicClient.messages.create({
+    response = await callClaudeWithRetry(anthropicClient, {
       model: 'claude-haiku-4-5-20251001',
       max_tokens: 600,
       system: [
@@ -2515,7 +2519,7 @@ async function processChatbotMessage(businessId, clientPhone, messageText, histo
       }
 
       allMessages.push({ role: 'user', content: toolResults });
-      response = await anthropicClient.messages.create({
+      response = await callClaudeWithRetry(anthropicClient, {
         model: 'claude-haiku-4-5-20251001',
         max_tokens: 600,
         system: [

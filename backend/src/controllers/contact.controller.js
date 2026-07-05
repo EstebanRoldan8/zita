@@ -5,6 +5,7 @@ const logger = require('../utils/logger');
 
 const anthropic = new Anthropic({
   apiKey: process.env.ANTHROPIC_API_KEY,
+  timeout: 30 * 1000
 });
 
 const createContactRequest = async (req, res) => {

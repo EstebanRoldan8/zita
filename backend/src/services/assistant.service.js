@@ -9,8 +9,12 @@ const { periodRange } = require('../controllers/cash.controller');
 const { isPlanExpired } = require('../utils/planStatus');
 const { deleteCitaIncome } = require('./scheduler.service');
 const { logSystemAlert } = require('../utils/systemAlerts');
+const { callClaudeWithRetry } = require('../utils/anthropicRetry');
 
-const client = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
+const client = new Anthropic({
+  apiKey: process.env.ANTHROPIC_API_KEY,
+  timeout: 60 * 1000
+});
 
 // Cache de contexto enriquecido por negocio (5 minutos)
 const businessContextCache = new Map();
@@ -32,19 +36,6 @@ function setCachedContext(businessId, context) {
     const oldest = [...businessContextCache.entries()]
       .sort((a, b) => a[1].timestamp - b[1].timestamp)[0];
     if (oldest) businessContextCache.delete(oldest[0]);
-  }
-}
-
-async function callClaudeWithRetry(params, maxRetries = 2) {
-  for (let attempt = 0; attempt <= maxRetries; attempt++) {
-    try {
-      return await client.messages.create(params);
-    } catch (error) {
-      if (attempt === maxRetries) throw error;
-      const delay = Math.pow(2, attempt) * 1000;
-      logger.warn(`Claude API error, reintentando en ${delay}ms...`, { attempt, error: error.message });
-      await new Promise(resolve => setTimeout(resolve, delay));
-    }
   }
 }
 
@@ -4930,7 +4921,7 @@ Cuando diga "mañana" usar: ${mananaISO}
     { role: 'user', content: userMessage }
   ];
 
-  let response = await callClaudeWithRetry({
+  let response = await callClaudeWithRetry(client, {
     model: 'claude-haiku-4-5-20251001',
     max_tokens: 1500,
     system: [
@@ -5001,7 +4992,7 @@ Cuando diga "mañana" usar: ${mananaISO}
 
     apiMessages.push({ role: 'user', content: toolResults });
 
-    response = await callClaudeWithRetry({
+    response = await callClaudeWithRetry(client, {
       model: 'claude-haiku-4-5-20251001',
       max_tokens: 1500,
       system: [
@@ -5041,7 +5032,7 @@ Cuando diga "mañana" usar: ${mananaISO}
             ? 'La acción anterior NO se completó (revisa el resultado de la tool: contiene error o success:false). Explica breve y claramente al usuario, en español colombiano informal, qué falló y qué necesita corregir para intentarlo de nuevo. NO confirmes éxito ni digas que quedó listo.'
             : 'Confirma brevemente al usuario lo que acabas de hacer en español colombiano informal.'
         });
-        response = await callClaudeWithRetry({
+        response = await callClaudeWithRetry(client, {
           model: 'claude-haiku-4-5-20251001',
           max_tokens: 200,
           system: [

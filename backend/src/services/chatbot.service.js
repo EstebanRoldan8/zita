@@ -2772,7 +2772,7 @@ async function processWhatsAppMessage({ from, phoneNumberId, messageText, messag
     const { data: existingAlert } = await supabaseAdmin
       .from('system_alerts')
       .select('id')
-      .eq('type', 'bot_daily_limit_reached')
+      .eq('tipo', 'bot_daily_limit_reached')
       .eq('business_id', business.id)
       .gte('created_at', hoyColombia + 'T00:00:00')
       .maybeSingle();

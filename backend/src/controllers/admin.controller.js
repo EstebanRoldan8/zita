@@ -1,5 +1,6 @@
 const { supabaseAdmin } = require('../config/supabase');
 const logger = require('../utils/logger');
+const { gdprDeleteClient } = require('../services/gdpr.service');
 
 async function getMetrics(req, res) {
   try {
@@ -509,6 +510,35 @@ async function updateLeadStatus(req, res) {
   }
 }
 
+async function deleteClientGDPR(req, res) {
+  try {
+    const { client_id, phone, business_id } = req.body;
+
+    if (!client_id && !phone) {
+      return res.status(400).json({ success: false, error: 'client_id or phone is required' });
+    }
+
+    if (phone && !business_id) {
+      return res.status(400).json({ success: false, error: 'business_id is required when using phone' });
+    }
+
+    const identifier = client_id || phone;
+    const biz = phone ? business_id : null;
+    const result = await gdprDeleteClient(identifier, biz);
+
+    if (result.errors.length > 0) {
+      logger.error(`GDPR deletion had errors:`, result.errors);
+      return res.status(400).json({ success: false, error: 'Deletion failed', details: result });
+    }
+
+    logger.info(`✓ GDPR deletion completed: ${JSON.stringify(result)}`);
+    return res.json({ success: true, data: result });
+  } catch (err) {
+    logger.error(`admin.deleteClientGDPR: ${err.message}`);
+    return res.status(500).json({ success: false, error: 'Error interno del servidor.' });
+  }
+}
+
 module.exports = {
   getMetrics,
   getBusinesses,
@@ -526,4 +556,5 @@ module.exports = {
   updateZitaGoal,
   getLeads,
   updateLeadStatus,
+  deleteClientGDPR,
 };

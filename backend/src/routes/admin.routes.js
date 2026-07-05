@@ -16,6 +16,7 @@ const {
   updateZitaGoal,
   getLeads,
   updateLeadStatus,
+  deleteClientGDPR,
 } = require('../controllers/admin.controller');
 const { getAll: getSupportConversations, replyAsAdmin } = require('../controllers/support.controller');
 const { adminGeneratePaymentLink } = require('../controllers/payment.controller');
@@ -49,5 +50,7 @@ router.patch('/caja/goal', updateZitaGoal);
 
 router.get('/leads', getLeads);
 router.patch('/leads/:id/status', updateLeadStatus);
+
+router.post('/gdpr-delete-client', deleteClientGDPR);
 
 module.exports = router;

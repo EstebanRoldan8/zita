@@ -4,7 +4,7 @@
 
 ALTER TABLE businesses
 ADD COLUMN IF NOT EXISTS plan TEXT DEFAULT 'estandar',
-ADD COLUMN IF NOT EXISTS trial_ends_at TIMESTAMPTZ DEFAULT (now() + interval '30 days'),
+ADD COLUMN IF NOT EXISTS trial_ends_at TIMESTAMPTZ DEFAULT (now() + interval '30 days'), -- DB default fallback; actual trial duration controlled by TRIAL_DAYS env var in auth.controller.js
 ADD COLUMN IF NOT EXISTS plan_expires_at TIMESTAMPTZ,
 ADD COLUMN IF NOT EXISTS ai_messages_today INT DEFAULT 0,
 ADD COLUMN IF NOT EXISTS ai_messages_date DATE DEFAULT CURRENT_DATE;

@@ -245,11 +245,9 @@ export default function Subscription() {
           ? 'Empleados ilimitados'
           : `Hasta ${p.max_employees} empleados activos`;
       case 'asistente_ia':
-        return p.ai_messages_day === -1
-          ? 'Mensajes ilimitados con IA'
-          : p.ai_messages_day === 0
+        return p.ai_messages_day === 0
           ? 'No incluido en este plan'
-          : `${p.ai_messages_day} mensajes diarios con IA`;
+          : `${p.ai_messages_day} mensajes/día con IA`;
       case 'bot_whatsapp':
         return 'Agendamiento automático 24/7';
       case 'caja':
@@ -634,7 +632,7 @@ export default function Subscription() {
             <div className="bg-purple-500/10 border border-purple-500/20 rounded-lg p-4">
               <div>
                 <p className="text-purple-300 text-sm">
-                  🤖 Casi agotaste tus mensajes IA de hoy. Con Plan Pro son ilimitados.
+                  🤖 Casi agotaste tus mensajes IA de hoy. Con Plan Pro tienes 60 mensajes/día.
                 </p>
                 <button
                   onClick={() => setUpgradeModal('pro')}

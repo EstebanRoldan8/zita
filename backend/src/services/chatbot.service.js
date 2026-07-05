@@ -819,14 +819,26 @@ ${clientInfo?.name && clientInfo.name !== 'Cliente WhatsApp'
 async function getOrCreateClient(businessId, phone, name = null) {
   const { data: existingArr } = await supabaseAdmin
     .from('clients')
-    .select('id, name')
+    .select('id, name, archived')
     .eq('business_id', businessId)
     .eq('phone', phone)
     .limit(1);
 
   const existing = existingArr?.[0] || null;
 
-  if (existing) return existing;
+  if (existing) {
+    // Si el cliente está archivado, reactivarlo (volvió a escribir)
+    if (existing.archived) {
+      const { data: reactivated } = await supabaseAdmin
+        .from('clients')
+        .update({ archived: false })
+        .eq('id', existing.id)
+        .select('id, name')
+        .single();
+      return reactivated || existing;
+    }
+    return existing;
+  }
 
   const { data: newClient, error: newClientError } = await supabaseAdmin
     .from('clients')
@@ -881,14 +893,14 @@ async function saveConversationHistory(businessId, clientPhone, messages) {
 
   for (const m of messages) {
     if (typeof m.content === 'string' && m.content.trim()) {
-      mensajesLimpios.push({ role: m.role, content: m.content });
+      mensajesLimpios.push({ role: m.role, content: m.content, timestamp: m.timestamp || new Date().toISOString() });
     } else if (Array.isArray(m.content)) {
       const textos = m.content
         .filter(c => c.type === 'text' && c.text?.trim())
         .map(c => c.text)
         .join(' ');
       if (textos) {
-        mensajesLimpios.push({ role: m.role, content: textos });
+        mensajesLimpios.push({ role: m.role, content: textos, timestamp: m.timestamp || new Date().toISOString() });
       }
     }
   }
@@ -2380,7 +2392,12 @@ async function processChatbotMessage(businessId, clientPhone, messageText, histo
                 .single();
 
               if (error) {
-                resultados.push({ nombre: p.nombre, success: false, error: error.message });
+                if (error.code === '23505') {
+                  // Constraint de no-double-booking: horario ya fue tomado
+                  resultados.push({ nombre: p.nombre, success: false, error: 'Ese horario ya no está disponible, alguien más lo tomó justo ahora.' });
+                } else {
+                  resultados.push({ nombre: p.nombre, success: false, error: error.message });
+                }
                 continue;
               }
 
@@ -2682,36 +2699,6 @@ async function processWhatsAppMessage({ from, phoneNumberId, messageText, messag
       .eq('date', hoyColombia)
       .maybeSingle();
 
-    const clientMsgCountToday = clientDayStats?.message_count || 0;
-
-    if (clientMsgCountToday >= 50) {
-      const respuestaLimite = 'Has alcanzado el límite de mensajes por hoy. Puedes escribir de nuevo mañana 😊';
-      await sendMessage(from, respuestaLimite, businessToken, business.whatsapp_phone_number_id);
-      return;
-    }
-
-    const { data: businessDayStats, count: businessMsgCountToday } = await supabaseAdmin
-      .from('bot_daily_message_counts')
-      .select('message_count', { count: 'exact' })
-      .eq('business_id', business.id)
-      .eq('date', hoyColombia);
-
-    const totalBusinessMsgToday = businessDayStats?.reduce((sum, s) => sum + (s.message_count || 0), 0) || 0;
-
-    const { PLANS } = require('../config/plans');
-    const planConfig = PLANS[business.plan?.toLowerCase()] || PLANS.lite;
-    const botMessagesLimit = planConfig.bot_messages_day || 40;
-
-    if (totalBusinessMsgToday >= botMessagesLimit) {
-      const respuestaLimiteBusiness = 'El negocio ha alcanzado su límite de mensajes por hoy. Por favor, contacta directamente al negocio mañana 😊';
-      await sendMessage(from, respuestaLimiteBusiness, businessToken, business.whatsapp_phone_number_id);
-      await logSystemAlert('bot_daily_limit_reached',
-        `Bot alcanzó límite diario (${botMessagesLimit} msgs) para negocio ${business.name}`,
-        business.id,
-        { totalMessages: totalBusinessMsgToday, limit: botMessagesLimit });
-      return;
-    }
-
     const msgLower = messageText.toLowerCase().trim();
 
     // Fast-path: saludos/despedidas sin llamar a Claude (si historial vacío o >2h desde último mensaje)
@@ -2760,6 +2747,50 @@ async function processWhatsAppMessage({ from, phoneNumberId, messageText, messag
       }
     }
 
+    // DESPUÉS del fast-path de saludos/despedidas: verificar límites diarios (saludos no cuentan)
+    const clientMsgCountToday = clientDayStats?.message_count || 0;
+
+    if (clientMsgCountToday >= 50) {
+      const respuestaLimite = 'Has alcanzado el límite de mensajes por hoy. Puedes escribir de nuevo mañana 😊';
+      await sendMessage(from, respuestaLimite, businessToken, business.whatsapp_phone_number_id);
+      return;
+    }
+
+    const { data: businessDayStats, count: businessMsgCountToday } = await supabaseAdmin
+      .from('bot_daily_message_counts')
+      .select('message_count', { count: 'exact' })
+      .eq('business_id', business.id)
+      .eq('date', hoyColombia);
+
+    const totalBusinessMsgToday = businessDayStats?.reduce((sum, s) => sum + (s.message_count || 0), 0) || 0;
+
+    const { PLANS } = require('../config/plans');
+    const planConfig = PLANS[business.plan?.toLowerCase()] || PLANS.lite;
+    const botMessagesLimit = planConfig.bot_messages_day || 40;
+
+    // Dedupe de alerta: solo una por negocio por día
+    const { data: existingAlert } = await supabaseAdmin
+      .from('system_alerts')
+      .select('id')
+      .eq('type', 'bot_daily_limit_reached')
+      .eq('business_id', business.id)
+      .gte('created_at', hoyColombia + 'T00:00:00')
+      .maybeSingle();
+
+    if (totalBusinessMsgToday >= botMessagesLimit) {
+      const respuestaLimiteBusiness = 'El negocio ha alcanzado su límite de mensajes por hoy. Por favor, contacta directamente al negocio mañana 😊';
+      await sendMessage(from, respuestaLimiteBusiness, businessToken, business.whatsapp_phone_number_id);
+
+      // Solo registra alerta si no existe una ya hoy
+      if (!existingAlert) {
+        await logSystemAlert('bot_daily_limit_reached',
+          `Bot alcanzó límite diario (${botMessagesLimit} msgs) para negocio ${business.name}`,
+          business.id,
+          { totalMessages: totalBusinessMsgToday, limit: botMessagesLimit });
+      }
+      return;
+    }
+
     // Detección rápida de confirmación/cancelación de cita (respuesta a recordatorio)
 
     // SOLO activa si el mensaje es EXACTAMENTE una de estas frases, nada más (sin texto adicional)
@@ -2783,7 +2814,7 @@ async function processWhatsAppMessage({ from, phoneNumberId, messageText, messag
           .select('id, scheduled_at, services(name), status')
           .eq('business_id', business.id)
           .eq('client_id', clienteId)
-          .eq('status', 'pending')
+          .in('status', ['pending', 'confirmed'])
           .gte('scheduled_at', `${hoyCheck}T00:00:00-05:00`)
           .order('scheduled_at')
           .limit(1);

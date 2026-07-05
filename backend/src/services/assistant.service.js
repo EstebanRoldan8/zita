@@ -4795,9 +4795,9 @@ async function processMessage(businessId, userMessage, conversationHistory = [])
     if (mensajesHoy >= limite) {
       const planActual = plan;
       const mensajeUpgrade = planActual === 'estandar'
-        ? '🚀 ¿Quieres mensajes ilimitados? Mejora al **Plan Pro** desde Mi Suscripción en el panel.'
+        ? '🚀 ¿Quieres más capacidad? Mejora al **Plan Pro** (60 mensajes/día) desde Mi Suscripción en el panel.'
         : planActual === 'lite'
-        ? '🚀 ¿Quieres usar el asistente? Mejora al **Plan Estándar** desde Mi Suscripción en el panel.'
+        ? '🚀 ¿Quieres usar el asistente? Mejora al **Plan Estándar** (20 mensajes/día) desde Mi Suscripción en el panel.'
         : '';
       return {
         success: false,

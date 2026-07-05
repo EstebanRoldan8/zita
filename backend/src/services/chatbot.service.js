@@ -2567,62 +2567,50 @@ async function processChatbotMessage(businessId, clientPhone, messageText, histo
 // Registra atomicamente que estamos procesando un message_id (dedupe de Meta reintents).
 // Usa INSERT con ON CONFLICT DO NOTHING: si el message_id ya existe, retorna 0 filas
 // (otro proceso lo está procesando), y debe ignorarse. Si INSERT exitoso, retorna 1 fila.
-async function registerProcessingMessage(businessId, clientPhone, messageId) {
-  if (!messageId) return true; // Sin message_id, no se puede deduplicar
+async function isMessageAlreadyProcessed(businessId, clientPhone, messageId) {
+  if (!messageId) return false;
 
-  const { data, error } = await supabaseAdmin
+  const { data: existingConv } = await supabaseAdmin
     .from('whatsapp_conversations')
-    .insert({
-      business_id: businessId,
-      client_phone: clientPhone,
-      processed_message_ids: [messageId],
-      updated_at: new Date().toISOString()
-    })
-    .select('id');
+    .select('processed_message_ids')
+    .eq('business_id', businessId)
+    .eq('client_phone', clientPhone)
+    .maybeSingle();
 
-  // Si la conversación no existe, créala con processed_message_ids inicial
-  if (error?.code === '23505' || error?.message?.includes('unique')) {
-    // Ya existe, chequear si el message_id ya se procesó
-    const { data: existingConv } = await supabaseAdmin
+  const processedIds = existingConv?.processed_message_ids || [];
+  return processedIds.includes(messageId);
+}
+
+async function markMessageProcessed(businessId, clientPhone, messageId) {
+  if (!messageId) return;
+
+  const { data: existingConv } = await supabaseAdmin
+    .from('whatsapp_conversations')
+    .select('processed_message_ids')
+    .eq('business_id', businessId)
+    .eq('client_phone', clientPhone)
+    .maybeSingle();
+
+  const processedIds = existingConv?.processed_message_ids || [];
+  if (!processedIds.includes(messageId)) {
+    const { error } = await supabaseAdmin
       .from('whatsapp_conversations')
-      .select('processed_message_ids')
-      .eq('business_id', businessId)
-      .eq('client_phone', clientPhone)
-      .maybeSingle();
-
-    const processedIds = existingConv?.processed_message_ids || [];
-    if (processedIds.includes(messageId)) {
-      return false; // Ya procesado, ignorar
-    }
-
-    // Agregar message_id a la lista (guardar últimos 50)
-    const { error: updateError } = await supabaseAdmin
-      .from('whatsapp_conversations')
-      .update({
+      .upsert({
+        business_id: businessId,
+        client_phone: clientPhone,
         processed_message_ids: [...processedIds, messageId].slice(-50),
         updated_at: new Date().toISOString()
-      })
-      .eq('business_id', businessId)
-      .eq('client_phone', clientPhone);
+      }, { onConflict: 'business_id,client_phone' });
 
-    if (updateError) {
-      logger.warn('[REGISTER_PROCESSING_MESSAGE_UPDATE_FAILED]', {
+    if (error) {
+      logger.warn('[MARK_MESSAGE_PROCESSED_FAILED]', {
         businessId,
         clientPhone,
         messageId,
-        error: updateError.message
+        error: error.message
       });
     }
-  } else if (error) {
-    logger.warn('[REGISTER_PROCESSING_MESSAGE_INSERT_FAILED]', {
-      businessId,
-      clientPhone,
-      messageId,
-      error: error?.message
-    });
   }
-
-  return true; // Procesar el mensaje
 }
 
 async function processWhatsAppMessage({ from, phoneNumberId, messageText, messageId }) {
@@ -2649,8 +2637,8 @@ async function processWhatsAppMessage({ from, phoneNumberId, messageText, messag
     // Dedupe atómico: registrar inmediatamente que estamos procesando este message_id.
     // Si ya está procesado (reintento de Meta), ignorar sin reprocesar.
     if (messageId) {
-      const shouldProcess = await registerProcessingMessage(business.id, from, messageId);
-      if (!shouldProcess) {
+      const alreadyProcessed = await isMessageAlreadyProcessed(business.id, from, messageId);
+      if (alreadyProcessed) {
         logger.info('Mensaje duplicado ignorado:', messageId);
         return;
       }
@@ -2757,21 +2745,6 @@ async function processWhatsAppMessage({ from, phoneNumberId, messageText, messag
             { role: 'assistant', content: respuesta }
           ]);
           await incrementDailyMessageCount(business.id, from);
-
-          if (messageId) {
-            const { data: existingMsg } = await supabaseAdmin
-              .from('whatsapp_conversations')
-              .select('processed_message_ids')
-              .eq('business_id', business.id)
-              .eq('client_phone', from)
-              .maybeSingle();
-            const processedIds = existingMsg?.processed_message_ids || [];
-            await supabaseAdmin
-              .from('whatsapp_conversations')
-              .update({ processed_message_ids: [...processedIds, messageId].slice(-50) })
-              .eq('business_id', business.id)
-              .eq('client_phone', from);
-          }
           return;
         } else if (esDespedida) {
           const respuesta = `¡Hasta luego! 👋 Que tengas un excelente día 😊`;
@@ -2782,21 +2755,6 @@ async function processWhatsAppMessage({ from, phoneNumberId, messageText, messag
             { role: 'assistant', content: respuesta }
           ]);
           await incrementDailyMessageCount(business.id, from);
-
-          if (messageId) {
-            const { data: existingMsg } = await supabaseAdmin
-              .from('whatsapp_conversations')
-              .select('processed_message_ids')
-              .eq('business_id', business.id)
-              .eq('client_phone', from)
-              .maybeSingle();
-            const processedIds = existingMsg?.processed_message_ids || [];
-            await supabaseAdmin
-              .from('whatsapp_conversations')
-              .update({ processed_message_ids: [...processedIds, messageId].slice(-50) })
-              .eq('business_id', business.id)
-              .eq('client_phone', from);
-          }
           return;
         }
       }
@@ -2876,21 +2834,6 @@ async function processWhatsAppMessage({ from, phoneNumberId, messageText, messag
               { role: 'assistant', content: respuestaConfirm }
             ]);
             await incrementDailyMessageCount(business.id, from);
-
-            if (messageId) {
-              const { data: existingMsg2 } = await supabaseAdmin
-                .from('whatsapp_conversations')
-                .select('processed_message_ids')
-                .eq('business_id', business.id)
-                .eq('client_phone', from)
-                .maybeSingle();
-              const processedIds2 = existingMsg2?.processed_message_ids || [];
-              await supabaseAdmin
-                .from('whatsapp_conversations')
-                .update({ processed_message_ids: [...processedIds2, messageId].slice(-50) })
-                .eq('business_id', business.id)
-                .eq('client_phone', from);
-            }
             return;
 
           } else if (esCancelacion) {
@@ -2921,21 +2864,6 @@ async function processWhatsAppMessage({ from, phoneNumberId, messageText, messag
               { role: 'assistant', content: respuestaCancel }
             ]);
             await incrementDailyMessageCount(business.id, from);
-
-            if (messageId) {
-              const { data: existingMsg3 } = await supabaseAdmin
-                .from('whatsapp_conversations')
-                .select('processed_message_ids')
-                .eq('business_id', business.id)
-                .eq('client_phone', from)
-                .maybeSingle();
-              const processedIds3 = existingMsg3?.processed_message_ids || [];
-              await supabaseAdmin
-                .from('whatsapp_conversations')
-                .update({ processed_message_ids: [...processedIds3, messageId].slice(-50) })
-                .eq('business_id', business.id)
-                .eq('client_phone', from);
-            }
             return;
           }
         }
@@ -2996,28 +2924,9 @@ async function processWhatsAppMessage({ from, phoneNumberId, messageText, messag
         { to: from, error: e.message, messageType: 'bot_response' });
     }
 
+    // Marcar mensaje como procesado SOLO si el envío fue exitoso
     if (messageId && sendSuccess) {
-      try {
-        const { data: existingMsg } = await supabaseAdmin
-          .from('whatsapp_conversations')
-          .select('processed_message_ids')
-          .eq('business_id', business.id)
-          .eq('client_phone', from)
-          .maybeSingle();
-
-        const processedIds = existingMsg?.processed_message_ids || [];
-        await supabaseAdmin
-          .from('whatsapp_conversations')
-          .update({
-            processed_message_ids: [...processedIds, messageId].slice(-50)
-          })
-          .eq('business_id', business.id)
-          .eq('client_phone', from);
-
-        logger.info('MessageId guardado:', messageId);
-      } catch(e) {
-        logger.error('Error guardando messageId:', e.message);
-      }
+      await markMessageProcessed(business.id, from, messageId);
     }
 
   } catch (error) {

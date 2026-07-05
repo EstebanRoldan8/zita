@@ -180,12 +180,13 @@ async function reconcileWompiPayments() {
           continue;
         }
 
-        const { error: updateError } = await supabaseAdmin
+        const { data: updateData, error: updateError } = await supabaseAdmin
           .from('payments')
           .update({ status: 'approved', updated_at: new Date().toISOString() })
           .eq('id', payment.id)
           .eq('business_id', payment.business_id)
-          .eq('status', 'pending'); // evita pisar un cambio hecho por el webhook en paralelo
+          .eq('status', 'pending') // evita pisar un cambio hecho por el webhook en paralelo
+          .select('id');
 
         if (updateError) {
           result.errors.push(`payment ${payment.id}: ${updateError.message}`);
@@ -193,6 +194,12 @@ async function reconcileWompiPayments() {
             paymentId: payment.id,
             error: updateError.message
           });
+          continue;
+        }
+
+        // Si el UPDATE afectó 0 filas, el webhook ya lo procesó
+        if (!updateData || updateData.length === 0) {
+          logger.info(`[WOMPI_RECONCILIATION] Payment ${payment.id} ya fue procesado por webhook (0 filas afectadas), skipping activatePlanExtension`);
           continue;
         }
 
@@ -318,7 +325,7 @@ async function reconcileWompiPaymentsWithAPI(country = 'colombia') {
         continue;
       }
 
-      const { error: updateError } = await supabaseAdmin
+      const { data: updateData, error: updateError } = await supabaseAdmin
         .from('payments')
         .update({
           status: 'approved',
@@ -327,7 +334,8 @@ async function reconcileWompiPaymentsWithAPI(country = 'colombia') {
         })
         .eq('id', payment.id)
         .eq('business_id', payment.business_id)
-        .eq('status', payment.status); // guard optimista contra carreras con el webhook
+        .eq('status', payment.status) // guard optimista contra carreras con el webhook
+        .select('id');
 
       if (updateError) {
         result.errors.push(`payment ${payment.id}: ${updateError.message}`);
@@ -335,6 +343,12 @@ async function reconcileWompiPaymentsWithAPI(country = 'colombia') {
           paymentId: payment.id,
           error: updateError.message
         });
+        continue;
+      }
+
+      // Si el UPDATE afectó 0 filas, el webhook ya lo procesó
+      if (!updateData || updateData.length === 0) {
+        logger.info(`[WOMPI_RECONCILIATION] Payment ${payment.id} ya fue procesado por webhook (0 filas afectadas), skipping activatePlanExtension`);
         continue;
       }
 

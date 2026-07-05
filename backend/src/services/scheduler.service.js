@@ -127,7 +127,7 @@ async function autoCompleteAppointments() {
         .from('appointments')
         .update({ status: 'completed' })
         .eq('id', appointment.id)
-        .eq('status', 'pending') // Solo desde pending
+        .in('status', ['pending', 'confirmed']) // Ambos estados válidos para auto-completar
         .select('id');
 
       if (updateError) {

@@ -11,46 +11,8 @@ const PERIOD_DAYS = {
   annual: 365
 };
 
-const NETWORK_ERROR_CODES = ['ECONNABORTED', 'ECONNREFUSED', 'ENETUNREACH'];
-const MAX_RETRIES = 2;
-
-async function createTransaction(businessId, plan, amountInCents, currency, reference, country) {
-  const provider = getPaymentProvider(country);
-
-  for (let attempt = 0; attempt <= MAX_RETRIES; attempt++) {
-    try {
-      const response = await axios.post(
-        `${provider.apiUrl}/transactions`,
-        {
-          amount_in_cents: amountInCents,
-          currency,
-          customer_email: null,
-          reference,
-          payment_method: { type: 'CARD' },
-        },
-        {
-          headers: {
-            Authorization: `Bearer ${provider.privateKey}`,
-            'Content-Type': 'application/json',
-          },
-          timeout: 10000,
-        }
-      );
-      return response.data;
-    } catch (error) {
-      const isNetworkError = NETWORK_ERROR_CODES.includes(error.code);
-      const retriesLeft = MAX_RETRIES - attempt;
-
-      if (!isNetworkError || retriesLeft <= 0) {
-        throw error;
-      }
-
-      const retryNumber = attempt + 1;
-      logger.warn(`[WOMPI] Retry ${retryNumber}/${MAX_RETRIES} para transaction creation: ${error.code}`);
-      await new Promise(resolve => setTimeout(resolve, 1000 * retryNumber));
-    }
-  }
-}
+const NETWORK_ERROR_CODES = ['ECONNABORTED', 'ECONNREFUSED', 'ENETUNREACH', 'ETIMEDOUT', 'ECONNRESET', 'ENOTFOUND'];
+const TRANSIENT_HTTP_CODES = [429, 500, 502, 503, 504];
 
 async function getTransaction(transactionId, country) {
   const provider = getPaymentProvider(country);
@@ -58,6 +20,7 @@ async function getTransaction(transactionId, country) {
     `${provider.apiUrl}/transactions/${transactionId}`,
     {
       headers: { Authorization: `Bearer ${provider.privateKey}` },
+      timeout: 10000
     }
   );
   return response.data;
@@ -398,7 +361,6 @@ async function reconcileWompiPaymentsWithAPI(country = 'colombia') {
 }
 
 module.exports = {
-  createTransaction,
   getTransaction,
   generateIntegritySignature,
   validateWebhookSignature,

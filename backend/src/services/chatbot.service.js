@@ -67,6 +67,7 @@ async function transcribeAudio(audioUrl, accessToken) {
           'Authorization': `Bearer ${process.env.GROQ_API_KEY}`,
           ...form.getHeaders()
         },
+        timeout: 20000,
         maxBodyLength: Infinity,
         maxContentLength: Infinity
       }

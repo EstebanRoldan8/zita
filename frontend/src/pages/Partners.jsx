@@ -43,8 +43,8 @@ export default function Partners() {
     {
       title: 'Comisión recurrente',
       icon: '💰',
-      desc: 'Ganas el 30% cada mes mientras tu cliente siga activo. Un cliente = ingreso de por vida.',
-      example: '5 clientes Estándar = $178.500/mes extra',
+      desc: 'Ganas el 25% cada mes durante los primeros 12 meses de cada cliente referido. Transparencia total en el pago de comisiones.',
+      example: '5 clientes Estándar = $148.750/mes (primeros 12 meses)',
     },
     {
       title: 'Capacitación gratuita',
@@ -205,24 +205,24 @@ export default function Partners() {
                 <tr className="border-b border-slate-700">
                   <th className="text-left py-3 px-4 font-bold">Plan</th>
                   <th className="text-left py-3 px-4 font-bold">Valor cliente</th>
-                  <th className="text-left py-3 px-4 font-bold">Tu comisión (30%)</th>
+                  <th className="text-left py-3 px-4 font-bold">Tu comisión (25%, primeros 12 meses)</th>
                 </tr>
               </thead>
               <tbody>
                 <tr className="border-b border-slate-700 hover:bg-slate-900/50">
                   <td className="py-3 px-4">Plan Lite</td>
                   <td className="py-3 px-4">$69.000/mes</td>
-                  <td className="py-3 px-4 text-violet-400 font-semibold">$20.700/mes</td>
+                  <td className="py-3 px-4 text-violet-400 font-semibold">$17.250/mes</td>
                 </tr>
                 <tr className="border-b border-slate-700 hover:bg-slate-900/50">
                   <td className="py-3 px-4">Plan Estándar</td>
                   <td className="py-3 px-4">$119.000/mes</td>
-                  <td className="py-3 px-4 text-violet-400 font-semibold">$35.700/mes</td>
+                  <td className="py-3 px-4 text-violet-400 font-semibold">$29.750/mes</td>
                 </tr>
                 <tr className="hover:bg-slate-900/50">
                   <td className="py-3 px-4">Plan Pro</td>
                   <td className="py-3 px-4">$199.000/mes</td>
-                  <td className="py-3 px-4 text-violet-400 font-semibold">$59.700/mes</td>
+                  <td className="py-3 px-4 text-violet-400 font-semibold">$49.750/mes</td>
                 </tr>
               </tbody>
             </table>
@@ -230,9 +230,9 @@ export default function Partners() {
           {/* Mobile Cards */}
           <div className="md:hidden space-y-4">
             {[
-              { plan: 'Plan Lite', valor: '$69.000/mes', comision: '$20.700/mes' },
-              { plan: 'Plan Estándar', valor: '$119.000/mes', comision: '$35.700/mes' },
-              { plan: 'Plan Pro', valor: '$199.000/mes', comision: '$59.700/mes' },
+              { plan: 'Plan Lite', valor: '$69.000/mes', comision: '$17.250/mes (12 meses)' },
+              { plan: 'Plan Estándar', valor: '$119.000/mes', comision: '$29.750/mes (12 meses)' },
+              { plan: 'Plan Pro', valor: '$199.000/mes', comision: '$49.750/mes (12 meses)' },
             ].map((row, i) => (
               <div key={i} className="bg-[#1e293b] border border-white/10 rounded-xl p-4 space-y-2">
                 <div className="font-bold text-white">{row.plan}</div>
@@ -247,9 +247,14 @@ export default function Partners() {
               </div>
             ))}
           </div>
+          <div className="bg-blue-950/30 border border-blue-500/50 rounded-lg p-4 text-center">
+            <p className="text-sm text-blue-300">
+              ℹ️ <span className="font-semibold">Comisión limitada a 12 meses:</span> Ganas comisión durante los primeros 12 meses después de que cada cliente se activa. Esto nos permite mantener márgenes saludables y seguir invirtiendo en el producto.
+            </p>
+          </div>
           <div className="bg-[#4c1d95] border border-violet-500 rounded-lg p-6 text-center">
             <p className="text-lg font-semibold">
-              Con solo 10 clientes en Plan Estándar = <span className="text-xl font-bold text-violet-300">$300.000/mes</span> de ingreso pasivo 💰
+              Con solo 10 clientes en Plan Estándar = <span className="text-xl font-bold text-violet-300">$297.500/mes</span> (primeros 12 meses) 💰
             </p>
           </div>
         </div>

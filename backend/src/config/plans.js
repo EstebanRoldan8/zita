@@ -23,7 +23,7 @@ const PLANS = {
     max_employees: -1,
     max_appointments_month: -1,
     max_orders_month: -1,
-    ai_messages_day: -1,
+    ai_messages_day: 500,
     features: ['bot_whatsapp', 'citas', 'empleados', 'caja', 'clientes', 'productos', 'analiticas', 'configuracion', 'asistente_ia', 'campanas', 'reportes_pdf', 'multi_sede']
   }
 };

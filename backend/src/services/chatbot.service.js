@@ -904,6 +904,21 @@ async function saveConversationHistory(businessId, clientPhone, messages) {
   if (error) logger.error('Error guardando historial:', error.message);
 }
 
+async function incrementDailyMessageCount(businessId, clientPhone) {
+  const hoyColombia = new Date().toLocaleDateString('en-CA', { timeZone: 'America/Bogota' });
+
+  // Intenta INSERT; si existe, actualiza con +1
+  const { error } = await supabaseAdmin.rpc('increment_message_count', {
+    p_business_id: businessId,
+    p_client_phone: clientPhone,
+    p_date: hoyColombia
+  });
+
+  if (error) {
+    logger.error('Error incrementando contador diario:', { businessId, clientPhone, error: error.message });
+  }
+}
+
 async function processChatbotMessage(businessId, clientPhone, messageText, history, business, clientInfo = null) {
   logger.info('Procesando mensaje del chatbot', { businessId, clientPhone, messageLength: messageText.length, historyLength: history.length });
 
@@ -2668,6 +2683,43 @@ async function processWhatsAppMessage({ from, phoneNumberId, messageText, messag
 
     logger.info('Cliente e historial cargados', { clientId: client_info?.id, historyLength: history.length });
 
+    // Verificar límites diarios: 50 msgs/cliente/día, 300 msgs/negocio/día
+    const hoyColombia = new Date().toLocaleDateString('en-CA', { timeZone: 'America/Bogota' });
+
+    const { data: clientDayStats } = await supabaseAdmin
+      .from('bot_daily_message_counts')
+      .select('message_count')
+      .eq('business_id', business.id)
+      .eq('client_phone', from)
+      .eq('date', hoyColombia)
+      .maybeSingle();
+
+    const clientMsgCountToday = clientDayStats?.message_count || 0;
+
+    if (clientMsgCountToday >= 50) {
+      const respuestaLimite = 'Has alcanzado el límite de mensajes por hoy. Puedes escribir de nuevo mañana 😊';
+      await sendMessage(from, respuestaLimite, businessToken, business.whatsapp_phone_number_id);
+      return;
+    }
+
+    const { data: businessDayStats, count: businessMsgCountToday } = await supabaseAdmin
+      .from('bot_daily_message_counts')
+      .select('message_count', { count: 'exact' })
+      .eq('business_id', business.id)
+      .eq('date', hoyColombia);
+
+    const totalBusinessMsgToday = businessDayStats?.reduce((sum, s) => sum + (s.message_count || 0), 0) || 0;
+
+    if (totalBusinessMsgToday >= 300) {
+      const respuestaLimiteBusiness = 'El negocio ha alcanzado su límite de mensajes por hoy. Por favor, contacta directamente al negocio mañana 😊';
+      await sendMessage(from, respuestaLimiteBusiness, businessToken, business.whatsapp_phone_number_id);
+      await logSystemAlert('bot_daily_limit_reached',
+        `Bot alcanzó límite diario (300 msgs) para negocio ${business.name}`,
+        business.id,
+        { totalMessages: totalBusinessMsgToday });
+      return;
+    }
+
     const msgLower = messageText.toLowerCase().trim();
 
     // Fast-path: saludos/despedidas sin llamar a Claude (si historial vacío o >2h desde último mensaje)
@@ -2700,6 +2752,7 @@ async function processWhatsAppMessage({ from, phoneNumberId, messageText, messag
             { role: 'user', content: messageText },
             { role: 'assistant', content: respuesta }
           ]);
+          await incrementDailyMessageCount(business.id, from);
 
           if (messageId) {
             const { data: existingMsg } = await supabaseAdmin
@@ -2724,6 +2777,7 @@ async function processWhatsAppMessage({ from, phoneNumberId, messageText, messag
             { role: 'user', content: messageText },
             { role: 'assistant', content: respuesta }
           ]);
+          await incrementDailyMessageCount(business.id, from);
 
           if (messageId) {
             const { data: existingMsg } = await supabaseAdmin
@@ -2817,6 +2871,7 @@ async function processWhatsAppMessage({ from, phoneNumberId, messageText, messag
               { role: 'user', content: messageText },
               { role: 'assistant', content: respuestaConfirm }
             ]);
+            await incrementDailyMessageCount(business.id, from);
 
             if (messageId) {
               const { data: existingMsg2 } = await supabaseAdmin
@@ -2861,6 +2916,7 @@ async function processWhatsAppMessage({ from, phoneNumberId, messageText, messag
               { role: 'user', content: messageText },
               { role: 'assistant', content: respuestaCancel }
             ]);
+            await incrementDailyMessageCount(business.id, from);
 
             if (messageId) {
               const { data: existingMsg3 } = await supabaseAdmin
@@ -2894,6 +2950,7 @@ async function processWhatsAppMessage({ from, phoneNumberId, messageText, messag
 
     try {
       await saveConversationHistory(business.id, from, result.history);
+      await incrementDailyMessageCount(business.id, from);
       logger.info('Historial guardado');
     } catch(e) {
       logger.error('Error guardando historial:', e.message);

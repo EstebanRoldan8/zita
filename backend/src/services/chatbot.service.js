@@ -2668,10 +2668,86 @@ async function processWhatsAppMessage({ from, phoneNumberId, messageText, messag
 
     logger.info('Cliente e historial cargados', { clientId: client_info?.id, historyLength: history.length });
 
-    // Detección rápida de confirmación/cancelación de cita (respuesta a recordatorio)
     const msgLower = messageText.toLowerCase().trim();
+
+    // Fast-path: saludos/despedidas sin llamar a Claude (si historial vacío o >2h desde último mensaje)
+    const esSaludo = ['hola', 'buenas', 'buenos dias', 'buenos días', 'buenas tardes', 'buenas noches', 'hey', 'que tal', 'qué tal'].includes(msgLower);
+    const esDespedida = ['chao', 'adios', 'adiós', 'hasta luego', 'nos vemos', 'bye'].includes(msgLower);
+
+    if (esSaludo || esDespedida) {
+      // Validar condición: historial vacío O último mensaje de usuario fue hace >2h
+      let debeActivarFastPath = history.length === 0;
+
+      if (!debeActivarFastPath && history.length > 0) {
+        const ultimoUserMsg = [...history].reverse().find(m => m.role === 'user');
+        if (ultimoUserMsg?.timestamp) {
+          const ahora = new Date().getTime();
+          const ultimoMsgTiempo = new Date(ultimoUserMsg.timestamp).getTime();
+          const dorasEnMs = 2 * 60 * 60 * 1000;
+          debeActivarFastPath = (ahora - ultimoMsgTiempo) > dorasEnMs;
+        }
+      }
+
+      if (debeActivarFastPath) {
+        if (esSaludo) {
+          const respuesta = client_info?.name && client_info.name !== 'Cliente WhatsApp'
+            ? `Hola ${client_info.name} 👋 ¿En qué te ayudo hoy?`
+            : `¡Hola! Bienvenido a ${business.name} 👋 ¿En qué te puedo ayudar? Puedo agendarte una cita o contarte sobre nuestros servicios 😊`;
+
+          await sendMessage(from, respuesta, businessToken, business.whatsapp_phone_number_id);
+          await saveConversationHistory(business.id, from, [
+            ...history,
+            { role: 'user', content: messageText },
+            { role: 'assistant', content: respuesta }
+          ]);
+
+          if (messageId) {
+            const { data: existingMsg } = await supabaseAdmin
+              .from('whatsapp_conversations')
+              .select('processed_message_ids')
+              .eq('business_id', business.id)
+              .eq('client_phone', from)
+              .maybeSingle();
+            const processedIds = existingMsg?.processed_message_ids || [];
+            await supabaseAdmin
+              .from('whatsapp_conversations')
+              .update({ processed_message_ids: [...processedIds, messageId].slice(-50) })
+              .eq('business_id', business.id)
+              .eq('client_phone', from);
+          }
+          return;
+        } else if (esDespedida) {
+          const respuesta = `¡Hasta luego! 👋 Que tengas un excelente día 😊`;
+          await sendMessage(from, respuesta, businessToken, business.whatsapp_phone_number_id);
+          await saveConversationHistory(business.id, from, [
+            ...history,
+            { role: 'user', content: messageText },
+            { role: 'assistant', content: respuesta }
+          ]);
+
+          if (messageId) {
+            const { data: existingMsg } = await supabaseAdmin
+              .from('whatsapp_conversations')
+              .select('processed_message_ids')
+              .eq('business_id', business.id)
+              .eq('client_phone', from)
+              .maybeSingle();
+            const processedIds = existingMsg?.processed_message_ids || [];
+            await supabaseAdmin
+              .from('whatsapp_conversations')
+              .update({ processed_message_ids: [...processedIds, messageId].slice(-50) })
+              .eq('business_id', business.id)
+              .eq('client_phone', from);
+          }
+          return;
+        }
+      }
+    }
+
+    // Detección rápida de confirmación/cancelación de cita (respuesta a recordatorio)
+
     // SOLO activa si el mensaje es EXACTAMENTE una de estas frases, nada más (sin texto adicional)
-    const esConfirmacion = ['si', 'sí', 'confirmo', 'confirmado', 'ahí estaré', 'ahi estare', 'voy', 'allá voy', 'alla voy', 'ok', 'okay', 'dale', 'claro', 'por supuesto', 'si voy', 'sí voy'].includes(msgLower);
+    const esConfirmacion = ['si', 'sí', 'confirmo', 'confirmado', 'ahí estaré', 'ahi estare', 'voy', 'allá voy', 'alla voy', 'por supuesto', 'si voy', 'sí voy'].includes(msgLower);
     const esCancelacion = ['no', 'no puedo', 'cancela', 'cancelar', 'no voy', 'no puedo ir', 'no iré', 'no ire', 'cancela mi cita', 'no asisto'].includes(msgLower);
 
     if (esConfirmacion || esCancelacion) {

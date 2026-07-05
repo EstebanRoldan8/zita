@@ -4915,7 +4915,7 @@ Cuando el usuario diga "hoy" usar exactamente: ${fechaISO}
 Cuando diga "mañana" usar: ${mananaISO}
 </fecha_actual>`;
 
-  const limitedConversationHistory = conversationHistory.slice(-12);
+  const limitedConversationHistory = conversationHistory.slice(-8);
   const messages = [
     ...limitedConversationHistory,
     { role: 'user', content: userMessage }

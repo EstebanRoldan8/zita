@@ -274,15 +274,15 @@ async function update(req, res) {
       updateQuery = updateQuery.eq('status', existing.status);
     }
 
-    const { data, error } = await updateQuery.select().single();
+    const { data, error } = await updateQuery.select().maybeSingle();
 
     if (error) throw error;
 
-    // Si se intentó cambiar status pero otro proceso ya lo cambió, error
-    if (status !== undefined && existing.status !== status && (!data || data.status !== status)) {
+    // Si se intentó cambiar status pero otro proceso ya lo cambió (0 filas por guard), retornar 409
+    if (status !== undefined && existing.status !== status && !data) {
       return res.status(409).json({
         success: false,
-        error: 'Esta cita ya fue modificada, refresca para ver el estado actual'
+        error: 'Esta cita fue modificada por otro proceso. Refresca para ver el estado actual.'
       });
     }
 

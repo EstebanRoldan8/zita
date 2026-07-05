@@ -9,31 +9,18 @@ const { logSystemAlert } = require('../utils/systemAlerts');
 
 let schedulerInitialized = false;
 
-// Cancela una cita: borra el income asociado (si existe, no crítico) y marca el appointment
-// como cancelado, validando que el UPDATE haya afectado una fila real antes de reportar éxito.
-// Compartido entre el tool cancelar_cita del asistente y el fast-path de cancelación por WhatsApp
-// en chatbot.service.js, para evitar que ambos caminos diverjan.
+// Cancela una cita: marca el appointment como cancelado (con guard de status), y luego borra
+// el income asociado (si existe, no crítico). Orden invertida para evitar inconsistencia si
+// el UPDATE falla. Compartido entre el tool cancelar_cita del asistente y el fast-path de
+// cancelación por WhatsApp en chatbot.service.js, para evitar que ambos caminos diverjan.
 async function deleteCitaIncome(appointmentId, businessId) {
-  const { error: incomeError } = await supabaseAdmin
-    .from('income')
-    .delete()
-    .eq('appointment_id', appointmentId)
-    .eq('business_id', businessId);
-
-  if (incomeError) {
-    // No crítico: es limpieza del ingreso asociado. Continuamos con la cancelación de la cita.
-    logger.error('[CANCELAR_CITA_INCOME_DELETE_FAILED]', {
-      appointmentId,
-      businessId,
-      error: incomeError.message
-    });
-  }
-
+  // PRIMERO: actualizar status a 'cancelled' con guard (solo desde pending/confirmed)
   const { data, error } = await supabaseAdmin
     .from('appointments')
     .update({ status: 'cancelled' })
     .eq('id', appointmentId)
     .eq('business_id', businessId)
+    .in('status', ['pending', 'confirmed']) // Guard: solo cancelables desde estos estados
     .select('id');
 
   if (error) {
@@ -42,8 +29,24 @@ async function deleteCitaIncome(appointmentId, businessId) {
   }
 
   if (!data || data.length === 0) {
-    logger.error('[CANCELAR_CITA_NOT_FOUND]', { appointmentId, businessId });
-    return { success: false, error: 'Cita no encontrada' };
+    logger.error('[CANCELAR_CITA_NOT_FOUND_OR_WRONG_STATUS]', { appointmentId, businessId });
+    return { success: false, error: 'Cita no se puede cancelar en su estado actual (quizás ya fue completada o cancelada)' };
+  }
+
+  // DESPUÉS: borrar income (no crítico si falla)
+  const { error: incomeError } = await supabaseAdmin
+    .from('income')
+    .delete()
+    .eq('appointment_id', appointmentId)
+    .eq('business_id', businessId);
+
+  if (incomeError) {
+    logger.error('[CANCELAR_CITA_INCOME_DELETE_FAILED]', {
+      appointmentId,
+      businessId,
+      error: incomeError.message
+    });
+    // No retornamos error — la cita ya fue cancelada, el ingreso es cleanup secundario
   }
 
   return { success: true };

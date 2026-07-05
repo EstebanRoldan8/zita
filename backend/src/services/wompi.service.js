@@ -299,14 +299,29 @@ async function reconcileWompiPaymentsWithAPI(country = 'colombia') {
         const windowStart = new Date(txTime.getTime() - 15 * 60 * 1000).toISOString();
         const windowEnd = new Date(txTime.getTime() + 15 * 60 * 1000).toISOString();
 
-        const { data } = await supabaseAdmin
+        const { data: candidates } = await supabaseAdmin
           .from('payments')
           .select('id, business_id, status, plan, period, amount, created_at')
           .eq('amount', tx.amount_in_cents)
           .gte('created_at', windowStart)
-          .lte('created_at', windowEnd)
-          .maybeSingle();
-        payment = data || null;
+          .lte('created_at', windowEnd);
+
+        if ((candidates || []).length > 1) {
+          // Ambigüedad: múltiples payments del mismo monto en la misma ventana
+          result.errors.push(`Ambiguity for tx ${tx.id}: ${(candidates || []).length} payments match (amount=${tx.amount_in_cents}, window=15min). Skipping to avoid wrong business activation.`);
+          logger.warn(`[WOMPI_RECONCILIATION] Ambigüedad detectada para transacción ${tx.id}:`, {
+            amount_in_cents: tx.amount_in_cents,
+            candidates_count: (candidates || []).length,
+            candidate_ids: (candidates || []).map(c => c.id).join(',')
+          });
+          await logSystemAlert('wompi_reconciliation_ambiguity',
+            `Wompi reconciliation: ambigüedad en match por monto (${(candidates || []).length} candidates). Transacción ${tx.id} ($${(tx.amount_in_cents / 100).toLocaleString('es-CO')}) no será procesada automáticamente.`,
+            null,
+            { tx_id: tx.id, amount_in_cents: tx.amount_in_cents, candidates_count: (candidates || []).length });
+          continue;
+        }
+
+        payment = (candidates || [])[0] || null;
       }
 
       if (!payment) {

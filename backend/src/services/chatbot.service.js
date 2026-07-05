@@ -6,6 +6,7 @@ const logger = require('../utils/logger');
 const { getAvailableEmployee, getNextAvailableSlots, isAppointmentWithinBusinessHours } = require('../utils/availability');
 const { isPlanExpired } = require('../utils/planStatus');
 const { deleteCitaIncome } = require('./scheduler.service');
+const { logSystemAlert } = require('../utils/systemAlerts');
 const Groq = require('groq-sdk');
 
 // Cache de horarios por negocio (5 minutos)
@@ -1610,17 +1611,33 @@ async function processChatbotMessage(businessId, clientPhone, messageText, histo
                   ? require('../utils/encrypt').decrypt(business.whatsapp_access_token)
                   : process.env.WHATSAPP_ACCESS_TOKEN;
 
-                await sendMessage(
+                const sendResultNotif = await sendMessage(
                   negocioNotif.phone,
                   mensajeDueno,
                   businessTokenNotif,
                   negocioNotif.whatsapp_phone_number_id || business.whatsapp_phone_number_id
                 );
 
-                logger.info('Notificación enviada al dueño por nueva cita WhatsApp');
+                if (!sendResultNotif.success && sendResultNotif.success !== undefined) {
+                  logger.error('[NUEVA_CITA_NOTIF_FAILED]', {
+                    to: negocioNotif.phone,
+                    businessId,
+                    error: sendResultNotif.error
+                  });
+                  await logSystemAlert('whatsapp_send_failed',
+                    `Fallo notificación de nueva cita al dueño de ${negocioNotif.name}`,
+                    businessId,
+                    { to: negocioNotif.phone, error: sendResultNotif.error, messageType: 'nueva_cita_notif' });
+                } else {
+                  logger.info('Notificación enviada al dueño por nueva cita WhatsApp');
+                }
               }
             } catch (notifErr) {
               logger.error('Error notificando al dueño: ' + notifErr.message);
+              await logSystemAlert('whatsapp_send_failed',
+                `Excepción en notificación de nueva cita al dueño`,
+                businessId,
+                { error: notifErr.message, messageType: 'nueva_cita_notif' });
             }
           }
 
@@ -2111,12 +2128,28 @@ async function processChatbotMessage(businessId, clientPhone, messageText, histo
               ? require('../utils/encrypt').decrypt(business.whatsapp_access_token)
               : process.env.WHATSAPP_ACCESS_TOKEN;
 
-            await sendMessage(
+            const sendResult = await sendMessage(
               negocio.phone,
               mensajeDueño,
               businessToken,
               business.whatsapp_phone_number_id
             );
+
+            if (!sendResult.success && sendResult.success !== undefined) {
+              logger.error('[ESCALAMIENTO_SEND_FAILED]', {
+                to: negocio.phone,
+                businessId,
+                error: sendResult.error
+              });
+              await logSystemAlert('whatsapp_send_failed',
+                `CRÍTICO: Fallo notificación de escalamiento a dueño de ${negocio.name}`,
+                businessId,
+                { to: negocio.phone, error: sendResult.error, messageType: 'escalamiento_humano' });
+              return {
+                success: false,
+                message: 'No se pudo notificar al dueño del escalamiento. Intenta de nuevo o contacta directamente.'
+              };
+            }
 
             const pausadoHasta = new Date();
             pausadoHasta.setHours(pausadoHasta.getHours() + 3);
@@ -2785,24 +2818,43 @@ async function processWhatsAppMessage({ from, phoneNumberId, messageText, messag
       logger.error('Error guardando historial:', e.message);
     }
 
+    let sendSuccess = false;
     try {
-      await sendMessage(from, result.response, businessToken, business.whatsapp_phone_number_id);
-      logger.info('Mensaje enviado al cliente');
-      // Actualizar last_bot_response_at para evitar respuestas múltiples
-      try {
-        await supabaseAdmin
-          .from('whatsapp_conversations')
-          .update({ last_bot_response_at: new Date().toISOString() })
-          .eq('business_id', business.id)
-          .eq('client_phone', from);
-      } catch(e) {
-        logger.error('Error actualizando last_bot_response_at:', e.message);
+      const sendResult = await sendMessage(from, result.response, businessToken, business.whatsapp_phone_number_id);
+      if (!sendResult.success && sendResult.success !== undefined) {
+        logger.error('[WHATSAPP_SEND_FAILED] Envío de respuesta fallido', {
+          to: from,
+          businessId: business.id,
+          error: sendResult.error,
+          status: sendResult.status
+        });
+        await logSystemAlert('whatsapp_send_failed',
+          `Fallo envío de respuesta del bot a ${from}`,
+          business.id,
+          { to: from, error: sendResult.error, messageType: 'bot_response' });
+      } else {
+        sendSuccess = true;
+        logger.info('Mensaje enviado al cliente');
+        // Actualizar last_bot_response_at para evitar respuestas múltiples
+        try {
+          await supabaseAdmin
+            .from('whatsapp_conversations')
+            .update({ last_bot_response_at: new Date().toISOString() })
+            .eq('business_id', business.id)
+            .eq('client_phone', from);
+        } catch(e) {
+          logger.error('Error actualizando last_bot_response_at:', e.message);
+        }
       }
     } catch(e) {
       logger.error('Error enviando mensaje:', e.message);
+      await logSystemAlert('whatsapp_send_failed',
+        `Excepción en envío de respuesta del bot a ${from}`,
+        business.id,
+        { to: from, error: e.message, messageType: 'bot_response' });
     }
 
-    if (messageId) {
+    if (messageId && sendSuccess) {
       try {
         const { data: existingMsg } = await supabaseAdmin
           .from('whatsapp_conversations')
@@ -2829,8 +2881,19 @@ async function processWhatsAppMessage({ from, phoneNumberId, messageText, messag
   } catch (error) {
     logger.error('Error general en processWhatsAppMessage:', error.message);
     try {
-      await sendMessage(from, 'Tuve un problema técnico 😕 Intenta escribirme de nuevo en un momento.');
-    } catch(e) {}
+      const sendResult = await sendMessage(from, 'Tuve un problema técnico 😕 Intenta escribirme de nuevo en un momento.');
+      if (!sendResult.success && sendResult.success !== undefined) {
+        await logSystemAlert('whatsapp_send_failed',
+          `Fallo envío de mensaje de fallback a ${from}`,
+          null,
+          { to: from, error: sendResult.error, messageType: 'fallback' });
+      }
+    } catch(e) {
+      await logSystemAlert('whatsapp_send_failed',
+        `Excepción en envío de mensaje de fallback a ${from}`,
+        null,
+        { to: from, error: e.message, messageType: 'fallback' });
+    }
   }
 }
 

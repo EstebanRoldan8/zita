@@ -308,10 +308,26 @@ cron.schedule('*/5 * * * *', async () => {
         const mensaje = `⏰ *Recordatorio de tu cita*\n\nHola ${cita.clients?.name}! Te recordamos que tienes una cita en *${negocio?.name}* a las *${hora}* para un *${cita.services?.name}*.\n\n¡Te esperamos! 💈`;
 
         const token = decrypt(negocio.whatsapp_access_token);
-        await sendMessage(cita.clients.phone, mensaje, token, negocio.whatsapp_phone_number_id);
-        logger.info(`Recordatorio enviado a ${cita.clients.name}`);
+        const sendResult = await sendMessage(cita.clients.phone, mensaje, token, negocio.whatsapp_phone_number_id);
+        if (!sendResult.success && sendResult.success !== undefined) {
+          logger.error('[RECORDATORIO_SEND_FAILED]', {
+            to: cita.clients.phone,
+            citaId: cita.id,
+            error: sendResult.error
+          });
+          await logSystemAlert('whatsapp_send_failed',
+            `Fallo envío de recordatorio de cita a ${cita.clients?.name}`,
+            negocio.business_id,
+            { to: cita.clients.phone, citaId: cita.id, error: sendResult.error, messageType: 'recordatorio' });
+        } else {
+          logger.info(`Recordatorio enviado a ${cita.clients.name}`);
+        }
       } catch (error) {
         logger.error('Error enviando recordatorio:', error.message);
+        await logSystemAlert('whatsapp_send_failed',
+          `Excepción en envío de recordatorio de cita`,
+          null,
+          { error: error.message, messageType: 'recordatorio' });
       }
     }
   } catch (error) {

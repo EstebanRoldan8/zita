@@ -6,9 +6,9 @@ const logger = require('../utils/logger');
 const { logSystemAlert } = require('../utils/systemAlerts');
 
 const PLAN_PRICES_BY_PERIOD = {
-  lite: { monthly: 6000000, biannual: 32400000, annual: 57600000 },
-  estandar: { monthly: 10000000, biannual: 54000000, annual: 96000000 },
-  pro: { monthly: 15000000, biannual: 81000000, annual: 144000000 }
+  lite: { monthly: 6900000, biannual: 37260000, annual: 66240000 },
+  estandar: { monthly: 11900000, biannual: 64260000, annual: 114240000 },
+  pro: { monthly: 19900000, biannual: 107460000, annual: 191040000 }
 };
 
 async function createSession(req, res) {
@@ -44,9 +44,9 @@ async function createSession(req, res) {
       const expira = new Date(planExpiresAt);
       const diasRestantes = Math.ceil((expira - ahora) / (1000 * 60 * 60 * 24));
       const PRECIOS_DIA = {
-        lite:     6000000  / 30,
-        estandar: 10000000 / 30,
-        pro:      15000000 / 30
+        lite:     6900000  / 30,
+        estandar: 11900000 / 30,
+        pro:      19900000 / 30
       };
       const credito = Math.floor(PRECIOS_DIA[planActual] * diasRestantes);
       const costoNuevo = Math.floor(PRECIOS_DIA[plan] * diasRestantes);
@@ -403,9 +403,9 @@ async function calculatePayment(req, res) {
     }
 
     const PRECIOS_DIA = {
-      lite:     6000000  / 30,
-      estandar: 10000000 / 30,
-      pro:      15000000 / 30
+      lite:     6900000  / 30,
+      estandar: 11900000 / 30,
+      pro:      19900000 / 30
     };
 
     if (!tienePlanPagadoActivo || estaEnTrial) {

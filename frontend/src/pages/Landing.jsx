@@ -493,7 +493,7 @@ export default function Landing() {
             <div className="bg-slate-900 border border-slate-700 rounded-2xl p-8 hover:translate-y-[-4px] transition-all duration-300">
               <h3 className="text-2xl font-bold mb-2 text-slate-300">Lite</h3>
               <div className="text-4xl font-black mb-6">
-                $60K<span className="text-lg text-gray-400">/mes</span>
+                $69K<span className="text-lg text-gray-400">/mes</span>
               </div>
               <ul className="space-y-3 mb-8 text-gray-300 text-sm">
                 <li>✓ Bot WhatsApp con tu número</li>
@@ -517,14 +517,14 @@ export default function Landing() {
               </div>
               <h3 className="text-2xl font-bold mb-2 text-violet-400">Estándar</h3>
               <div className="text-4xl font-black mb-6">
-                $100K<span className="text-lg text-gray-400">/mes</span>
+                $119K<span className="text-lg text-gray-400">/mes</span>
               </div>
               <ul className="space-y-3 mb-8 text-gray-300 text-sm">
                 <li>✓ Todo lo del plan Lite</li>
                 <li>✓ Hasta 700 citas al mes</li>
                 <li>✓ Hasta 5 empleados</li>
                 <li>✓ Panel completo (caja, clientes, productos)</li>
-                <li>✓ Asistente IA (30 mensajes/día)</li>
+                <li>✓ Asistente IA (20 mensajes/día)</li>
                 <li>✓ Analíticas de retención</li>
               </ul>
               <Link
@@ -538,13 +538,13 @@ export default function Landing() {
             <div className="bg-gradient-to-br from-yellow-950/30 to-slate-900 border-2 border-yellow-500/50 rounded-2xl p-8 hover:translate-y-[-4px] transition-all duration-300 shadow-lg shadow-yellow-500/10">
               <h3 className="text-2xl font-bold mb-2 text-yellow-400">Pro</h3>
               <div className="text-4xl font-black mb-6">
-                $150K<span className="text-lg text-gray-400">/mes</span>
+                $199K<span className="text-lg text-gray-400">/mes</span>
               </div>
               <ul className="space-y-3 mb-8 text-gray-300 text-sm">
                 <li>✓ Todo lo del plan Estándar</li>
                 <li>✓ Citas y pedidos ilimitados</li>
                 <li>✓ Empleados ilimitados</li>
-                <li>✓ Asistente IA ilimitado</li>
+                <li>✓ Asistente IA (60 mensajes/día)</li>
                 <li>✓ Campañas WhatsApp masivas</li>
                 <li>✓ Reportes PDF automáticos</li>
                 <li>✓ Multi-sede (próximamente)</li>

@@ -44,7 +44,7 @@ export default function Partners() {
       title: 'Comisión recurrente',
       icon: '💰',
       desc: 'Ganas el 30% cada mes mientras tu cliente siga activo. Un cliente = ingreso de por vida.',
-      example: '5 clientes Estándar = $150.000/mes extra',
+      example: '5 clientes Estándar = $178.500/mes extra',
     },
     {
       title: 'Capacitación gratuita',
@@ -211,18 +211,18 @@ export default function Partners() {
               <tbody>
                 <tr className="border-b border-slate-700 hover:bg-slate-900/50">
                   <td className="py-3 px-4">Plan Lite</td>
-                  <td className="py-3 px-4">$60.000/mes</td>
-                  <td className="py-3 px-4 text-violet-400 font-semibold">$18.000/mes</td>
+                  <td className="py-3 px-4">$69.000/mes</td>
+                  <td className="py-3 px-4 text-violet-400 font-semibold">$20.700/mes</td>
                 </tr>
                 <tr className="border-b border-slate-700 hover:bg-slate-900/50">
                   <td className="py-3 px-4">Plan Estándar</td>
-                  <td className="py-3 px-4">$100.000/mes</td>
-                  <td className="py-3 px-4 text-violet-400 font-semibold">$30.000/mes</td>
+                  <td className="py-3 px-4">$119.000/mes</td>
+                  <td className="py-3 px-4 text-violet-400 font-semibold">$35.700/mes</td>
                 </tr>
                 <tr className="hover:bg-slate-900/50">
                   <td className="py-3 px-4">Plan Pro</td>
-                  <td className="py-3 px-4">$150.000/mes</td>
-                  <td className="py-3 px-4 text-violet-400 font-semibold">$45.000/mes</td>
+                  <td className="py-3 px-4">$199.000/mes</td>
+                  <td className="py-3 px-4 text-violet-400 font-semibold">$59.700/mes</td>
                 </tr>
               </tbody>
             </table>
@@ -230,9 +230,9 @@ export default function Partners() {
           {/* Mobile Cards */}
           <div className="md:hidden space-y-4">
             {[
-              { plan: 'Plan Lite', valor: '$60.000/mes', comision: '$18.000/mes' },
-              { plan: 'Plan Estándar', valor: '$100.000/mes', comision: '$30.000/mes' },
-              { plan: 'Plan Pro', valor: '$150.000/mes', comision: '$45.000/mes' },
+              { plan: 'Plan Lite', valor: '$69.000/mes', comision: '$20.700/mes' },
+              { plan: 'Plan Estándar', valor: '$119.000/mes', comision: '$35.700/mes' },
+              { plan: 'Plan Pro', valor: '$199.000/mes', comision: '$59.700/mes' },
             ].map((row, i) => (
               <div key={i} className="bg-[#1e293b] border border-white/10 rounded-xl p-4 space-y-2">
                 <div className="font-bold text-white">{row.plan}</div>

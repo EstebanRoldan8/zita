@@ -32,3 +32,16 @@ BEGIN
   DO UPDATE SET message_count = message_count + 1, updated_at = now();
 END;
 $$ LANGUAGE plpgsql;
+
+-- Row Level Security
+ALTER TABLE bot_daily_message_counts ENABLE ROW LEVEL SECURITY;
+
+-- Policy: Business owners can only see counts for their own business
+CREATE POLICY bot_daily_counts_select_owner ON bot_daily_message_counts
+  FOR SELECT
+  USING (business_id = get_business_id_for_user(auth.uid()));
+
+-- Policy: Superadmin can see all counts
+CREATE POLICY bot_daily_counts_select_superadmin ON bot_daily_message_counts
+  FOR SELECT
+  USING (auth.email() = 'esteban.zita.ia@gmail.com');

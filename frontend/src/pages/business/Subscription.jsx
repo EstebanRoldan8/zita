@@ -17,9 +17,9 @@ const BILLING_PERIODS = {
 };
 
 const PLAN_PRICES = {
-  lite: { monthly: 60000, biannual: 324000, annual: 576000 },
-  estandar: { monthly: 100000, biannual: 540000, annual: 960000 },
-  pro: { monthly: 150000, biannual: 810000, annual: 1440000 }
+  lite: { monthly: 69000, biannual: 372600, annual: 662400 },
+  estandar: { monthly: 119000, biannual: 642600, annual: 1142400 },
+  pro: { monthly: 199000, biannual: 1074600, annual: 1910400 }
 };
 
 const PLAN_ORDER = { lite: 0, estandar: 1, pro: 2 };
@@ -528,7 +528,7 @@ export default function Subscription() {
                             ✨ Desbloquea el panel completo + IA
                           </p>
                           <p className="text-xs text-violet-400 font-medium mt-0.5">
-                            desde $100k/mes →
+                            desde $119k/mes →
                           </p>
                         </div>
                       )}

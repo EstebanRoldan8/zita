@@ -2710,13 +2710,17 @@ async function processWhatsAppMessage({ from, phoneNumberId, messageText, messag
 
     const totalBusinessMsgToday = businessDayStats?.reduce((sum, s) => sum + (s.message_count || 0), 0) || 0;
 
-    if (totalBusinessMsgToday >= 300) {
+    const { PLANS } = require('../config/plans');
+    const planConfig = PLANS[business.plan?.toLowerCase()] || PLANS.lite;
+    const botMessagesLimit = planConfig.bot_messages_day || 40;
+
+    if (totalBusinessMsgToday >= botMessagesLimit) {
       const respuestaLimiteBusiness = 'El negocio ha alcanzado su límite de mensajes por hoy. Por favor, contacta directamente al negocio mañana 😊';
       await sendMessage(from, respuestaLimiteBusiness, businessToken, business.whatsapp_phone_number_id);
       await logSystemAlert('bot_daily_limit_reached',
-        `Bot alcanzó límite diario (300 msgs) para negocio ${business.name}`,
+        `Bot alcanzó límite diario (${botMessagesLimit} msgs) para negocio ${business.name}`,
         business.id,
-        { totalMessages: totalBusinessMsgToday });
+        { totalMessages: totalBusinessMsgToday, limit: botMessagesLimit });
       return;
     }
 

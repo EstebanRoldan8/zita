@@ -36,7 +36,7 @@ const PLANS = [
   {
     key: 'lite',
     name: 'Lite',
-    price: 60000,
+    price: 69000,
     bg: 'bg-gradient-to-b from-slate-800/40 to-gray-900/40',
     border: 'border-slate-600/50',
     nameColor: 'text-slate-300',
@@ -45,7 +45,7 @@ const PLANS = [
   {
     key: 'estandar',
     name: 'Estándar',
-    price: 100000,
+    price: 119000,
     bg: 'bg-gradient-to-b from-violet-950/60 to-gray-900/60',
     border: 'border-violet-500 border-2',
     nameColor: 'text-violet-400',
@@ -55,7 +55,7 @@ const PLANS = [
   {
     key: 'pro',
     name: 'Pro',
-    price: 150000,
+    price: 199000,
     bg: 'bg-gradient-to-b from-yellow-950/40 to-gray-900/60',
     border: 'border-yellow-400/40 border-2',
     nameColor: 'text-yellow-400',
@@ -66,13 +66,13 @@ const PLANS = [
 const getFeatureDescription = (feature, planKey) => {
   switch (feature) {
     case 'citas':
-      return planKey === 'lite' ? 'Hasta 50 citas/mes' : planKey === 'estandar' ? 'Hasta 500 citas/mes' : 'Citas ilimitadas';
+      return planKey === 'lite' ? 'Hasta 300 citas/mes' : planKey === 'estandar' ? 'Hasta 700 citas/mes' : 'Citas ilimitadas';
     case 'pedidos':
-      return planKey === 'lite' ? 'No incluido' : planKey === 'estandar' ? 'Hasta 200 pedidos/mes' : 'Pedidos ilimitados';
+      return planKey === 'lite' ? 'No incluido' : planKey === 'estandar' ? 'Hasta 300 pedidos/mes' : 'Pedidos ilimitados';
     case 'empleados':
-      return planKey === 'lite' ? 'Hasta 2 empleados' : planKey === 'estandar' ? 'Hasta 10 empleados' : 'Empleados ilimitados';
+      return planKey === 'lite' ? 'Hasta 2 empleados' : planKey === 'estandar' ? 'Hasta 5 empleados' : 'Empleados ilimitados';
     case 'asistente_ia':
-      return planKey === 'lite' ? 'No incluido' : planKey === 'estandar' ? '100 mensajes diarios' : 'Mensajes ilimitados';
+      return planKey === 'lite' ? 'No incluido' : planKey === 'estandar' ? '20 mensajes diarios' : '60 mensajes diarios';
     case 'bot_whatsapp':
       return 'Agendamiento automático 24/7';
     case 'caja':
@@ -197,7 +197,7 @@ export default function Planes() {
         <div className="max-w-3xl mx-auto text-center space-y-6">
           <h1 className="text-4xl sm:text-5xl md:text-6xl font-black px-4 break-words overflow-hidden w-full text-center">Elige el plan perfecto para tu negocio</h1>
           <p className="text-lg text-gray-400 max-w-2xl mx-auto">
-            Precio de lanzamiento · 30 días gratis · Sin tarjeta de crédito
+            🚀 Precio de lanzamiento — asegura esta tarifa ahora · 30 días gratis · Sin tarjeta de crédito
           </p>
         </div>
       </section>

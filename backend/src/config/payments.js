@@ -30,9 +30,9 @@ function getPaymentProvider(country) {
 }
 
 const PLAN_PRICES_COP = {
-  lite: 6000000,      // $60.000 COP en centavos
-  estandar: 10000000, // $100.000 COP en centavos
-  pro: 15000000,      // $150.000 COP en centavos
+  lite: 6900000,      // $69.000 COP en centavos
+  estandar: 11900000, // $119.000 COP en centavos
+  pro: 19900000,      // $199.000 COP en centavos
 };
 
 module.exports = { getPaymentProvider, PLAN_PRICES_COP };

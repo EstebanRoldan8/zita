@@ -88,11 +88,8 @@ const globalLimiter = rateLimit({
 });
 app.use(globalLimiter);
 
-// Parser JSON global para todas las rutas
-app.use(express.json({ limit: '100kb' }));
-app.use(express.urlencoded({ extended: true, limit: '100kb' }));
-
 // Parser JSON específico para webhook de WhatsApp con captura de rawBody
+// DEBE estar ANTES del express.json() global para interceptar el body antes que nada lo consuma
 // La opción 'verify' se ejecuta ANTES de parsearse, permitiendo capturar el buffer exacto
 const webhookJsonParser = express.json({
   limit: '100kb',
@@ -100,6 +97,13 @@ const webhookJsonParser = express.json({
     req.rawBody = buf;
   }
 });
+
+// Montar webhook ANTES del parser JSON global (para capturar rawBody)
+app.use('/api/webhook', webhookJsonParser, webhookRoutes);
+
+// Parser JSON global para TODAS las demás rutas
+app.use(express.json({ limit: '100kb' }));
+app.use(express.urlencoded({ extended: true, limit: '100kb' }));
 
 app.get('/health', (req, res) => {
   res.json({ success: true, service: 'ZITA API', status: 'online' });
@@ -169,8 +173,6 @@ app.use('/api/products', verifyToken, businessContext, checkPlanAccess, checkFea
 app.use('/api/orders', ordersRoutes);
 app.use('/api/assistant', verifyToken, businessContext, checkPlanAccess, checkFeatureAccess('asistente_ia'), assistantRoutes);
 app.use('/api/subscription', verifyToken, businessContext, subscriptionRoutes);
-// Webhook: usar parser JSON específico con captura de rawBody ANTES de routes
-app.use('/api/webhook', webhookJsonParser, webhookRoutes);
 app.use('/api/contact', contactRoutes);
 app.use('/api/demo', contactRoutes);
 app.use('/api/payments', paymentRoutes);

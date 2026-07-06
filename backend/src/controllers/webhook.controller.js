@@ -195,7 +195,14 @@ async function handleWebhook(req, res) {
         } catch (err) {
           logger.error(`Error procesando mensaje ${messageType}:`, err.message);
         } finally {
-          // Procesar mensajes encolados (si existen) antes de liberar
+          // Si hay mensajes encolados, esperar 300ms para darle margen a más que lleguen en ráfaga
+          // El cliente sigue bloqueado durante este tiempo (la Promise no se resuelve hasta aquí)
+          if (pendingMessages.has(clientKey)) {
+            logger.info('Hay mensajes encolados, esperando 300ms para agregar más a la ráfaga...');
+            await new Promise(resolve => setTimeout(resolve, 300));
+          }
+
+          // Procesar mensajes encolados (si existen) después del delay
           const pending = pendingMessages.get(clientKey);
           if (pending && pending.length > 0) {
             logger.info('Procesando mensajes encolados para:', { clientKey, cantidad: pending.length });

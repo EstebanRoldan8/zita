@@ -2509,7 +2509,11 @@ async function processChatbotMessage(businessId, clientPhone, messageText, histo
 
   // Delimitar claramente el input del usuario para mitigar prompt injection
   const userMessageContent = `<mensaje_usuario>\n${processedMessage}\n</mensaje_usuario>`;
-  const messages = [...cleanHistory, { role: 'user', content: userMessageContent }];
+  // Remover campos extras (timestamp, etc) antes de enviar a Claude — solo role + content
+  const messages = [
+    ...cleanHistory.map(m => ({ role: m.role, content: m.content })),
+    { role: 'user', content: userMessageContent }
+  ];
 
   let response;
   try {

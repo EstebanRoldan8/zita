@@ -165,7 +165,7 @@ async function getNotifications(req, res) {
     const { type } = req.query;
     let query = supabaseAdmin
       .from('notifications')
-      .select('id, business_id, type, message, metadata, read, created_at')
+      .select('id, type, title, body, metadata, read, created_at')
       .order('created_at', { ascending: false })
       .limit(50);
 
@@ -177,19 +177,7 @@ async function getNotifications(req, res) {
 
     if (error) throw error;
 
-    const enrichedData = await Promise.all((data || []).map(async (notif) => {
-      if (notif.business_id) {
-        const { data: business } = await supabaseAdmin
-          .from('businesses')
-          .select('name')
-          .eq('id', notif.business_id)
-          .single();
-        return { ...notif, business_name: business?.name || 'Desconocido' };
-      }
-      return { ...notif, business_name: 'Desconocido' };
-    }));
-
-    return res.json({ success: true, data: enrichedData || [] });
+    return res.json({ success: true, data: data || [] });
   } catch (err) {
     logger.error(`admin.getNotifications: ${err.message}`);
     return res.status(500).json({ success: false, error: 'Error interno del servidor.' });

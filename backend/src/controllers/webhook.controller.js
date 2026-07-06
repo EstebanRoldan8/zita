@@ -195,29 +195,57 @@ async function handleWebhook(req, res) {
         } catch (err) {
           logger.error(`Error procesando mensaje ${messageType}:`, err.message);
         } finally {
-          // Si hay mensajes encolados, esperar 300ms para darle margen a más que lleguen en ráfaga
-          // El cliente sigue bloqueado durante este tiempo (la Promise no se resuelve hasta aquí)
-          if (pendingMessages.has(clientKey)) {
-            logger.info('Hay mensajes encolados, esperando 300ms para agregar más a la ráfaga...');
+          // Drenado completo de la cola: procesar todos los batches encolados hasta que quede vacía
+          // Previene pérdida de mensajes que llegan durante el procesamiento de un batch previo
+          let drainIterations = 0;
+          const MAX_DRAIN_ITERATIONS = 10;
+
+          while (pendingMessages.has(clientKey) && drainIterations < MAX_DRAIN_ITERATIONS) {
+            drainIterations++;
+
+            // Si hay mensajes encolados, esperar 300ms para darle margen a más que lleguen en ráfaga
+            // El cliente sigue bloqueado durante este tiempo
+            logger.info('Drenando cola: iteración', { clientKey, iteration: drainIterations });
             await new Promise(resolve => setTimeout(resolve, 300));
+
+            // Procesar mensajes encolados después del delay
+            const pending = pendingMessages.get(clientKey);
+            if (pending && pending.length > 0) {
+              logger.info('Procesando batch encolado:', { clientKey, cantidad: pending.length, iteración: drainIterations });
+              const combinedText = pending.map(m => m.messageText).join('\n');
+              pendingMessages.delete(clientKey);
+              try {
+                await processWhatsAppMessage({
+                  from: pending[0].from,
+                  phoneNumberId: pending[0].phoneNumberId,
+                  messageText: combinedText,
+                  messageId: pending[pending.length - 1].messageId
+                });
+              } catch (err) {
+                logger.error('Error procesando batch encolado:', err);
+              }
+            }
           }
 
-          // Procesar mensajes encolados (si existen) después del delay
-          const pending = pendingMessages.get(clientKey);
-          if (pending && pending.length > 0) {
-            logger.info('Procesando mensajes encolados para:', { clientKey, cantidad: pending.length });
-            const combinedText = pending.map(m => m.messageText).join('\n');
-            pendingMessages.delete(clientKey);
+          // Verificar si hubo desbordamiento (posible loop infinito)
+          if (drainIterations >= MAX_DRAIN_ITERATIONS && pendingMessages.has(clientKey)) {
+            const { logSystemAlert } = require('../services/chatbot.service');
+            const remaining = pendingMessages.get(clientKey) || [];
+            logger.error('⚠️ ALERTA: Cola de mensajes alcanzó límite de drenado, mensajes perdidos:', {
+              clientKey,
+              remaining: remaining.length
+            });
             try {
-              await processWhatsAppMessage({
-                from: pending[0].from,
-                phoneNumberId: pending[0].phoneNumberId,
-                messageText: combinedText,
-                messageId: pending[pending.length - 1].messageId
-              });
-            } catch (err) {
-              logger.error('Error procesando mensajes encolados:', err);
+              await logSystemAlert('queue_overflow_error',
+                `Cola de WhatsApp desbordó para cliente ${clientKey}. ${remaining.length} mensajes perdidos.`,
+                null,
+                { clientKey, remaining: remaining.length }
+              );
+            } catch (alertErr) {
+              logger.error('Error registrando alerta de queue overflow:', alertErr.message);
             }
+            // Forzar limpieza para evitar bloqueo permanente
+            pendingMessages.delete(clientKey);
           }
 
           // Liberar el lock resolviendo la Promise

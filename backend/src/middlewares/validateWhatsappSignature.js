@@ -37,22 +37,21 @@ async function validateWhatsappSignature(req, res, next) {
     return res.status(401).json({ success: false, error: 'Missing signature header' });
   }
 
-  // En Express, req.rawBody ya debería estar disponible si usamos un middleware raw-body-capture ANTES.
-  // Si no está disponible, construir manualmente desde req.body (JSON parseado).
-  // Idealmente, el raw body se captura en app.js con un middleware custom.
-  //
-  // Por ahora, si existe req.rawBody, usarlo. Si no, reconstituir del body parseado (menos seguro pero funcional).
-  let bodyBuffer;
-
-  if (req.rawBody) {
-    bodyBuffer = typeof req.rawBody === 'string'
-      ? Buffer.from(req.rawBody, 'utf-8')
-      : req.rawBody;
-  } else {
-    // Fallback: reconstituir del body parseado (menos seguro porque el order de JSON properties puede cambiar)
-    logger.warn('validateWhatsappSignature: req.rawBody no disponible. Usando JSON parseado (menos seguro).');
-    bodyBuffer = Buffer.from(JSON.stringify(req.body), 'utf-8');
+  // req.rawBody DEBE estar disponible porque app.js monta express.json con verify
+  // que captura el buffer crudo ANTES de parsearse.
+  if (!req.rawBody) {
+    logger.error(
+      'validateWhatsappSignature: req.rawBody not available. This indicates incorrect middleware configuration in app.js — the webhook parser with verify() is not being applied.'
+    );
+    return res.status(500).json({
+      success: false,
+      error: 'Webhook signature validation middleware not properly configured'
+    });
   }
+
+  const bodyBuffer = typeof req.rawBody === 'string'
+    ? Buffer.from(req.rawBody, 'utf-8')
+    : req.rawBody;
 
   // Calcular HMAC-SHA256
   const expectedSignature =

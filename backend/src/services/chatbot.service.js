@@ -2405,35 +2405,8 @@ async function processChatbotMessage(businessId, clientPhone, messageText, histo
                 continue;
               }
 
-              // Crear ingreso (secundario: no bloquea la confirmación de la cita grupal)
-              try {
-                const { data: incomeGrupalData, error: incomeGrupalError } = await supabaseAdmin
-                  .from('income')
-                  .insert({
-                    business_id: businessId,
-                    amount: servicio.price,
-                    category: 'servicios',
-                    description: `${servicio.name}${notaNombre ? ' - ' + notaNombre : ''} - WhatsApp`,
-                    source: 'appointment',
-                    appointment_id: cita.id,
-                    date: p.fecha,
-                    client_id: clientePrincipal?.id || null
-                  })
-                  .select('id')
-                  .single();
-
-                if (incomeGrupalError?.code === '23505') {
-                  logger.warn('[INCOME_DUPLICATE_BLOCKED]', { appointment_id: cita.id });
-                } else if (incomeGrupalError || !incomeGrupalData?.id) {
-                  logger.error('[GRUPO_INCOME_INSERT_FAILED]', {
-                    businessId,
-                    appointmentId: cita.id,
-                    error: incomeGrupalError?.message
-                  });
-                }
-              } catch(e) {
-                logger.error('Error creando ingreso grupal:', e.message);
-              }
+              // Income se genera automáticamente cuando scheduler.service.js auto-completa la cita (1+ hora después)
+              // Esto alinea citas grupales con el patrón de citas individuales
 
               const horaFormateada = new Date(scheduled_at).toLocaleString('es-CO', {
                 timeZone: 'America/Bogota',

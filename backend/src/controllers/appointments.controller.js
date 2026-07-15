@@ -45,7 +45,7 @@ async function getAll(req, res) {
 
     let query = userClient
       .from('appointments')
-      .select('id, scheduled_at, status, source, price, notes, clients(id, name, phone), services(id, name), employees(name)')
+      .select('id, scheduled_at, status, source, price, notes, employee_id, clients(id, name, phone), services(id, name), employees(name)')
       .eq('business_id', req.businessId)
       .order('scheduled_at');
 

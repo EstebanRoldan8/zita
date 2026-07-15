@@ -168,7 +168,7 @@ export default function Appointments() {
         setEditForm({
           time: isCompleted ? getTimeFromISO(appt.scheduled_at) : getTimeFromISO(appt.scheduled_at),
           employee_id: appt.employee_id || '',
-          service_id: appt.service_id || '',
+          service_id: appt.services?.id || '',
           isCompleted,
         });
       }

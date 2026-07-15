@@ -163,6 +163,7 @@ async function create(req, res) {
     }
 
     let finalEmployeeId = employee_id;
+    let availableEmployees = null;
 
     if (finalEmployeeId) {
       const { data: empleado } = await userClient
@@ -177,9 +178,14 @@ async function create(req, res) {
     } else {
       const fecha = scheduledAtWithTZ.slice(0, 10);
       const hora = scheduledAtWithTZ.slice(11, 16);
-      const available = await getAvailableEmployee(req.businessId, fecha, hora);
 
-      if (!available) {
+      const { data: todosEmpleados } = await supabaseAdmin
+        .from('employees')
+        .select('id, name, last_appointment_at')
+        .eq('business_id', req.businessId)
+        .eq('is_active', true);
+
+      if (!todosEmpleados?.length) {
         const slots = await getNextAvailableSlots(req.businessId, fecha, hora, 3);
         if (slots.length === 0) {
           return res.status(400).json({
@@ -193,10 +199,57 @@ async function create(req, res) {
           available_slots: slots,
         });
       }
-      finalEmployeeId = available.id;
+
+      const { data: citasDelDia } = await supabaseAdmin
+        .from('appointments')
+        .select('employee_id, scheduled_at, services(duration_minutes)')
+        .eq('business_id', req.businessId)
+        .in('status', ['confirmed', 'pending'])
+        .gte('scheduled_at', `${fecha}T00:00:00-05:00`)
+        .lte('scheduled_at', `${fecha}T23:59:59-05:00`);
+
+      const horaReservadaMs = new Date(`${fecha}T${hora}:00-05:00`).getTime();
+      const ocupados = new Set(
+        (citasDelDia || [])
+          .filter(c => {
+            const inicio = new Date(c.scheduled_at).getTime();
+            const duracion = (c.services?.duration_minutes || 30) * 60 * 1000;
+            const fin = inicio + duracion;
+            return horaReservadaMs >= inicio && horaReservadaMs < fin;
+          })
+          .map(c => c.employee_id)
+      );
+
+      availableEmployees = todosEmpleados
+        .filter(e => !ocupados.has(e.id))
+        .sort((a, b) => {
+          const fechaA = a.last_appointment_at ? new Date(a.last_appointment_at) : new Date(0);
+          const fechaB = b.last_appointment_at ? new Date(b.last_appointment_at) : new Date(0);
+          return fechaA - fechaB;
+        });
+
+      if (!availableEmployees.length) {
+        const slots = await getNextAvailableSlots(req.businessId, fecha, hora, 3);
+        if (slots.length === 0) {
+          return res.status(400).json({
+            success: false,
+            error: 'No hay empleados disponibles en este horario ni en los próximos.',
+          });
+        }
+        return res.status(400).json({
+          success: false,
+          error: 'Lo siento, ese horario está lleno. Los próximos disponibles son:',
+          available_slots: slots,
+        });
+      }
+
+      finalEmployeeId = availableEmployees[0].id;
     }
 
     logger.info(`scheduled_at enviado a Supabase: ${scheduledAtWithTZ}`);
+
+    let insertData, insertError;
+    let attemptedEmployees = [finalEmployeeId];
 
     const { data, error } = await userClient
       .from('appointments')
@@ -209,16 +262,59 @@ async function create(req, res) {
         notes,
         is_reward: is_reward ?? false,
         source: 'manual',
+        status: 'confirmed',
         employee_id: finalEmployeeId,
       })
       .select()
       .single();
 
-    if (error?.code === '23505') {
-      logger.warn('[DOUBLE_BOOKING_ATTEMPT]', { business_id: req.businessId, employee_id: finalEmployeeId, scheduled_at: scheduledAtWithTZ });
+    insertData = data;
+    insertError = error;
+
+    if (insertError?.code === '23505' && availableEmployees && availableEmployees.length > 1) {
+      logger.info('[DOUBLE_BOOKING_RETRY]', { business_id: req.businessId, employee_id: finalEmployeeId, scheduled_at: scheduledAtWithTZ, retrying: true });
+
+      for (let i = 1; i < availableEmployees.length; i++) {
+        const nextEmployeeId = availableEmployees[i].id;
+        attemptedEmployees.push(nextEmployeeId);
+
+        const { data: retryData, error: retryError } = await userClient
+          .from('appointments')
+          .insert({
+            business_id: req.businessId,
+            client_id,
+            service_id,
+            scheduled_at: scheduledAtWithTZ,
+            price: finalPrice,
+            notes,
+            is_reward: is_reward ?? false,
+            source: 'manual',
+            status: 'confirmed',
+            employee_id: nextEmployeeId,
+          })
+          .select()
+          .single();
+
+        if (!retryError) {
+          insertData = retryData;
+          insertError = null;
+          finalEmployeeId = nextEmployeeId;
+          logger.info('[DOUBLE_BOOKING_RETRY_SUCCESS]', { business_id: req.businessId, employee_id: nextEmployeeId, scheduled_at: scheduledAtWithTZ, attempt: i + 1 });
+          break;
+        }
+
+        if (retryError.code !== '23505') {
+          insertError = retryError;
+          break;
+        }
+      }
+    }
+
+    if (insertError?.code === '23505') {
+      logger.warn('[DOUBLE_BOOKING_ALL_ATTEMPTS_FAILED]', { business_id: req.businessId, attempted_employees: attemptedEmployees, scheduled_at: scheduledAtWithTZ });
       return res.status(409).json({ success: false, error: 'Ese horario ya no está disponible, alguien más lo tomó justo ahora. Elige otro.' });
     }
-    if (error) throw error;
+    if (insertError) throw insertError;
 
     if (finalEmployeeId) {
       await supabaseAdmin
@@ -227,7 +323,7 @@ async function create(req, res) {
         .eq('id', finalEmployeeId);
     }
 
-    return res.status(201).json({ success: true, data, assigned_employee_id: finalEmployeeId });
+    return res.status(201).json({ success: true, data: insertData, assigned_employee_id: finalEmployeeId });
   } catch (err) {
     logger.error(`appointments.create: ${err.message}`);
     return res.status(500).json({ success: false, error: 'Error interno del servidor.' });

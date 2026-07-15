@@ -1,6 +1,6 @@
 import { useState, useRef, useEffect } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { CalendarPlus, ChevronDown, X, Scissors, User, CheckCircle, XCircle, Pencil } from 'lucide-react';
+import { CalendarPlus, ChevronDown, X, Scissors, User, CheckCircle, XCircle, Pencil, ChevronLeft, ChevronRight } from 'lucide-react';
 import DatePicker, { registerLocale } from 'react-datepicker';
 import { es } from 'date-fns/locale';
 import 'react-datepicker/dist/react-datepicker.css';
@@ -19,6 +19,28 @@ const todayLocal = () => {
   const colombiaStr = now.toLocaleDateString('en-CA', { timeZone: 'America/Bogota' });
   const [y, m, d] = colombiaStr.split('-').map(Number);
   return new Date(y, m - 1, d, 12, 0, 0);
+};
+
+const formatDateLabel = (dateStr) => {
+  const [y, m, d] = dateStr.split('-').map(Number);
+  const date = new Date(y, m - 1, d, 12, 0, 0);
+  const now = new Date().toLocaleDateString('en-CA', { timeZone: 'America/Bogota' });
+  const tomorrow = (() => {
+    const t = new Date();
+    t.setDate(t.getDate() + 1);
+    return t.toLocaleDateString('en-CA', { timeZone: 'America/Bogota' });
+  })();
+
+  if (dateStr === now) return 'Hoy';
+  if (dateStr === tomorrow) return 'Mañana';
+  return date.toLocaleDateString('es-CO', { weekday: 'long', day: 'numeric', month: 'long' });
+};
+
+const addDays = (dateStr, days) => {
+  const [y, m, d] = dateStr.split('-').map(Number);
+  const date = new Date(y, m - 1, d);
+  date.setDate(date.getDate() + days);
+  return date.toLocaleDateString('en-CA', { timeZone: 'America/Bogota' });
 };
 
 const STATUS_CYCLE = { pending: 'confirmed', confirmed: 'completed', completed: 'cancelled', cancelled: 'pending' };
@@ -316,23 +338,72 @@ export default function Appointments() {
       </div>
 
       {/* Filtro de fecha + botón */}
-      <div className="mb-4 pr-14 flex flex-col sm:flex-row sm:items-center sm:gap-3">
-        <DatePicker
-          selected={pickerDate}
-          onChange={(d) => {
-            setPickerDate(d);
-            const str = d.toLocaleDateString('en-CA', { timeZone: 'America/Bogota' });
-            setDate(str);
-          }}
-          dateFormat="dd/MM/yyyy"
-          locale="es"
-          placeholderText="Seleccionar fecha"
-          className="w-full sm:w-auto bg-[#131929] border border-slate-800 text-white rounded-lg px-4 py-2.5 text-xs sm:text-sm focus:outline-none focus:border-violet-500 transition"
-        />
-        <button onClick={() => { setForm({ ...emptyForm, date, is_reward: false }); setFormError(''); resetClientState(); setApptProducts([]); setProductPickId(''); setProductPickQty('1'); setModal(true); }}
-          className="flex items-center justify-center sm:justify-start gap-2 bg-violet-600 hover:bg-violet-500 text-white text-xs sm:text-sm font-medium px-4 py-2.5 sm:py-2 rounded-lg transition w-full sm:w-auto mt-3 sm:mt-0">
-          <CalendarPlus size={16} /> Nueva cita
-        </button>
+      <div className="mb-4 space-y-3">
+        <div className="flex flex-col sm:flex-row sm:items-center sm:gap-3 gap-2">
+          <DatePicker
+            selected={pickerDate}
+            onChange={(d) => {
+              setPickerDate(d);
+              const str = d.toLocaleDateString('en-CA', { timeZone: 'America/Bogota' });
+              setDate(str);
+            }}
+            dateFormat="dd/MM/yyyy"
+            locale="es"
+            placeholderText="Seleccionar fecha"
+            className="w-full sm:w-auto bg-[#131929] border border-slate-800 text-white rounded-lg px-4 py-2.5 text-xs sm:text-sm focus:outline-none focus:border-violet-500 transition"
+          />
+          <button onClick={() => { setForm({ ...emptyForm, date, is_reward: false }); setFormError(''); resetClientState(); setApptProducts([]); setProductPickId(''); setProductPickQty('1'); setModal(true); }}
+            className="flex items-center justify-center sm:justify-start gap-2 bg-violet-600 hover:bg-violet-500 text-white text-xs sm:text-sm font-medium px-4 py-2.5 sm:py-2 rounded-lg transition w-full sm:w-auto">
+            <CalendarPlus size={16} /> Nueva cita
+          </button>
+        </div>
+
+        <div className="flex items-center justify-between sm:justify-start gap-2 flex-wrap">
+          <p className="text-slate-300 text-xs sm:text-sm font-medium">Mostrando citas de: <span className="text-violet-400">{formatDateLabel(date)}</span></p>
+          <div className="flex gap-1.5 ml-auto sm:ml-4">
+            <button
+              onClick={() => {
+                const prev = addDays(date, -1);
+                setDate(prev);
+                setPickerDate(new Date(prev + 'T12:00:00'));
+              }}
+              className="p-1.5 bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white rounded-lg transition text-xs"
+              title="Día anterior"
+            >
+              <ChevronLeft size={16} />
+            </button>
+            <button
+              onClick={() => {
+                setDate(today());
+                setPickerDate(todayLocal());
+              }}
+              className="px-2 py-1.5 text-xs font-medium bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white rounded-lg transition"
+            >
+              Hoy
+            </button>
+            <button
+              onClick={() => {
+                const tmrw = addDays(today(), 1);
+                setDate(tmrw);
+                setPickerDate(new Date(tmrw + 'T12:00:00'));
+              }}
+              className="px-2 py-1.5 text-xs font-medium bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white rounded-lg transition"
+            >
+              Mañana
+            </button>
+            <button
+              onClick={() => {
+                const next = addDays(date, 1);
+                setDate(next);
+                setPickerDate(new Date(next + 'T12:00:00'));
+              }}
+              className="p-1.5 bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white rounded-lg transition text-xs"
+              title="Día siguiente"
+            >
+              <ChevronRight size={16} />
+            </button>
+          </div>
+        </div>
       </div>
 
       {pausasActivas.length > 0 && (

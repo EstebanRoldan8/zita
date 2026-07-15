@@ -12,10 +12,15 @@ export function getTimezone(country) {
 }
 
 export function timeFromISO(iso, country) {
-  return new Date(iso).toLocaleTimeString('es-CO', {
+  const date = new Date(iso);
+  const formatter = new Intl.DateTimeFormat('es-CO', {
     timeZone: getTimezone(country),
     hour: '2-digit',
     minute: '2-digit',
     hour12: false,
   });
+  const parts = formatter.formatToParts(date);
+  const hour = parts.find(p => p.type === 'hour')?.value || '00';
+  const minute = parts.find(p => p.type === 'minute')?.value || '00';
+  return `${hour}:${minute}`;
 }

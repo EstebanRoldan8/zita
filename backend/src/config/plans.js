@@ -17,7 +17,7 @@ const PLANS = {
     max_orders_month: 300,
     ai_messages_day: 20,
     bot_messages_day: 110,
-    features: ['bot_whatsapp', 'citas', 'empleados', 'caja', 'clientes', 'productos', 'analiticas', 'configuracion', 'asistente_ia']
+    features: ['bot_whatsapp', 'citas', 'empleados', 'caja', 'clientes', 'productos', 'analiticas', 'configuracion', 'asistente_ia', 'reportes_pdf']
   },
   pro: {
     name: 'Pro',

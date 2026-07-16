@@ -526,6 +526,7 @@ export default function Landing() {
                 <li>✓ Panel completo (caja, clientes, productos)</li>
                 <li>✓ Asistente IA (20 mensajes/día)</li>
                 <li>✓ Analíticas de retención</li>
+                <li>✓ Reportes PDF automáticos</li>
               </ul>
               <Link
                 to="/register"

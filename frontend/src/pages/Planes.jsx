@@ -12,7 +12,7 @@ const PLAN_DESCRIPTIONS = {
 
 const PLAN_FEATURES = {
   lite: ['bot_whatsapp', 'citas', 'empleados', 'caja', 'configuracion'],
-  estandar: ['bot_whatsapp', 'citas', 'empleados', 'caja', 'clientes', 'productos', 'analiticas', 'configuracion', 'asistente_ia'],
+  estandar: ['bot_whatsapp', 'citas', 'empleados', 'caja', 'clientes', 'productos', 'analiticas', 'configuracion', 'asistente_ia', 'reportes_pdf'],
   pro: ['bot_whatsapp', 'citas', 'empleados', 'caja', 'clientes', 'productos', 'analiticas', 'configuracion', 'asistente_ia', 'campanas', 'reportes_pdf', 'multi_sede', 'pedidos'],
 };
 

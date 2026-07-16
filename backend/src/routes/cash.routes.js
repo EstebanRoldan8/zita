@@ -11,7 +11,7 @@ const { checkFeatureAccess } = require('../middlewares/featureCheck');
 
 router.use(verifyToken, businessContext);
 
-// 'reportes_pdf' es exclusiva de Pro (ver backend/src/config/plans.js);
+// 'reportes_pdf' es exclusiva de Estándar/Pro (ver backend/src/config/plans.js);
 // el resto de /api/cash ya está protegido por 'caja' (Estándar/Pro) en app.js.
 const requireReportesPdf = checkFeatureAccess('reportes_pdf');
 

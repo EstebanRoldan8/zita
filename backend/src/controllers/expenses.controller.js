@@ -2,7 +2,7 @@ const { createUserClient } = require('../config/supabase');
 const logger = require('../utils/logger');
 const { getTimezone } = require('../utils/timezone');
 
-const VALID_CATEGORIES = ['nomina', 'materias_primas', 'servicios', 'arriendo', 'otro'];
+const VALID_CATEGORIES = ['nomina', 'materias_primas', 'servicios', 'arriendo', 'productos', 'otro'];
 
 function parseMonth(monthStr, tz = 'America/Bogota') {
   const todayCol = new Date().toLocaleDateString('en-CA', { timeZone: tz });

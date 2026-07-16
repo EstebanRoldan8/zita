@@ -729,7 +729,7 @@ async function notifyAssistantFail(businessId, userMessage, reason) {
 const tools = [
   {
     name: 'buscar_servicio',
-    description: 'Busca un servicio por nombre para obtener su ID internamente. Usar siempre antes de crear una cita.',
+    description: 'Busca un servicio por nombre. Retorna: (1) {found: false, not_found: true} si no hay coincidencias, (2) {found: true, service: {...}, exact_match: true} si hay una sola coincidencia exacta, o (3) {found: true, multiple_found: true, all_matches: [...]} si hay 2+ coincidencias. En caso (3), SIEMPRE pregunta al usuario cuál prefiere ANTES de crear la cita.',
     input_schema: {
       type: 'object',
       properties: {
@@ -740,7 +740,7 @@ const tools = [
   },
   {
     name: 'buscar_cliente',
-    description: 'Busca un cliente por nombre para obtener su ID internamente.',
+    description: 'Busca un cliente por nombre. Retorna: (1) {found: false, not_found: true} si no hay coincidencias, (2) {found: true, client: {...}, exact_match: true} si hay una sola coincidencia exacta, o (3) {found: true, multiple_found: true, all_matches: [...]} si hay 2+ coincidencias. En caso (3), SIEMPRE pregunta al usuario cuál es ANTES de proceder.',
     input_schema: {
       type: 'object',
       properties: {

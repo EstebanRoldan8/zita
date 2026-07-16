@@ -2560,10 +2560,13 @@ async function processChatbotMessage(businessId, clientPhone, messageText, histo
       .map(b => b.text)
       .join('');
 
+    // Limpiar tags internos espurios (ej: </final_message>, </fin>, etc) que el modelo puede generar ocasionalmente
+    const cleanText = finalText.replace(/<\/?[a-z_]+>/gi, '').trim();
+
     allMessages.push({ role: 'assistant', content: response.content });
 
     return {
-      response: finalText,
+      response: cleanText,
       history: allMessages.slice(-10)
     };
   } catch (error) {

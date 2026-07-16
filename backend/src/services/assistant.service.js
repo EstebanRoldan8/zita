@@ -96,7 +96,7 @@ CLIENTES / CITAS / EMPLEADOS → PREGUNTA SI HAY MÁS DE UNO:
 - SI buscar_empleado retorna varios → pregunta cuál.
 - SI hay UN solo resultado o exact_match: true → úsalo DIRECTO sin preguntar ni pedir confirmación.
 
-RESUMEN PARA MEMORIZAR: servicios = decide tú el más probable. Personas y citas = pregunta si hay más de uno.
+RESUMEN PARA MEMORIZAR: servicios = SIEMPRE pregunta si hay 2+. Personas y citas = pregunta si hay más de uno.
 </jerarquia_ambiguedad>
 
 <protocolo_inicio>
@@ -287,9 +287,9 @@ EJEMPLO 4 (ambigüedad — clientes vs servicios):
 Caso A — Usuario: "cita para Carlos a las 3" y buscar_cliente retorna multiple_found: true con 3 Carlos.
 ❌ MAL: elegir un Carlos por tu cuenta.
 ✅ BIEN: "Tengo varios Carlos 👤: 1. Carlos Pérez (300...), 2. Carlos Ruiz (311...), 3. Carlos Gómez (sin teléfono). ¿Cuál es?"
-Caso B — Usuario: "agenda un corte" y hay "Corte clásico" y "Corte premium".
-❌ MAL: preguntar cuál corte, bloqueando la acción.
-✅ BIEN: elegir el más probable por nombre ("corte" → "Corte clásico") y seguir.
+Caso B — Usuario: "agenda un corte" y buscar_servicio retorna 2+ coincidencias ("Corte clásico" y "Corte premium").
+❌ MAL: elegir el más probable sin preguntar.
+✅ BIEN: mostrar ambos y preguntar: "¿Cuál corte prefieres: Corte clásico o Corte premium?"
 
 EJEMPLO 5 (success:false):
 Usuario: "véndele 10 ceras a un cliente". La tool retorna {success:false, error:"Stock insuficiente", stock_disponible: 4}.
@@ -326,7 +326,7 @@ Usuario: "agendar corte"
 → elegir el servicio más probable, preguntar SOLO la hora, luego crear
 
 AMBIGÜEDAD (misma regla de <jerarquia_ambiguedad>, repetida a propósito):
-- Servicios ambiguos → elige el más probable y sigue. NUNCA bloquees la acción por ambigüedad de servicio.
+- Servicios ambiguos (2+) → SIEMPRE pregunta cuál prefiere el dueño. NUNCA elijas automático por eficiencia.
 - Clientes/citas/empleados con múltiples coincidencias → SIEMPRE pregunta cuál. NUNCA asumas.
 </efficiency_rules>
 
@@ -658,7 +658,7 @@ CHECKLIST FINAL — ANTES DE ENVIAR CADA RESPUESTA, revisa estos 7 puntos (cada 
 ☐ 2. ¿Estoy usando un ID que NO salió de una tool de ESTE turno? → SI SÍ: STOP. Busca primero (buscar_cliente / buscar_cita / buscar_empleado / buscar_producto).
 ☐ 3. ¿El dueño pidió un rango de métricas que no es day/week/month/año completo? → SI SÍ: STOP. Responde la limitación de <metricas_rango>. NO inventes cifras.
 ☐ 4. ¿Hay múltiples resultados de cliente/cita/empleado y elegí uno sin preguntar? → SI SÍ: STOP. Muestra la lista y pregunta cuál.
-☐ 5. ¿Hay múltiples servicios coincidentes? → OK: elige el más probable y sigue (esto NO requiere preguntar).
+☐ 5. ¿Hay múltiples servicios coincidentes (2+)? → STOP: muestra los opciones y pregunta cuál prefiere el dueño. NUNCA elijas automático.
 ☐ 6. ¿Pregunté dos cosas distintas en un mismo mensaje, o hice una pregunta que podía resolverse solo? → SI SÍ: STOP. Reformula en una sola pregunta o resuelve directo.
 ☐ 7. ¿Mi respuesta muestra algún ID, UUID o código técnico? → SI SÍ: STOP. Quítalo y usa el nombre.
 
@@ -5098,6 +5098,9 @@ Cuando diga "mañana" usar: ${mananaISO}
     );
   }
 
+  // Limpiar tags internos espurios (ej: </final_message>, </fin>, etc) que el modelo puede generar ocasionalmente
+  const cleanText = finalText.replace(/<\/?[a-z_]+>/gi, '').trim();
+
   const cleanHistory = [
     ...limitedConversationHistory,
     { role: 'user', content: userMessage },
@@ -5105,7 +5108,7 @@ Cuando diga "mañana" usar: ${mananaISO}
   ];
 
   return {
-    response: finalText + (avisoLimite || ''),
+    response: cleanText + (avisoLimite || ''),
     history: cleanHistory.slice(-12),
     actionsExecuted
   };

@@ -19,6 +19,9 @@ async function message(req, res) {
     const { processMessage } = require('../services/assistant.service');
     const result = await processMessage(businessId, userMessage, history || []);
 
+    if (result.success === false) {
+      return res.json({ success: false, error: result.error, code: result.code });
+    }
     res.json({ success: true, data: result });
   } catch (error) {
     logger.error('Process message error:', error.stack);

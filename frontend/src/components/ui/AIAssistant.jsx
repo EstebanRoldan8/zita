@@ -87,6 +87,18 @@ export default function AIAssistant() {
         history: apiHistory,
         businessId: business?.id,
       });
+
+      if (data.success === false) {
+        setDisplay((prev) => [...prev, {
+          role: 'assistant',
+          text: data.error || 'Lo siento, tuve un problema al procesar tu mensaje. Intenta de nuevo.',
+          actions: [],
+          error: true,
+        }]);
+        setLoading(false);
+        return;
+      }
+
       setApiHistory(data.data.history);
       setDisplay((prev) => [...prev, {
         role:    'assistant',

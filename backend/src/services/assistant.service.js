@@ -98,19 +98,28 @@ CLIENTES / CITAS / EMPLEADOS → PREGUNTA SI HAY MÁS DE UNO:
 RESUMEN PARA MEMORIZAR: servicios = SIEMPRE pregunta si hay 2+. Personas y citas = pregunta si hay más de uno.
 </jerarquia_ambiguedad>
 
-<resolucion_service_id>
-CRÍTICO — RESOLVER service_id ANTES DE crear_cita:
-- NUNCA pases un nombre de servicio, categoría, o texto descriptivo como service_id a crear_cita.
-- service_id SIEMPRE debe ser el UUID exacto retornado por buscar_servicio (campo 'id' de los resultados).
-- SI el usuario acaba de responder con un NOMBRE de servicio (ej: "corte + barba", "el degradado", "masaje"):
-  1. SIEMPRE llama buscar_servicio(nombre_que_dijo_usuario) PRIMERO para obtener el UUID real.
-  2. Si retorna exact_match: true → extrae el UUID del campo 'id' y úsalo en service_id de crear_cita.
-  3. Si retorna multiple_found: true → NO pases ningún service_id todavía. Pregunta cuál prefiere primero.
-  4. Si retorna not_found: true → muestra lista disponible, pide aclaración, RECIÉN ENTONCES llama buscar_servicio de nuevo.
-- EJEMPLOS DE ERRORES FRECUENTES:
-  ❌ Usuario dice "corte + barba" → pasas service_id="corte_barba" → INCORRECTO, falla Supabase.
-  ✅ Usuario dice "corte + barba" → buscas primero buscar_servicio("corte + barba") → obtienes id="00000001-..." → ENTONCES crear_cita con ese UUID.
-</resolucion_service_id>
+<resolucion_ids>
+CRÍTICO — NUNCA PASES NOMBRES COMO IDs. SIEMPRE USA UUID EXACTO:
+Esta regla aplica a service_id, client_id, y employee_id en TODAS las tools.
+
+REGLA UNIVERSAL:
+- NUNCA pases un nombre (de servicio, cliente, o empleado) como ID a ninguna tool.
+- IDs (service_id, client_id, employee_id) SIEMPRE deben ser UUIDs exactos retornados por las tools de búsqueda.
+- SI el usuario menciona un NOMBRE (ej: "corte + barba", "Juan", "Carlos"), SIEMPRE:
+  1. Llama primero a buscar_servicio/buscar_cliente/buscar_empleado con ese NOMBRE.
+  2. Extrae el UUID del campo 'id' del resultado.
+  3. Usa ESE UUID en la tool que lo requiera (crear_cita, actualizar_cita, etc).
+
+EJEMPLOS DE ERRORES FRECUENTES:
+  ❌ Usuario: "cancela la cita de Claudia" → pasas client_id="Claudia Sheibanum" → INCORRECTO, falla Supabase.
+  ✅ Usuario: "cancela la cita de Claudia" → buscar_cliente("Claudia") → obtienes id="71e9e180-..." → ENTONCES cancelar_cita con ese UUID.
+
+  ❌ Usuario: "asigna a Carlos" → pasas employee_id="Carlos" → INCORRECTO.
+  ✅ Usuario: "asigna a Carlos" → buscar_empleado("Carlos") → obtienes id="aa000001-..." → actualizar_cita con ese employee_id.
+
+CUANDO HAYA AMBIGÜEDAD (multiple_found: true):
+- NO pases ningún ID. Pregunta al usuario cuál es antes de proceder.
+</resolucion_ids>
 
 <protocolo_inicio>
 - NO ejecutes listar_servicios al saludar ni al iniciar la conversación. Es gasto innecesario.
@@ -1597,6 +1606,9 @@ const tools = [
 // Ejecutar cada tool
 async function executeTool(toolName, toolInput, businessId) {
   try {
+    // Regex para validar UUID — usado en validaciones de IDs
+    const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+    const isValidUuid = (val) => !val || uuidRegex.test(val);
     const today = new Date().toLocaleDateString('en-CA', { timeZone: 'America/Bogota' });
 
     switch(toolName) {
@@ -2002,13 +2014,15 @@ async function executeTool(toolName, toolInput, businessId) {
       logger.info('input: ' + JSON.stringify({ service_id: toolInput.service_id, scheduled_at: toolInput.scheduled_at, client_id: toolInput.client_id || null, employee_id: toolInput.employee_id || null, status: toolInput.status || 'confirmed' }));
       logger.info('businessId: ' + businessId);
 
-      // Validar que service_id sea un UUID válido — si no, el modelo probablemente pasó un nombre en vez del ID
-      const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+      // Validar que service_id, client_id (si aplica), y employee_id sean UUIDs válidos
       if (!toolInput.service_id || !uuidRegex.test(toolInput.service_id)) {
-        return {
-          success: false,
-          error: `service_id inválido: "${toolInput.service_id}". Debes usar el UUID exacto retornado por buscar_servicio, no el nombre del servicio. Llama buscar_servicio primero.`
-        };
+        return { success: false, error: `service_id inválido: "${toolInput.service_id}". Usa el UUID retornado por buscar_servicio, no el nombre. Llama buscar_servicio primero.` };
+      }
+      if (toolInput.client_id && !uuidRegex.test(toolInput.client_id)) {
+        return { success: false, error: `client_id inválido: "${toolInput.client_id}". Usa el UUID retornado por buscar_cliente, no el nombre. Llama buscar_cliente primero.` };
+      }
+      if (toolInput.employee_id && !uuidRegex.test(toolInput.employee_id)) {
+        return { success: false, error: `employee_id inválido: "${toolInput.employee_id}". Usa el UUID retornado por buscar_empleado, no el nombre. Llama buscar_empleado primero.` };
       }
 
       let scheduledAt = toolInput.scheduled_at;
@@ -2345,6 +2359,9 @@ async function executeTool(toolName, toolInput, businessId) {
     }
 
     case 'cancelar_cita': {
+      if (!toolInput.appointment_id || !uuidRegex.test(toolInput.appointment_id)) {
+        return { success: false, error: `appointment_id inválido: "${toolInput.appointment_id}". Usa el UUID retornado por buscar_cita.` };
+      }
       return await deleteCitaIncome(toolInput.appointment_id, businessId);
     }
 
@@ -2391,6 +2408,9 @@ async function executeTool(toolName, toolInput, businessId) {
     }
 
     case 'confirmar_cita': {
+      if (!toolInput.appointment_id || !uuidRegex.test(toolInput.appointment_id)) {
+        return { success: false, error: `appointment_id inválido: "${toolInput.appointment_id}". Usa el UUID retornado por buscar_cita.` };
+      }
       // Guard optimista: solo confirmar si está en pending (evita race conditions con cancelación)
       const { data, error } = await supabaseAdmin
         .from('appointments')
@@ -2409,6 +2429,9 @@ async function executeTool(toolName, toolInput, businessId) {
     }
 
     case 'completar_cita': {
+      if (!toolInput.appointment_id || !uuidRegex.test(toolInput.appointment_id)) {
+        return { success: false, error: `appointment_id inválido: "${toolInput.appointment_id}". Usa el UUID retornado por buscar_cita.` };
+      }
       // Guard optimista: solo completar si está en pending o confirmed (evita race conditions)
       const { data: appt, error: apptError } = await supabaseAdmin
         .from('appointments')
@@ -2866,6 +2889,19 @@ async function executeTool(toolName, toolInput, businessId) {
     }
 
     case 'actualizar_cita': {
+      // Validar que appointment_id y todos los IDs opcionales sean UUIDs válidos
+      if (!toolInput.appointment_id || !uuidRegex.test(toolInput.appointment_id)) {
+        return { success: false, error: `appointment_id inválido: "${toolInput.appointment_id}". Usa el UUID retornado por buscar_cita.` };
+      }
+      if (toolInput.service_id && !uuidRegex.test(toolInput.service_id)) {
+        return { success: false, error: `service_id inválido: "${toolInput.service_id}". Usa el UUID retornado por buscar_servicio.` };
+      }
+      if (toolInput.client_id && !uuidRegex.test(toolInput.client_id)) {
+        return { success: false, error: `client_id inválido: "${toolInput.client_id}". Usa el UUID retornado por buscar_cliente.` };
+      }
+      if (toolInput.employee_id && !uuidRegex.test(toolInput.employee_id)) {
+        return { success: false, error: `employee_id inválido: "${toolInput.employee_id}". Usa el UUID retornado por buscar_empleado.` };
+      }
       const updateData = {};
       if (toolInput.client_id !== undefined)
         updateData.client_id = toolInput.client_id;

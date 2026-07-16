@@ -2389,7 +2389,7 @@ async function executeTool(toolName, toolInput, businessId) {
         .eq('id', toolInput.appointment_id)
         .eq('business_id', businessId)
         .in('status', ['pending', 'confirmed']) // Guard: solo desde pending o confirmed
-        .select('id, price, scheduled_at')
+        .select('id, price, scheduled_at, client_id')
         .single();
 
       if (apptError) return { success: false, error: apptError.message };
@@ -2411,6 +2411,7 @@ async function executeTool(toolName, toolInput, businessId) {
             .insert({
               business_id: businessId,
               appointment_id: appt.id,
+              client_id: appt.client_id || null,
               amount: appt.price,
               category: 'servicios',
               description: 'Cita completada',

@@ -8,7 +8,7 @@ const { supabaseAdmin } = require('./src/config/supabase');
     console.log('📋 STEP 1: Fetching affected appointments...\n');
     const { data: affectedAppts, error: fetchError } = await supabaseAdmin
       .from('appointments')
-      .select('id, service_id, price, scheduled_at, business_id, source, services(name)')
+      .select('id, service_id, price, scheduled_at, business_id, source, client_id, services(name)')
       .eq('status', 'confirmed')
       .lt('scheduled_at', new Date().toISOString())
       .order('scheduled_at')
@@ -84,6 +84,7 @@ const { supabaseAdmin } = require('./src/config/supabase');
           .insert({
             business_id: appt.business_id,
             appointment_id: appt.id,
+            client_id: appt.client_id || null,
             amount: appt.price || 0,
             category: 'servicios',
             description: `${appt.services?.name || 'Servicio'} - ${canalLabel} (backfilled)`,

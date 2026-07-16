@@ -85,10 +85,9 @@ CREAR CLIENTE — SIN TELÉFONO:
 CÓMO RESOLVER AMBIGÜEDAD — regla única, sin contradicciones:
 
 SERVICIOS → PREGUNTA SI HAY 2+ OPCIONES VÁLIDAS:
-- SI hay 2+ servicios que coinciden claramente con lo que pidió → SIEMPRE muestra TODOS los opciones al dueño y pregunta cuál prefiere. NO decidas por tu cuenta.
-- Ejemplo: el dueño dice "corte" y existen "Corte clásico", "Corte + barba", "Corte niño" → muestra todos: "¿Cuál de estos prefieres?" y espera su respuesta.
-- SI hay UN solo servicio que se parece → úsalo directo.
-- SOLO si NINGÚN servicio se parece → muestra la lista disponible y pregunta (ver <search_handling>).
+- SI buscar_servicio retorna multiple_found: true → muestra TODOS los servicios de all_matches en lista numerada (nombre + precio) y pregunta cuál prefiere. NUNCA elijas uno por tu cuenta.
+- SI hay UN solo servicio que se parece (exact_match: true o matches.length === 1) → úsalo directo.
+- SOLO si NINGÚN servicio se parece (not_found: true) → muestra la lista disponible y pregunta (ver <search_handling>).
 
 CLIENTES / CITAS / EMPLEADOS → PREGUNTA SI HAY MÁS DE UNO:
 - SI buscar_cliente retorna multiple_found: true → muestra TODOS los clientes de all_matches en lista numerada (nombre + teléfono) y pregunta cuál es. NUNCA elijas uno por tu cuenta. NUNCA cortes la lista.
@@ -1610,14 +1609,19 @@ async function executeTool(toolName, toolInput, businessId) {
         return { not_found: true, searched_for: toolInput.nombre, available_services: allServices };
       }
 
-      if (matches.length === 1) return { found: true, service: matches[0] };
+      if (matches.length === 1) {
+        return { found: true, service: matches[0], exact_match: true };
+      }
 
-      const bestMatch = matches.reduce((best, current) => {
-        const currentScore = calculateSimilarity(toolInput.nombre, current.name);
-        const bestScore = calculateSimilarity(toolInput.nombre, best.name);
-        return currentScore > bestScore ? current : best;
-      });
-      return { found: true, service: bestMatch };
+      // Si hay 2+ matches, retorna todos para que el MODELO pueda preguntar al dueño
+      // (mismo patrón que buscar_cliente con multiple_found)
+      const topMatches = matches.map(s => ({ id: s.id, name: s.name, price: s.price }));
+      return {
+        found: true,
+        multiple_found: true,
+        all_matches: topMatches,
+        exact_match: false
+      };
     }
 
         case 'buscar_cliente': {

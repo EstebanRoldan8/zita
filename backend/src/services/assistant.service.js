@@ -118,7 +118,9 @@ EJEMPLOS DE ERRORES FRECUENTES:
   ✅ Usuario: "asigna a Carlos" → buscar_empleado("Carlos") → obtienes id="aa000001-..." → actualizar_cita con ese employee_id.
 
 CUANDO HAYA AMBIGÜEDAD (multiple_found: true):
-- NO pases ningún ID. Pregunta al usuario cuál es antes de proceder.
+- SI buscar_servicio, buscar_cliente, buscar_producto, o buscar_empleado retorna multiple_found: true → NO pases ningún ID.
+- Pregunta al usuario cuál es antes de proceder. Muestra TODOS los candidatos en lista numerada (nombre + precio/teléfono + extra).
+- Ejemplos: "¿Cuál Cera: Cera Mate ($5000) o Cera Premium ($7500)?", "¿Cuál Juan: Juan Pérez o Juan Gómez?"
 </resolucion_ids>
 
 <protocolo_inicio>
@@ -178,6 +180,7 @@ TOOLS: vender_producto (busca por nombre en una sola llamada) O buscar_producto 
 OBLIGATORIO: producto + cantidad. "se vendió 3 gel" → quantity=3, product='gel'. NUNCA preguntes cuántas unidades si ya dieron el número.
 OPCIONAL: cliente — NUNCA lo pidas.
 VALIDACIÓN: SI la tool retorna success:false por stock → informa el stock real disponible Y ofrece opciones EN EL MISMO MENSAJE. NUNCA confirmes la venta.
+AMBIGÜEDAD DE PRODUCTO: SI buscar_producto retorna multiple_found: true (ej: buscas "cera" y hay "Cera Mate" y "Cera Premium") → muestra TODOS en lista numerada (nombre + precio + stock) y pregunta cuál vender ANTES de proceder.
 
 INTENCIÓN: Ajustar inventario ("llegaron 50 unidades", "se perdieron 3")
 TOOLS: buscar_producto → ajustar_stock (cantidad positiva para sumar, negativa para restar)
@@ -1890,14 +1893,16 @@ async function executeTool(toolName, toolInput, businessId) {
         return { found: false, message: 'No encontré ese producto' };
       }
 
-      if (matches.length === 1) return { found: true, product: addMargin(matches[0]) };
+      if (matches.length === 1) return { found: true, product: addMargin(matches[0]), exact_match: true };
 
-      const bestMatch = matches.reduce((best, current) => {
-        const currentScore = calculateSimilarity(toolInput.nombre, current.name);
-        const bestScore = calculateSimilarity(toolInput.nombre, best.name);
-        return currentScore > bestScore ? current : best;
-      });
-      return { found: true, product: addMargin(bestMatch) };
+      // Múltiples coincidencias: retorna lista para que el modelo pregunte cuál — NO elijas por tu cuenta
+      const allMatches = matches.map(p => ({ id: p.id, name: p.name, price: p.price, stock: p.stock }));
+      return {
+        found: true,
+        multiple_found: true,
+        all_matches: allMatches,
+        exact_match: false
+      };
     }
 
     case 'listar_servicios': {

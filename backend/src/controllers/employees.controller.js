@@ -193,7 +193,7 @@ async function deleteEmployee(req, res) {
       .order('scheduled_at');
 
     if (futureCitas && futureCitas.length > 0) {
-      // Verificar si hay otros empleados activos
+      // Verificar si hay otros empleados activos (validación temprana rápida)
       const { data: otherEmployees } = await userClient
         .from('employees')
         .select('id')
@@ -209,7 +209,48 @@ async function deleteEmployee(req, res) {
         });
       }
 
-      // Reasignar cada cita futura
+      // === FASE A: VALIDACIÓN COMPLETA (sin cambios en BD) ===
+      // Para CADA cita futura, verificar que existe reemplazo disponible
+      const reassignmentMap = new Map(); // Mapea cita.id -> nuevoEmpleado
+      const failedCitas = []; // Citas que no pudieron reasignarse
+
+      for (const cita of futureCitas) {
+        const fecha = cita.scheduled_at.split('T')[0];
+        const hora = cita.scheduled_at.split('T')[1].slice(0, 5);
+
+        const nuevoEmpleado = await getAvailableEmployee(req.businessId, fecha, hora);
+
+        if (nuevoEmpleado) {
+          reassignmentMap.set(cita.id, nuevoEmpleado);
+        } else {
+          // Registrar fallo detallado para error message
+          const fechaFormato = new Date(cita.scheduled_at).toLocaleString('es-CO', {
+            timeZone: 'America/Bogota',
+            month: '2-digit',
+            day: '2-digit',
+            hour: '2-digit',
+            minute: '2-digit'
+          });
+          failedCitas.push({
+            fecha: fechaFormato,
+            cliente: cita.clients?.name || 'Cliente desconocido',
+            servicio: cita.services?.name || 'servicio'
+          });
+        }
+      }
+
+      // Si CUALQUIER cita no tiene reemplazo, ABORTAR TODO (no cambiar nada en BD)
+      if (failedCitas.length > 0) {
+        const detalles = failedCitas
+          .map(c => `- ${c.fecha}: ${c.cliente} (${c.servicio})`)
+          .join('\n');
+        return res.status(409).json({
+          success: false,
+          error: `No se puede eliminar: las siguientes citas no tienen otro empleado disponible en su horario. Cancela o reagenda primero:\n${detalles}`
+        });
+      }
+
+      // === FASE B: EJECUCIÓN (solo si Fase A pasó sin errores) ===
       const business = require('../config/supabase').supabaseAdmin;
       const { data: bizData } = await business
         .from('businesses')
@@ -218,43 +259,45 @@ async function deleteEmployee(req, res) {
         .single();
 
       for (const cita of futureCitas) {
-        const fecha = cita.scheduled_at.split('T')[0];
-        const hora = cita.scheduled_at.split('T')[1].slice(0, 5);
-
-        // Reasignar automáticamente
-        const nuevoEmpleado = await getAvailableEmployee(req.businessId, fecha, hora);
+        const nuevoEmpleado = reassignmentMap.get(cita.id);
 
         if (nuevoEmpleado) {
-          await userClient
+          // Actualizar cita y verificar que se afectó 1 fila
+          const { data: updateResult, error: updateError } = await userClient
             .from('appointments')
             .update({ employee_id: nuevoEmpleado.id })
-            .eq('id', cita.id);
+            .eq('id', cita.id)
+            .select('id');
 
-          // Notificar al cliente por WhatsApp
-          if (cita.clients?.phone) {
-            const fechaFormato = new Date(cita.scheduled_at).toLocaleString('es-CO', {
-              timeZone: 'America/Bogota',
-              weekday: 'long',
-              day: 'numeric',
-              month: 'long',
-              hour: '2-digit',
-              minute: '2-digit'
-            });
-            const mensaje = `Tu cita de ${cita.services?.name || 'servicio'} el ${fechaFormato} ahora será atendida por ${nuevoEmpleado.name} 😊`;
+          if (updateError || !updateResult || updateResult.length === 0) {
+            logger.error('[REASSIGNMENT_UPDATE_FAILED]', { appointment_id: cita.id, error: updateError?.message });
+          } else {
+            // Notificar al cliente por WhatsApp solo si actualización fue exitosa
+            if (cita.clients?.phone) {
+              const fechaFormato = new Date(cita.scheduled_at).toLocaleString('es-CO', {
+                timeZone: 'America/Bogota',
+                weekday: 'long',
+                day: 'numeric',
+                month: 'long',
+                hour: '2-digit',
+                minute: '2-digit'
+              });
+              const mensaje = `Tu cita de ${cita.services?.name || 'servicio'} el ${fechaFormato} ahora será atendida por ${nuevoEmpleado.name} 😊`;
 
-            try {
-              const token = bizData?.whatsapp_access_token
-                ? decrypt(bizData.whatsapp_access_token)
-                : process.env.WHATSAPP_ACCESS_TOKEN;
+              try {
+                const token = bizData?.whatsapp_access_token
+                  ? decrypt(bizData.whatsapp_access_token)
+                  : process.env.WHATSAPP_ACCESS_TOKEN;
 
-              await sendMessage(
-                cita.clients.phone,
-                mensaje,
-                token,
-                bizData?.whatsapp_phone_number_id || process.env.WHATSAPP_PHONE_NUMBER_ID
-              );
-            } catch (whatsappErr) {
-              logger.warn(`WhatsApp notification failed for appointment ${cita.id}: ${whatsappErr.message}`);
+                await sendMessage(
+                  cita.clients.phone,
+                  mensaje,
+                  token,
+                  bizData?.whatsapp_phone_number_id || process.env.WHATSAPP_PHONE_NUMBER_ID
+                );
+              } catch (whatsappErr) {
+                logger.warn(`WhatsApp notification failed for appointment ${cita.id}: ${whatsappErr.message}`);
+              }
             }
           }
         }

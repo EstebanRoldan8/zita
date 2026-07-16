@@ -98,6 +98,20 @@ CLIENTES / CITAS / EMPLEADOS → PREGUNTA SI HAY MÁS DE UNO:
 RESUMEN PARA MEMORIZAR: servicios = SIEMPRE pregunta si hay 2+. Personas y citas = pregunta si hay más de uno.
 </jerarquia_ambiguedad>
 
+<resolucion_service_id>
+CRÍTICO — RESOLVER service_id ANTES DE crear_cita:
+- NUNCA pases un nombre de servicio, categoría, o texto descriptivo como service_id a crear_cita.
+- service_id SIEMPRE debe ser el UUID exacto retornado por buscar_servicio (campo 'id' de los resultados).
+- SI el usuario acaba de responder con un NOMBRE de servicio (ej: "corte + barba", "el degradado", "masaje"):
+  1. SIEMPRE llama buscar_servicio(nombre_que_dijo_usuario) PRIMERO para obtener el UUID real.
+  2. Si retorna exact_match: true → extrae el UUID del campo 'id' y úsalo en service_id de crear_cita.
+  3. Si retorna multiple_found: true → NO pases ningún service_id todavía. Pregunta cuál prefiere primero.
+  4. Si retorna not_found: true → muestra lista disponible, pide aclaración, RECIÉN ENTONCES llama buscar_servicio de nuevo.
+- EJEMPLOS DE ERRORES FRECUENTES:
+  ❌ Usuario dice "corte + barba" → pasas service_id="corte_barba" → INCORRECTO, falla Supabase.
+  ✅ Usuario dice "corte + barba" → buscas primero buscar_servicio("corte + barba") → obtienes id="00000001-..." → ENTONCES crear_cita con ese UUID.
+</resolucion_service_id>
+
 <protocolo_inicio>
 - NO ejecutes listar_servicios al saludar ni al iniciar la conversación. Es gasto innecesario.
 - Ejecuta listar_servicios SOLO en 2 casos:
@@ -845,12 +859,12 @@ const tools = [
   },
   {
     name: 'crear_cita',
-    description: 'Crea una cita. Client_id es opcional (para clientes walk-in). Requiere: service_id, scheduled_at.',
+    description: 'Crea una cita. Client_id es opcional (para clientes walk-in). Requiere: service_id (SIEMPRE UUID de buscar_servicio, NUNCA nombre de servicio), scheduled_at. CRÍTICO: Si el usuario acaba de responder con un NOMBRE de servicio (ej: "corte + barba"), SIEMPRE llama primero a buscar_servicio para obtener el UUID real del campo "id", SOLO DESPUÉS usa ese UUID en service_id aquí.',
     input_schema: {
       type: 'object',
       properties: {
         client_id: { type: 'string', description: 'Opcional - ID del cliente. Si no se proporciona, serÃ¡ una cita walk-in.' },
-        service_id: { type: 'string' },
+        service_id: { type: 'string', description: 'REQUERIDO: UUID exacto del servicio (obtenido de buscar_servicio). NUNCA uses el nombre del servicio directamente. Si el usuario menciona un servicio, llama buscar_servicio primero.' },
         scheduled_at: { type: 'string', description: 'Fecha y hora en formato ISO con timezone Colombia: YYYY-MM-DDTHH:mm:00-05:00. SIEMPRE incluir -05:00 al final. NUNCA usar Z o UTC.' },
         employee_id: { type: 'string', description: 'Opcional' },
         notes: { type: 'string', description: 'Notas opcionales' },
@@ -1987,6 +2001,15 @@ async function executeTool(toolName, toolInput, businessId) {
       logger.info('=== CREAR CITA ===');
       logger.info('input: ' + JSON.stringify({ service_id: toolInput.service_id, scheduled_at: toolInput.scheduled_at, client_id: toolInput.client_id || null, employee_id: toolInput.employee_id || null, status: toolInput.status || 'confirmed' }));
       logger.info('businessId: ' + businessId);
+
+      // Validar que service_id sea un UUID válido — si no, el modelo probablemente pasó un nombre en vez del ID
+      const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+      if (!toolInput.service_id || !uuidRegex.test(toolInput.service_id)) {
+        return {
+          success: false,
+          error: `service_id inválido: "${toolInput.service_id}". Debes usar el UUID exacto retornado por buscar_servicio, no el nombre del servicio. Llama buscar_servicio primero.`
+        };
+      }
 
       let scheduledAt = toolInput.scheduled_at;
       if (scheduledAt) {

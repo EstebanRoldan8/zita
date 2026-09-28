@@ -155,10 +155,9 @@ async function create(req, res) {
       throw orderError;
     }
 
+    const itemsWithStock = [];
     for (const item of items) {
       let stockAvailable = 0;
-      let itemDesc = item.description || 'sin nombre';
-
       if (item.product_id) {
         if (item.variant_id) {
           const { data: variant } = await sb
@@ -182,11 +181,15 @@ async function create(req, res) {
           await sb.from('orders').delete().eq('id', orderData.id);
           return res.status(400).json({
             success: false,
-            error: `Stock insuficiente para ${itemDesc}. Disponible: ${stockAvailable}.`
+            error: `Stock insuficiente para ${item.description || 'sin nombre'}. Disponible: ${stockAvailable}.`
           });
         }
       }
+      itemsWithStock.push(item);
+    }
 
+    const processedItems = [];
+    for (const item of itemsWithStock) {
       const { error: itemError } = await sb
         .from('order_items')
         .insert({
@@ -202,6 +205,7 @@ async function create(req, res) {
 
       if (itemError) {
         logger.error('orders.create item insert error: ' + itemError.message);
+        await sb.from('order_items').delete().eq('order_id', orderData.id);
         await sb.from('orders').delete().eq('id', orderData.id);
         throw itemError;
       }
@@ -219,18 +223,40 @@ async function create(req, res) {
             p_ref_id: orderData.id,
             p_user: null
           });
+          processedItems.push(item);
         } catch (err) {
           logger.error('orders.create adjust_stock error: ' + err.message);
+          for (const pItem of processedItems) {
+            if (pItem.product_id) {
+              try {
+                await supabaseAdmin.rpc('adjust_stock', {
+                  p_business_id: req.businessId,
+                  p_product_id: pItem.product_id,
+                  p_variant_id: pItem.variant_id || null,
+                  p_change: pItem.quantity,
+                  p_type: 'ajuste',
+                  p_reason: 'Reversión por error en creación de orden',
+                  p_ref_type: 'order',
+                  p_ref_id: orderData.id,
+                  p_user: null
+                });
+              } catch (revErr) {
+                logger.error('orders.create revert adjust_stock failed: ' + revErr.message);
+              }
+            }
+          }
           await sb.from('order_items').delete().eq('order_id', orderData.id);
           await sb.from('orders').delete().eq('id', orderData.id);
           if (err.message?.includes('STOCK_INSUFICIENTE_O_NO_ENCONTRADO')) {
             return res.status(400).json({
               success: false,
-              error: `Stock insuficiente para ${itemDesc}.`
+              error: `Stock insuficiente para ${item.description || 'sin nombre'}.`
             });
           }
           throw err;
         }
+      } else {
+        processedItems.push(item);
       }
     }
 

@@ -159,6 +159,21 @@ async function create(req, res) {
     for (const item of items) {
       let stockAvailable = 0;
       if (item.product_id) {
+        const { data: product } = await sb
+          .from('products')
+          .select('stock, name, has_variants')
+          .eq('id', item.product_id)
+          .eq('business_id', req.businessId)
+          .single();
+
+        if (product?.has_variants && !item.variant_id) {
+          await sb.from('orders').delete().eq('id', orderData.id);
+          return res.status(400).json({
+            success: false,
+            error: `El producto ${product.name || item.description || 'sin nombre'} tiene variantes, debes especificar cuál (talla/color).`
+          });
+        }
+
         if (item.variant_id) {
           const { data: variant } = await sb
             .from('product_variants')
@@ -168,12 +183,6 @@ async function create(req, res) {
             .single();
           stockAvailable = variant?.stock || 0;
         } else {
-          const { data: product } = await sb
-            .from('products')
-            .select('stock')
-            .eq('id', item.product_id)
-            .eq('business_id', req.businessId)
-            .single();
           stockAvailable = product?.stock || 0;
         }
 

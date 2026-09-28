@@ -1,4 +1,4 @@
-const { createUserClient } = require('../config/supabase');
+const { createUserClient, supabaseAdmin } = require('../config/supabase');
 const logger = require('../utils/logger');
 const { getTimezone } = require('../utils/timezone');
 
@@ -234,6 +234,10 @@ async function sell(req, res) {
     if (pErr || !product) return res.status(404).json({ success: false, error: 'Producto no encontrado.' });
     if (!product.is_active) return res.status(400).json({ success: false, error: 'El producto no está activo.' });
 
+    if (product.has_variants && !variant_id) {
+      return res.status(400).json({ success: false, error: 'Este producto tiene variantes, debes especificar cuál (talla/color).' });
+    }
+
     let availableStock = product.stock;
     let variantRecord = null;
 
@@ -252,29 +256,28 @@ async function sell(req, res) {
       availableStock = variant.stock;
     }
 
-    if (availableStock < qty) {
-      return res.status(400).json({ success: false, error: `Stock insuficiente. Disponible: ${availableStock}.` });
-    }
-
     const totalAmount = Number(product.price) * qty;
-    const newStock = availableStock - qty;
+    let newStock;
 
-    if (variantRecord) {
-      const { error: varUpdateErr } = await sb
-        .from('product_variants')
-        .update({ stock: newStock })
-        .eq('id', variant_id);
-      if (varUpdateErr) throw varUpdateErr;
-    } else {
-      const { error: updateErr } = await sb
-        .from('products')
-        .update({ stock: newStock, updated_at: new Date().toISOString() })
-        .eq('id', id);
-      if (updateErr?.code === '23514' || updateErr?.message?.includes('check_products_stock_non_negative')) {
-        logger.error('[STOCK_NEGATIVE_BLOCKED]', { product_id: id, attempted_qty: qty, current_stock: availableStock });
+    try {
+      const { data: rpcData, error: rpcError } = await supabaseAdmin.rpc('adjust_stock', {
+        p_business_id: req.businessId,
+        p_product_id: id,
+        p_variant_id: variant_id || null,
+        p_change: -qty,
+        p_type: 'venta',
+        p_reason: null,
+        p_ref_type: 'product_sale',
+        p_ref_id: null,
+        p_user: null,
+      });
+      if (rpcError) throw rpcError;
+      newStock = rpcData;
+    } catch (err) {
+      if (err.message?.includes('STOCK_INSUFICIENTE_O_NO_ENCONTRADO')) {
         return res.status(400).json({ success: false, error: 'Ya no hay stock suficiente de este producto.' });
       }
-      if (updateErr) throw updateErr;
+      throw err;
     }
 
     const { error: saleErr } = await sb

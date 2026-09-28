@@ -2283,20 +2283,24 @@ async function executeTool(toolName, toolInput, businessId) {
         return { success: false, error: 'Stock insuficiente' };
       }
 
-      const { data: stockData, error: stockError } = await supabaseAdmin
-        .from('products')
-        .update({ stock: product.stock - toolInput.quantity })
-        .eq('business_id', businessId)
-        .eq('id', toolInput.product_id)
-        .select('id');
-
-      if (stockError?.code === '23514' || stockError?.message?.includes('check_products_stock_non_negative')) {
-        logger.error('[STOCK_NEGATIVE_BLOCKED]', { product_id: toolInput.product_id, attempted_qty: toolInput.quantity, current_stock: product.stock });
-        return { success: false, error: 'Ya no hay stock suficiente de este producto.' };
-      }
-
-      if (stockError || !stockData || stockData.length === 0) {
-        logger.error('[REGISTRAR_VENTA_STOCK_UPDATE_FAILED]', { businessId, productId: toolInput.product_id, error: stockError?.message });
+      try {
+        await supabaseAdmin.rpc('adjust_stock', {
+          p_business_id: businessId,
+          p_product_id: toolInput.product_id,
+          p_variant_id: toolInput.variant_id || null,
+          p_change: -toolInput.quantity,
+          p_type: 'venta',
+          p_reason: null,
+          p_ref_type: 'product_sale',
+          p_ref_id: null,
+          p_user: null
+        });
+      } catch (err) {
+        if (err.message?.includes('STOCK_INSUFICIENTE_O_NO_ENCONTRADO')) {
+          logger.error('[REGISTRAR_VENTA_STOCK_INSUFICIENTE]', { businessId, productId: toolInput.product_id, variantId: toolInput.variant_id, attempted_qty: toolInput.quantity });
+          return { success: false, error: 'Stock insuficiente' };
+        }
+        logger.error('[REGISTRAR_VENTA_STOCK_RPC_FAILED]', { businessId, productId: toolInput.product_id, error: err.message });
         return { success: false, error: 'No se pudo actualizar el stock del producto' };
       }
 

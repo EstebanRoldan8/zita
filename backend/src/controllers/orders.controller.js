@@ -155,24 +155,83 @@ async function create(req, res) {
       throw orderError;
     }
 
-    const orderItems = items.map(item => ({
-      order_id: orderData.id,
-      business_id: req.businessId,
-      product_id: item.product_id || null,
-      variant_id: item.variant_id || null,
-      description: item.description,
-      quantity: item.quantity,
-      unit_price: item.unit_price,
-      total_price: item.quantity * item.unit_price,
-    }));
+    for (const item of items) {
+      let stockAvailable = 0;
+      let itemDesc = item.description || 'sin nombre';
 
-    const { error: itemsError } = await sb
-      .from('order_items')
-      .insert(orderItems);
+      if (item.product_id) {
+        if (item.variant_id) {
+          const { data: variant } = await sb
+            .from('product_variants')
+            .select('stock')
+            .eq('id', item.variant_id)
+            .eq('business_id', req.businessId)
+            .single();
+          stockAvailable = variant?.stock || 0;
+        } else {
+          const { data: product } = await sb
+            .from('products')
+            .select('stock')
+            .eq('id', item.product_id)
+            .eq('business_id', req.businessId)
+            .single();
+          stockAvailable = product?.stock || 0;
+        }
 
-    if (itemsError) {
-      logger.error('orders.create items error: ' + itemsError.message);
-      throw itemsError;
+        if (item.quantity > stockAvailable) {
+          await sb.from('orders').delete().eq('id', orderData.id);
+          return res.status(400).json({
+            success: false,
+            error: `Stock insuficiente para ${itemDesc}. Disponible: ${stockAvailable}.`
+          });
+        }
+      }
+
+      const { error: itemError } = await sb
+        .from('order_items')
+        .insert({
+          order_id: orderData.id,
+          business_id: req.businessId,
+          product_id: item.product_id || null,
+          variant_id: item.variant_id || null,
+          description: item.description,
+          quantity: item.quantity,
+          unit_price: item.unit_price,
+          total_price: item.quantity * item.unit_price,
+        });
+
+      if (itemError) {
+        logger.error('orders.create item insert error: ' + itemError.message);
+        await sb.from('orders').delete().eq('id', orderData.id);
+        throw itemError;
+      }
+
+      if (item.product_id) {
+        try {
+          await supabaseAdmin.rpc('adjust_stock', {
+            p_business_id: req.businessId,
+            p_product_id: item.product_id,
+            p_variant_id: item.variant_id || null,
+            p_change: -item.quantity,
+            p_type: 'venta',
+            p_reason: null,
+            p_ref_type: 'order',
+            p_ref_id: orderData.id,
+            p_user: null
+          });
+        } catch (err) {
+          logger.error('orders.create adjust_stock error: ' + err.message);
+          await sb.from('order_items').delete().eq('order_id', orderData.id);
+          await sb.from('orders').delete().eq('id', orderData.id);
+          if (err.message?.includes('STOCK_INSUFICIENTE_O_NO_ENCONTRADO')) {
+            return res.status(400).json({
+              success: false,
+              error: `Stock insuficiente para ${itemDesc}.`
+            });
+          }
+          throw err;
+        }
+      }
     }
 
     const { data: fullOrder, error: fullError } = await sb

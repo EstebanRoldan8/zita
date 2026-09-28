@@ -41,6 +41,7 @@ const navGroups = [
       { to: '/dashboard/empleados',     label: 'Empleados',     icon: UserCog,                    types: ['all'] },
       { to: '/dashboard/servicios',     label: 'Servicios',     icon: Scissors,                   types: ['all'] },
       { to: '/dashboard/productos',     label: 'Productos',     icon: Package,                    types: ['all'] },
+      { to: '/dashboard/pedidos',       label: 'Pedidos',       icon: ShoppingBag,                types: ['tienda'] },
     ]
   },
   {
@@ -69,6 +70,7 @@ const MODULE_ACCESS = {
     '/dashboard/empleados',
     '/dashboard/servicios',
     '/dashboard/productos',
+    '/dashboard/pedidos',
     '/dashboard/caja',
     '/dashboard/analiticas',
     '/dashboard/configuracion'
@@ -80,6 +82,7 @@ const MODULE_ACCESS = {
     '/dashboard/empleados',
     '/dashboard/servicios',
     '/dashboard/productos',
+    '/dashboard/pedidos',
     '/dashboard/caja',
     '/dashboard/analiticas',
     '/dashboard/configuracion'

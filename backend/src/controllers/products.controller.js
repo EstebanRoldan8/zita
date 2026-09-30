@@ -1,6 +1,7 @@
 const { createUserClient, supabaseAdmin } = require('../config/supabase');
 const logger = require('../utils/logger');
 const { getTimezone } = require('../utils/timezone');
+const { generarSku } = require('../utils/sku');
 
 async function getAll(req, res) {
   try {
@@ -71,9 +72,35 @@ async function getSales(req, res) {
 async function create(req, res) {
   try {
     const sb = createUserClient(req.headers.authorization);
-    const { name, description, price, stock, min_stock, category, has_variants, cost_price } = req.body;
+    const { name, description, price, stock, min_stock, category, has_variants, cost_price, sku } = req.body;
     if (!name?.trim()) return res.status(400).json({ success: false, error: 'El nombre del producto es obligatorio.' });
     if (price === undefined || Number(price) < 0) return res.status(400).json({ success: false, error: 'El precio debe ser mayor o igual a 0.' });
+
+    let finalSku = sku?.trim() || null;
+    if (!finalSku) {
+      finalSku = generarSku(category, name);
+    }
+
+    if (finalSku) {
+      let skuCandidate = finalSku;
+      let counter = 2;
+      let skuExists = true;
+      while (skuExists) {
+        const { data: existing } = await sb
+          .from('products')
+          .select('id')
+          .eq('business_id', req.businessId)
+          .eq('sku', skuCandidate)
+          .single();
+        if (!existing) {
+          skuExists = false;
+          finalSku = skuCandidate;
+        } else {
+          skuCandidate = `${finalSku}-${counter}`;
+          counter++;
+        }
+      }
+    }
 
     const payload = {
       business_id: req.businessId,
@@ -86,6 +113,7 @@ async function create(req, res) {
     if (min_stock  !== undefined) payload.min_stock  = Number(min_stock);
     if (category   !== undefined) payload.category   = category?.trim() || null;
     if (cost_price !== undefined) { const _cp = parseFloat(cost_price); payload.cost_price = (!isNaN(_cp) && _cp >= 0) ? _cp : null; }
+    if (finalSku) payload.sku = finalSku;
 
     const { data, error } = await sb
       .from('products')
@@ -390,4 +418,105 @@ async function uploadImage(req, res) {
   }
 }
 
-module.exports = { getAll, getLowStock, getSales, create, update, toggleProduct, deactivate, deleteProduct, sell, uploadImage };
+async function uploadImages(req, res) {
+  try {
+    const sb = createUserClient(req.headers.authorization);
+    const { id } = req.params;
+
+    if (!req.files || req.files.length === 0) {
+      return res.status(400).json({ success: false, error: 'No se adjuntaron imágenes.' });
+    }
+
+    const { data: product, error: pErr } = await sb
+      .from('products')
+      .select('id, business_id, images')
+      .eq('id', id)
+      .eq('business_id', req.businessId)
+      .single();
+
+    if (pErr || !product) {
+      return res.status(404).json({ success: false, error: 'Producto no encontrado.' });
+    }
+
+    const uploadedUrls = [];
+    const timestamp = Date.now();
+
+    for (let i = 0; i < req.files.length; i++) {
+      const file = req.files[i];
+      const fileName = `products/${req.businessId}/gallery/${id}-${timestamp}-${i}`;
+
+      const { error: uploadErr } = await sb.storage
+        .from('product-images')
+        .upload(fileName, file.buffer, {
+          contentType: file.mimetype,
+          upsert: false,
+        });
+
+      if (uploadErr) {
+        logger.error('products.uploadImages storage error: ' + uploadErr.message);
+        continue;
+      }
+
+      const { data: { publicUrl } } = sb.storage
+        .from('product-images')
+        .getPublicUrl(fileName);
+
+      uploadedUrls.push(publicUrl);
+    }
+
+    const currentImages = (product.images || []);
+    const updatedImages = [...currentImages, ...uploadedUrls];
+
+    const { error: updateErr } = await sb
+      .from('products')
+      .update({ images: updatedImages })
+      .eq('id', id);
+
+    if (updateErr) throw updateErr;
+
+    return res.json({ success: true, data: { images: updatedImages } });
+  } catch (err) {
+    logger.error('products.uploadImages: ' + err.message);
+    return res.status(500).json({ success: false, error: 'Error al subir las imágenes.' });
+  }
+}
+
+async function deleteImage(req, res) {
+  try {
+    const sb = createUserClient(req.headers.authorization);
+    const { id } = req.params;
+    const { url } = req.body;
+
+    if (!url) {
+      return res.status(400).json({ success: false, error: 'Se requiere la URL de la imagen a eliminar.' });
+    }
+
+    const { data: product, error: pErr } = await sb
+      .from('products')
+      .select('id, business_id, images')
+      .eq('id', id)
+      .eq('business_id', req.businessId)
+      .single();
+
+    if (pErr || !product) {
+      return res.status(404).json({ success: false, error: 'Producto no encontrado.' });
+    }
+
+    const currentImages = product.images || [];
+    const updatedImages = currentImages.filter(img => img !== url);
+
+    const { error: updateErr } = await sb
+      .from('products')
+      .update({ images: updatedImages })
+      .eq('id', id);
+
+    if (updateErr) throw updateErr;
+
+    return res.json({ success: true, data: { images: updatedImages } });
+  } catch (err) {
+    logger.error('products.deleteImage: ' + err.message);
+    return res.status(500).json({ success: false, error: 'Error al eliminar la imagen.' });
+  }
+}
+
+module.exports = { getAll, getLowStock, getSales, create, update, toggleProduct, deactivate, deleteProduct, sell, uploadImage, uploadImages, deleteImage };

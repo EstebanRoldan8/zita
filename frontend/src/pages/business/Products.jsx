@@ -211,17 +211,23 @@ function ProductModal({ initial, onClose, onSave, isTienda }) {
     description: initial?.description ?? '',
     category:    initial?.category    ?? '',
     cost_price:  initial?.cost_price  ?? '',
+    sku:         initial?.sku ?? '',
   });
   const [imagePreview, setImagePreview] = useState(initial?.image_url || null);
   const [imageFile, setImageFile] = useState(null);
   const [hasVariants, setHasVariants] = useState(initial?.has_variants || false);
   const [variants, setVariants] = useState([]);
-  const [newVariant, setNewVariant] = useState({ attributes: {}, stock: 0 });
+  const [newVariant, setNewVariant] = useState({ attributes: {}, stock: 0, sku: '' });
   const [variantAttrs, setVariantAttrs] = useState([{ key: '', value: '' }]);
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
   const [loadingVariants, setLoadingVariants] = useState(false);
+  const [galleryImages, setGalleryImages] = useState(initial?.images || []);
+  const [uploadingGallery, setUploadingGallery] = useState(false);
+  const [galleryFilesSelected, setGalleryFilesSelected] = useState([]);
   const fileInputRef = useRef(null);
+  const galleryInputRef = useRef(null);
+  const galleryCreateInputRef = useRef(null);
   const isEdit = !!initial?.id;
   const qc = useQueryClient();
 
@@ -253,6 +259,59 @@ function ProductModal({ initial, onClose, onSave, isTienda }) {
     }
   };
 
+  const handleUploadGalleryImages = async (e) => {
+    const files = e.target.files;
+    if (!files || files.length === 0 || !isEdit) return;
+    setUploadingGallery(true);
+    setError('');
+    try {
+      const formData = new FormData();
+      for (let i = 0; i < files.length; i++) {
+        formData.append('images', files[i]);
+      }
+      const res = await api.post(`/api/products/${initial.id}/images`, formData, {
+        headers: { 'Content-Type': 'multipart/form-data' },
+      });
+      setGalleryImages(res.data?.data?.images || []);
+    } catch (err) {
+      setError(err.response?.data?.error || 'Error al subir imágenes.');
+    } finally {
+      setUploadingGallery(false);
+      if (galleryInputRef.current) galleryInputRef.current.value = '';
+    }
+  };
+
+  const handleDeleteGalleryImage = async (url) => {
+    setError('');
+    try {
+      const res = await api.delete(`/api/products/${initial.id}/images`, { data: { url } });
+      setGalleryImages(res.data?.data?.images || []);
+    } catch (err) {
+      setError(err.response?.data?.error || 'Error al eliminar la imagen.');
+    }
+  };
+
+  const handleSelectGalleryFiles = (e) => {
+    const files = e.target.files;
+    if (!files) return;
+    const newFiles = Array.from(files).slice(0, 8 - galleryFilesSelected.length);
+    const validFiles = newFiles.filter(file => {
+      if (file.size > 2 * 1024 * 1024) return false;
+      if (!['image/jpeg', 'image/png', 'image/webp'].includes(file.type)) return false;
+      return true;
+    });
+    if (validFiles.length < newFiles.length) {
+      setError('Algunas imágenes fueron descartadas (máx 2MB, JPG/PNG/WebP)');
+    }
+    const updatedFiles = [...galleryFilesSelected, ...validFiles];
+    setGalleryFilesSelected(updatedFiles.slice(0, 8));
+    if (galleryCreateInputRef.current) galleryCreateInputRef.current.value = '';
+  };
+
+  const handleRemoveGalleryFile = (index) => {
+    setGalleryFilesSelected(galleryFilesSelected.filter((_, i) => i !== index));
+  };
+
   const handleAddVariantAttr = () => {
     setVariantAttrs([...variantAttrs, { key: '', value: '' }]);
   };
@@ -278,10 +337,11 @@ function ProductModal({ initial, onClose, onSave, isTienda }) {
         await api.post(`/api/products/${initial.id}/variants`, {
           attributes: attrs,
           stock: Number(newVariant.stock),
+          sku: newVariant.sku?.trim() || null,
         });
       }
-      setVariants(prev => [...prev, { attributes: attrs, stock: Number(newVariant.stock), is_active: true }]);
-      setNewVariant({ attributes: {}, stock: 0 });
+      setVariants(prev => [...prev, { attributes: attrs, stock: Number(newVariant.stock), sku: newVariant.sku, is_active: true }]);
+      setNewVariant({ attributes: {}, stock: 0, sku: '' });
       setVariantAttrs([{ key: '', value: '' }]);
     } catch (err) {
       setError(err.response?.data?.error || 'Error al crear variante.');
@@ -325,6 +385,7 @@ function ProductModal({ initial, onClose, onSave, isTienda }) {
         category: form.category?.trim() || null,
         has_variants: hasVariants,
         cost_price: form.cost_price !== '' && form.cost_price !== null ? Number(form.cost_price) : null,
+        sku: form.sku?.trim() || null,
       };
 
       if (isEdit) {
@@ -343,6 +404,8 @@ function ProductModal({ initial, onClose, onSave, isTienda }) {
       } else {
         const res = await api.post('/api/products', payload);
         const productId = res.data?.data?.id;
+        let galleryUploadFailed = false;
+
         if (imageFile && productId) {
           const formData = new FormData();
           formData.append('image', imageFile);
@@ -354,8 +417,28 @@ function ProductModal({ initial, onClose, onSave, isTienda }) {
             console.warn(`Image upload failed for product ${productId}, but product was created`);
           }
         }
+
+        if (galleryFilesSelected.length > 0 && productId) {
+          const formData = new FormData();
+          galleryFilesSelected.forEach((file) => {
+            formData.append('images', file);
+          });
+          try {
+            await api.post(`/api/products/${productId}/images`, formData, {
+              headers: { 'Content-Type': 'multipart/form-data' },
+            });
+          } catch (galleryErr) {
+            console.warn(`Gallery upload failed for product ${productId}, but product was created`);
+            galleryUploadFailed = true;
+          }
+        }
+
+        if (galleryUploadFailed) {
+          setError('Producto creado, pero hubo un error subiendo algunas fotos de la galería. Puedes agregarlas editando el producto.');
+        }
       }
       qc.invalidateQueries({ queryKey: ['products'] });
+      setGalleryFilesSelected([]);
       onSave();
     } catch (err) {
       console.error('handleSave error:', err);
@@ -387,26 +470,96 @@ function ProductModal({ initial, onClose, onSave, isTienda }) {
 
           {/* Image upload */}
           {isTienda && (
-            <div>
-              <label className="block text-slate-400 text-sm mb-2">Foto del producto</label>
-              <div className="flex gap-3">
-                <div className="w-20 h-20 bg-slate-800 border border-slate-700 rounded-lg flex items-center justify-center flex-shrink-0 overflow-hidden">
-                  {imagePreview ? (
-                    <img src={imagePreview} alt="preview" className="w-full h-full object-cover" />
-                  ) : (
-                    <ImageIcon size={28} className="text-slate-600" />
-                  )}
-                </div>
-                <div className="flex-1">
-                  <input ref={fileInputRef} type="file" accept="image/*" onChange={handleImageSelect} className="hidden" />
-                  <button type="button" onClick={() => fileInputRef.current?.click()}
-                    className="w-full bg-slate-800 hover:bg-slate-700 text-slate-300 text-sm font-medium py-2 rounded-lg transition">
-                    Seleccionar imagen
-                  </button>
-                  <p className="text-slate-500 text-xs mt-1">JPG, PNG o WebP — máx 2MB</p>
+            <>
+              <div>
+                <label className="block text-slate-400 text-sm mb-2">Foto del producto (principal)</label>
+                <div className="flex gap-3">
+                  <div className="w-20 h-20 bg-slate-800 border border-slate-700 rounded-lg flex items-center justify-center flex-shrink-0 overflow-hidden">
+                    {imagePreview ? (
+                      <img src={imagePreview} alt="preview" className="w-full h-full object-cover" />
+                    ) : (
+                      <ImageIcon size={28} className="text-slate-600" />
+                    )}
+                  </div>
+                  <div className="flex-1">
+                    <input ref={fileInputRef} type="file" accept="image/*" onChange={handleImageSelect} className="hidden" />
+                    <button type="button" onClick={() => fileInputRef.current?.click()}
+                      className="w-full bg-slate-800 hover:bg-slate-700 text-slate-300 text-sm font-medium py-2 rounded-lg transition">
+                      Seleccionar imagen
+                    </button>
+                    <p className="text-slate-500 text-xs mt-1">JPG, PNG o WebP — máx 2MB</p>
+                  </div>
                 </div>
               </div>
-            </div>
+
+              {!isEdit && (
+                <div>
+                  <label className="block text-slate-400 text-sm mb-2">Galería de fotos (opcional)</label>
+                  {galleryFilesSelected.length > 0 && (
+                    <div className="mb-3 flex flex-wrap gap-2">
+                      {galleryFilesSelected.map((file, idx) => (
+                        <div key={idx} className="relative w-20 h-20 bg-slate-800 border border-slate-700 rounded-lg overflow-hidden group">
+                          <img src={URL.createObjectURL(file)} alt={`gallery-${idx}`} className="w-full h-full object-cover" />
+                          <button
+                            type="button"
+                            onClick={() => handleRemoveGalleryFile(idx)}
+                            className="absolute inset-0 bg-black/50 flex items-center justify-center opacity-0 group-hover:opacity-100 transition rounded-lg"
+                          >
+                            <X size={16} className="text-white" />
+                          </button>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                  <div className="flex gap-2">
+                    <input ref={galleryCreateInputRef} type="file" multiple accept="image/*" onChange={handleSelectGalleryFiles} className="hidden" />
+                    <button
+                      type="button"
+                      onClick={() => galleryCreateInputRef.current?.click()}
+                      disabled={galleryFilesSelected.length >= 8}
+                      className="flex-1 bg-slate-800 hover:bg-slate-700 disabled:opacity-50 text-slate-300 text-sm font-medium py-2 rounded-lg transition"
+                    >
+                      + Agregar fotos ({galleryFilesSelected.length}/8)
+                    </button>
+                  </div>
+                  <p className="text-slate-500 text-xs mt-1">Máximo 8 imágenes, JPG, PNG o WebP — máx 2MB c/u</p>
+                </div>
+              )}
+
+              {isEdit && (
+                <div>
+                  <label className="block text-slate-400 text-sm mb-2">Galería de fotos</label>
+                  {galleryImages.length > 0 && (
+                    <div className="mb-3 flex flex-wrap gap-2">
+                      {galleryImages.map((url, idx) => (
+                        <div key={idx} className="relative w-20 h-20 bg-slate-800 border border-slate-700 rounded-lg overflow-hidden group">
+                          <img src={url} alt={`gallery-${idx}`} className="w-full h-full object-cover" />
+                          <button
+                            type="button"
+                            onClick={() => handleDeleteGalleryImage(url)}
+                            className="absolute inset-0 bg-black/50 flex items-center justify-center opacity-0 group-hover:opacity-100 transition rounded-lg"
+                          >
+                            <X size={16} className="text-white" />
+                          </button>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                  <div className="flex gap-2">
+                    <input ref={galleryInputRef} type="file" multiple accept="image/*" onChange={handleUploadGalleryImages} className="hidden" />
+                    <button
+                      type="button"
+                      onClick={() => galleryInputRef.current?.click()}
+                      disabled={uploadingGallery}
+                      className="flex-1 bg-slate-800 hover:bg-slate-700 disabled:opacity-50 text-slate-300 text-sm font-medium py-2 rounded-lg transition"
+                    >
+                      {uploadingGallery ? 'Subiendo...' : '+ Agregar fotos'}
+                    </button>
+                  </div>
+                  <p className="text-slate-500 text-xs mt-1">Máximo 8 imágenes, JPG, PNG o WebP — máx 2MB c/u</p>
+                </div>
+              )}
+            </>
           )}
 
           {/* Basic info */}
@@ -414,6 +567,13 @@ function ProductModal({ initial, onClose, onSave, isTienda }) {
             {field('Nombre *', 'name')}
             {field('Descripción (opcional)', 'description')}
             {field('Categoría (opcional)', 'category')}
+            <div>
+              <label className="block text-slate-400 text-sm mb-1.5">SKU (opcional)</label>
+              <input type="text" value={form.sku} onChange={(e) => setForm({ ...form, sku: e.target.value })}
+                placeholder="Se genera automático si lo dejas vacío"
+                className="w-full bg-[#131929] border border-slate-700 text-white rounded-lg px-4 py-2.5 text-sm focus:outline-none focus:border-violet-500 transition" />
+              <p className="text-slate-600 text-xs mt-1">Código único para identificar el producto</p>
+            </div>
           </div>
 
           {/* Variants toggle */}
@@ -514,11 +674,20 @@ function ProductModal({ initial, onClose, onSave, isTienda }) {
                       className="w-full text-xs text-violet-400 hover:text-violet-300 py-1.5 transition">
                       + Agregar atributo
                     </button>
-                    <div>
-                      <label className="block text-slate-400 text-xs mb-1">Stock</label>
-                      <input type="number" min="0" value={newVariant.stock}
-                        onChange={(e) => setNewVariant({ ...newVariant, stock: Number(e.target.value) })}
-                        className="w-full bg-[#131929] border border-slate-700 text-white rounded px-2 py-1.5 text-xs focus:outline-none focus:border-violet-500" />
+                    <div className="grid grid-cols-2 gap-2">
+                      <div>
+                        <label className="block text-slate-400 text-xs mb-1">Stock</label>
+                        <input type="number" min="0" value={newVariant.stock}
+                          onChange={(e) => setNewVariant({ ...newVariant, stock: Number(e.target.value) })}
+                          className="w-full bg-[#131929] border border-slate-700 text-white rounded px-2 py-1.5 text-xs focus:outline-none focus:border-violet-500" />
+                      </div>
+                      <div>
+                        <label className="block text-slate-400 text-xs mb-1">SKU (opcional)</label>
+                        <input type="text" value={newVariant.sku}
+                          onChange={(e) => setNewVariant({ ...newVariant, sku: e.target.value })}
+                          placeholder="Automático"
+                          className="w-full bg-[#131929] border border-slate-700 text-white rounded px-2 py-1.5 text-xs focus:outline-none focus:border-violet-500" />
+                      </div>
                     </div>
                     <button type="button" onClick={handleCreateVariant}
                       className="w-full text-xs bg-violet-600 hover:bg-violet-500 text-white font-medium py-1.5 rounded transition">

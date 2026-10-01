@@ -5,6 +5,8 @@ const { restoreOrderStock, undoRestoredItems } = require('../utils/orderStock');
 const PAYMENT_STATUSES = ['pendiente', 'pagado', 'fallido', 'reembolsado'];
 const PAYMENT_METHODS = ['efectivo', 'transferencia', 'nequi', 'daviplata', 'tarjeta', 'wompi', 'otro'];
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+// status <> 'cancelado' excluiría filas con status NULL (pedidos viejos): se incluyen explícitamente
+const NOT_CANCELLED = 'status.is.null,status.neq.cancelado';
 
 // undefined = no viene (no se toca); null o '' = se limpia; texto = se valida y recorta
 function parseOptionalText(value, max, label) {
@@ -384,7 +386,7 @@ async function updateStatus(req, res) {
         .update({ status: 'cancelado' })
         .eq('id', id)
         .eq('business_id', req.businessId)
-        .neq('status', 'cancelado')
+        .or(NOT_CANCELLED)
         .select();
       if (claimErr) throw claimErr;
 
@@ -418,7 +420,7 @@ async function updateStatus(req, res) {
       .from('orders')
       .update({ status })
       .eq('id', id)
-      .neq('status', 'cancelado')
+      .or(NOT_CANCELLED)
       .select();
 
     if (error) {
@@ -559,7 +561,7 @@ async function updatePayment(req, res) {
       .update(updates)
       .eq('id', id)
       .eq('business_id', req.businessId)
-      .neq('status', 'cancelado')
+      .or(NOT_CANCELLED)
       .select();
     if (error) throw error;
     if (!data || data.length === 0) {
@@ -607,7 +609,7 @@ async function updateShipping(req, res) {
       .update(updates)
       .eq('id', id)
       .eq('business_id', req.businessId)
-      .neq('status', 'cancelado')
+      .or(NOT_CANCELLED)
       .select();
     if (error) throw error;
     if (!data || data.length === 0) {

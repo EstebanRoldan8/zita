@@ -629,4 +629,138 @@ async function deleteImage(req, res) {
   }
 }
 
-module.exports = { getAll, getLowStock, getSales, create, update, toggleProduct, deactivate, deleteProduct, sell, uploadImage, uploadImages, deleteImage };
+// Entrada de mercancía: suma unidades vía adjust_stock (type 'entrada'). No toca cost_price.
+async function restock(req, res) {
+  try {
+    const sb = createUserClient(req.headers.authorization);
+    const { id } = req.params;
+    const { quantity, variant_id, note } = req.body || {};
+
+    const qty = Number(quantity);
+    if (!Number.isInteger(qty) || qty < 1 || qty > 100000) {
+      return res.status(400).json({ success: false, error: 'La cantidad debe ser un número entero entre 1 y 100000.' });
+    }
+
+    let reason = null;
+    if (note !== undefined && note !== null && note !== '') {
+      if (typeof note !== 'string') {
+        return res.status(400).json({ success: false, error: 'La nota debe ser texto.' });
+      }
+      const trimmed = note.trim();
+      if (trimmed.length > 200) {
+        return res.status(400).json({ success: false, error: 'La nota no puede superar 200 caracteres.' });
+      }
+      reason = trimmed || null;
+    }
+
+    const { data: product, error: pErr } = await sb
+      .from('products')
+      .select('id, is_active, has_variants')
+      .eq('id', id)
+      .eq('business_id', req.businessId)
+      .maybeSingle();
+    if (pErr || !product) return res.status(404).json({ success: false, error: 'Producto no encontrado.' });
+    if (!product.is_active) return res.status(400).json({ success: false, error: 'El producto no está activo.' });
+
+    if (product.has_variants) {
+      if (!variant_id) {
+        return res.status(400).json({ success: false, error: 'Este producto tiene variantes, debes indicar cuál (talla/color).' });
+      }
+      const { data: variant, error: vErr } = await sb
+        .from('product_variants')
+        .select('id, is_active')
+        .eq('id', variant_id)
+        .eq('product_id', id)
+        .eq('business_id', req.businessId)
+        .maybeSingle();
+      if (vErr || !variant) return res.status(404).json({ success: false, error: 'Variante no encontrada.' });
+      if (!variant.is_active) return res.status(400).json({ success: false, error: 'La variante está inactiva.' });
+    } else if (variant_id) {
+      return res.status(400).json({ success: false, error: 'Este producto no tiene variantes; no envíes variant_id.' });
+    }
+
+    const { data: rpcData, error: rpcError } = await supabaseAdmin.rpc('adjust_stock', {
+      p_business_id: req.businessId,
+      p_product_id: id,
+      p_variant_id: product.has_variants ? variant_id : null,
+      p_change: qty,
+      p_type: 'entrada',
+      p_reason: reason,
+      p_ref_type: 'restock',
+      p_ref_id: null,
+      p_user: req.user.id,
+    });
+    if (rpcError) {
+      if (rpcError.message?.includes('STOCK_INSUFICIENTE_O_NO_ENCONTRADO')) {
+        return res.status(404).json({ success: false, error: 'Producto o variante no encontrado.' });
+      }
+      throw rpcError;
+    }
+
+    const { data: after, error: aErr } = await sb
+      .from('products')
+      .select('stock')
+      .eq('id', id)
+      .eq('business_id', req.businessId)
+      .single();
+    if (aErr) throw aErr;
+
+    return res.json({
+      success: true,
+      data: {
+        stock_variante: product.has_variants ? rpcData : null,
+        stock_producto: after.stock,
+      },
+    });
+  } catch (err) {
+    logger.error('products.restock: ' + err.message);
+    return res.status(500).json({ success: false, error: 'Error al registrar la entrada de mercancía.' });
+  }
+}
+
+// Historial de movimientos de inventario de un producto (más recientes primero)
+async function getMovements(req, res) {
+  try {
+    const sb = createUserClient(req.headers.authorization);
+    const { id } = req.params;
+    const limit = Math.min(Math.max(parseInt(req.query.limit, 10) || 50, 1), 200);
+
+    const { data: product, error: pErr } = await sb
+      .from('products')
+      .select('id')
+      .eq('id', id)
+      .eq('business_id', req.businessId)
+      .maybeSingle();
+    if (pErr || !product) return res.status(404).json({ success: false, error: 'Producto no encontrado.' });
+
+    const { data: movs, error } = await sb
+      .from('inventory_movements')
+      .select('id, product_id, variant_id, type, quantity_change, stock_after, reason, reference_type, reference_id, created_by, created_at')
+      .eq('business_id', req.businessId)
+      .eq('product_id', id)
+      .order('created_at', { ascending: false })
+      .limit(limit);
+    if (error) throw error;
+
+    // Segunda consulta en vez de embed: atributos y sku de las variantes involucradas
+    const variantIds = [...new Set((movs || []).map((m) => m.variant_id).filter(Boolean))];
+    const variantsById = {};
+    if (variantIds.length > 0) {
+      const { data: variants, error: vErr } = await sb
+        .from('product_variants')
+        .select('id, attributes, sku, is_active')
+        .eq('business_id', req.businessId)
+        .in('id', variantIds);
+      if (vErr) throw vErr;
+      for (const v of variants || []) variantsById[v.id] = v;
+    }
+
+    const data = (movs || []).map((m) => ({ ...m, variant: m.variant_id ? (variantsById[m.variant_id] || null) : null }));
+    return res.json({ success: true, data });
+  } catch (err) {
+    logger.error('products.getMovements: ' + err.message);
+    return res.status(500).json({ success: false, error: 'Error al obtener el historial de inventario.' });
+  }
+}
+
+module.exports = { getAll, getLowStock, getSales, create, update, toggleProduct, deactivate, deleteProduct, sell, uploadImage, uploadImages, deleteImage, restock, getMovements };

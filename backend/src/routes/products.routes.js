@@ -3,6 +3,7 @@ const multer = require('multer');
 const {
   getAll, getLowStock, getSales,
   create, update, toggleProduct, deleteProduct, sell, uploadImage, uploadImages, deleteImage,
+  restock, getMovements,
 } = require('../controllers/products.controller');
 const { verifyToken } = require('../middlewares/auth');
 const { businessContext } = require('../middlewares/businessContext');
@@ -42,6 +43,8 @@ router.put('/:id',       update);
 router.put('/:id/toggle', toggleProduct);
 router.delete('/:id',    deleteProduct);
 router.post('/:id/sell', sell);
+router.post('/:id/restock', restock);
+router.get('/:id/movements', getMovements);
 router.post('/:id/image', upload.single('image'), uploadImage);
 router.post('/:id/images', uploadMultiple.array('images', 8), uploadImages);
 router.delete('/:id/images', deleteImage);

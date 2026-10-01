@@ -2,12 +2,14 @@ import { useState, useRef, useEffect } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 
 // fix: queryClient scope available in ProductModal
-import { Package, Plus, X, AlertTriangle, ShoppingCart, Edit2, TrendingUp, ToggleRight, ToggleLeft, Trash2, Image as ImageIcon, Layers2 } from 'lucide-react';
+import { Package, Plus, X, AlertTriangle, ShoppingCart, Edit2, TrendingUp, ToggleRight, ToggleLeft, Trash2, Image as ImageIcon, Layers2, PackagePlus, History } from 'lucide-react';
 import DatePicker, { registerLocale } from 'react-datepicker';
 import 'react-datepicker/dist/react-datepicker.css';
 import { es } from 'date-fns/locale';
 import api from '../../lib/api';
 import { useAuth } from '../../context/AuthContext';
+import RestockModal from '../../components/inventory/RestockModal';
+import MovementsModal from '../../components/inventory/MovementsModal';
 
 registerLocale('es', es);
 
@@ -1044,7 +1046,9 @@ function CatalogoTab({ products, clients, showInactive, onShowInactiveChange, so
 }
 
 // ── Inventario Tab ───────────────────────────────────────────────────────────
-function InventarioTab({ products, sales, sortBy, onSortChange }) {
+function InventarioTab({ products, sales, sortBy, onSortChange, isTienda }) {
+  const [restockOpen, setRestockOpen] = useState(false);
+  const [historyProduct, setHistoryProduct] = useState(null);
   const [selectedMonth, setSelectedMonth] = useState(new Date().toLocaleDateString('en-CA', { timeZone: 'America/Bogota' }).slice(0, 7));
   const [productSales, setProductSales] = useState([]);
   const [error, setError] = useState(null);
@@ -1134,6 +1138,15 @@ function InventarioTab({ products, sales, sortBy, onSortChange }) {
         </div>
       )}
 
+      {isTienda && (
+        <div className="flex justify-end">
+          <button onClick={() => setRestockOpen(true)}
+            className="w-full sm:w-auto flex items-center justify-center gap-2 bg-violet-600 hover:bg-violet-500 text-white text-sm font-medium px-4 py-2 rounded-lg transition">
+            <PackagePlus size={15} /> Entrada de mercancía
+          </button>
+        </div>
+      )}
+
       {/* Stock table */}
       <div className="bg-[#131929] border border-slate-800 rounded-xl shadow-lg shadow-black/30 overflow-hidden">
         <div className="px-5 py-3 border-b border-white/5 flex items-center justify-between">
@@ -1186,6 +1199,12 @@ function InventarioTab({ products, sales, sortBy, onSortChange }) {
                       </div>
                     </div>
                     {p.category && <p className="text-slate-500 text-xs mt-1">{p.category}</p>}
+                    {isTienda && (
+                      <button onClick={() => setHistoryProduct(p)}
+                        className="mt-2 w-full flex items-center justify-center gap-1.5 text-xs text-violet-400 bg-violet-600/10 border border-violet-500/20 hover:bg-violet-600/20 py-2 rounded-lg transition">
+                        <History size={13} /> Historial
+                      </button>
+                    )}
                   </div>
                 );
               })}
@@ -1211,7 +1230,17 @@ function InventarioTab({ products, sales, sortBy, onSortChange }) {
                     const status = STOCK_STATUS(p.stock ?? 0, p.min_stock ?? 0);
                     return (
                       <tr key={p.id} className="border-b border-white/5 hover:bg-white/3 transition-colors">
-                        <td className="px-4 py-3 text-white font-medium">{p.name}</td>
+                        <td className="px-4 py-3 text-white font-medium">
+                          {isTienda ? (
+                            <div className="flex items-center justify-between gap-2">
+                              <span>{p.name}</span>
+                              <button onClick={() => setHistoryProduct(p)} title="Historial de inventario"
+                                className="flex-shrink-0 p-1.5 rounded-lg text-slate-400 hover:text-violet-400 hover:bg-violet-500/20 transition">
+                                <History size={14} />
+                              </button>
+                            </div>
+                          ) : p.name}
+                        </td>
                         <td className="px-4 py-3 text-center text-slate-400">{p.category || '—'}</td>
                         <td className="px-4 py-3 text-slate-300">{formatCOP(p.price)}</td>
                         <td className="px-4 py-3 text-slate-300">
@@ -1386,6 +1415,9 @@ function InventarioTab({ products, sales, sortBy, onSortChange }) {
           </div>
         )}
       </div>
+
+      {restockOpen && <RestockModal products={products} onClose={() => setRestockOpen(false)} />}
+      {historyProduct && <MovementsModal product={historyProduct} onClose={() => setHistoryProduct(null)} />}
     </div>
   );
 }
@@ -1465,7 +1497,7 @@ export default function Products() {
           {tab === 'catalogo' ? (
             <CatalogoTab products={products} clients={clients} showInactive={showInactive} onShowInactiveChange={setShowInactive} sortBy={sortBy} onSortChange={setSortBy} isTienda={isTienda} newModal={newModal} setNewModal={setNewModal} />
           ) : (
-            <InventarioTab products={products.filter((p) => p.is_active)} sales={sales} sortBy={sortBy} onSortChange={setSortBy} />
+            <InventarioTab products={products.filter((p) => p.is_active)} sales={sales} sortBy={sortBy} onSortChange={setSortBy} isTienda={isTienda} />
           )}
         </>
       )}

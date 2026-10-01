@@ -169,3 +169,19 @@
 .animate-fade-slide-up {
   animation: fadeSlideUp 0.4s ease-out forwards;
 }
+
+/* Productos y Pedidos: áreas táctiles de 44px y texto de 16px en inputs (evita el zoom de iOS).
+   Solo por debajo de md: en escritorio no cambia nada. */
+@media (max-width: 767.98px) {
+  .zita-touch button,
+  .zita-touch select,
+  .zita-touch textarea,
+  .zita-touch input:not([type="checkbox"]):not([type="radio"]):not([type="file"]) {
+    min-height: 44px;
+  }
+  .zita-touch select,
+  .zita-touch textarea,
+  .zita-touch input:not([type="checkbox"]):not([type="radio"]):not([type="file"]) {
+    font-size: 16px;
+  }
+}

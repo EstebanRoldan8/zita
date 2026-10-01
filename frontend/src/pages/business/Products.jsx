@@ -96,13 +96,14 @@ function SellModal({ product, clients, onClose, onSuccess }) {
   const labelCls = "block text-slate-300 text-sm mb-1.5";
 
   return (
-    <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50 px-4">
-      <div className="bg-[#131929] border border-violet-500/20 rounded-2xl w-full max-w-sm p-6 shadow-2xl">
-        <div className="flex items-center justify-between mb-5">
+    <div className="fixed inset-0 bg-black/60 flex items-end md:items-center justify-center z-50 md:px-4">
+      <div className="bg-[#131929] border border-violet-500/20 md:rounded-2xl w-full md:max-w-sm h-[100dvh] md:h-auto flex flex-col md:block md:p-6 shadow-2xl">
+        <div className="flex items-center justify-between px-4 py-4 border-b border-slate-800 md:border-0 md:p-0 md:mb-5 flex-shrink-0">
           <h3 className="text-white font-semibold">Registrar venta</h3>
           <button onClick={onClose} className="text-slate-500 hover:text-white transition"><X size={18} /></button>
         </div>
 
+        <div className="flex-1 overflow-y-auto px-4 pt-4 pb-4 md:p-0 md:overflow-visible">
         <div className="mb-4 p-3 bg-[#0f172a] border border-slate-700 rounded-xl">
           <p className="text-white text-sm font-semibold">{product.name}</p>
           <p className="text-violet-400 text-xs mt-0.5">{formatCOP(product.price)}</p>
@@ -130,7 +131,7 @@ function SellModal({ product, clients, onClose, onSuccess }) {
           )}
           <div>
             <label className={labelCls}>Cantidad</label>
-            <input type="number" min="1" max={product.has_variants ? selectedVariant?.stock : product.stock} value={qty}
+            <input type="number" inputMode="numeric" min="1" max={product.has_variants ? selectedVariant?.stock : product.stock} value={qty}
               onChange={(e) => setQty(e.target.value)} className={inputCls} />
             {selectedVariant && <p className="text-slate-400 text-xs mt-1">Stock disponible: {selectedVariant.stock}</p>}
             {!product.has_variants && <p className="text-slate-400 text-xs mt-1">Stock disponible: {product.stock}</p>}
@@ -190,8 +191,9 @@ function SellModal({ product, clients, onClose, onSuccess }) {
             Total: <span className="text-violet-400">{formatCOP(product.price * Number(qty))}</span>
           </p>
         )}
+        </div>
 
-        <div className="flex gap-3 mt-5">
+        <div className="flex gap-3 px-4 py-4 border-t border-slate-800 md:border-0 md:p-0 md:mt-5 flex-shrink-0">
           <button onClick={onClose}
             className="flex-1 bg-slate-700 hover:bg-slate-600 text-white text-sm font-medium py-2.5 rounded-lg transition">
             Cancelar
@@ -510,20 +512,21 @@ function ProductModal({ initial, onClose, onSave, isTienda }) {
     <div key={key}>
       <label className="block text-slate-400 text-sm mb-1.5">{label}</label>
       <input type={type} value={form[key]} onChange={(e) => setForm({ ...form, [key]: e.target.value })}
+        {...(type === 'number' ? { inputMode: 'numeric' } : {})}
         {...extra}
         className="w-full bg-[#131929] border border-slate-700 text-white rounded-lg px-4 py-2.5 text-sm focus:outline-none focus:border-violet-500 transition" />
     </div>
   );
 
   return (
-    <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50 px-4 overflow-y-auto py-4">
-      <div className="bg-[#131929] border border-slate-800 rounded-2xl w-full max-w-2xl shadow-xl border border-violet-500/25 shadow-2xl shadow-black/50">
-        <div className="flex items-center justify-between px-6 py-4 border-b border-slate-800">
+    <div className="fixed inset-0 bg-black/60 flex items-end md:items-center justify-center z-50 md:px-4 overflow-y-auto md:py-4">
+      <div className="bg-[#131929] border border-slate-800 md:rounded-2xl w-full max-w-2xl shadow-xl border border-violet-500/25 shadow-2xl shadow-black/50 h-[100dvh] md:h-auto flex flex-col md:block">
+        <div className="flex items-center justify-between px-4 md:px-6 py-4 border-b border-slate-800 flex-shrink-0">
           <h3 className="text-white font-semibold">{isEdit ? 'Editar producto' : 'Nuevo producto'}</h3>
           <button onClick={onClose} className="text-slate-500 hover:text-white transition"><X size={18} /></button>
         </div>
 
-        <div className="px-6 py-4 max-h-[calc(100vh-200px)] overflow-y-auto space-y-4">
+        <div className="px-4 md:px-6 py-4 flex-1 md:max-h-[calc(100vh-200px)] overflow-y-auto space-y-4">
           {error && <p className="text-red-400 text-sm bg-red-500/10 border border-red-500/20 px-3 py-2 rounded-lg">{error}</p>}
 
           {/* Image upload */}
@@ -681,7 +684,7 @@ function ProductModal({ initial, onClose, onSave, isTienda }) {
           <div>
             <label className="block text-slate-400 text-sm mb-1.5">Precio de costo (opcional)</label>
             <input
-              type="number" min="0" step="100"
+              type="number" inputMode="numeric" min="0" step="100"
               value={form.cost_price}
               onChange={(e) => setForm({ ...form, cost_price: e.target.value })}
               placeholder="0"
@@ -714,7 +717,7 @@ function ProductModal({ initial, onClose, onSave, isTienda }) {
                             ))}
                           </div>
                           <div className="flex items-center gap-2">
-                            <input type="number" min="0" value={v.stock}
+                            <input type="number" inputMode="numeric" min="0" value={v.stock}
                               onChange={(e) => handleUpdateVariantStockLocal(v.id, e.target.value === '' ? '' : Number(e.target.value))}
                               onBlur={(e) => {
                                 // En edición se guarda al salir del campo, no en cada tecla
@@ -766,7 +769,7 @@ function ProductModal({ initial, onClose, onSave, isTienda }) {
                     <div className="grid grid-cols-2 gap-2">
                       <div>
                         <label className="block text-slate-400 text-xs mb-1">Stock</label>
-                        <input type="number" min="0" value={newVariant.stock}
+                        <input type="number" inputMode="numeric" min="0" value={newVariant.stock}
                           onChange={(e) => setNewVariant({ ...newVariant, stock: Number(e.target.value) })}
                           className="w-full bg-[#131929] border border-slate-700 text-white rounded px-2 py-1.5 text-xs focus:outline-none focus:border-violet-500" />
                       </div>
@@ -789,7 +792,7 @@ function ProductModal({ initial, onClose, onSave, isTienda }) {
           )}
         </div>
 
-        <div className="flex gap-3 px-6 py-4 border-t border-slate-800">
+        <div className="flex gap-3 px-4 md:px-6 py-4 border-t border-slate-800 flex-shrink-0">
           <button onClick={onClose}
             className="flex-1 bg-slate-800 hover:bg-slate-700 text-slate-300 text-sm font-medium py-2.5 rounded-lg transition">
             Cancelar
@@ -1462,7 +1465,7 @@ export default function Products() {
   ];
 
   return (
-    <div className="px-4 sm:px-6 lg:px-8 py-6 sm:py-8">
+    <div className="zita-touch px-4 sm:px-6 lg:px-8 py-6 sm:py-8">
       <div className="border-b border-white/6 pb-4 mb-6">
         <h1 className="text-xl sm:text-2xl font-bold text-white">
           Productos

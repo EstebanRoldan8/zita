@@ -10,6 +10,7 @@ import api from '../../lib/api';
 import { useAuth } from '../../context/AuthContext';
 import RestockModal from '../../components/inventory/RestockModal';
 import MovementsModal from '../../components/inventory/MovementsModal';
+import InventorySummary from '../../components/inventory/InventorySummary';
 
 registerLocale('es', es);
 
@@ -1128,6 +1129,8 @@ function InventarioTab({ products, sales, sortBy, onSortChange, isTienda }) {
 
   return (
     <div className="space-y-6">
+      {isTienda && <InventorySummary />}
+
       {outOfStock.length > 0 && (
         <div className="flex items-start gap-3 bg-red-500/10 border border-red-500/20 rounded-xl px-4 py-3">
           <AlertTriangle size={16} className="text-red-400 mt-0.5 flex-shrink-0" />

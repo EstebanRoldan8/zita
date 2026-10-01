@@ -1,7 +1,7 @@
 const router = require('express').Router();
 const multer = require('multer');
 const {
-  getAll, getLowStock, getSales,
+  getAll, getLowStock, getSales, getInventorySummary,
   create, update, toggleProduct, deleteProduct, sell, uploadImage, uploadImages, deleteImage,
   restock, getMovements,
 } = require('../controllers/products.controller');
@@ -36,6 +36,7 @@ router.use(verifyToken, businessContext);
 
 // Static routes BEFORE parameterized to avoid Express matching them as :id
 router.get('/low-stock', getLowStock);
+router.get('/inventory-summary', getInventorySummary);
 router.get('/sales',     getSales);
 router.get('/',          getAll);
 router.post('/',         create);

@@ -52,6 +52,95 @@ async function getLowStock(req, res) {
   }
 }
 
+// Resumen del inventario: unidades, valor al costo y a la venta, alertas,
+// más vendidos y productos sin movimiento de venta en los últimos 30 días.
+async function getInventorySummary(req, res) {
+  try {
+    const sb = createUserClient(req.headers.authorization);
+    const since = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString();
+
+    const { data: products, error } = await sb
+      .from('products')
+      .select('id, name, stock, min_stock, price, cost_price, has_variants')
+      .eq('business_id', req.businessId)
+      .eq('is_active', true);
+    if (error) throw error;
+    const list = products || [];
+
+    // products.stock ya es la suma de variantes activas en productos con variantes
+    let totalUnits = 0;
+    let costValue = 0;
+    let saleValue = 0;
+    let withoutCost = 0;
+    for (const p of list) {
+      const stock = Number(p.stock) || 0;
+      totalUnits += stock;
+      saleValue += stock * (Number(p.price) || 0);
+      if (p.cost_price != null) costValue += stock * Number(p.cost_price);
+      else withoutCost += 1;
+    }
+
+    const lowList = await findLowStock(sb, req.businessId, list);
+    const outOfStockCount = list.filter((p) => (Number(p.stock) || 0) === 0).length;
+    const lowStockCount = lowList.filter((p) => (Number(p.stock) || 0) > 0).length;
+
+    // Más vendidos: suma de quantity en product_sales de los últimos 30 días
+    const { data: sales, error: sErr } = await sb
+      .from('product_sales')
+      .select('product_id, quantity')
+      .eq('business_id', req.businessId)
+      .gte('created_at', since)
+      .limit(10000);
+    if (sErr) throw sErr;
+    const unitsByProduct = {};
+    for (const s of sales || []) {
+      unitsByProduct[s.product_id] = (unitsByProduct[s.product_id] || 0) + (Number(s.quantity) || 0);
+    }
+    const nameById = Object.fromEntries(list.map((p) => [p.id, p.name]));
+    const topIds = Object.entries(unitsByProduct).sort((a, b) => b[1] - a[1]).slice(0, 5);
+    const missingNames = topIds.map(([pid]) => pid).filter((pid) => !nameById[pid]);
+    if (missingNames.length > 0) {
+      // Productos inactivos que igual vendieron en el período
+      const { data: extra } = await sb.from('products').select('id, name').in('id', missingNames);
+      for (const p of extra || []) nameById[p.id] = p.name;
+    }
+    const topSellers = topIds.map(([pid, units]) => ({ product_id: pid, name: nameById[pid] || 'Producto eliminado', units }));
+
+    // Sin movimiento: sin ningún 'venta' en inventory_movements en 30 días y con stock > 0
+    const { data: saleMovs, error: mErr } = await sb
+      .from('inventory_movements')
+      .select('product_id')
+      .eq('business_id', req.businessId)
+      .eq('type', 'venta')
+      .gte('created_at', since)
+      .limit(10000);
+    if (mErr) throw mErr;
+    const soldIds = new Set((saleMovs || []).map((m) => m.product_id));
+    const noMovementAll = list
+      .filter((p) => (Number(p.stock) || 0) > 0 && !soldIds.has(p.id))
+      .sort((a, b) => (Number(b.stock) || 0) - (Number(a.stock) || 0));
+
+    return res.json({
+      success: true,
+      data: {
+        total_products: list.length,
+        total_units: totalUnits,
+        inventory_cost_value: costValue,
+        products_without_cost: withoutCost,
+        inventory_sale_value: saleValue,
+        out_of_stock_count: outOfStockCount,
+        low_stock_count: lowStockCount,
+        top_sellers: topSellers,
+        no_movement: noMovementAll.slice(0, 20).map((p) => ({ id: p.id, name: p.name, stock: p.stock })),
+        no_movement_total: noMovementAll.length,
+      },
+    });
+  } catch (err) {
+    logger.error('products.getInventorySummary: ' + err.message);
+    return res.status(500).json({ success: false, error: 'Error al obtener el resumen de inventario.' });
+  }
+}
+
 async function getSales(req, res) {
   try {
     const sb = createUserClient(req.headers.authorization);
@@ -763,4 +852,4 @@ async function getMovements(req, res) {
   }
 }
 
-module.exports = { getAll, getLowStock, getSales, create, update, toggleProduct, deactivate, deleteProduct, sell, uploadImage, uploadImages, deleteImage, restock, getMovements };
+module.exports = { getAll, getLowStock, getSales, getInventorySummary, create, update, toggleProduct, deactivate, deleteProduct, sell, uploadImage, uploadImages, deleteImage, restock, getMovements };

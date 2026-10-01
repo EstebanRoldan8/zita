@@ -51,10 +51,15 @@ function generarSku(categoria, nombre, atributos = {}) {
     }
   }
 
-  const attrOrder = ['talla', 'size', 'color', 'tamaño'];
+  // Claves sin importar mayúsculas/tildes: "Talla", "COLOR", "Tamaño" cuentan igual
+  const attrsByKey = {};
+  for (const [k, v] of Object.entries(atributos || {})) {
+    attrsByKey[removeAccents(String(k)).toLowerCase().trim()] = v;
+  }
+  const attrOrder = ['talla', 'size', 'color', 'tamano'];
   for (const key of attrOrder) {
-    if (atributos[key]) {
-      const attrNorm = normalizeString(String(atributos[key]));
+    if (attrsByKey[key]) {
+      const attrNorm = normalizeString(String(attrsByKey[key]));
       skuParts.push(attrNorm);
     }
   }

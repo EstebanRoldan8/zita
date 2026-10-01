@@ -1,6 +1,26 @@
-const { createUserClient } = require('../config/supabase');
+const { createUserClient, supabaseAdmin } = require('../config/supabase');
 const logger = require('../utils/logger');
 const { generarSku } = require('../utils/sku');
+
+// Misma fórmula que adjust_stock: products.stock = suma de variantes activas.
+// Se usa cuando cambia el conjunto de variantes activas sin mover unidades (activar/desactivar).
+async function recalcProductStock(productId, businessId) {
+  const { data: rows, error } = await supabaseAdmin
+    .from('product_variants')
+    .select('stock')
+    .eq('product_id', productId)
+    .eq('business_id', businessId)
+    .eq('is_active', true);
+  if (error) throw error;
+  const total = (rows || []).reduce((s, r) => s + (r.stock || 0), 0);
+  const { error: upErr } = await supabaseAdmin
+    .from('products')
+    .update({ stock: total, updated_at: new Date().toISOString() })
+    .eq('id', productId)
+    .eq('business_id', businessId);
+  if (upErr) throw upErr;
+  return total;
+}
 
 async function getAll(req, res) {
   try {
@@ -27,6 +47,7 @@ async function getAll(req, res) {
 async function create(req, res) {
   try {
     const sb = createUserClient(req.headers.authorization);
+    const admin = supabaseAdmin;
     const { productId } = req.params;
     const { attributes, stock, sku } = req.body;
 
@@ -40,13 +61,23 @@ async function create(req, res) {
 
     const { data: product, error: productErr } = await sb
       .from('products')
-      .select('id, category, name')
+      .select('id, category, name, stock, has_variants')
       .eq('id', productId)
       .eq('business_id', req.businessId)
       .single();
 
     if (productErr || !product) {
       return res.status(404).json({ success: false, error: 'Producto no encontrado.' });
+    }
+
+    // adjust_stock recalcula products.stock como suma de variantes: si el producto aún no
+    // tenía variantes y tiene stock propio, esas unidades se perderían sin movimiento.
+    if (!product.has_variants && product.stock > 0) {
+      const n = product.stock;
+      return res.status(400).json({
+        success: false,
+        error: `Este producto tiene ${n} unidad${n === 1 ? '' : 'es'} en stock. Ajusta el stock a 0 antes de activar variantes, para no perder esas unidades.`,
+      });
     }
 
     let finalSku = sku?.trim() || null;
@@ -79,7 +110,7 @@ async function create(req, res) {
       product_id: productId,
       business_id: req.businessId,
       attributes,
-      stock: Number(stock),
+      stock: 0,
     };
     if (finalSku) payload.sku = finalSku;
 
@@ -94,7 +125,40 @@ async function create(req, res) {
       return res.status(400).json({ success: false, error: error.message || 'Error al crear la variante.' });
     }
 
-    return res.status(201).json({ success: true, data });
+    let finalData = data;
+
+    if (Number(stock) > 0) {
+      try {
+        const { data: rpcData, error: rpcError } = await admin.rpc('adjust_stock', {
+          p_business_id: req.businessId,
+          p_product_id: productId,
+          p_variant_id: data.id,
+          p_change: Number(stock),
+          p_type: 'inicial',
+          p_reason: null,
+          p_ref_type: 'variant_create',
+          p_ref_id: null,
+          p_user: null,
+        });
+        if (rpcError) throw rpcError;
+        finalData = { ...data, stock: rpcData };
+      } catch (rpcErr) {
+        logger.error('productVariants.create adjust_stock error: ' + JSON.stringify(rpcErr));
+        await sb.from('product_variants').delete().eq('id', data.id);
+        throw rpcErr;
+      }
+    }
+
+    // Con una variante activa el producto pasa a tener variantes, aunque el modal no se guarde
+    if (!product.has_variants) {
+      const { error: hvErr } = await sb
+        .from('products')
+        .update({ has_variants: true, updated_at: new Date().toISOString() })
+        .eq('id', productId);
+      if (hvErr) logger.warn('productVariants.create has_variants: ' + hvErr.message);
+    }
+
+    return res.status(201).json({ success: true, data: finalData });
   } catch (err) {
     logger.error('productVariants.create: ' + err.message);
     return res.status(500).json({ success: false, error: 'Error al crear la variante.' });
@@ -105,11 +169,11 @@ async function update(req, res) {
   try {
     const sb = createUserClient(req.headers.authorization);
     const { productId, variantId } = req.params;
-    const { attributes, stock, is_active } = req.body;
+    const { attributes, stock, is_active, sku } = req.body;
 
     const { data: variant, error: getErr } = await sb
       .from('product_variants')
-      .select('id')
+      .select('id, stock')
       .eq('id', variantId)
       .eq('product_id', productId)
       .eq('business_id', req.businessId)
@@ -123,27 +187,71 @@ async function update(req, res) {
     if (attributes !== undefined && typeof attributes === 'object') {
       updates.attributes = attributes;
     }
+    let stockChange = 0;
     if (stock !== undefined) {
-      if (Number(stock) < 0) {
-        return res.status(400).json({ success: false, error: 'El stock debe ser mayor o igual a 0.' });
+      const newStock = Number(stock);
+      if (!Number.isInteger(newStock) || newStock < 0) {
+        return res.status(400).json({ success: false, error: 'El stock debe ser un entero mayor o igual a 0.' });
       }
-      updates.stock = Number(stock);
+      stockChange = newStock - variant.stock;
     }
     if (is_active !== undefined) {
       updates.is_active = Boolean(is_active);
     }
 
-    if (Object.keys(updates).length === 0) {
+    // Edición explícita del SKU: si choca con otra variante se rechaza (no se agrega sufijo)
+    const newSku = typeof sku === 'string' ? sku.trim() : '';
+    if (newSku) {
+      const { data: clash, error: sErr } = await sb
+        .from('product_variants')
+        .select('id')
+        .eq('business_id', req.businessId)
+        .eq('sku', newSku)
+        .neq('id', variantId)
+        .maybeSingle();
+      if (sErr) throw sErr;
+      if (clash) return res.status(400).json({ success: false, error: `El SKU "${newSku}" ya está en uso por otra variante.` });
+      updates.sku = newSku;
+    }
+
+    if (Object.keys(updates).length === 0 && stock === undefined) {
       return res.status(400).json({ success: false, error: 'No hay cambios para actualizar.' });
+    }
+
+    if (Object.keys(updates).length > 0) {
+      const { error } = await sb
+        .from('product_variants')
+        .update(updates)
+        .eq('id', variantId);
+      if (error?.code === '23505' && newSku && error.message?.includes('sku')) {
+        return res.status(400).json({ success: false, error: `El SKU "${newSku}" ya está en uso por otra variante.` });
+      }
+      if (error) throw error;
+    }
+
+    // El stock se mueve solo vía adjust_stock: actualiza la variante, recalcula el padre y deja historial
+    if (stockChange !== 0) {
+      const { error: rpcError } = await supabaseAdmin.rpc('adjust_stock', {
+        p_business_id: req.businessId,
+        p_product_id: productId,
+        p_variant_id: variantId,
+        p_change: stockChange,
+        p_type: 'ajuste',
+        p_reason: 'Ajuste manual desde el panel',
+        p_ref_type: 'variant_update',
+        p_ref_id: null,
+        p_user: null,
+      });
+      if (rpcError) throw rpcError;
+    } else if (updates.is_active !== undefined) {
+      await recalcProductStock(productId, req.businessId);
     }
 
     const { data, error } = await sb
       .from('product_variants')
-      .update(updates)
+      .select('*')
       .eq('id', variantId)
-      .select()
       .single();
-
     if (error) throw error;
 
     return res.json({ success: true, data });
@@ -180,6 +288,8 @@ async function deactivate(req, res) {
     if (!data || data.length === 0) {
       return res.status(404).json({ success: false, error: 'Variante no encontrada.' });
     }
+
+    await recalcProductStock(productId, req.businessId);
 
     return res.json({ success: true, data: { id: variantId } });
   } catch (err) {

@@ -334,13 +334,37 @@ function ProductModal({ initial, onClose, onSave, isTienda }) {
 
     try {
       if (isEdit) {
-        await api.post(`/api/products/${initial.id}/variants`, {
+        const res = await api.post(`/api/products/${initial.id}/variants`, {
           attributes: attrs,
           stock: Number(newVariant.stock),
           sku: newVariant.sku?.trim() || null,
         });
+
+        const createdVariant = res.data?.data;
+        if (createdVariant && createdVariant.id) {
+          setVariants(prev => [...prev, createdVariant]);
+        } else {
+          setLoadingVariants(true);
+          try {
+            const variantsRes = await api.get(`/api/products/${initial.id}/variants`);
+            setVariants(variantsRes.data?.data || []);
+          } catch (varErr) {
+            console.error('Error reloading variants:', varErr);
+          } finally {
+            setLoadingVariants(false);
+          }
+        }
+      } else {
+        const variantToAdd = {
+          id: `temp-${Date.now()}-${Math.random().toString(36).slice(2, 9)}`,
+          attributes: attrs,
+          stock: Number(newVariant.stock),
+          sku: newVariant.sku?.trim() || null,
+          is_active: true,
+        };
+        setVariants(prev => [...prev, variantToAdd]);
       }
-      setVariants(prev => [...prev, { attributes: attrs, stock: Number(newVariant.stock), sku: newVariant.sku, is_active: true }]);
+
       setNewVariant({ attributes: {}, stock: 0, sku: '' });
       setVariantAttrs([{ key: '', value: '' }]);
     } catch (err) {
@@ -348,10 +372,16 @@ function ProductModal({ initial, onClose, onSave, isTienda }) {
     }
   };
 
+  const handleUpdateVariantStockLocal = (variantId, newStock) => {
+    setVariants(prev => prev.map(v => v.id === variantId ? { ...v, stock: newStock } : v));
+  };
+
   const handleUpdateVariantStock = async (variantId, newStock) => {
     try {
-      await api.patch(`/api/products/${initial.id}/variants/${variantId}`, { stock: newStock });
-      setVariants(prev => prev.map(v => v.id === variantId ? { ...v, stock: newStock } : v));
+      const res = await api.patch(`/api/products/${initial.id}/variants/${variantId}`, { stock: newStock });
+      const savedStock = res.data?.data?.stock ?? newStock;
+      setVariants(prev => prev.map(v => v.id === variantId ? { ...v, stock: savedStock } : v));
+      qc.invalidateQueries({ queryKey: ['products'] });
     } catch (err) {
       setError(err.response?.data?.error || 'Error al actualizar stock.');
     }
@@ -361,6 +391,7 @@ function ProductModal({ initial, onClose, onSave, isTienda }) {
     try {
       await api.delete(`/api/products/${initial.id}/variants/${variantId}`);
       setVariants(prev => prev.map(v => v.id === variantId ? { ...v, is_active: false } : v));
+      qc.invalidateQueries({ queryKey: ['products'] });
     } catch (err) {
       setError(err.response?.data?.error || 'Error al desactivar variante.');
     }
@@ -405,6 +436,7 @@ function ProductModal({ initial, onClose, onSave, isTienda }) {
         const res = await api.post('/api/products', payload);
         const productId = res.data?.data?.id;
         let galleryUploadFailed = false;
+        let variantCreationErrors = [];
 
         if (imageFile && productId) {
           const formData = new FormData();
@@ -433,12 +465,35 @@ function ProductModal({ initial, onClose, onSave, isTienda }) {
           }
         }
 
+        if (hasVariants && variants.length > 0 && productId) {
+          for (const variant of variants) {
+            if (!variant.id.toString().startsWith('temp-')) continue;
+            try {
+              await api.post(`/api/products/${productId}/variants`, {
+                attributes: variant.attributes,
+                stock: Number(variant.stock) || 0,
+                sku: variant.sku || null,
+              });
+            } catch (variantErr) {
+              console.warn(`Variant creation failed for product ${productId}`);
+              variantCreationErrors.push(`${Object.entries(variant.attributes).map(([k, v]) => `${k}: ${v}`).join(', ')}`);
+            }
+          }
+        }
+
         if (galleryUploadFailed) {
           setError('Producto creado, pero hubo un error subiendo algunas fotos de la galería. Puedes agregarlas editando el producto.');
+        }
+        if (variantCreationErrors.length > 0) {
+          const errorMsg = variantCreationErrors.length === 1
+            ? `Producto creado, pero la variante (${variantCreationErrors[0]}) no se creó. Puedes agregarla editando el producto.`
+            : `Producto creado, pero ${variantCreationErrors.length} variante(s) no se crearon. Puedes agregarlas editando el producto.`;
+          setError(errorMsg);
         }
       }
       qc.invalidateQueries({ queryKey: ['products'] });
       setGalleryFilesSelected([]);
+      setVariants([]);
       onSave();
     } catch (err) {
       console.error('handleSave error:', err);
@@ -579,7 +634,23 @@ function ProductModal({ initial, onClose, onSave, isTienda }) {
           {/* Variants toggle */}
           {isTienda && (
             <div className="flex items-center gap-3 p-3 bg-slate-800/50 rounded-lg border border-slate-700">
-              <input type="checkbox" checked={hasVariants} onChange={(e) => setHasVariants(e.target.checked)}
+              <input type="checkbox" checked={hasVariants} onChange={(e) => {
+                  // En edición no se puede quitar la opción con variantes activas guardadas
+                  if (!e.target.checked && isEdit && (loadingVariants || variants.some(v => v.is_active))) {
+                    return setError('Debes desactivar todas las variantes antes de quitar esta opción.');
+                  }
+                  // Activar variantes con stock propio borraría esas unidades al recalcular por variantes
+                  const ownStock = Number(initial?.stock) || 0;
+                  if (e.target.checked && isEdit && !initial?.has_variants && ownStock > 0) {
+                    return setError(`Este producto tiene ${ownStock} unidad${ownStock === 1 ? '' : 'es'} en stock. Ajusta el stock a 0 antes de activar variantes, para no perder esas unidades.`);
+                  }
+                  // Al quitar variantes ya no quedan unidades activas: el stock propio arranca en 0
+                  if (!e.target.checked && isEdit && initial?.has_variants) {
+                    setForm(f => ({ ...f, stock: '0' }));
+                  }
+                  setError('');
+                  setHasVariants(e.target.checked);
+                }}
                 className="w-4 h-4 rounded bg-[#131929] border border-slate-700 cursor-pointer accent-violet-600" />
               <label className="flex-1 cursor-pointer">
                 <p className="text-slate-300 text-sm font-medium">Este producto tiene variantes</p>
@@ -617,18 +688,21 @@ function ProductModal({ initial, onClose, onSave, isTienda }) {
           </div>
 
           {/* Variants section */}
-          {isTienda && hasVariants && isEdit && (
+          {isTienda && hasVariants && (
             <div className="border-t border-slate-800 pt-4">
               <h4 className="text-white text-sm font-semibold mb-3">Variantes ({variants.filter(v => v.is_active).length})</h4>
 
-              {loadingVariants ? (
+              {isEdit && loadingVariants ? (
                 <p className="text-slate-500 text-sm text-center py-4">Cargando variantes...</p>
               ) : (
                 <>
                   {variants.filter(v => v.is_active).length > 0 && (
                     <div className="mb-4 space-y-2 max-h-40 overflow-y-auto">
-                      {variants.filter(v => v.is_active).map((v, idx) => (
-                        <div key={idx} className="flex items-center justify-between gap-2 p-2 bg-slate-800/50 rounded-lg border border-slate-700">
+                      {variants.filter(v => v.is_active).map((v, idx) => {
+                        const vStock = Number(v.stock) || 0;
+                        const vMin = v.min_stock ?? 2;
+                        return (
+                        <div key={idx} className="flex flex-wrap items-center justify-between gap-2 p-2 bg-slate-800/50 rounded-lg border border-slate-700">
                           <div className="flex flex-wrap gap-1 flex-1">
                             {Object.entries(v.attributes || {}).map(([k, val]) => (
                               <span key={k} className="text-xs px-2 py-1 bg-violet-600/30 text-violet-300 rounded border border-violet-500/30">
@@ -638,15 +712,27 @@ function ProductModal({ initial, onClose, onSave, isTienda }) {
                           </div>
                           <div className="flex items-center gap-2">
                             <input type="number" min="0" value={v.stock}
-                              onChange={(e) => handleUpdateVariantStock(v.id, Number(e.target.value))}
+                              onChange={(e) => handleUpdateVariantStockLocal(v.id, e.target.value === '' ? '' : Number(e.target.value))}
+                              onBlur={(e) => {
+                                // En edición se guarda al salir del campo, no en cada tecla
+                                if (isEdit) handleUpdateVariantStock(v.id, Number(e.target.value) || 0);
+                              }}
                               className="w-16 bg-[#131929] border border-slate-700 text-white rounded px-2 py-1 text-xs focus:outline-none focus:border-violet-500" />
-                            <button type="button" onClick={() => handleDeactivateVariant(v.id)}
-                              className="px-2 py-1 text-xs bg-red-500/20 text-red-400 border border-red-500/30 rounded hover:bg-red-500/30 transition">
-                              Desactivar
-                            </button>
+                            {isEdit && (
+                              <button type="button" onClick={() => handleDeactivateVariant(v.id)}
+                                className="px-2 py-1 text-xs bg-red-500/20 text-red-400 border border-red-500/30 rounded hover:bg-red-500/30 transition">
+                                Desactivar
+                              </button>
+                            )}
                           </div>
+                          {vStock === 0 ? (
+                            <p className="w-full text-right text-red-400 text-xs">Esta variante quedará agotada</p>
+                          ) : vStock <= vMin ? (
+                            <p className="w-full text-right text-yellow-400 text-xs">Stock bajo (mínimo {vMin})</p>
+                          ) : null}
                         </div>
-                      ))}
+                        );
+                      })}
                     </div>
                   )}
 
@@ -810,7 +896,8 @@ function CatalogoTab({ products, clients, showInactive, onShowInactiveChange, so
 
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
         {displayedProducts.map((p) => {
-          const displayStock = p.has_variants ? 0 : p.stock;
+          // products.stock ya es la suma de variantes activas (lo mantiene adjust_stock)
+          const displayStock = p.stock ?? 0;
           const status = STOCK_STATUS(displayStock, p.min_stock);
           const inactive = p.is_active === false;
           return (
@@ -866,14 +953,10 @@ function CatalogoTab({ products, clients, showInactive, onShowInactiveChange, so
                         </p>
                       </>
                     )}
-                    {!p.has_variants && (
-                      <>
-                        <p className="text-slate-500 text-xs mt-0.5">Stock</p>
-                        <p className={`font-bold text-sm ${p.stock === 0 ? 'text-red-400' : p.stock <= p.min_stock ? 'text-yellow-400' : 'text-white'}`}>
-                          {p.stock} <span className="text-slate-500 text-xs font-normal">/ mín {p.min_stock}</span>
-                        </p>
-                      </>
-                    )}
+                    <p className="text-slate-500 text-xs mt-0.5">{p.has_variants ? 'Stock (total)' : 'Stock'}</p>
+                    <p className={`font-bold text-sm ${displayStock === 0 ? 'text-red-400' : displayStock <= p.min_stock ? 'text-yellow-400' : 'text-white'}`}>
+                      {displayStock} <span className="text-slate-500 text-xs font-normal">/ mín {p.min_stock}</span>
+                    </p>
                   </div>
                 </div>
 

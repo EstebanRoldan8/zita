@@ -1,5 +1,6 @@
 const { supabaseAdmin } = require('../config/supabase');
 const logger = require('../utils/logger');
+const { findLowStock } = require('../utils/lowStock');
 
 function sum(arr, field) {
   return (arr || []).reduce((s, r) => s + (Number(r[field]) || 0), 0);
@@ -111,7 +112,7 @@ async function getAlerts(businessId) {
       .maybeSingle(),
 
     supabaseAdmin
-      .from('products').select('id, name, stock, min_stock')
+      .from('products').select('id, name, stock, min_stock, has_variants')
       .eq('business_id', businessId).eq('is_active', true),
   ]);
 
@@ -212,11 +213,17 @@ async function getAlerts(businessId) {
   }
 
   // 7. Productos con stock bajo o agotado
-  const lowStockProducts = (allProducts || []).filter((p) => p.stock <= p.min_stock);
+  const lowStockProducts = await findLowStock(supabaseAdmin, businessId, allProducts);
   if (lowStockProducts.length > 0) {
-    const outOfStock = lowStockProducts.filter((p) => p.stock === 0);
+    // Una variante en 0 también cuenta como agotado (esa talla/color no se puede vender)
+    const outOfStock = lowStockProducts.filter((p) => p.stock === 0 || p.low_variants.some((v) => v.stock === 0));
     const type = outOfStock.length > 0 ? 'critical' : 'warning';
-    const names = lowStockProducts.slice(0, 3).map((p) => p.name).join(', ');
+    const names = lowStockProducts.slice(0, 3).map((p) => {
+      if (p.low_variants.length === 0) return p.name;
+      const detail = p.low_variants.slice(0, 2).map((v) => `${v.label}: ${v.stock} de mínimo ${v.min_stock}`).join('; ');
+      const more = p.low_variants.length > 2 ? `; +${p.low_variants.length - 2}` : '';
+      return `${p.name} (${detail}${more})`;
+    }).join(', ');
     const extra = lowStockProducts.length > 3 ? ` y ${lowStockProducts.length - 3} más` : '';
     alerts.push({
       type,

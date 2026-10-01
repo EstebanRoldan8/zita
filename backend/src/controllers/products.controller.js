@@ -2,6 +2,11 @@ const { createUserClient, supabaseAdmin } = require('../config/supabase');
 const logger = require('../utils/logger');
 const { getTimezone } = require('../utils/timezone');
 const { generarSku } = require('../utils/sku');
+const { findLowStock } = require('../utils/lowStock');
+
+const MSG_VARIANTES_ACTIVAS = 'Debes desactivar todas las variantes antes de quitar esta opción.';
+const msgStockAntesDeVariantes = (n) =>
+  `Este producto tiene ${n} unidad${n === 1 ? '' : 'es'} en stock. Ajusta el stock a 0 antes de activar variantes, para no perder esas unidades.`;
 
 async function getAll(req, res) {
   try {
@@ -39,7 +44,7 @@ async function getLowStock(req, res) {
       .eq('is_active', true)
       .order('stock');
     if (error) throw error;
-    const lowStock = (data || []).filter((p) => p.stock <= p.min_stock);
+    const lowStock = await findLowStock(sb, req.businessId, data);
     return res.json({ success: true, data: lowStock });
   } catch (err) {
     logger.error('products.getLowStock: ' + err.message);
@@ -102,11 +107,17 @@ async function create(req, res) {
       }
     }
 
+    const initialStock = has_variants ? 0 : (Number(stock) || 0);
+    if (!Number.isInteger(initialStock) || initialStock < 0) {
+      return res.status(400).json({ success: false, error: 'El stock debe ser un entero mayor o igual a 0.' });
+    }
+
+    // Se inserta en 0 y el stock inicial entra por adjust_stock para que quede en inventory_movements
     const payload = {
       business_id: req.businessId,
       name:        name.trim(),
       price:       Number(price),
-      stock:       has_variants ? 0 : (Number(stock) || 0),
+      stock:       0,
       has_variants: Boolean(has_variants) || false,
     };
     if (description !== undefined) payload.description = description?.trim() || null;
@@ -125,7 +136,31 @@ async function create(req, res) {
       logger.error('products.create supabase error: ' + JSON.stringify(error));
       return res.status(400).json({ success: false, error: error.message || 'Error al crear el producto.' });
     }
-    return res.status(201).json({ success: true, data });
+
+    let finalData = data;
+    if (initialStock > 0) {
+      try {
+        const { data: rpcData, error: rpcError } = await supabaseAdmin.rpc('adjust_stock', {
+          p_business_id: req.businessId,
+          p_product_id: data.id,
+          p_variant_id: null,
+          p_change: initialStock,
+          p_type: 'inicial',
+          p_reason: null,
+          p_ref_type: 'product_create',
+          p_ref_id: null,
+          p_user: null,
+        });
+        if (rpcError) throw rpcError;
+        finalData = { ...data, stock: rpcData };
+      } catch (rpcErr) {
+        logger.error('products.create adjust_stock error: ' + JSON.stringify(rpcErr));
+        await sb.from('products').delete().eq('id', data.id);
+        throw rpcErr;
+      }
+    }
+
+    return res.status(201).json({ success: true, data: finalData });
   } catch (err) {
     logger.error('products.create: ' + err.message);
     return res.status(500).json({ success: false, error: 'Error al crear el producto.' });
@@ -136,13 +171,67 @@ async function update(req, res) {
   try {
     const sb = createUserClient(req.headers.authorization);
     const { id } = req.params;
-    const { name, description, price, stock, min_stock, category, has_variants, cost_price } = req.body;
+    const { name, description, price, stock, min_stock, category, has_variants, cost_price, sku } = req.body;
+
+    const { data: current, error: cErr } = await sb
+      .from('products')
+      .select('id, stock, has_variants')
+      .eq('id', id)
+      .eq('business_id', req.businessId)
+      .single();
+    if (cErr || !current) return res.status(404).json({ success: false, error: 'Producto no encontrado.' });
+
+    const willHaveVariants = has_variants !== undefined ? Boolean(has_variants) : Boolean(current.has_variants);
+
+    if (willHaveVariants || current.has_variants) {
+      const { count, error: vErr } = await sb
+        .from('product_variants')
+        .select('id', { count: 'exact', head: true })
+        .eq('product_id', id)
+        .eq('business_id', req.businessId)
+        .eq('is_active', true);
+      if (vErr) throw vErr;
+      if (!willHaveVariants && count > 0) {
+        return res.status(400).json({ success: false, error: MSG_VARIANTES_ACTIVAS });
+      }
+      if (willHaveVariants && !current.has_variants && current.stock > 0) {
+        return res.status(400).json({ success: false, error: msgStockAntesDeVariantes(current.stock) });
+      }
+      if (willHaveVariants && count === 0) {
+        return res.status(400).json({ success: false, error: 'Debes crear al menos una variante activa.' });
+      }
+    }
+
+    // Sin variantes, el stock se mueve solo vía adjust_stock (diferencia contra el actual)
+    let stockChange = 0;
+    if (stock !== undefined && !willHaveVariants) {
+      const newStock = Number(stock);
+      if (!Number.isInteger(newStock) || newStock < 0) {
+        return res.status(400).json({ success: false, error: 'El stock debe ser un entero mayor o igual a 0.' });
+      }
+      stockChange = newStock - current.stock;
+    }
+
+    // Edición explícita del SKU: si choca con otro producto se rechaza (no se agrega sufijo).
+    // Vacío = se conserva el SKU actual.
+    const newSku = typeof sku === 'string' ? sku.trim() : '';
+    if (newSku) {
+      const { data: clash, error: sErr } = await sb
+        .from('products')
+        .select('id')
+        .eq('business_id', req.businessId)
+        .eq('sku', newSku)
+        .neq('id', id)
+        .maybeSingle();
+      if (sErr) throw sErr;
+      if (clash) return res.status(400).json({ success: false, error: `El SKU "${newSku}" ya está en uso por otro producto.` });
+    }
 
     const updates = { updated_at: new Date().toISOString() };
+    if (newSku) updates.sku = newSku;
     if (name !== undefined) updates.name = name.trim();
     if (description !== undefined) updates.description = description?.trim() || null;
     if (price !== undefined) updates.price = Number(price);
-    if (stock !== undefined) updates.stock = has_variants ? 0 : Number(stock);
     if (min_stock !== undefined) updates.min_stock = Number(min_stock);
     if (category !== undefined) updates.category = category?.trim() || null;
     if (has_variants !== undefined) updates.has_variants = Boolean(has_variants);
@@ -154,8 +243,29 @@ async function update(req, res) {
       .eq('id', id)
       .select()
       .single();
+    if (error?.code === '23505' && newSku && error.message?.includes('sku')) {
+      return res.status(400).json({ success: false, error: `El SKU "${newSku}" ya está en uso por otro producto.` });
+    }
     if (error) throw error;
-    return res.json({ success: true, data });
+
+    let finalData = data;
+    if (stockChange !== 0) {
+      const { data: rpcData, error: rpcError } = await supabaseAdmin.rpc('adjust_stock', {
+        p_business_id: req.businessId,
+        p_product_id: id,
+        p_variant_id: null,
+        p_change: stockChange,
+        p_type: 'ajuste',
+        p_reason: 'Ajuste manual desde el panel',
+        p_ref_type: 'product_update',
+        p_ref_id: null,
+        p_user: null,
+      });
+      if (rpcError) throw rpcError;
+      finalData = { ...data, stock: rpcData };
+    }
+
+    return res.json({ success: true, data: finalData });
   } catch (err) {
     logger.error('products.update: ' + err.message);
     return res.status(500).json({ success: false, error: 'Error al actualizar el producto.' });

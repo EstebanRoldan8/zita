@@ -6,3 +6,5 @@ build/
 zita/
 .vercel
 .env*
+
+_pruebas/

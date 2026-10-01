@@ -1,5 +1,30 @@
 const { createUserClient } = require('../config/supabase');
 const logger = require('../utils/logger');
+const { restoreOrderStock, undoRestoredItems } = require('../utils/orderStock');
+
+const PAYMENT_STATUSES = ['pendiente', 'pagado', 'fallido', 'reembolsado'];
+const PAYMENT_METHODS = ['efectivo', 'transferencia', 'nequi', 'daviplata', 'tarjeta', 'wompi', 'otro'];
+const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+
+// undefined = no viene (no se toca); null o '' = se limpia; texto = se valida y recorta
+function parseOptionalText(value, max, label) {
+  if (value === undefined) return { skip: true };
+  if (value === null || value === '') return { value: null };
+  if (typeof value !== 'string') return { error: `${label} debe ser texto.` };
+  const trimmed = value.trim();
+  if (trimmed.length > max) return { error: `${label} no puede superar ${max} caracteres.` };
+  return { value: trimmed || null };
+}
+
+function parsePaymentMethod(value) {
+  if (value === undefined) return { skip: true };
+  if (value === null || value === '') return { value: null };
+  const method = String(value).trim().toLowerCase();
+  if (!PAYMENT_METHODS.includes(method)) {
+    return { error: `Método de pago inválido. Usa: ${PAYMENT_METHODS.join(', ')}.` };
+  }
+  return { value: method };
+}
 
 async function getAll(req, res) {
   try {
@@ -78,11 +103,43 @@ async function create(req, res) {
     const sb = createUserClient(req.headers.authorization);
     const { supabaseAdmin } = require('../config/supabase');
     const { PLANS } = require('../config/plans');
-    const { client_id, client_name, client_phone, delivery_type, delivery_address, notes, items } = req.body;
+    const {
+      client_id, client_name, client_phone, delivery_type, delivery_address, notes, items,
+      payment_status, payment_method, customer_email, shipping_carrier, tracking_code,
+    } = req.body;
 
     if (!client_name || !client_phone || !delivery_type || !Array.isArray(items) || items.length === 0) {
       return res.status(400).json({ success: false, error: 'Datos incompletos.' });
     }
+
+    // Campos opcionales de pago y envío: solo se incluyen en el insert si vienen,
+    // así sin ellos el pedido se crea exactamente igual que antes.
+    const extraFields = {};
+    if (payment_status !== undefined && payment_status !== null && payment_status !== '') {
+      const ps = String(payment_status).trim().toLowerCase();
+      if (!['pendiente', 'pagado'].includes(ps)) {
+        return res.status(400).json({ success: false, error: 'Estado de pago inválido al crear el pedido (pendiente o pagado).' });
+      }
+      extraFields.payment_status = ps;
+      if (ps === 'pagado') extraFields.paid_at = new Date().toISOString();
+    }
+    const pm = parsePaymentMethod(payment_method);
+    if (pm.error) return res.status(400).json({ success: false, error: pm.error });
+    if (!pm.skip) extraFields.payment_method = pm.value;
+
+    if (customer_email !== undefined && customer_email !== null && customer_email !== '') {
+      const email = String(customer_email).trim().toLowerCase();
+      if (email.length > 254 || !EMAIL_RE.test(email)) {
+        return res.status(400).json({ success: false, error: 'El correo del cliente no es válido.' });
+      }
+      extraFields.customer_email = email;
+    }
+    const carrier = parseOptionalText(shipping_carrier, 100, 'La transportadora');
+    if (carrier.error) return res.status(400).json({ success: false, error: carrier.error });
+    if (!carrier.skip) extraFields.shipping_carrier = carrier.value;
+    const tracking = parseOptionalText(tracking_code, 100, 'La guía de seguimiento');
+    if (tracking.error) return res.status(400).json({ success: false, error: tracking.error });
+    if (!tracking.skip) extraFields.tracking_code = tracking.value;
 
     // Validar límite de órdenes del mes
     const { data: bizord } = await supabaseAdmin
@@ -146,6 +203,7 @@ async function create(req, res) {
         status: 'recibido',
         total_amount: totalAmount,
         source: 'manual',
+        ...extraFields,
       }])
       .select()
       .single();
@@ -221,7 +279,8 @@ async function create(req, res) {
 
       if (item.product_id) {
         try {
-          await supabaseAdmin.rpc('adjust_stock', {
+          // rpc() no lanza: hay que revisar error para que el rollback de abajo se ejecute
+          const { error: rpcErr } = await supabaseAdmin.rpc('adjust_stock', {
             p_business_id: req.businessId,
             p_product_id: item.product_id,
             p_variant_id: item.variant_id || null,
@@ -232,13 +291,14 @@ async function create(req, res) {
             p_ref_id: orderData.id,
             p_user: null
           });
+          if (rpcErr) throw rpcErr;
           processedItems.push(item);
         } catch (err) {
           logger.error('orders.create adjust_stock error: ' + err.message);
           for (const pItem of processedItems) {
             if (pItem.product_id) {
               try {
-                await supabaseAdmin.rpc('adjust_stock', {
+                const { error: revRpcErr } = await supabaseAdmin.rpc('adjust_stock', {
                   p_business_id: req.businessId,
                   p_product_id: pItem.product_id,
                   p_variant_id: pItem.variant_id || null,
@@ -249,6 +309,7 @@ async function create(req, res) {
                   p_ref_id: orderData.id,
                   p_user: null
                 });
+                if (revRpcErr) throw revRpcErr;
               } catch (revErr) {
                 logger.error('orders.create revert adjust_stock failed: ' + revErr.message);
               }
@@ -297,7 +358,7 @@ async function updateStatus(req, res) {
 
     const { data: order, error: getError } = await sb
       .from('orders')
-      .select('id')
+      .select('id, status, business_id')
       .eq('id', id)
       .eq('business_id', req.businessId)
       .single();
@@ -306,19 +367,69 @@ async function updateStatus(req, res) {
       return res.status(404).json({ success: false, error: 'Pedido no encontrado.' });
     }
 
+    // 'cancelado' es terminal: cancelar de nuevo no hace nada, cualquier otro cambio se rechaza
+    if (order.status === 'cancelado') {
+      if (status === 'cancelado') {
+        const { data: current, error: curErr } = await sb.from('orders').select('*').eq('id', id).single();
+        if (curErr) throw curErr;
+        return res.json({ success: true, data: current });
+      }
+      return res.status(400).json({ success: false, error: 'El pedido está cancelado y ya no se puede cambiar de estado.' });
+    }
+
+    if (status === 'cancelado') {
+      // Reclamo atómico: solo una petición logra pasar el pedido a cancelado y devolver el stock
+      const { data: claimed, error: claimErr } = await sb
+        .from('orders')
+        .update({ status: 'cancelado' })
+        .eq('id', id)
+        .eq('business_id', req.businessId)
+        .neq('status', 'cancelado')
+        .select();
+      if (claimErr) throw claimErr;
+
+      if (!claimed || claimed.length === 0) {
+        // Otra petición lo canceló primero: no se devuelve stock dos veces
+        const { data: current, error: curErr } = await sb.from('orders').select('*').eq('id', id).single();
+        if (curErr) throw curErr;
+        return res.json({ success: true, data: current });
+      }
+
+      try {
+        await restoreOrderStock(order, 'order_cancel', req.user?.id);
+      } catch (restoreErr) {
+        logger.error('orders.updateStatus restore: ' + restoreErr.message + ' / ' + (restoreErr.cause?.message || ''));
+        const { error: revertErr } = await sb
+          .from('orders')
+          .update({ status: order.status })
+          .eq('id', id)
+          .eq('status', 'cancelado');
+        if (revertErr) logger.error('orders.updateStatus revert status: ' + revertErr.message);
+        return res.status(409).json({
+          success: false,
+          error: `No se pudo cancelar el pedido: ${restoreErr.message} El pedido y el inventario quedaron como estaban.`,
+        });
+      }
+
+      return res.json({ success: true, data: claimed[0] });
+    }
+
     const { data, error } = await sb
       .from('orders')
       .update({ status })
       .eq('id', id)
-      .select()
-      .single();
+      .neq('status', 'cancelado')
+      .select();
 
     if (error) {
       logger.error('orders.updateStatus error: ' + error.message);
       throw error;
     }
+    if (!data || data.length === 0) {
+      return res.status(400).json({ success: false, error: 'El pedido está cancelado y ya no se puede cambiar de estado.' });
+    }
 
-    return res.json({ success: true, data });
+    return res.json({ success: true, data: data[0] });
   } catch (err) {
     logger.error('orders.updateStatus: ' + err.message);
     return res.status(500).json({ success: false, error: 'Error al actualizar pedido.' });
@@ -332,7 +443,7 @@ async function deleteOrder(req, res) {
 
     const { data: order, error: getError } = await sb
       .from('orders')
-      .select('status')
+      .select('id, status, business_id')
       .eq('id', id)
       .eq('business_id', req.businessId)
       .single();
@@ -345,6 +456,40 @@ async function deleteOrder(req, res) {
       return res.status(400).json({ success: false, error: 'Solo se pueden eliminar pedidos con estado recibido.' });
     }
 
+    // Reclamo atómico: pasa de recibido a cancelado antes de tocar el stock
+    const { data: claimed, error: claimErr } = await sb
+      .from('orders')
+      .update({ status: 'cancelado' })
+      .eq('id', id)
+      .eq('business_id', req.businessId)
+      .eq('status', 'recibido')
+      .select('id');
+    if (claimErr) throw claimErr;
+    if (!claimed || claimed.length === 0) {
+      return res.status(400).json({ success: false, error: 'Solo se pueden eliminar pedidos con estado recibido.' });
+    }
+
+    const revertStatus = async () => {
+      const { error: revertErr } = await sb
+        .from('orders')
+        .update({ status: 'recibido' })
+        .eq('id', id)
+        .eq('status', 'cancelado');
+      if (revertErr) logger.error('orders.deleteOrder revert status: ' + revertErr.message);
+    };
+
+    let restored;
+    try {
+      restored = await restoreOrderStock(order, 'order_delete', req.user?.id);
+    } catch (restoreErr) {
+      logger.error('orders.deleteOrder restore: ' + restoreErr.message + ' / ' + (restoreErr.cause?.message || ''));
+      await revertStatus();
+      return res.status(409).json({
+        success: false,
+        error: `No se pudo eliminar el pedido: ${restoreErr.message} El pedido y el inventario quedaron como estaban.`,
+      });
+    }
+
     const { error: deleteError } = await sb
       .from('order_items')
       .delete()
@@ -352,7 +497,9 @@ async function deleteOrder(req, res) {
 
     if (deleteError) {
       logger.error('orders.deleteOrder items error: ' + deleteError.message);
-      throw deleteError;
+      await undoRestoredItems(order, 'order_delete', restored, req.user?.id);
+      await revertStatus();
+      return res.status(500).json({ success: false, error: 'Error al eliminar pedido. El pedido y el inventario quedaron como estaban.' });
     }
 
     const { data, error } = await sb
@@ -361,13 +508,13 @@ async function deleteOrder(req, res) {
       .eq('id', id)
       .select('id');
 
-    if (error) {
-      logger.error('orders.deleteOrder error: ' + error.message);
-      throw error;
-    }
-
-    if (!data || data.length === 0) {
-      return res.status(404).json({ success: false, error: 'Pedido no encontrado.' });
+    if (error || !data || data.length === 0) {
+      // Los items ya se borraron y el stock ya volvió: queda como pedido cancelado (estado consistente)
+      logger.error('orders.deleteOrder error: ' + (error?.message || 'no row deleted'));
+      return res.status(500).json({
+        success: false,
+        error: 'El stock se devolvió y el pedido quedó cancelado, pero no se pudo eliminar. Intenta de nuevo más tarde.',
+      });
     }
 
     return res.json({ success: true, data: { id } });
@@ -377,6 +524,102 @@ async function deleteOrder(req, res) {
   }
 }
 
+// PATCH /:id/payment — no toca el stock
+async function updatePayment(req, res) {
+  try {
+    const sb = createUserClient(req.headers.authorization);
+    const { id } = req.params;
+    const { payment_status, payment_method } = req.body || {};
+
+    const ps = typeof payment_status === 'string' ? payment_status.trim().toLowerCase() : '';
+    if (!PAYMENT_STATUSES.includes(ps)) {
+      return res.status(400).json({ success: false, error: `Estado de pago inválido. Usa: ${PAYMENT_STATUSES.join(', ')}.` });
+    }
+    const pm = parsePaymentMethod(payment_method);
+    if (pm.error) return res.status(400).json({ success: false, error: pm.error });
+
+    const { data: order, error: getError } = await sb
+      .from('orders')
+      .select('id, status, paid_at')
+      .eq('id', id)
+      .eq('business_id', req.businessId)
+      .maybeSingle();
+    if (getError || !order) return res.status(404).json({ success: false, error: 'Pedido no encontrado.' });
+    if (order.status === 'cancelado') {
+      return res.status(400).json({ success: false, error: 'No se puede cambiar el pago de un pedido cancelado.' });
+    }
+
+    const updates = { payment_status: ps, updated_at: new Date().toISOString() };
+    if (ps === 'pagado' && !order.paid_at) updates.paid_at = new Date().toISOString();
+    if (ps === 'pendiente') updates.paid_at = null;
+    if (!pm.skip) updates.payment_method = pm.value;
+
+    const { data, error } = await sb
+      .from('orders')
+      .update(updates)
+      .eq('id', id)
+      .eq('business_id', req.businessId)
+      .neq('status', 'cancelado')
+      .select();
+    if (error) throw error;
+    if (!data || data.length === 0) {
+      return res.status(400).json({ success: false, error: 'No se puede cambiar el pago de un pedido cancelado.' });
+    }
+    return res.json({ success: true, data: data[0] });
+  } catch (err) {
+    logger.error('orders.updatePayment: ' + err.message);
+    return res.status(500).json({ success: false, error: 'Error al actualizar el pago del pedido.' });
+  }
+}
+
+// PATCH /:id/shipping
+async function updateShipping(req, res) {
+  try {
+    const sb = createUserClient(req.headers.authorization);
+    const { id } = req.params;
+    const { shipping_carrier, tracking_code } = req.body || {};
+
+    const carrier = parseOptionalText(shipping_carrier, 100, 'La transportadora');
+    if (carrier.error) return res.status(400).json({ success: false, error: carrier.error });
+    const tracking = parseOptionalText(tracking_code, 100, 'La guía de seguimiento');
+    if (tracking.error) return res.status(400).json({ success: false, error: tracking.error });
+    if (carrier.skip && tracking.skip) {
+      return res.status(400).json({ success: false, error: 'Envía la transportadora o la guía de seguimiento.' });
+    }
+
+    const { data: order, error: getError } = await sb
+      .from('orders')
+      .select('id, status')
+      .eq('id', id)
+      .eq('business_id', req.businessId)
+      .maybeSingle();
+    if (getError || !order) return res.status(404).json({ success: false, error: 'Pedido no encontrado.' });
+    if (order.status === 'cancelado') {
+      return res.status(400).json({ success: false, error: 'No se puede cambiar el envío de un pedido cancelado.' });
+    }
+
+    const updates = { updated_at: new Date().toISOString() };
+    if (!carrier.skip) updates.shipping_carrier = carrier.value;
+    if (!tracking.skip) updates.tracking_code = tracking.value;
+
+    const { data, error } = await sb
+      .from('orders')
+      .update(updates)
+      .eq('id', id)
+      .eq('business_id', req.businessId)
+      .neq('status', 'cancelado')
+      .select();
+    if (error) throw error;
+    if (!data || data.length === 0) {
+      return res.status(400).json({ success: false, error: 'No se puede cambiar el envío de un pedido cancelado.' });
+    }
+    return res.json({ success: true, data: data[0] });
+  } catch (err) {
+    logger.error('orders.updateShipping: ' + err.message);
+    return res.status(500).json({ success: false, error: 'Error al actualizar el envío del pedido.' });
+  }
+}
+
 module.exports = {
-  getAll, getById, create, updateStatus, deleteOrder,
+  getAll, getById, create, updateStatus, deleteOrder, updatePayment, updateShipping,
 };

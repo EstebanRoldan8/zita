@@ -502,6 +502,13 @@ async function sell(req, res) {
       newStock = rpcData;
     } catch (err) {
       if (err.message?.includes('STOCK_INSUFICIENTE_O_NO_ENCONTRADO')) {
+        // Se consulta después del fallo (sin pre-chequeo) para no reabrir la condición de carrera
+        const { data: current } = variant_id
+          ? await sb.from('product_variants').select('stock').eq('id', variant_id).eq('business_id', req.businessId).maybeSingle()
+          : await sb.from('products').select('stock').eq('id', id).eq('business_id', req.businessId).maybeSingle();
+        if (current && current.stock != null) {
+          return res.status(400).json({ success: false, error: `Stock insuficiente. Disponible: ${current.stock}.` });
+        }
         return res.status(400).json({ success: false, error: 'Ya no hay stock suficiente de este producto.' });
       }
       throw err;

@@ -230,6 +230,7 @@ function ProductModal({ initial, onClose, onSave, isTienda }) {
   const [galleryImages, setGalleryImages] = useState(initial?.images || []);
   const [uploadingGallery, setUploadingGallery] = useState(false);
   const [galleryFilesSelected, setGalleryFilesSelected] = useState([]);
+  const [uploadingVariantImage, setUploadingVariantImage] = useState(null);
   const fileInputRef = useRef(null);
   const galleryInputRef = useRef(null);
   const galleryCreateInputRef = useRef(null);
@@ -389,6 +390,45 @@ function ProductModal({ initial, onClose, onSave, isTienda }) {
       qc.invalidateQueries({ queryKey: ['products'] });
     } catch (err) {
       setError(err.response?.data?.error || 'Error al actualizar stock.');
+    }
+  };
+
+  // SKU de una variante existente: se guarda al salir del campo; vacío = conserva el actual
+  const handleVariantSkuBlur = async (v) => {
+    const draft = (v.skuDraft ?? v.sku ?? '').trim();
+    if (!draft || draft === (v.sku || '')) {
+      setVariants(prev => prev.map(x => x.id === v.id ? { ...x, skuDraft: undefined } : x));
+      return;
+    }
+    try {
+      const res = await api.patch(`/api/products/${initial.id}/variants/${v.id}`, { sku: draft });
+      setVariants(prev => prev.map(x => x.id === v.id ? { ...x, sku: res.data?.data?.sku ?? draft, skuDraft: undefined } : x));
+      setError('');
+    } catch (err) {
+      setError(err.response?.data?.error || 'Error al actualizar el SKU de la variante.');
+    }
+  };
+
+  const handleVariantImage = async (variantId, e) => {
+    const file = e.target.files?.[0];
+    e.target.value = '';
+    if (!file) return;
+    if (file.size > 2 * 1024 * 1024) return setError('La imagen debe ser menor a 2MB');
+    if (!['image/jpeg', 'image/png', 'image/webp'].includes(file.type)) return setError('Solo se permiten JPG, PNG o WebP');
+    setUploadingVariantImage(variantId);
+    setError('');
+    try {
+      const formData = new FormData();
+      formData.append('image', file);
+      const res = await api.post(`/api/products/${initial.id}/variants/${variantId}/image`, formData, {
+        headers: { 'Content-Type': 'multipart/form-data' },
+      });
+      const url = res.data?.data?.image_url;
+      if (url) setVariants(prev => prev.map(x => x.id === variantId ? { ...x, image_url: url } : x));
+    } catch (err) {
+      setError(err.response?.data?.error || 'Error al subir la foto de la variante.');
+    } finally {
+      setUploadingVariantImage(null);
     }
   };
 
@@ -703,12 +743,27 @@ function ProductModal({ initial, onClose, onSave, isTienda }) {
               ) : (
                 <>
                   {variants.filter(v => v.is_active).length > 0 && (
-                    <div className="mb-4 space-y-2 max-h-40 overflow-y-auto">
+                    <div className={`mb-4 space-y-2 overflow-y-auto ${isEdit ? 'max-h-72' : 'max-h-40'}`}>
                       {variants.filter(v => v.is_active).map((v, idx) => {
                         const vStock = Number(v.stock) || 0;
                         const vMin = v.min_stock ?? 2;
                         return (
                         <div key={idx} className="flex flex-wrap items-center justify-between gap-2 p-2 bg-slate-800/50 rounded-lg border border-slate-700">
+                          {isEdit && (
+                            <label title="Foto de la variante"
+                              className="w-9 h-9 flex-shrink-0 bg-slate-800 border border-slate-700 rounded flex items-center justify-center overflow-hidden cursor-pointer hover:border-violet-500 transition">
+                              {uploadingVariantImage === v.id ? (
+                                <span className="text-[10px] text-slate-400">...</span>
+                              ) : v.image_url ? (
+                                <img src={v.image_url} alt="variante" className="w-full h-full object-cover" />
+                              ) : (
+                                <ImageIcon size={14} className="text-slate-500" />
+                              )}
+                              <input type="file" accept="image/jpeg,image/png,image/webp" className="hidden"
+                                disabled={uploadingVariantImage === v.id}
+                                onChange={(e) => handleVariantImage(v.id, e)} />
+                            </label>
+                          )}
                           <div className="flex flex-wrap gap-1 flex-1">
                             {Object.entries(v.attributes || {}).map(([k, val]) => (
                               <span key={k} className="text-xs px-2 py-1 bg-violet-600/30 text-violet-300 rounded border border-violet-500/30">
@@ -731,6 +786,15 @@ function ProductModal({ initial, onClose, onSave, isTienda }) {
                               </button>
                             )}
                           </div>
+                          {isEdit && (
+                            <div className="w-full flex items-center gap-2">
+                              <label className="text-slate-500 text-xs flex-shrink-0">SKU</label>
+                              <input type="text" value={v.skuDraft ?? v.sku ?? ''} placeholder="Sin SKU"
+                                onChange={(e) => setVariants(prev => prev.map(x => x.id === v.id ? { ...x, skuDraft: e.target.value } : x))}
+                                onBlur={() => handleVariantSkuBlur(v)}
+                                className="flex-1 min-w-0 bg-[#131929] border border-slate-700 text-white rounded px-2 py-1 text-xs focus:outline-none focus:border-violet-500" />
+                            </div>
+                          )}
                           {vStock === 0 ? (
                             <p className="w-full text-right text-red-400 text-xs">Esta variante quedará agotada</p>
                           ) : vStock <= vMin ? (

@@ -3,6 +3,8 @@ const logger = require('../utils/logger');
 const { getTimezone } = require('../utils/timezone');
 const { generarSku } = require('../utils/sku');
 const { findLowStock } = require('../utils/lowStock');
+const { normalizeOptionKey } = require('../utils/optionKey');
+const { getColorOptions, uniqueUrls } = require('../utils/variantImages');
 
 const MSG_VARIANTES_ACTIVAS = 'Debes desactivar todas las variantes antes de quitar esta opción.';
 const msgStockAntesDeVariantes = (n) =>
@@ -725,6 +727,212 @@ async function deleteImage(req, res) {
   }
 }
 
+// ── Fotos por color (products.option_images) ─────────────────────────────────
+// Solo estos endpoints escriben option_images (update() y create() no la aceptan).
+const MAX_PHOTOS_PER_OPTION = 8;
+const STORAGE_PUBLIC_MARKER = '/storage/v1/object/public/product-images/';
+
+async function loadOptionContext(sb, productId, businessId) {
+  const { data: product, error } = await sb
+    .from('products')
+    .select('id, is_active, has_variants, option_images')
+    .eq('id', productId)
+    .eq('business_id', businessId)
+    .maybeSingle();
+  if (error || !product) return { product: null };
+  let variants = [];
+  if (product.has_variants) {
+    const { data, error: vErr } = await sb
+      .from('product_variants')
+      .select('id, attributes, is_active')
+      .eq('product_id', productId)
+      .eq('business_id', businessId)
+      .eq('is_active', true);
+    if (vErr) throw vErr;
+    variants = data || [];
+  }
+  return { product, options: getColorOptions(variants, product.option_images || {}) };
+}
+
+// Ruta interna en Storage solo si la URL es de este negocio en el bucket product-images
+function ownStoragePath(url, businessId) {
+  const idx = typeof url === 'string' ? url.indexOf(STORAGE_PUBLIC_MARKER) : -1;
+  if (idx === -1) return null;
+  const path = decodeURIComponent(url.slice(idx + STORAGE_PUBLIC_MARKER.length).split('?')[0]);
+  return path.startsWith(`products/${businessId}/`) ? path : null;
+}
+
+async function removeStorageFiles(sb, paths, context) {
+  if (!paths.length) return;
+  const { error } = await sb.storage.from('product-images').remove(paths);
+  if (error) logger.error(`${context} storage remove: ${error.message}`);
+}
+
+// GET /:id/option-images
+async function getOptionImages(req, res) {
+  try {
+    const sb = createUserClient(req.headers.authorization);
+    const { product, options } = await loadOptionContext(sb, req.params.id, req.businessId);
+    if (!product) return res.status(404).json({ success: false, error: 'Producto no encontrado.' });
+    return res.json({ success: true, data: { attribute: 'color', options } });
+  } catch (err) {
+    logger.error('products.getOptionImages: ' + err.message);
+    return res.status(500).json({ success: false, error: 'Error al obtener las fotos por color.' });
+  }
+}
+
+// POST /:id/option-images (multipart: option + images[1..8]). Todo o nada.
+async function uploadOptionImages(req, res) {
+  const uploadedPaths = [];
+  const sb = createUserClient(req.headers.authorization);
+  try {
+    const { id } = req.params;
+    const files = req.files || [];
+    if (files.length === 0) {
+      return res.status(400).json({ success: false, error: 'Adjunta al menos una imagen.' });
+    }
+    const key = normalizeOptionKey(req.body?.option);
+    if (!key) return res.status(400).json({ success: false, error: 'Indica el color de las fotos (campo "option").' });
+
+    const { product, options } = await loadOptionContext(sb, id, req.businessId);
+    if (!product) return res.status(404).json({ success: false, error: 'Producto no encontrado.' });
+    if (!product.is_active) return res.status(400).json({ success: false, error: 'El producto no está activo.' });
+    if (!product.has_variants) return res.status(400).json({ success: false, error: 'Este producto no tiene variantes.' });
+    if (options.length === 0) {
+      return res.status(400).json({ success: false, error: 'Las variantes activas de este producto no tienen un atributo «color».' });
+    }
+    const option = options.find((o) => o.key === key);
+    if (!option) {
+      return res.status(400).json({ success: false, error: `No hay variantes activas con el color ${String(req.body.option).trim()}.` });
+    }
+    const current = (product.option_images || {})[key] || [];
+    if (current.length + files.length > MAX_PHOTOS_PER_OPTION) {
+      const left = Math.max(MAX_PHOTOS_PER_OPTION - current.length, 0);
+      return res.status(400).json({
+        success: false,
+        error: `El color ${option.label} ya tiene ${current.length} foto${current.length !== 1 ? 's' : ''}; el máximo es ${MAX_PHOTOS_PER_OPTION} (quedan ${left} cupo${left !== 1 ? 's' : ''}).`,
+      });
+    }
+
+    const timestamp = Date.now();
+    const newUrls = [];
+    for (let i = 0; i < files.length; i++) {
+      const path = `products/${req.businessId}/colors/${id}/${key}-${timestamp}-${i}`;
+      const { error: upErr } = await sb.storage
+        .from('product-images')
+        .upload(path, files[i].buffer, { contentType: files[i].mimetype, upsert: false });
+      if (upErr) {
+        logger.error('products.uploadOptionImages storage error: ' + upErr.message);
+        await removeStorageFiles(sb, uploadedPaths, 'products.uploadOptionImages');
+        return res.status(500).json({ success: false, error: 'No se pudieron subir las fotos; no se guardó ninguna. Intenta de nuevo.' });
+      }
+      uploadedPaths.push(path);
+      newUrls.push(sb.storage.from('product-images').getPublicUrl(path).data.publicUrl);
+    }
+
+    // Se relee justo antes de escribir y solo se toca la clave de este color
+    const { data: fresh, error: fErr } = await sb
+      .from('products')
+      .select('option_images')
+      .eq('id', id)
+      .eq('business_id', req.businessId)
+      .single();
+    if (fErr) throw fErr;
+    const merged = { ...(fresh.option_images || {}) };
+    const updatedList = uniqueUrls([...(merged[key] || []), ...newUrls]);
+    if (updatedList.length > MAX_PHOTOS_PER_OPTION) {
+      await removeStorageFiles(sb, uploadedPaths, 'products.uploadOptionImages');
+      return res.status(409).json({ success: false, error: `El color ${option.label} superaría ${MAX_PHOTOS_PER_OPTION} fotos. Recarga e intenta de nuevo.` });
+    }
+    merged[key] = updatedList;
+
+    const { error: saveErr } = await sb
+      .from('products')
+      .update({ option_images: merged })
+      .eq('id', id)
+      .eq('business_id', req.businessId);
+    if (saveErr) throw saveErr;
+
+    return res.json({ success: true, data: { option: key, label: option.label, images: updatedList } });
+  } catch (err) {
+    logger.error('products.uploadOptionImages: ' + err.message);
+    await removeStorageFiles(sb, uploadedPaths, 'products.uploadOptionImages');
+    return res.status(500).json({ success: false, error: 'Error al guardar las fotos del color; no se guardó ninguna.' });
+  }
+}
+
+// Lee option_images y valida que la URL esté bajo ese color
+async function loadOptionEntry(sb, req) {
+  const { option, url } = req.body || {};
+  const key = normalizeOptionKey(option);
+  if (!key || typeof url !== 'string' || !url) {
+    return { status: 400, error: 'Indica el color (option) y la URL de la foto (url).' };
+  }
+  const { data: product, error } = await sb
+    .from('products')
+    .select('id, option_images')
+    .eq('id', req.params.id)
+    .eq('business_id', req.businessId)
+    .maybeSingle();
+  if (error || !product) return { status: 404, error: 'Producto no encontrado.' };
+  const all = { ...(product.option_images || {}) };
+  const list = all[key] || [];
+  if (!list.includes(url)) return { status: 404, error: 'La foto no está en ese color.' };
+  return { key, url, all, list };
+}
+
+// DELETE /:id/option-images { option, url }
+async function deleteOptionImage(req, res) {
+  try {
+    const sb = createUserClient(req.headers.authorization);
+    const entry = await loadOptionEntry(sb, req);
+    if (entry.error) return res.status(entry.status).json({ success: false, error: entry.error });
+
+    const remaining = entry.list.filter((u) => u !== entry.url);
+    const updated = { ...entry.all };
+    if (remaining.length > 0) updated[entry.key] = remaining;
+    else delete updated[entry.key];
+
+    const { error: saveErr } = await sb
+      .from('products')
+      .update({ option_images: updated })
+      .eq('id', req.params.id)
+      .eq('business_id', req.businessId);
+    if (saveErr) throw saveErr;
+
+    // Solo se borra de Storage si el archivo es de este negocio; un fallo no hace fallar la petición
+    const path = ownStoragePath(entry.url, req.businessId);
+    if (path) await removeStorageFiles(sb, [path], 'products.deleteOptionImage');
+
+    return res.json({ success: true, data: { option: entry.key, images: remaining } });
+  } catch (err) {
+    logger.error('products.deleteOptionImage: ' + err.message);
+    return res.status(500).json({ success: false, error: 'Error al eliminar la foto del color.' });
+  }
+}
+
+// PATCH /:id/option-images/cover { option, url } — mueve la foto a la posición 0 (principal)
+async function setOptionCover(req, res) {
+  try {
+    const sb = createUserClient(req.headers.authorization);
+    const entry = await loadOptionEntry(sb, req);
+    if (entry.error) return res.status(entry.status).json({ success: false, error: entry.error });
+
+    const reordered = [entry.url, ...entry.list.filter((u) => u !== entry.url)];
+    const { error: saveErr } = await sb
+      .from('products')
+      .update({ option_images: { ...entry.all, [entry.key]: reordered } })
+      .eq('id', req.params.id)
+      .eq('business_id', req.businessId);
+    if (saveErr) throw saveErr;
+
+    return res.json({ success: true, data: { option: entry.key, images: reordered } });
+  } catch (err) {
+    logger.error('products.setOptionCover: ' + err.message);
+    return res.status(500).json({ success: false, error: 'Error al cambiar la foto principal del color.' });
+  }
+}
+
 // Entrada de mercancía: suma unidades vía adjust_stock (type 'entrada'). No toca cost_price.
 async function restock(req, res) {
   try {
@@ -859,4 +1067,5 @@ async function getMovements(req, res) {
   }
 }
 
-module.exports = { getAll, getLowStock, getSales, getInventorySummary, create, update, toggleProduct, deactivate, deleteProduct, sell, uploadImage, uploadImages, deleteImage, restock, getMovements };
+module.exports = { getAll, getLowStock, getSales, getInventorySummary, create, update, toggleProduct, deactivate, deleteProduct, sell, uploadImage, uploadImages, deleteImage, restock, getMovements,
+  getOptionImages, uploadOptionImages, deleteOptionImage, setOptionCover };

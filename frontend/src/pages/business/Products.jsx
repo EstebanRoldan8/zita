@@ -9,6 +9,7 @@ import { es } from 'date-fns/locale';
 import api from '../../lib/api';
 import { useAuth } from '../../context/AuthContext';
 import RestockModal from '../../components/inventory/RestockModal';
+import { ColorPhotosEdit } from '../../components/products/ColorPhotos';
 import MovementsModal from '../../components/inventory/MovementsModal';
 import InventorySummary from '../../components/inventory/InventorySummary';
 
@@ -347,6 +348,8 @@ function ProductModal({ initial, onClose, onSave, isTienda }) {
         });
 
         const createdVariant = res.data?.data;
+        // Una variante nueva puede traer un color nuevo para «Fotos por color»
+        qc.invalidateQueries({ queryKey: ['option-images', initial.id] });
         if (createdVariant && createdVariant.id) {
           setVariants(prev => [...prev, createdVariant]);
         } else {
@@ -437,6 +440,7 @@ function ProductModal({ initial, onClose, onSave, isTienda }) {
       await api.delete(`/api/products/${initial.id}/variants/${variantId}`);
       setVariants(prev => prev.map(v => v.id === variantId ? { ...v, is_active: false } : v));
       qc.invalidateQueries({ queryKey: ['products'] });
+      qc.invalidateQueries({ queryKey: ['option-images', initial.id] });
     } catch (err) {
       setError(err.response?.data?.error || 'Error al desactivar variante.');
     }
@@ -737,6 +741,11 @@ function ProductModal({ initial, onClose, onSave, isTienda }) {
           {isTienda && hasVariants && (
             <div className="border-t border-slate-800 pt-4">
               <h4 className="text-white text-sm font-semibold mb-3">Variantes ({variants.filter(v => v.is_active).length})</h4>
+              {isEdit && (
+                <p className="text-slate-500 text-xs -mt-2 mb-3">
+                  Miniatura de cada variante: foto específica de esta variante (opcional). Las fotos que comparten todas las tallas de un color van en «Fotos por color».
+                </p>
+              )}
 
               {isEdit && loadingVariants ? (
                 <p className="text-slate-500 text-sm text-center py-4">Cargando variantes...</p>
@@ -750,7 +759,7 @@ function ProductModal({ initial, onClose, onSave, isTienda }) {
                         return (
                         <div key={idx} className="flex flex-wrap items-center justify-between gap-2 p-2 bg-slate-800/50 rounded-lg border border-slate-700">
                           {isEdit && (
-                            <label title="Foto de la variante"
+                            <label title="Foto específica de esta variante (opcional)" aria-label="Foto específica de esta variante (opcional)"
                               className="w-9 h-9 flex-shrink-0 bg-slate-800 border border-slate-700 rounded flex items-center justify-center overflow-hidden cursor-pointer hover:border-violet-500 transition">
                               {uploadingVariantImage === v.id ? (
                                 <span className="text-[10px] text-slate-400">...</span>
@@ -852,6 +861,8 @@ function ProductModal({ initial, onClose, onSave, isTienda }) {
                   </div>
                 </>
               )}
+
+              {isEdit && <div className="mt-4"><ColorPhotosEdit productId={initial.id} /></div>}
             </div>
           )}
         </div>

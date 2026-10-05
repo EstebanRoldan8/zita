@@ -1,6 +1,18 @@
 const { createUserClient } = require('../config/supabase');
 const logger = require('../utils/logger');
 const { restoreOrderStock, undoRestoredItems } = require('../utils/orderStock');
+const { recordOrderAccounting, removeOrderAccounting } = require('../utils/orderAccounting');
+const { isTiendaBusiness } = require('../utils/businessType');
+
+// Best-effort: vuelve a registrar la caja de un pedido pagado cuando una operación se revierte
+async function reRecordIfPaid(sb, order, country) {
+  if (order?.payment_status !== 'pagado') return;
+  try {
+    await recordOrderAccounting(sb, order, country);
+  } catch (err) {
+    logger.error(`orders.reRecordIfPaid order=${order.id}: ${err.message}`);
+  }
+}
 
 const PAYMENT_STATUSES = ['pendiente', 'pagado', 'fallido', 'reembolsado'];
 const PAYMENT_METHODS = ['efectivo', 'transferencia', 'nequi', 'daviplata', 'tarjeta', 'wompi', 'otro'];
@@ -340,6 +352,27 @@ async function create(req, res) {
 
     if (fullError) throw fullError;
 
+    // Solo tienda: un pedido que nace pagado registra su ingreso y costo en caja.
+    // Si la caja falla, el pago se deshace (queda pendiente) y se avisa sin perder el pedido.
+    if (extraFields.payment_status === 'pagado' && isTiendaBusiness(req.business)) {
+      try {
+        await recordOrderAccounting(sb, fullOrder, req.business?.country);
+      } catch (accErr) {
+        logger.error(`orders.create accounting order=${fullOrder.id}: ${accErr.message}`);
+        const { data: reverted, error: revertErr } = await sb
+          .from('orders')
+          .update({ payment_status: 'pendiente', paid_at: null })
+          .eq('id', fullOrder.id)
+          .select('payment_status, paid_at');
+        if (revertErr) logger.error('orders.create revert payment: ' + revertErr.message);
+        return res.status(201).json({
+          success: true,
+          data: { ...fullOrder, ...(reverted?.[0] || {}) },
+          warning: 'El pedido se creó, pero no se pudo registrar el ingreso en caja: quedó con pago pendiente. Márcalo como pagado de nuevo.',
+        });
+      }
+    }
+
     return res.status(201).json({ success: true, data: fullOrder });
   } catch (err) {
     logger.error('orders.create: ' + err.message);
@@ -397,20 +430,41 @@ async function updateStatus(req, res) {
         return res.json({ success: true, data: current });
       }
 
-      try {
-        await restoreOrderStock(order, 'order_cancel', req.user?.id);
-      } catch (restoreErr) {
-        logger.error('orders.updateStatus restore: ' + restoreErr.message + ' / ' + (restoreErr.cause?.message || ''));
+      const revertCancel = async () => {
         const { error: revertErr } = await sb
           .from('orders')
           .update({ status: order.status })
           .eq('id', id)
           .eq('status', 'cancelado');
         if (revertErr) logger.error('orders.updateStatus revert status: ' + revertErr.message);
+      };
+
+      let restored;
+      try {
+        restored = await restoreOrderStock(order, 'order_cancel', req.user?.id);
+      } catch (restoreErr) {
+        logger.error('orders.updateStatus restore: ' + restoreErr.message + ' / ' + (restoreErr.cause?.message || ''));
+        await revertCancel();
         return res.status(409).json({
           success: false,
           error: `No se pudo cancelar el pedido: ${restoreErr.message} El pedido y el inventario quedaron como estaban.`,
         });
+      }
+
+      // Solo tienda: un pedido cancelado deja de contar en caja
+      if (isTiendaBusiness(req.business)) {
+        try {
+          await removeOrderAccounting(sb, order);
+        } catch (accErr) {
+          logger.error(`orders.updateStatus accounting order=${id}: ${accErr.message}`);
+          await undoRestoredItems(order, 'order_cancel', restored, req.user?.id);
+          await revertCancel();
+          await reRecordIfPaid(sb, claimed[0], req.business?.country);
+          return res.status(409).json({
+            success: false,
+            error: 'No se pudo cancelar el pedido: no se pudo quitar el ingreso de caja. El pedido y el inventario quedaron como estaban.',
+          });
+        }
       }
 
       return res.json({ success: true, data: claimed[0] });
@@ -445,7 +499,7 @@ async function deleteOrder(req, res) {
 
     const { data: order, error: getError } = await sb
       .from('orders')
-      .select('id, status, business_id')
+      .select('id, status, business_id, payment_status, total_amount, client_name, client_id')
       .eq('id', id)
       .eq('business_id', req.businessId)
       .single();
@@ -492,6 +546,24 @@ async function deleteOrder(req, res) {
       });
     }
 
+    // Solo tienda: se borra la caja del pedido de forma explícita antes de borrarlo
+    // (el ON DELETE CASCADE de order_id también lo haría al borrar el pedido; así no se pisan)
+    const isTienda = isTiendaBusiness(req.business);
+    if (isTienda) {
+      try {
+        await removeOrderAccounting(sb, order);
+      } catch (accErr) {
+        logger.error(`orders.deleteOrder accounting order=${id}: ${accErr.message}`);
+        await undoRestoredItems(order, 'order_delete', restored, req.user?.id);
+        await revertStatus();
+        await reRecordIfPaid(sb, order, req.business?.country);
+        return res.status(500).json({
+          success: false,
+          error: 'No se pudo eliminar el pedido: no se pudo quitar el ingreso de caja. El pedido y el inventario quedaron como estaban.',
+        });
+      }
+    }
+
     const { error: deleteError } = await sb
       .from('order_items')
       .delete()
@@ -501,6 +573,7 @@ async function deleteOrder(req, res) {
       logger.error('orders.deleteOrder items error: ' + deleteError.message);
       await undoRestoredItems(order, 'order_delete', restored, req.user?.id);
       await revertStatus();
+      if (isTienda) await reRecordIfPaid(sb, order, req.business?.country);
       return res.status(500).json({ success: false, error: 'Error al eliminar pedido. El pedido y el inventario quedaron como estaban.' });
     }
 
@@ -542,7 +615,7 @@ async function updatePayment(req, res) {
 
     const { data: order, error: getError } = await sb
       .from('orders')
-      .select('id, status, paid_at')
+      .select('id, business_id, status, paid_at, payment_status, payment_method, total_amount, client_name, client_id')
       .eq('id', id)
       .eq('business_id', req.businessId)
       .maybeSingle();
@@ -567,6 +640,33 @@ async function updatePayment(req, res) {
     if (!data || data.length === 0) {
       return res.status(400).json({ success: false, error: 'No se puede cambiar el pago de un pedido cancelado.' });
     }
+
+    // Solo tienda: pagado registra ingreso y costo en caja; salir de pagado los borra.
+    // Todo o nada: si la caja falla, el pago vuelve a como estaba.
+    if (isTiendaBusiness(req.business)) {
+      const wasPaid = order.payment_status === 'pagado';
+      try {
+        if (ps === 'pagado') await recordOrderAccounting(sb, data[0], req.business?.country);
+        else if (wasPaid) await removeOrderAccounting(sb, order);
+      } catch (accErr) {
+        logger.error(`orders.updatePayment accounting order=${id}: ${accErr.message}`);
+        const { error: revertErr } = await sb
+          .from('orders')
+          .update({ payment_status: order.payment_status, paid_at: order.paid_at, payment_method: order.payment_method })
+          .eq('id', id)
+          .eq('business_id', req.businessId);
+        if (revertErr) logger.error('orders.updatePayment revert payment: ' + revertErr.message);
+        // Si se alcanzó a borrar el ingreso pero no el egreso, se vuelve a registrar
+        if (ps !== 'pagado' && wasPaid) await reRecordIfPaid(sb, order, req.business?.country);
+        return res.status(500).json({
+          success: false,
+          error: ps === 'pagado'
+            ? 'No se pudo registrar el ingreso en caja. El pago no se guardó; intenta de nuevo.'
+            : 'No se pudo quitar el ingreso de caja. El pago no se cambió; intenta de nuevo.',
+        });
+      }
+    }
+
     return res.json({ success: true, data: data[0] });
   } catch (err) {
     logger.error('orders.updatePayment: ' + err.message);

@@ -318,10 +318,18 @@ function OrderDetailModal({ order: initialOrder, onClose, isTienda, onNotice }) 
   const shippingDirty = carrier.trim() !== (order.shipping_carrier || '') || tracking.trim() !== (order.tracking_code || '');
   const showShipping = isTienda && (order.delivery_type === 'envio' || newStatus === 'enviado' || order.status === 'enviado' || order.shipping_carrier || order.tracking_code);
 
+  // Pago, cancelación y eliminación mueven la caja de tienda: refrescar caja y dashboard
+  const invalidateMoney = () => {
+    qc.invalidateQueries({ predicate: (q) => typeof q.queryKey[0] === 'string' && q.queryKey[0].startsWith('cash-') });
+    qc.invalidateQueries({ queryKey: ['metrics-overview'] });
+    qc.invalidateQueries({ queryKey: ['dashboard-tienda'] });
+  };
+
   const invalidateAfterStock = () => {
     qc.invalidateQueries({ queryKey: ['orders'] });
     qc.invalidateQueries({ queryKey: ['products'] });
     qc.invalidateQueries({ queryKey: ['inventory-summary'] });
+    if (isTienda) invalidateMoney();
   };
 
   const saveShipping = async () => {
@@ -397,6 +405,7 @@ function OrderDetailModal({ order: initialOrder, onClose, isTienda, onNotice }) 
       setOrder((prev) => ({ ...prev, ...res.data?.data }));
       setPayStatusSel(status);
       qc.invalidateQueries({ queryKey: ['orders'] });
+      invalidateMoney();
     } catch (err) {
       setError(err.response?.data?.error || 'Error al actualizar el pago.');
     } finally {
@@ -790,6 +799,7 @@ export default function Orders() {
             if (isTienda) {
               qc.invalidateQueries({ queryKey: ['products'] });
               qc.invalidateQueries({ queryKey: ['inventory-summary'] });
+              qc.invalidateQueries({ queryKey: ['dashboard-tienda'] });
             }
             setNewOrderModal(false);
           }}

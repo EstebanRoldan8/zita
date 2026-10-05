@@ -3,6 +3,7 @@ const logger = require('../utils/logger');
 const { getTimezone } = require('../utils/timezone');
 const { generarSku } = require('../utils/sku');
 const { findLowStock } = require('../utils/lowStock');
+const { getTopSellers } = require('../utils/topSellers');
 
 const MSG_VARIANTES_ACTIVAS = 'Debes desactivar todas las variantes antes de quitar esta opción.';
 const msgStockAntesDeVariantes = (n) =>
@@ -85,26 +86,7 @@ async function getInventorySummary(req, res) {
     const lowStockCount = lowList.filter((p) => (Number(p.stock) || 0) > 0).length;
 
     // Más vendidos: suma de quantity en product_sales de los últimos 30 días
-    const { data: sales, error: sErr } = await sb
-      .from('product_sales')
-      .select('product_id, quantity')
-      .eq('business_id', req.businessId)
-      .gte('created_at', since)
-      .limit(10000);
-    if (sErr) throw sErr;
-    const unitsByProduct = {};
-    for (const s of sales || []) {
-      unitsByProduct[s.product_id] = (unitsByProduct[s.product_id] || 0) + (Number(s.quantity) || 0);
-    }
-    const nameById = Object.fromEntries(list.map((p) => [p.id, p.name]));
-    const topIds = Object.entries(unitsByProduct).sort((a, b) => b[1] - a[1]).slice(0, 5);
-    const missingNames = topIds.map(([pid]) => pid).filter((pid) => !nameById[pid]);
-    if (missingNames.length > 0) {
-      // Productos inactivos que igual vendieron en el período
-      const { data: extra } = await sb.from('products').select('id, name').in('id', missingNames);
-      for (const p of extra || []) nameById[p.id] = p.name;
-    }
-    const topSellers = topIds.map(([pid, units]) => ({ product_id: pid, name: nameById[pid] || 'Producto eliminado', units }));
+    const topSellers = await getTopSellers(sb, req.businessId, since, Object.fromEntries(list.map((p) => [p.id, p.name])));
 
     // Sin movimiento: sin ningún 'venta' en inventory_movements en 30 días y con stock > 0
     const { data: saleMovs, error: mErr } = await sb

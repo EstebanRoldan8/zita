@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
+import { useSearchParams } from 'react-router-dom';
 import { ShoppingBag, Plus, X, AlertTriangle, CheckCircle2 } from 'lucide-react';
 import api from '../../lib/api';
 import { useAuth } from '../../context/AuthContext';
@@ -623,6 +624,14 @@ export default function Orders() {
   const [newOrderModal, setNewOrderModal] = useState(false);
   const [selectedOrder, setSelectedOrder] = useState(null);
   const [notice, setNotice] = useState(null);
+  const [searchParams, setSearchParams] = useSearchParams();
+
+  // Acción rápida del dashboard: /dashboard/pedidos?nuevo=1 abre el modal de nuevo pedido
+  useEffect(() => {
+    if (searchParams.get('nuevo') !== '1') return;
+    setNewOrderModal(true);
+    setSearchParams({}, { replace: true });
+  }, [searchParams, setSearchParams]);
 
   useEffect(() => {
     if (!notice) return;

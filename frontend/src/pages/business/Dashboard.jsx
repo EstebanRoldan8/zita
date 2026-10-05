@@ -10,6 +10,8 @@ import { supabase } from '../../lib/supabase';
 import AppointmentModal from '../../components/appointments/AppointmentModal';
 import { timeFromISO } from '../../lib/timezone';
 import { useAuth } from '../../context/AuthContext';
+import { isTiendaBusiness } from '../../lib/businessType';
+import TiendaDashboard from '../../components/dashboard/TiendaDashboard';
 
 registerLocale('es', es);
 
@@ -87,7 +89,7 @@ function SkeletonCard() {
   );
 }
 
-export default function Dashboard() {
+function ServiceDashboard() {
   const qc = useQueryClient();
   const { user, business } = useAuth();
   const getTimeFromISO = (iso) => timeFromISO(iso, business?.country);
@@ -871,4 +873,12 @@ export default function Dashboard() {
       )}
     </div>
   );
+}
+
+// Tienda tiene su propio dashboard (ventas, pedidos, stock) y no consulta citas.
+// Los demás tipos de negocio siguen con el dashboard de citas sin cambios.
+export default function Dashboard() {
+  const { business } = useAuth();
+  if (isTiendaBusiness(business)) return <TiendaDashboard />;
+  return <ServiceDashboard />;
 }

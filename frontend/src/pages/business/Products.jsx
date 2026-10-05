@@ -8,6 +8,7 @@ import 'react-datepicker/dist/react-datepicker.css';
 import { es } from 'date-fns/locale';
 import api from '../../lib/api';
 import { useAuth } from '../../context/AuthContext';
+import { useSearchParams } from 'react-router-dom';
 import RestockModal from '../../components/inventory/RestockModal';
 import MovementsModal from '../../components/inventory/MovementsModal';
 import InventorySummary from '../../components/inventory/InventorySummary';
@@ -1114,8 +1115,15 @@ function CatalogoTab({ products, clients, showInactive, onShowInactiveChange, so
 }
 
 // ── Inventario Tab ───────────────────────────────────────────────────────────
-function InventarioTab({ products, sales, sortBy, onSortChange, isTienda }) {
+function InventarioTab({ products, sales, sortBy, onSortChange, isTienda, openRestock, onRestockHandled }) {
   const [restockOpen, setRestockOpen] = useState(false);
+
+  useEffect(() => {
+    if (openRestock && isTienda) {
+      setRestockOpen(true);
+      onRestockHandled?.();
+    }
+  }, [openRestock, isTienda, onRestockHandled]);
   const [historyProduct, setHistoryProduct] = useState(null);
   const [selectedMonth, setSelectedMonth] = useState(new Date().toLocaleDateString('en-CA', { timeZone: 'America/Bogota' }).slice(0, 7));
   const [productSales, setProductSales] = useState([]);
@@ -1499,11 +1507,24 @@ export default function Products() {
   const [showInactive, setShowInactive] = useState(false);
   const [sortBy, setSortBy] = useState('name');
   const [newModal, setNewModal] = useState(false);
+  const [openRestock, setOpenRestock] = useState(false);
+  const [searchParams, setSearchParams] = useSearchParams();
   const { business } = useAuth();
   const isTienda = business?.business_type
     ?.toLowerCase()
     .normalize('NFD')
     .replace(/[̀-ͯ]/g, '') === 'tienda';
+
+  // Acciones rápidas del dashboard de tienda: ?nuevo=1 abre "Nuevo producto",
+  // ?entrada=1 va a Inventario y abre "Entrada de mercancía"
+  useEffect(() => {
+    const nuevo = searchParams.get('nuevo') === '1';
+    const entrada = searchParams.get('entrada') === '1';
+    if (!nuevo && !entrada) return;
+    if (nuevo) setNewModal(true);
+    if (entrada && isTienda) { setTab('inventario'); setOpenRestock(true); }
+    setSearchParams({}, { replace: true });
+  }, [searchParams, setSearchParams, isTienda]);
 
   const { data: products = [], isLoading } = useQuery({
     queryKey: ['products'],
@@ -1567,7 +1588,8 @@ export default function Products() {
           {tab === 'catalogo' ? (
             <CatalogoTab products={products} clients={clients} showInactive={showInactive} onShowInactiveChange={setShowInactive} sortBy={sortBy} onSortChange={setSortBy} isTienda={isTienda} newModal={newModal} setNewModal={setNewModal} />
           ) : (
-            <InventarioTab products={products.filter((p) => p.is_active)} sales={sales} sortBy={sortBy} onSortChange={setSortBy} isTienda={isTienda} />
+            <InventarioTab products={products.filter((p) => p.is_active)} sales={sales} sortBy={sortBy} onSortChange={setSortBy} isTienda={isTienda}
+              openRestock={openRestock} onRestockHandled={() => setOpenRestock(false)} />
           )}
         </>
       )}

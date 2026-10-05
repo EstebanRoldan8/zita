@@ -94,9 +94,10 @@ async function getById(req, res) {
       .select('*, order_items(*)')
       .eq('id', id)
       .eq('business_id', req.businessId)
-      .single();
+      .maybeSingle();
 
-    if (error) {
+    // 22P02: el id no es un UUID válido, así que el pedido no existe
+    if (error && error.code !== '22P02') {
       logger.error('orders.getById query error: ' + error.message);
       throw error;
     }

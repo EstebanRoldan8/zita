@@ -41,14 +41,14 @@ function Card({ icon: Icon, label, value, sub, valueColor = 'text-white', iconCo
       className={`min-w-0 text-left bg-[#131929] border border-violet-500/15 hover:border-violet-500/40 hover:bg-slate-700/60 rounded-xl shadow-lg shadow-black/30 p-4 flex flex-col transition-all duration-200 ${onClick
         ? 'cursor-pointer focus:outline-none focus-visible:ring-2 focus-visible:ring-violet-400 focus-visible:border-violet-400' : ''}`}>
       <div className="flex items-center justify-between w-full">
-        <span className="text-slate-400 text-xs font-medium min-w-0 mr-1">{label}</span>
+        <span className="text-slate-300 text-[13px] sm:text-xs font-medium min-w-0 mr-1">{label}</span>
         <div className={`w-7 h-7 rounded-lg flex items-center justify-center flex-shrink-0 ${iconColor}`}>
           <Icon size={16} />
         </div>
       </div>
       <div className="mt-2 min-w-0">
         <p className={`text-xl font-bold mb-1 truncate ${valueColor}`}>{value}</p>
-        {sub && <p className="text-xs text-slate-400 truncate">{sub}</p>}
+        {sub && <p className="text-[13px] sm:text-xs text-slate-300 leading-snug line-clamp-2">{sub}</p>}
       </div>
     </Tag>
   );
@@ -123,7 +123,7 @@ export default function TiendaDashboard() {
       {/* Header */}
       <div className="border-b border-white/6 pb-4 mb-6">
         <h1 className="text-xl sm:text-2xl font-bold text-white">{getGreeting()}</h1>
-        <p className="text-xs sm:text-sm text-white/40 mt-0.5">
+        <p className="text-sm text-white/60 mt-0.5">
           {new Date().toLocaleDateString('es-CO', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}
         </p>
       </div>
@@ -193,7 +193,7 @@ export default function TiendaDashboard() {
               <button onClick={() => navigate('/dashboard/pedidos')} className="text-violet-400 hover:text-violet-300 text-xs transition">Ver todos →</button>
             </div>
             {data.recent_orders.length === 0 ? (
-              <p className="text-slate-500 text-sm py-4 text-center">Aún no hay pedidos.</p>
+              <p className="text-slate-400 text-sm py-4 text-center">Aún no hay pedidos.</p>
             ) : (
               <div className="space-y-2">
                 {data.recent_orders.map((o) => {
@@ -205,15 +205,15 @@ export default function TiendaDashboard() {
                       <div className="min-w-0">
                         <p className="text-white text-sm font-medium truncate">{o.client_name || '—'}</p>
                         <div className="flex flex-wrap gap-1.5 mt-1">
-                          <span className={`text-[11px] border px-2 py-0.5 rounded-full ${st.color}`}>{st.label}</span>
+                          <span className={`text-xs border px-2 py-0.5 rounded-full ${st.color}`}>{st.label}</span>
                           {o.status !== 'cancelado' && (
-                            <span className={`text-[11px] border px-2 py-0.5 rounded-full ${pay.color}`}>{pay.label}</span>
+                            <span className={`text-xs border px-2 py-0.5 rounded-full ${pay.color}`}>{pay.label}</span>
                           )}
                         </div>
                       </div>
                       <div className="flex items-center gap-1 flex-shrink-0">
                         <span className="text-violet-400 font-semibold text-sm">{formatCOP(o.total_amount)}</span>
-                        <ChevronRight size={14} className="text-slate-600" />
+                        <ChevronRight size={14} className="text-slate-500" />
                       </div>
                     </button>
                   );
@@ -229,12 +229,12 @@ export default function TiendaDashboard() {
                 <TrendingUp size={14} className="text-emerald-400" /> Más vendidos 30 días
               </h2>
               {data.top_sellers.length === 0 ? (
-                <p className="text-slate-500 text-sm py-2">Sin ventas en los últimos 30 días.</p>
+                <p className="text-slate-400 text-sm py-2">Sin ventas en los últimos 30 días.</p>
               ) : (
                 <ul className="space-y-1.5">
                   {data.top_sellers.map((p, i) => (
                     <li key={p.product_id} className="flex items-center justify-between gap-2 text-sm">
-                      <span className="text-slate-300 truncate"><span className="text-slate-600 mr-1.5">{i + 1}.</span>{p.name}</span>
+                      <span className="text-slate-300 truncate"><span className="text-slate-500 mr-1.5">{i + 1}.</span>{p.name}</span>
                       <span className="text-emerald-400 font-semibold flex-shrink-0">{p.units} und.</span>
                     </li>
                   ))}
@@ -273,7 +273,7 @@ export default function TiendaDashboard() {
                                 {variantText(v.attributes)}: {v.stock} (mín {v.min_stock}){isZero(v.stock) ? ' · agotada' : ''}
                               </li>
                             ))}
-                            {lows.length > 4 && <li className="text-slate-400 text-xs">y {lows.length - 4} variante{lows.length - 4 !== 1 ? 's' : ''} más</li>}
+                            {lows.length > 4 && <li className="text-slate-300 text-[13px] sm:text-xs">y {lows.length - 4} variante{lows.length - 4 !== 1 ? 's' : ''} más</li>}
                           </ul>
                         )}
                         <button onClick={() => navigate(restockUrl(p))}

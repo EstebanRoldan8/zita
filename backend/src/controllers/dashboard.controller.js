@@ -56,9 +56,14 @@ async function tiendaSummary(req, res) {
     const lowList = await findLowStock(sb, req.businessId, productList);
     const outOfStock = productList.filter((p) => (Number(p.stock) || 0) === 0).length;
     const lowCount = lowList.filter((p) => (Number(p.stock) || 0) > 0).length;
-    // Primero los agotados, luego los de menor stock
+    // Variantes en 0 de todo el catálogo: cuentan como alerta crítica aunque el total del producto esté bien
+    const variantsOutOfStock = lowList.reduce(
+      (n, p) => n + (p.low_variants || []).filter((v) => (Number(v.stock) || 0) === 0).length, 0
+    );
+    // Primero los críticos (producto agotado o con alguna variante en 0), luego los de menor stock
+    const isCritical = (p) => (Number(p.stock) || 0) === 0 || (p.low_variants || []).some((v) => (Number(v.stock) || 0) === 0);
     const stockAlerts = [...lowList]
-      .sort((a, b) => (Number(a.stock) || 0) - (Number(b.stock) || 0))
+      .sort((a, b) => (isCritical(b) - isCritical(a)) || ((Number(a.stock) || 0) - (Number(b.stock) || 0)))
       .slice(0, 5)
       .map((p) => ({ id: p.id, name: p.name, stock: p.stock, min_stock: p.min_stock, low_variants: p.low_variants }));
 
@@ -74,7 +79,7 @@ async function tiendaSummary(req, res) {
         net_month: incomeMonth - expensesMonth,
         unpaid_orders: { count: (unpaid || []).length, amount: sum(unpaid, 'total_amount') },
         to_ship_count: (toShip || []).length,
-        stock_alerts: { out_of_stock: outOfStock, low: lowCount, items: stockAlerts },
+        stock_alerts: { out_of_stock: outOfStock, low: lowCount, variants_out_of_stock: variantsOutOfStock, items: stockAlerts },
         recent_orders: recent || [],
         top_sellers: topSellers,
       },

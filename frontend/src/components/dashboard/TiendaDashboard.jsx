@@ -64,7 +64,18 @@ function SkeletonCard() {
   );
 }
 
-const variantText = (attributes) => Object.entries(attributes || {}).map(([k, v]) => `${k} ${v}`).join(' / ');
+// "Negro / S": solo los valores de los atributos
+const variantText = (attributes) => Object.values(attributes || {}).join(' / ') || 'Variante';
+const isZero = (n) => (Number(n) || 0) === 0;
+
+// Destino de "Reponer": abre Entrada de mercancía con el producto y, si aplica, la variante
+function restockUrl(p) {
+  const params = new URLSearchParams({ entrada: '1', producto: p.id });
+  const lows = p.low_variants || [];
+  const target = lows.find((v) => isZero(v.stock)) || lows[0];
+  if (target?.id) params.set('variante', target.id);
+  return `/dashboard/productos?${params.toString()}`;
+}
 
 export default function TiendaDashboard() {
   const navigate = useNavigate();
@@ -91,7 +102,18 @@ export default function TiendaDashboard() {
   ];
 
   const net = data?.net_month ?? 0;
-  const alertsTotal = (data?.stock_alerts?.out_of_stock ?? 0) + (data?.stock_alerts?.low ?? 0);
+  const outProducts = data?.stock_alerts?.out_of_stock ?? 0;
+  const outVariants = data?.stock_alerts?.variants_out_of_stock ?? 0;
+  const lowProducts = data?.stock_alerts?.low ?? 0;
+  const criticalTotal = outProducts + outVariants;
+  // Productos que necesitan reposición (agotados o con stock bajo en el total o en alguna variante)
+  const alertsTotal = outProducts + lowProducts;
+  const alertsSub = alertsTotal === 0 ? 'Todo en orden' : [
+    outVariants > 0 ? `${outVariants} variante${outVariants !== 1 ? 's' : ''} agotada${outVariants !== 1 ? 's' : ''}` : null,
+    outProducts > 0 ? `${outProducts} producto${outProducts !== 1 ? 's' : ''} agotado${outProducts !== 1 ? 's' : ''}` : null,
+    `${alertsTotal} por reponer`,
+  ].filter(Boolean).join(' · ');
+  const alertsTone = criticalTotal > 0 ? 'critical' : alertsTotal > 0 ? 'warning' : 'ok';
 
   return (
     <div className="zita-touch px-4 sm:px-6 lg:px-8 py-6 sm:py-8 overflow-x-hidden">
@@ -144,9 +166,9 @@ export default function TiendaDashboard() {
                 <Card icon={Truck} label="Por enviar" value={data.to_ship_count} sub="Pagados sin enviar"
                   onClick={() => navigate('/dashboard/pedidos')} />
                 <Card icon={AlertTriangle} label="Alertas de stock" value={alertsTotal}
-                  sub={`${data.stock_alerts.out_of_stock} agotado${data.stock_alerts.out_of_stock !== 1 ? 's' : ''} · ${data.stock_alerts.low} bajo${data.stock_alerts.low !== 1 ? 's' : ''}`}
-                  valueColor={alertsTotal > 0 ? 'text-red-400' : 'text-white'}
-                  iconColor={alertsTotal > 0 ? 'bg-red-500/20 text-red-400' : 'bg-violet-600/20 text-violet-400'}
+                  sub={alertsSub}
+                  valueColor={alertsTone === 'critical' ? 'text-red-400' : alertsTone === 'warning' ? 'text-yellow-400' : 'text-white'}
+                  iconColor={alertsTone === 'critical' ? 'bg-red-500/20 text-red-400' : alertsTone === 'warning' ? 'bg-yellow-500/20 text-yellow-400' : 'bg-violet-600/20 text-violet-400'}
                   onClick={() => navigate('/dashboard/productos')} />
               </>
             )}
@@ -218,23 +240,41 @@ export default function TiendaDashboard() {
                 <h2 className="text-sm font-semibold text-slate-300 mb-3 flex items-center gap-2">
                   <AlertTriangle size={14} className="text-red-400" /> Stock por reponer
                 </h2>
-                <ul className="space-y-2">
-                  {data.stock_alerts.items.map((p) => (
-                    <li key={p.id} className="text-sm">
-                      <div className="flex items-center justify-between gap-2">
-                        <span className="text-slate-300 truncate">{p.name}</span>
-                        <span className={`flex-shrink-0 font-semibold ${Number(p.stock) === 0 ? 'text-red-400' : 'text-yellow-400'}`}>
-                          {Number(p.stock) === 0 ? 'Agotado' : `${p.stock} / mín ${p.min_stock}`}
-                        </span>
-                      </div>
-                      {(p.low_variants || []).length > 0 && (
-                        <p className="text-slate-500 text-xs mt-0.5">
-                          {p.low_variants.slice(0, 3).map((v) => `${variantText(v.attributes)}: ${v.stock} de mínimo ${v.min_stock}`).join(' · ')}
-                          {p.low_variants.length > 3 ? ` · +${p.low_variants.length - 3}` : ''}
-                        </p>
-                      )}
-                    </li>
-                  ))}
+                <ul className="space-y-3">
+                  {data.stock_alerts.items.map((p) => {
+                    const lows = p.low_variants || [];
+                    const productOut = isZero(p.stock);
+                    // El total solo se marca como bajo si él mismo está en o bajo el mínimo;
+                    // si el producto entró por una variante, el total se muestra neutro.
+                    const totalLow = !productOut && Number(p.stock) <= Number(p.min_stock);
+                    return (
+                      <li key={p.id} className="text-sm border-b border-slate-800/60 last:border-0 pb-3 last:pb-0">
+                        <div className="flex items-center justify-between gap-2">
+                          <span className="text-white font-medium truncate">{p.name}</span>
+                          <span className={`flex-shrink-0 ${productOut ? 'text-red-400 font-semibold' : totalLow ? 'text-yellow-400 font-semibold' : 'text-slate-300'}`}>
+                            {productOut ? 'Agotado' : totalLow ? `${p.stock} / mín ${p.min_stock}` : `${p.stock} en total`}
+                          </span>
+                        </div>
+                        {lows.length > 0 && (
+                          <ul className="mt-1.5 space-y-1">
+                            {lows.slice(0, 4).map((v) => (
+                              <li key={v.id}
+                                className={`text-[13px] sm:text-xs px-2 py-1 rounded ${isZero(v.stock)
+                                  ? 'text-red-300 font-semibold bg-red-500/10 border border-red-500/30'
+                                  : 'text-yellow-300 bg-yellow-500/5'}`}>
+                                {variantText(v.attributes)}: {v.stock} (mín {v.min_stock}){isZero(v.stock) ? ' · agotada' : ''}
+                              </li>
+                            ))}
+                            {lows.length > 4 && <li className="text-slate-400 text-xs">y {lows.length - 4} variante{lows.length - 4 !== 1 ? 's' : ''} más</li>}
+                          </ul>
+                        )}
+                        <button onClick={() => navigate(restockUrl(p))}
+                          className="mt-2 w-full sm:w-auto text-xs font-medium text-violet-300 bg-violet-600/15 border border-violet-500/30 hover:bg-violet-600/25 px-3 py-1.5 rounded-lg transition focus:outline-none focus-visible:ring-2 focus-visible:ring-violet-400">
+                          Reponer
+                        </button>
+                      </li>
+                    );
+                  })}
                 </ul>
               </div>
             )}

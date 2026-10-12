@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import { X, PackagePlus, Check, AlertCircle } from 'lucide-react';
 import api from '../../lib/api';
@@ -11,9 +11,15 @@ function normalizeText(text) {
 let lineSeq = 0;
 const newLine = () => ({ key: ++lineSeq, search: '', productId: '', variantId: '', quantity: '', status: null, message: '' });
 
-export default function RestockModal({ products, onClose }) {
+// preset (opcional): { productId, variantId } para preseleccionar la primera línea (botón "Reponer" del dashboard)
+export default function RestockModal({ products, onClose, preset }) {
   const qc = useQueryClient();
-  const [lines, setLines] = useState([newLine()]);
+  const [lines, setLines] = useState(() => {
+    const first = newLine();
+    const p = preset?.productId && (products || []).find((x) => x.id === preset.productId && x.is_active !== false);
+    if (!p) return [first];
+    return [{ ...first, productId: p.id, variantId: p.has_variants ? (preset.variantId || '') : '' }];
+  });
   const [note, setNote] = useState('');
   const [sending, setSending] = useState(false);
   const [attempted, setAttempted] = useState(false);
@@ -28,9 +34,22 @@ export default function RestockModal({ products, onClose }) {
     if (variantsByProduct[productId]) return;
     setVariantsByProduct((prev) => ({ ...prev, [productId]: { loading: true, list: [] } }));
     api.get(`/api/products/${productId}/variants`)
-      .then((r) => setVariantsByProduct((prev) => ({ ...prev, [productId]: { loading: false, list: (r.data?.data || []).filter((v) => v.is_active) } })))
+      .then((r) => {
+        const list = (r.data?.data || []).filter((v) => v.is_active);
+        setVariantsByProduct((prev) => ({ ...prev, [productId]: { loading: false, list } }));
+        // Una variante preseleccionada que ya no está activa se deja en blanco
+        setLines((prev) => prev.map((l) => (l.productId === productId && l.variantId && !list.some((v) => v.id === l.variantId)
+          ? { ...l, variantId: '' } : l)));
+      })
       .catch(() => setVariantsByProduct((prev) => ({ ...prev, [productId]: { loading: false, list: [], error: true } })));
   };
+
+  // Si llegó un producto preseleccionado con variantes, se cargan al abrir
+  useEffect(() => {
+    const first = lines[0];
+    if (first?.productId && productById[first.productId]?.has_variants) loadVariants(first.productId);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   const selectProduct = (line, productId) => {
     updateLine(line.key, { productId, variantId: '', status: null, message: '' });

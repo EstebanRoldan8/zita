@@ -95,8 +95,9 @@ export default function TiendaDashboard() {
   // Lite no incluye los módulos de Productos ni Pedidos: solo se muestra la parte de dinero
   const isLite = sub?.plan === 'lite';
 
+  // "Nuevo pedido" es la acción principal; las otras dos son secundarias
   const quickActions = [
-    { label: 'Nuevo pedido', icon: Plus, to: '/dashboard/pedidos?nuevo=1' },
+    { label: 'Nuevo pedido', icon: Plus, to: '/dashboard/pedidos?nuevo=1', primary: true },
     { label: 'Entrada de mercancía', icon: PackagePlus, to: '/dashboard/productos?entrada=1' },
     { label: 'Nuevo producto', icon: Package, to: '/dashboard/productos?nuevo=1' },
   ];
@@ -128,9 +129,11 @@ export default function TiendaDashboard() {
       {/* Acciones rápidas */}
       {!isLite && (
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 sm:gap-3 mb-6">
-          {quickActions.map(({ label, icon: Icon, to }) => (
+          {quickActions.map(({ label, icon: Icon, to, primary }) => (
             <button key={label} onClick={() => navigate(to)}
-              className="flex items-center justify-center gap-2 bg-violet-600 hover:bg-violet-500 text-white text-sm font-medium px-4 py-2.5 rounded-lg transition">
+              className={`flex items-center justify-center gap-2 text-sm font-medium px-4 py-2.5 rounded-lg transition focus:outline-none focus-visible:ring-2 focus-visible:ring-violet-400 ${primary
+                ? 'bg-violet-600 hover:bg-violet-500 text-white shadow-lg shadow-violet-900/30'
+                : 'bg-violet-600/10 hover:bg-violet-600/20 text-violet-300 border border-violet-500/30'}`}>
               <Icon size={16} /> {label}
             </button>
           ))}

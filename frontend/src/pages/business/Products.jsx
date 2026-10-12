@@ -1525,8 +1525,11 @@ export default function Products() {
   useEffect(() => {
     const nuevo = searchParams.get('nuevo') === '1';
     const entrada = searchParams.get('entrada') === '1';
-    if (!nuevo && !entrada) return;
+    const tabInventario = searchParams.get('tab') === 'inventario';
+    if (!nuevo && !entrada && !tabInventario) return;
     if (nuevo) setNewModal(true);
+    // ?tab=inventario: tarjeta "Alertas de stock" del dashboard
+    if (tabInventario) setTab('inventario');
     // ?producto=&variante= (botón "Reponer" del dashboard) preseleccionan la primera línea
     if (entrada && isTienda) {
       setTab('inventario');

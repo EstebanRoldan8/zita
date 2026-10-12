@@ -635,10 +635,18 @@ export default function Orders() {
   const [notice, setNotice] = useState(null);
   const [searchParams, setSearchParams] = useSearchParams();
 
-  // Acción rápida del dashboard: /dashboard/pedidos?nuevo=1 abre el modal de nuevo pedido
+  const [toShipOnly, setToShipOnly] = useState(false);
+
+  // Enlaces del dashboard de tienda: ?nuevo=1 abre el modal de nuevo pedido,
+  // ?pago=<estado> filtra por pago y ?vista=por-enviar muestra los pagados sin enviar
   useEffect(() => {
-    if (searchParams.get('nuevo') !== '1') return;
-    setNewOrderModal(true);
+    const nuevo = searchParams.get('nuevo') === '1';
+    const pago = searchParams.get('pago');
+    const porEnviar = searchParams.get('vista') === 'por-enviar';
+    if (!nuevo && !pago && !porEnviar) return;
+    if (nuevo) setNewOrderModal(true);
+    if (pago && PAYMENT_CONFIG[pago]) setFilterPayment(pago);
+    if (porEnviar) { setFilterPayment('pagado'); setToShipOnly(true); }
     setSearchParams({}, { replace: true });
   }, [searchParams, setSearchParams]);
 
@@ -665,9 +673,9 @@ export default function Orders() {
     enabled: isTienda,
   });
 
-  const visibleOrders = isTienda && filterPayment
-    ? orders.filter((o) => paymentOf(o) === filterPayment)
-    : orders;
+  const visibleOrders = !isTienda ? orders : orders.filter((o) =>
+    (!filterPayment || paymentOf(o) === filterPayment)
+    && (!toShipOnly || !['enviado', 'entregado', 'cancelado'].includes(o.status)));
   const porCobrar = isTienda
     ? orders.filter((o) => o.status !== 'cancelado' && paymentOf(o) === 'pendiente').length
     : 0;
@@ -687,6 +695,13 @@ export default function Orders() {
           </button>
         )}
       </div>
+
+      {isTienda && toShipOnly && (
+        <div className="mb-4 flex items-center justify-between gap-2 text-sm px-4 py-2.5 rounded-xl border text-violet-300 bg-violet-500/10 border-violet-500/20">
+          <span>Mostrando pedidos pagados sin enviar.</span>
+          <button onClick={() => { setToShipOnly(false); setFilterPayment(''); }} className="text-xs underline flex-shrink-0">Quitar filtro</button>
+        </div>
+      )}
 
       {notice && (
         <div className={`mb-4 flex items-start gap-2 text-sm px-4 py-3 rounded-xl border ${notice.type === 'ok'

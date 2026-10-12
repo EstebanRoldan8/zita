@@ -36,8 +36,10 @@ const PAYMENT_STATUS = {
 function Card({ icon: Icon, label, value, sub, valueColor = 'text-white', iconColor = 'bg-violet-600/20 text-violet-400', onClick }) {
   const Tag = onClick ? 'button' : 'div';
   return (
-    <Tag onClick={onClick}
-      className="min-w-0 text-left bg-[#131929] border border-violet-500/15 hover:border-violet-500/40 hover:bg-slate-700/60 rounded-xl shadow-lg shadow-black/30 p-4 flex flex-col transition-all duration-200">
+    // Como <button>, la tarjeta es accesible con teclado (Tab + Enter/Espacio) y muestra el foco
+    <Tag onClick={onClick} {...(onClick ? { type: 'button' } : {})}
+      className={`min-w-0 text-left bg-[#131929] border border-violet-500/15 hover:border-violet-500/40 hover:bg-slate-700/60 rounded-xl shadow-lg shadow-black/30 p-4 flex flex-col transition-all duration-200 ${onClick
+        ? 'cursor-pointer focus:outline-none focus-visible:ring-2 focus-visible:ring-violet-400 focus-visible:border-violet-400' : ''}`}>
       <div className="flex items-center justify-between w-full">
         <span className="text-slate-400 text-xs font-medium min-w-0 mr-1">{label}</span>
         <div className={`w-7 h-7 rounded-lg flex items-center justify-center flex-shrink-0 ${iconColor}`}>
@@ -154,25 +156,28 @@ export default function TiendaDashboard() {
         ) : data ? (
           <>
             <Card icon={ShoppingCart} label="Ventas de hoy" value={formatCOP(data.sales_today.amount)}
-              sub={`${data.sales_today.count} venta${data.sales_today.count !== 1 ? 's' : ''}`} />
-            <Card icon={DollarSign} label="Ingresos del mes" value={formatCOP(data.income_month)} sub="Total del mes" />
+              sub={`${data.sales_today.count} venta${data.sales_today.count !== 1 ? 's' : ''}`}
+              onClick={() => navigate('/dashboard/caja')} />
+            <Card icon={DollarSign} label="Ingresos del mes" value={formatCOP(data.income_month)} sub="Total del mes"
+              onClick={() => navigate('/dashboard/caja')} />
             <Card icon={net >= 0 ? TrendingUp : TrendingDown} label="Ganancia neta" value={formatCOP(net)}
               sub="Ingresos menos egresos del mes"
               valueColor={net >= 0 ? 'text-emerald-400' : 'text-red-400'}
-              iconColor={net >= 0 ? 'bg-emerald-500/20 text-emerald-400' : 'bg-red-500/20 text-red-400'} />
+              iconColor={net >= 0 ? 'bg-emerald-500/20 text-emerald-400' : 'bg-red-500/20 text-red-400'}
+              onClick={() => navigate('/dashboard/caja')} />
             {!isLite && (
               <>
                 <Card icon={Clock} label="Pedidos por cobrar" value={data.unpaid_orders.count}
                   sub={formatCOP(data.unpaid_orders.amount)}
                   valueColor={data.unpaid_orders.count > 0 ? 'text-yellow-400' : 'text-white'}
-                  onClick={() => navigate('/dashboard/pedidos')} />
+                  onClick={() => navigate('/dashboard/pedidos?pago=pendiente')} />
                 <Card icon={Truck} label="Por enviar" value={data.to_ship_count} sub="Pagados sin enviar"
-                  onClick={() => navigate('/dashboard/pedidos')} />
+                  onClick={() => navigate('/dashboard/pedidos?vista=por-enviar')} />
                 <Card icon={AlertTriangle} label="Alertas de stock" value={alertsTotal}
                   sub={alertsSub}
                   valueColor={alertsTone === 'critical' ? 'text-red-400' : alertsTone === 'warning' ? 'text-yellow-400' : 'text-white'}
                   iconColor={alertsTone === 'critical' ? 'bg-red-500/20 text-red-400' : alertsTone === 'warning' ? 'bg-yellow-500/20 text-yellow-400' : 'bg-violet-600/20 text-violet-400'}
-                  onClick={() => navigate('/dashboard/productos')} />
+                  onClick={() => navigate('/dashboard/productos?tab=inventario')} />
               </>
             )}
           </>

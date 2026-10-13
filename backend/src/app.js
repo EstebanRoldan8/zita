@@ -41,6 +41,7 @@ const subscriptionRoutes = require('./routes/subscription.routes');
 const contactRoutes = require('./routes/contact.routes');
 const paymentRoutes = require('./routes/payment.routes');
 const internalRoutes = require('./routes/internal.routes');
+const storeRoutes = require('./routes/store.routes');
 const { verifyToken } = require('./middlewares/auth');
 const { businessContext } = require('./middlewares/businessContext');
 const { checkPlanAccess } = require('./middlewares/planCheck');
@@ -78,8 +79,27 @@ const corsOptions = {
   optionsSuccessStatus: 204,
 };
 
-app.options('*', cors(corsOptions));
-app.use(cors(corsOptions));
+// Tienda pública: sus orígenes (STORE_ALLOWED_ORIGINS, separados por comas) solo se aceptan
+// en /api/store/*. El resto de la API conserva exactamente la lista de arriba.
+const storeOrigins = (process.env.STORE_ALLOWED_ORIGINS || '')
+  .split(',').map((o) => o.trim()).filter(Boolean);
+const storeCorsOptions = {
+  ...corsOptions,
+  credentials: false,
+  origin: function(origin, callback) {
+    if (!origin || allowedOrigins.includes(origin) || storeOrigins.includes(origin)) {
+      callback(null, true);
+    } else {
+      callback(new Error('No permitido por CORS'));
+    }
+  },
+};
+const corsDelegate = (req, callback) => {
+  callback(null, req.originalUrl.startsWith('/api/store/') ? storeCorsOptions : corsOptions);
+};
+
+app.options('*', cors(corsDelegate));
+app.use(cors(corsDelegate));
 
 const globalLimiter = rateLimit({
   windowMs: 15 * 60 * 1000,
@@ -151,6 +171,8 @@ app.get('/api/ping', (req, res) => {
   res.json({ status: 'ok' });
 });
 
+// Tienda pública (sin JWT): montada antes de las rutas autenticadas
+app.use('/api/store', storeRoutes);
 app.use('/api/internal', internalRoutes);
 app.use('/api/auth', authRoutes);
 app.use('/api/businesses', businessesRoutes);

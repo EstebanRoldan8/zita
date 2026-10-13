@@ -1,10 +1,11 @@
 import { useRef, useState } from 'react';
 import { Link, Navigate, useNavigate } from 'react-router-dom';
+import { useQueryClient } from '@tanstack/react-query';
 import { useStore, useStorePath } from '../hooks/useStore';
 import { useCart } from '../hooks/cartContext';
 import { useBagValidation } from '../hooks/useBagValidation';
 import { useDocumentMeta } from '../hooks/useDocumentMeta';
-import { storeApi, apiErrorMessage } from '../lib/storeApi';
+import { storeApi } from '../lib/storeApi';
 import { formatCOP, normalizePhone, isEmail, newIdempotencyKey, shippingFor } from '../lib/format';
 import { COPY } from '../lib/copy';
 
@@ -21,23 +22,51 @@ function methodsFor(text) {
   return matched.length > 0 ? matched : METHOD_OPTIONS;
 }
 
+// Orden visual de los campos (para llevar el scroll al primer error) y su id en el DOM
+const FIELD_ORDER = ['name', 'phone', 'email', 'city', 'address', 'notes', 'payment_method', 'accept'];
+const FIELD_IDS = {
+  name: 'f-name', phone: 'f-phone', email: 'f-email', city: 'f-city', address: 'f-address',
+  notes: 'f-notes', payment_method: 'f-payment', accept: 'f-accept',
+};
+const FIELD_LABELS = {
+  name: 'Nombre', phone: 'WhatsApp', email: 'Correo', city: 'Ciudad', address: 'Dirección',
+  notes: 'Notas', payment_method: 'Método de pago', accept: 'Tratamiento de datos',
+};
+// Campo del body que reporta el backend (express-validator) → campo del formulario
+const SERVER_FIELD = {
+  'customer.name': 'name', 'customer.phone': 'phone', 'customer.email': 'email',
+  'shipping.address': 'address', 'shipping.city': 'city', 'shipping.notes': 'notes',
+  payment_method: 'payment_method',
+};
+
 function Field({ id, label, error, hint, children }) {
   return (
     <div>
       <label htmlFor={id} className="flow-label mb-2 block">{label}</label>
       {children}
-      {error ? <p id={`${id}-error`} className="mt-1 text-xs text-flow-merlot">{error}</p>
+      {error ? <p id={`${id}-error`} className="mt-1 text-xs font-medium text-flow-merlot" role="alert">{error}</p>
         : hint ? <p className="mt-1 text-xs text-flow-muted">{hint}</p> : null}
     </div>
   );
 }
 
+function focusField(key) {
+  const el = document.getElementById(FIELD_IDS[key]);
+  if (!el) return;
+  const reduce = window.matchMedia?.('(prefers-reduced-motion: reduce)').matches;
+  el.scrollIntoView({ block: 'center', behavior: reduce ? 'auto' : 'smooth' });
+  el.focus({ preventScroll: true });
+}
+
+const lineLabel = (l) => `${l.name}${[l.color, l.size].filter(Boolean).length ? ` (${[l.color, l.size].filter(Boolean).join(' / ')})` : ''}`;
+
 export default function Checkout() {
   const { slug, store } = useStore();
   const path = useStorePath();
   const navigate = useNavigate();
+  const qc = useQueryClient();
   const { lines, subtotal, clear } = useCart();
-  const { loading: validating, blocking } = useBagValidation(slug, lines, true);
+  const { loading: validating, issues, blocking } = useBagValidation(slug, lines, true);
   useDocumentMeta(`${COPY.checkout} — ${store.name || 'Flow'}`, 'Completa tus datos para finalizar el pedido.');
 
   const methods = methodsFor(store.payment_methods);
@@ -46,35 +75,67 @@ export default function Checkout() {
     payment_method: methods[0].value, accept: false, website: '',
   });
   const [touched, setTouched] = useState({});
+  const [submitted, setSubmitted] = useState(false);
   const [submitting, setSubmitting] = useState(false);
-  const [serverError, setServerError] = useState('');
-  // Una clave por intento de compra; se reutiliza si el envío falla y el cliente reintenta
+  const [notice, setNotice] = useState(null); // { text, items?, bagLink? } junto al botón
+  const [serverErrors, setServerErrors] = useState({}); // errores 400 del servidor por campo
+  // Una clave por intento de compra; se reutiliza si el envío falla por red y se reintenta
   const keyRef = useRef(null);
 
   if (lines.length === 0 && !submitting) return <Navigate to={path('/bolsa')} replace />;
 
   const phone = normalizePhone(form.phone);
   const errors = {
-    name: form.name.trim().length < 2 ? 'Escribe tu nombre.' : form.name.trim().length > 80 ? 'Máximo 80 caracteres.' : '',
-    phone: !phone ? 'Escribe un celular colombiano de 10 dígitos (ej. 300 123 4567).' : '',
-    email: form.email.trim() && !isEmail(form.email) ? 'Revisa el correo.' : '',
+    name: form.name.trim().length < 2 ? 'Escribe tu nombre (mínimo 2 letras).' : form.name.trim().length > 80 ? 'Máximo 80 caracteres.' : '',
+    phone: !form.phone.trim() ? 'Escribe tu WhatsApp.'
+      : !phone ? 'Debe ser un celular colombiano de 10 dígitos que empiece por 3 (ej. 300 123 4567).' : '',
+    email: form.email.trim() && !isEmail(form.email) ? 'Revisa el correo (ej. nombre@correo.com).' : '',
     city: form.city.trim().length < 2 ? 'Escribe tu ciudad.' : '',
     address: form.address.trim().length < 5 ? 'Escribe la dirección completa (mínimo 5 caracteres).' : '',
+    notes: '',
+    payment_method: methods.some((m) => m.value === form.payment_method) ? '' : 'Elige un método de pago.',
     accept: !form.accept ? 'Debes aceptar el tratamiento de datos para continuar.' : '',
   };
-  const hasErrors = Object.values(errors).some(Boolean);
-  const show = (k) => (touched[k] || touched.__submit) && errors[k];
-  const set = (k) => (e) => setForm((f) => ({ ...f, [k]: e.target.type === 'checkbox' ? e.target.checked : e.target.value }));
+  // Mensaje visible de un campo: error del servidor o error local (si ya se tocó o se intentó enviar)
+  const fieldError = (k) => serverErrors[k] || ((touched[k] || submitted) ? errors[k] : '');
+  const invalidKeys = FIELD_ORDER.filter((k) => errors[k]);
+
+  const set = (k) => (e) => {
+    const value = e.target.type === 'checkbox' ? e.target.checked : e.target.value;
+    setForm((f) => ({ ...f, [k]: value }));
+    if (serverErrors[k]) setServerErrors((s) => ({ ...s, [k]: '' }));
+    if (notice) setNotice(null);
+  };
   const blur = (k) => () => setTouched((t) => ({ ...t, [k]: true }));
 
   const shipping = shippingFor(store, subtotal);
+  const blockingLines = lines.filter((l) => ['gone', 'soldout', 'qty', 'error'].includes(issues[l.key]?.type));
 
   const submit = async (e) => {
     e.preventDefault();
     if (submitting) return; // anti doble clic
-    setTouched((t) => ({ ...t, __submit: true }));
-    setServerError('');
-    if (hasErrors || blocking || validating) return;
+    setSubmitted(true);
+    setNotice(null);
+
+    // 1) Campos: mensaje bajo cada uno, resumen junto al botón y scroll al primero
+    if (invalidKeys.length > 0) {
+      setNotice({ text: `Revisa: ${invalidKeys.map((k) => FIELD_LABELS[k]).join(', ')}.` });
+      focusField(invalidKeys[0]);
+      return;
+    }
+    // 2) Bolsa todavía revisándose o con productos que cambiaron: se explica junto al botón
+    if (validating) {
+      setNotice({ text: 'Estamos revisando la disponibilidad de tu bolsa. Intenta de nuevo en unos segundos.' });
+      return;
+    }
+    if (blocking) {
+      setNotice({
+        text: 'Algunos productos de tu bolsa cambiaron y hay que ajustarlos antes de pedir:',
+        items: blockingLines.map((l) => `${lineLabel(l)}: ${issues[l.key]?.text || 'no disponible'}`),
+        bagLink: true,
+      });
+      return;
+    }
 
     if (!keyRef.current) keyRef.current = newIdempotencyKey();
     setSubmitting(true);
@@ -87,8 +148,10 @@ export default function Checkout() {
         idempotency_key: keyRef.current,
         website: form.website,
       });
-      // 201 creado o 200 con duplicate:true (mismo intento): ambos son éxito
+      // 201 creado o 200 con duplicate:true (mismo intento): ambos son éxito.
+      // La bolsa se vacía SOLO aquí, cuando el pedido existe.
       const data = res.data?.data;
+      if (!data?.order?.id) throw new Error('respuesta_sin_pedido');
       const snapshot = lines.map((l) => ({ name: l.name, color: l.color, size: l.size, quantity: l.quantity, price: l.price }));
       keyRef.current = null;
       clear();
@@ -97,15 +160,47 @@ export default function Checkout() {
         state: { order: data.order, whatsapp_url: data.whatsapp_url, lines: snapshot },
       });
     } catch (err) {
-      const body = err.response?.data;
-      if (err.response?.status === 409 && body?.error === 'sin_stock') {
-        keyRef.current = null; // el pedido no se creó: el próximo intento usa una clave nueva
-        navigate(path('/bolsa'), { state: { soldOut: body.items || [] } });
+      setSubmitting(false);
+      const status = err.response?.status;
+      const body = err.response?.data || {};
+
+      // 409 sin_stock o 400 de productos: el pedido no se creó; lista de lo afectado
+      if ((status === 409 && body.error === 'sin_stock')
+        || (status === 400 && ['producto_no_disponible', 'variante_no_disponible'].includes(body.error))) {
+        keyRef.current = null;
+        const ids = new Set(body.items || []);
+        const affected = lines.filter((l) => ids.has(l.variant_id) || ids.has(l.product_id));
+        setNotice({
+          text: body.error === 'sin_stock'
+            ? 'Estos productos ya no tienen unidades suficientes:'
+            : 'Estos productos ya no están disponibles:',
+          items: (affected.length ? affected : lines).map(lineLabel),
+          bagLink: true,
+        });
+        qc.invalidateQueries({ queryKey: ['store', slug, 'product'] }); // la bolsa se revalida
         return;
       }
-      if (err.response?.status === 400) keyRef.current = null;
-      setServerError(apiErrorMessage(err, 'No pudimos crear tu pedido. Intenta de nuevo.'));
-      setSubmitting(false);
+
+      // 400 con campo: el mensaje va bajo ese campo
+      if (status === 400 && body.field && SERVER_FIELD[body.field]) {
+        keyRef.current = null;
+        const key = SERVER_FIELD[body.field];
+        setServerErrors((s) => ({ ...s, [key]: body.error || 'Revisa este campo.' }));
+        setNotice({ text: `Revisa: ${FIELD_LABELS[key]}.` });
+        focusField(key);
+        return;
+      }
+      if (status === 400) keyRef.current = null;
+      if (status === 429) {
+        setNotice({ text: body.error || 'Demasiados intentos. Espera un minuto e intenta de nuevo.' });
+        return;
+      }
+      // Red o error del servidor: se conserva la clave para que el reintento no duplique
+      setNotice({
+        text: !err.response
+          ? 'No pudimos conectarnos. Revisa tu conexión e intenta de nuevo.'
+          : 'No pudimos crear tu pedido, intenta de nuevo.',
+      });
     }
   };
 
@@ -116,41 +211,49 @@ export default function Checkout() {
 
       <form onSubmit={submit} noValidate className="mt-10 grid gap-12 md:grid-cols-[1fr_340px]">
         <div className="grid gap-6">
-          {/* Honeypot: invisible para personas, los bots lo llenan */}
+          {/* Honeypot: invisible para personas, los bots lo llenan. autocomplete y los data-*
+              evitan que el autollenado o los gestores de contraseñas lo completen solos. */}
           <div className="flow-sr-only" aria-hidden="true">
-            <label htmlFor="website">No llenar este campo</label>
-            <input id="website" name="website" type="text" tabIndex={-1} autoComplete="off" value={form.website} onChange={set('website')} />
+            <label htmlFor="flow-hp">No llenar este campo</label>
+            <input id="flow-hp" name="website" type="text" tabIndex={-1} autoComplete="new-password"
+              data-lpignore="true" data-1p-ignore="true" data-bwignore="true" data-form-type="other"
+              value={form.website} onChange={set('website')} />
           </div>
 
-          <Field id="f-name" label="Nombre completo" error={show('name')}>
+          <Field id="f-name" label="Nombre completo" error={fieldError('name')}>
             <input id="f-name" className="flow-input" autoComplete="name" maxLength={80} value={form.name}
-              onChange={set('name')} onBlur={blur('name')} aria-invalid={!!show('name')} aria-describedby={show('name') ? 'f-name-error' : undefined} />
+              onChange={set('name')} onBlur={blur('name')} aria-invalid={!!fieldError('name')}
+              aria-describedby={fieldError('name') ? 'f-name-error' : undefined} />
           </Field>
-          <Field id="f-phone" label="WhatsApp" error={form.phone && !phone && touched.phone ? errors.phone : show('phone')}
+          <Field id="f-phone" label="WhatsApp" error={fieldError('phone')}
             hint={phone ? 'Número válido.' : 'Celular colombiano de 10 dígitos.'}>
             <input id="f-phone" className="flow-input" type="tel" inputMode="numeric" autoComplete="tel-national" maxLength={16}
               placeholder="300 123 4567" value={form.phone} onChange={set('phone')} onBlur={blur('phone')}
-              aria-invalid={!!(touched.phone && !phone)} aria-describedby="f-phone-error" />
+              aria-invalid={!!fieldError('phone')} aria-describedby={fieldError('phone') ? 'f-phone-error' : undefined} />
           </Field>
-          <Field id="f-email" label="Correo (opcional)" error={show('email')}>
+          <Field id="f-email" label="Correo (opcional)" error={fieldError('email')}>
             <input id="f-email" className="flow-input" type="email" autoComplete="email" maxLength={254} value={form.email}
-              onChange={set('email')} onBlur={blur('email')} aria-invalid={!!show('email')} />
+              onChange={set('email')} onBlur={blur('email')} aria-invalid={!!fieldError('email')}
+              aria-describedby={fieldError('email') ? 'f-email-error' : undefined} />
           </Field>
           <div className="grid gap-6 sm:grid-cols-2">
-            <Field id="f-city" label="Ciudad" error={show('city')}>
+            <Field id="f-city" label="Ciudad" error={fieldError('city')}>
               <input id="f-city" className="flow-input" autoComplete="address-level2" maxLength={80} value={form.city}
-                onChange={set('city')} onBlur={blur('city')} aria-invalid={!!show('city')} />
+                onChange={set('city')} onBlur={blur('city')} aria-invalid={!!fieldError('city')}
+                aria-describedby={fieldError('city') ? 'f-city-error' : undefined} />
             </Field>
-            <Field id="f-address" label="Dirección" error={show('address')}>
+            <Field id="f-address" label="Dirección" error={fieldError('address')}>
               <input id="f-address" className="flow-input" autoComplete="street-address" maxLength={200} value={form.address}
-                onChange={set('address')} onBlur={blur('address')} aria-invalid={!!show('address')} />
+                onChange={set('address')} onBlur={blur('address')} aria-invalid={!!fieldError('address')}
+                aria-describedby={fieldError('address') ? 'f-address-error' : undefined} />
             </Field>
           </div>
-          <Field id="f-notes" label="Notas (opcional)" hint="Apartamento, barrio o indicaciones para la entrega.">
-            <textarea id="f-notes" className="flow-input" rows={3} maxLength={300} value={form.notes} onChange={set('notes')} />
+          <Field id="f-notes" label="Notas (opcional)" error={fieldError('notes')} hint="Apartamento, barrio o indicaciones para la entrega.">
+            <textarea id="f-notes" className="flow-input" rows={3} maxLength={300} value={form.notes} onChange={set('notes')}
+              aria-invalid={!!fieldError('notes')} />
           </Field>
 
-          <fieldset>
+          <fieldset id="f-payment" tabIndex={-1}>
             <legend className="flow-label mb-3">Método de pago</legend>
             <div className="grid gap-2">
               {methods.map((m) => (
@@ -160,19 +263,21 @@ export default function Checkout() {
                 </label>
               ))}
             </div>
-            <p className="mt-3 text-xs text-flow-muted">{COPY.paymentNote}</p>
+            {fieldError('payment_method')
+              ? <p className="mt-2 text-xs font-medium text-flow-merlot" role="alert">{fieldError('payment_method')}</p>
+              : <p className="mt-3 text-xs text-flow-muted">{COPY.paymentNote}</p>}
           </fieldset>
 
           <div>
             <label className="flex items-start gap-3 text-sm">
-              <input type="checkbox" checked={form.accept} onChange={set('accept')} className="mt-1 h-5 w-5 accent-[#1C1C1C]"
-                aria-invalid={!!show('accept')} aria-describedby={show('accept') ? 'f-accept-error' : undefined} />
+              <input id="f-accept" type="checkbox" checked={form.accept} onChange={set('accept')} className="mt-1 h-5 w-5 flex-shrink-0 accent-[#1C1C1C]"
+                aria-invalid={!!fieldError('accept')} aria-describedby={fieldError('accept') ? 'f-accept-error' : undefined} />
               <span>
                 Autorizo el tratamiento de mis datos personales para gestionar mi pedido, según la Ley 1581 de 2012 y la{' '}
                 <Link to={path('/privacidad')} className="underline" target="_blank">política de privacidad</Link>.
               </span>
             </label>
-            {show('accept') && <p id="f-accept-error" className="mt-1 text-xs text-flow-merlot">{errors.accept}</p>}
+            {fieldError('accept') && <p id="f-accept-error" className="mt-1 text-xs font-medium text-flow-merlot" role="alert">{fieldError('accept')}</p>}
           </div>
         </div>
 
@@ -181,7 +286,7 @@ export default function Checkout() {
           <ul className="space-y-3 text-sm">
             {lines.map((l) => (
               <li key={l.key} className="flex justify-between gap-3">
-                <span className="min-w-0">{l.quantity} × {l.name}{[l.color, l.size].filter(Boolean).length ? ` (${[l.color, l.size].filter(Boolean).join(' / ')})` : ''}</span>
+                <span className="min-w-0">{l.quantity} × {lineLabel(l)}</span>
                 <span className="flex-shrink-0">{formatCOP(l.price * l.quantity)}</span>
               </li>
             ))}
@@ -196,12 +301,27 @@ export default function Checkout() {
           <div className="flex justify-between"><span className="flow-label">Total</span><span>{formatCOP(subtotal + shipping)}</span></div>
           <p className="mt-2 text-xs text-flow-muted">El total final lo calcula la tienda al recibir tu pedido.</p>
 
-          {serverError && <p className="mt-4 text-sm text-flow-merlot" role="alert">{serverError}</p>}
-          {blocking && <p className="mt-4 text-sm text-flow-merlot">Hay productos en tu bolsa que cambiaron. <Link to={path('/bolsa')} className="underline">Revisa tu bolsa</Link>.</p>}
+          {/* Toda razón por la que no se envía aparece aquí, junto al botón */}
+          {notice && (
+            <div className="mt-4 border-l-2 border-[color:var(--flow-merlot)] pl-3 text-sm text-flow-merlot" role="alert">
+              <p>{notice.text}</p>
+              {notice.items?.length > 0 && (
+                <ul className="mt-2 list-disc space-y-1 pl-4 text-xs">
+                  {notice.items.map((t) => <li key={t}>{t}</li>)}
+                </ul>
+              )}
+              {notice.bagLink && <Link to={path('/bolsa')} className="mt-2 inline-block text-xs underline">Ir a mi bolsa</Link>}
+            </div>
+          )}
+          {!notice && blocking && !validating && (
+            <p className="mt-4 text-sm text-flow-merlot">Hay productos en tu bolsa que cambiaron. <Link to={path('/bolsa')} className="underline">Revisa tu bolsa</Link>.</p>
+          )}
 
-          <button type="submit" disabled={submitting || validating || blocking} className="flow-btn flow-btn-primary mt-6 w-full">
-            {submitting ? 'Enviando tu pedido...' : validating ? 'Revisando tu bolsa...' : COPY.checkout}
+          {/* Solo se deshabilita mientras envía, y el texto lo dice */}
+          <button type="submit" disabled={submitting} aria-busy={submitting} className="flow-btn flow-btn-primary mt-6 w-full">
+            {submitting ? 'Enviando…' : COPY.checkout}
           </button>
+          {validating && !submitting && <p className="mt-2 text-xs text-flow-muted">Revisando la disponibilidad de tu bolsa…</p>}
         </aside>
       </form>
     </div>

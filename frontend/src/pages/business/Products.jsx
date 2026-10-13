@@ -10,6 +10,8 @@ import api from '../../lib/api';
 import { useAuth } from '../../context/AuthContext';
 import { useSearchParams } from 'react-router-dom';
 import RestockModal from '../../components/inventory/RestockModal';
+import { ColorPhotosEdit, ColorPhotosCreate } from '../../components/products/ColorPhotos';
+import { getColorOptions } from '../../lib/optionKey';
 import MovementsModal from '../../components/inventory/MovementsModal';
 import InventorySummary from '../../components/inventory/InventorySummary';
 
@@ -232,11 +234,30 @@ function ProductModal({ initial, onClose, onSave, isTienda }) {
   const [uploadingGallery, setUploadingGallery] = useState(false);
   const [galleryFilesSelected, setGalleryFilesSelected] = useState([]);
   const [uploadingVariantImage, setUploadingVariantImage] = useState(null);
+  // Solo al crear: archivos de «Fotos por color» en memoria, { [claveColor]: File[] }
+  const [pendingColorFiles, setPendingColorFiles] = useState({});
   const fileInputRef = useRef(null);
   const galleryInputRef = useRef(null);
   const galleryCreateInputRef = useRef(null);
   const isEdit = !!initial?.id;
   const qc = useQueryClient();
+
+  // Al crear: colores de las variantes agregadas en memoria (vacío si se desmarcan las variantes)
+  const createColors = !isEdit && hasVariants ? getColorOptions(variants) : [];
+  const createColorKeys = createColors.map((c) => c.key).join('|');
+
+  // Si un color deja de existir, se descartan sus archivos pendientes
+  useEffect(() => {
+    if (isEdit) return;
+    const keys = new Set(createColorKeys ? createColorKeys.split('|') : []);
+    setPendingColorFiles((prev) => {
+      const stale = Object.keys(prev).filter((k) => !keys.has(k));
+      if (stale.length === 0) return prev;
+      const next = { ...prev };
+      stale.forEach((k) => delete next[k]);
+      return next;
+    });
+  }, [isEdit, createColorKeys]);
 
   useEffect(() => {
     if (isEdit && hasVariants) {
@@ -348,6 +369,8 @@ function ProductModal({ initial, onClose, onSave, isTienda }) {
         });
 
         const createdVariant = res.data?.data;
+        // Una variante nueva puede traer un color nuevo para «Fotos por color»
+        qc.invalidateQueries({ queryKey: ['option-images', initial.id] });
         if (createdVariant && createdVariant.id) {
           setVariants(prev => [...prev, createdVariant]);
         } else {
@@ -438,6 +461,7 @@ function ProductModal({ initial, onClose, onSave, isTienda }) {
       await api.delete(`/api/products/${initial.id}/variants/${variantId}`);
       setVariants(prev => prev.map(v => v.id === variantId ? { ...v, is_active: false } : v));
       qc.invalidateQueries({ queryKey: ['products'] });
+      qc.invalidateQueries({ queryKey: ['option-images', initial.id] });
     } catch (err) {
       setError(err.response?.data?.error || 'Error al desactivar variante.');
     }
@@ -452,6 +476,7 @@ function ProductModal({ initial, onClose, onSave, isTienda }) {
     }
 
     setLoading(true);
+    const createWarnings = [];
     try {
       const payload = {
         name: form.name.trim(),
@@ -527,19 +552,48 @@ function ProductModal({ initial, onClose, onSave, isTienda }) {
           }
         }
 
+        // Fotos por color: se suben una por una después de crear el producto y sus variantes
+        const colorUploadFailures = [];
+        if (hasVariants && productId) {
+          for (const color of createColors) {
+            const files = pendingColorFiles[color.key] || [];
+            if (files.length === 0) continue;
+            const formData = new FormData();
+            formData.append('option', color.label);
+            files.forEach((file) => formData.append('images', file));
+            try {
+              await api.post(`/api/products/${productId}/option-images`, formData, {
+                headers: { 'Content-Type': 'multipart/form-data' },
+              });
+            } catch (colorErr) {
+              console.warn(`Color photos upload failed for ${color.label} on product ${productId}`);
+              colorUploadFailures.push(color.label);
+            }
+          }
+        }
+
         if (galleryUploadFailed) {
-          setError('Producto creado, pero hubo un error subiendo algunas fotos de la galería. Puedes agregarlas editando el producto.');
+          const msg = 'Producto creado, pero hubo un error subiendo algunas fotos de la galería. Puedes agregarlas editando el producto.';
+          setError(msg);
+          createWarnings.push(msg);
         }
         if (variantCreationErrors.length > 0) {
           const errorMsg = variantCreationErrors.length === 1
             ? `Producto creado, pero la variante (${variantCreationErrors[0]}) no se creó. Puedes agregarla editando el producto.`
             : `Producto creado, pero ${variantCreationErrors.length} variante(s) no se crearon. Puedes agregarlas editando el producto.`;
           setError(errorMsg);
+          createWarnings.push(errorMsg);
+        }
+        if (colorUploadFailures.length > 0) {
+          createWarnings.push(`Producto creado, pero no se pudieron subir las fotos de: ${colorUploadFailures.join(', ')}. Puedes agregarlas editando el producto.`);
         }
       }
       qc.invalidateQueries({ queryKey: ['products'] });
       setGalleryFilesSelected([]);
       setVariants([]);
+      setPendingColorFiles({});
+      // El modal se cierra con onSave(): los avisos de creación parcial se muestran antes para que no se pierdan
+      if (createWarnings.length > 0) window.alert(createWarnings.join('\n\n'));
       onSave();
     } catch (err) {
       console.error('handleSave error:', err);
@@ -738,6 +792,11 @@ function ProductModal({ initial, onClose, onSave, isTienda }) {
           {isTienda && hasVariants && (
             <div className="border-t border-slate-800 pt-4">
               <h4 className="text-white text-sm font-semibold mb-3">Variantes ({variants.filter(v => v.is_active).length})</h4>
+              {isEdit && (
+                <p className="text-slate-500 text-xs -mt-2 mb-3">
+                  Miniatura de cada variante: foto específica de esta variante (opcional). Las fotos que comparten todas las tallas de un color van en «Fotos por color».
+                </p>
+              )}
 
               {isEdit && loadingVariants ? (
                 <p className="text-slate-500 text-sm text-center py-4">Cargando variantes...</p>
@@ -751,7 +810,7 @@ function ProductModal({ initial, onClose, onSave, isTienda }) {
                         return (
                         <div key={idx} className="flex flex-wrap items-center justify-between gap-2 p-2 bg-slate-800/50 rounded-lg border border-slate-700">
                           {isEdit && (
-                            <label title="Foto de la variante"
+                            <label title="Foto específica de esta variante (opcional)" aria-label="Foto específica de esta variante (opcional)"
                               className="w-9 h-9 flex-shrink-0 bg-slate-800 border border-slate-700 rounded flex items-center justify-center overflow-hidden cursor-pointer hover:border-violet-500 transition">
                               {uploadingVariantImage === v.id ? (
                                 <span className="text-[10px] text-slate-400">...</span>
@@ -852,6 +911,13 @@ function ProductModal({ initial, onClose, onSave, isTienda }) {
                     </button>
                   </div>
                 </>
+              )}
+
+              {isEdit && <div className="mt-4"><ColorPhotosEdit productId={initial.id} /></div>}
+              {!isEdit && (
+                <div className="mt-4">
+                  <ColorPhotosCreate colors={createColors} pending={pendingColorFiles} onChange={setPendingColorFiles} />
+                </div>
               )}
             </div>
           )}

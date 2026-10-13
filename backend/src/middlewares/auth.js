@@ -3,7 +3,6 @@ const logger = require('../utils/logger');
 
 async function verifyToken(req, res, next) {
   try {
-    logger.info(`verifyToken: headers recibidos = ${JSON.stringify(req.headers)}`);
     const authHeader = req.headers.authorization;
     if (!authHeader || !authHeader.toLowerCase().startsWith('bearer ')) {
       return res.status(401).json({ success: false, error: 'No autorizado' });

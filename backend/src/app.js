@@ -32,6 +32,7 @@ const alertsRoutes    = require('./routes/alerts.routes');
 const productsRoutes  = require('./routes/products.routes');
 const productVariantsRoutes = require('./routes/productVariants.routes');
 const ordersRoutes = require('./routes/orders.routes');
+const dashboardRoutes = require('./routes/dashboard.routes');
 const assistantRoutes = require('./routes/assistant.routes');
 const webhookRoutes = require('./routes/webhook.routes');
 const adminRoutes = require('./routes/admin.routes');
@@ -171,6 +172,7 @@ app.use('/api/alerts', verifyToken, businessContext, checkPlanAccess, alertsRout
 app.use('/api/products', verifyToken, businessContext, checkPlanAccess, checkFeatureAccess('productos'), productVariantsRoutes);
 app.use('/api/products', verifyToken, businessContext, checkPlanAccess, checkFeatureAccess('productos'), productsRoutes);
 app.use('/api/orders', ordersRoutes);
+app.use('/api/dashboard', verifyToken, businessContext, checkPlanAccess, dashboardRoutes);
 app.use('/api/assistant', verifyToken, businessContext, checkPlanAccess, checkFeatureAccess('asistente_ia'), assistantRoutes);
 app.use('/api/subscription', verifyToken, businessContext, subscriptionRoutes);
 app.use('/api/contact', contactRoutes);

@@ -1183,9 +1183,11 @@ function CatalogoTab({ products, clients, showInactive, onShowInactiveChange, so
 // ── Inventario Tab ───────────────────────────────────────────────────────────
 function InventarioTab({ products, sales, sortBy, onSortChange, isTienda, openRestock, onRestockHandled }) {
   const [restockOpen, setRestockOpen] = useState(false);
+  const [restockPreset, setRestockPreset] = useState(null);
 
   useEffect(() => {
     if (openRestock && isTienda) {
+      setRestockPreset(typeof openRestock === 'object' ? openRestock : null);
       setRestockOpen(true);
       onRestockHandled?.();
     }
@@ -1560,7 +1562,10 @@ function InventarioTab({ products, sales, sortBy, onSortChange, isTienda, openRe
         )}
       </div>
 
-      {restockOpen && <RestockModal products={products} onClose={() => setRestockOpen(false)} />}
+      {restockOpen && (
+        <RestockModal products={products} preset={restockPreset}
+          onClose={() => { setRestockOpen(false); setRestockPreset(null); }} />
+      )}
       {historyProduct && <MovementsModal product={historyProduct} onClose={() => setHistoryProduct(null)} />}
     </div>
   );
@@ -1586,9 +1591,16 @@ export default function Products() {
   useEffect(() => {
     const nuevo = searchParams.get('nuevo') === '1';
     const entrada = searchParams.get('entrada') === '1';
-    if (!nuevo && !entrada) return;
+    const tabInventario = searchParams.get('tab') === 'inventario';
+    if (!nuevo && !entrada && !tabInventario) return;
     if (nuevo) setNewModal(true);
-    if (entrada && isTienda) { setTab('inventario'); setOpenRestock(true); }
+    // ?tab=inventario: tarjeta "Alertas de stock" del dashboard
+    if (tabInventario) setTab('inventario');
+    // ?producto=&variante= (botón "Reponer" del dashboard) preseleccionan la primera línea
+    if (entrada && isTienda) {
+      setTab('inventario');
+      setOpenRestock({ productId: searchParams.get('producto') || '', variantId: searchParams.get('variante') || '' });
+    }
     setSearchParams({}, { replace: true });
   }, [searchParams, setSearchParams, isTienda]);
 

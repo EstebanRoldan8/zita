@@ -36,17 +36,19 @@ const PAYMENT_STATUS = {
 function Card({ icon: Icon, label, value, sub, valueColor = 'text-white', iconColor = 'bg-violet-600/20 text-violet-400', onClick }) {
   const Tag = onClick ? 'button' : 'div';
   return (
-    <Tag onClick={onClick}
-      className="min-w-0 text-left bg-[#131929] border border-violet-500/15 hover:border-violet-500/40 hover:bg-slate-700/60 rounded-xl shadow-lg shadow-black/30 p-4 flex flex-col transition-all duration-200">
+    // Como <button>, la tarjeta es accesible con teclado (Tab + Enter/Espacio) y muestra el foco
+    <Tag onClick={onClick} {...(onClick ? { type: 'button' } : {})}
+      className={`min-w-0 text-left bg-[#131929] border border-violet-500/15 hover:border-violet-500/40 hover:bg-slate-700/60 rounded-xl shadow-lg shadow-black/30 p-4 flex flex-col transition-all duration-200 ${onClick
+        ? 'cursor-pointer focus:outline-none focus-visible:ring-2 focus-visible:ring-violet-400 focus-visible:border-violet-400' : ''}`}>
       <div className="flex items-center justify-between w-full">
-        <span className="text-slate-400 text-xs font-medium min-w-0 mr-1">{label}</span>
+        <span className="text-slate-300 text-[13px] sm:text-xs font-medium min-w-0 mr-1">{label}</span>
         <div className={`w-7 h-7 rounded-lg flex items-center justify-center flex-shrink-0 ${iconColor}`}>
           <Icon size={16} />
         </div>
       </div>
       <div className="mt-2 min-w-0">
         <p className={`text-xl font-bold mb-1 truncate ${valueColor}`}>{value}</p>
-        {sub && <p className="text-xs text-slate-400 truncate">{sub}</p>}
+        {sub && <p className="text-[13px] sm:text-xs text-slate-300 leading-snug line-clamp-2">{sub}</p>}
       </div>
     </Tag>
   );
@@ -64,7 +66,18 @@ function SkeletonCard() {
   );
 }
 
-const variantText = (attributes) => Object.entries(attributes || {}).map(([k, v]) => `${k} ${v}`).join(' / ');
+// "Negro / S": solo los valores de los atributos
+const variantText = (attributes) => Object.values(attributes || {}).join(' / ') || 'Variante';
+const isZero = (n) => (Number(n) || 0) === 0;
+
+// Destino de "Reponer": abre Entrada de mercancía con el producto y, si aplica, la variante
+function restockUrl(p) {
+  const params = new URLSearchParams({ entrada: '1', producto: p.id });
+  const lows = p.low_variants || [];
+  const target = lows.find((v) => isZero(v.stock)) || lows[0];
+  if (target?.id) params.set('variante', target.id);
+  return `/dashboard/productos?${params.toString()}`;
+}
 
 export default function TiendaDashboard() {
   const navigate = useNavigate();
@@ -84,21 +97,33 @@ export default function TiendaDashboard() {
   // Lite no incluye los módulos de Productos ni Pedidos: solo se muestra la parte de dinero
   const isLite = sub?.plan === 'lite';
 
+  // "Nuevo pedido" es la acción principal; las otras dos son secundarias
   const quickActions = [
-    { label: 'Nuevo pedido', icon: Plus, to: '/dashboard/pedidos?nuevo=1' },
+    { label: 'Nuevo pedido', icon: Plus, to: '/dashboard/pedidos?nuevo=1', primary: true },
     { label: 'Entrada de mercancía', icon: PackagePlus, to: '/dashboard/productos?entrada=1' },
     { label: 'Nuevo producto', icon: Package, to: '/dashboard/productos?nuevo=1' },
   ];
 
   const net = data?.net_month ?? 0;
-  const alertsTotal = (data?.stock_alerts?.out_of_stock ?? 0) + (data?.stock_alerts?.low ?? 0);
+  const outProducts = data?.stock_alerts?.out_of_stock ?? 0;
+  const outVariants = data?.stock_alerts?.variants_out_of_stock ?? 0;
+  const lowProducts = data?.stock_alerts?.low ?? 0;
+  const criticalTotal = outProducts + outVariants;
+  // Productos que necesitan reposición (agotados o con stock bajo en el total o en alguna variante)
+  const alertsTotal = outProducts + lowProducts;
+  const alertsSub = alertsTotal === 0 ? 'Todo en orden' : [
+    outVariants > 0 ? `${outVariants} variante${outVariants !== 1 ? 's' : ''} agotada${outVariants !== 1 ? 's' : ''}` : null,
+    outProducts > 0 ? `${outProducts} producto${outProducts !== 1 ? 's' : ''} agotado${outProducts !== 1 ? 's' : ''}` : null,
+    `${alertsTotal} por reponer`,
+  ].filter(Boolean).join(' · ');
+  const alertsTone = criticalTotal > 0 ? 'critical' : alertsTotal > 0 ? 'warning' : 'ok';
 
   return (
     <div className="zita-touch px-4 sm:px-6 lg:px-8 py-6 sm:py-8 overflow-x-hidden">
       {/* Header */}
       <div className="border-b border-white/6 pb-4 mb-6">
         <h1 className="text-xl sm:text-2xl font-bold text-white">{getGreeting()}</h1>
-        <p className="text-xs sm:text-sm text-white/40 mt-0.5">
+        <p className="text-sm text-white/60 mt-0.5">
           {new Date().toLocaleDateString('es-CO', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}
         </p>
       </div>
@@ -106,9 +131,11 @@ export default function TiendaDashboard() {
       {/* Acciones rápidas */}
       {!isLite && (
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 sm:gap-3 mb-6">
-          {quickActions.map(({ label, icon: Icon, to }) => (
+          {quickActions.map(({ label, icon: Icon, to, primary }) => (
             <button key={label} onClick={() => navigate(to)}
-              className="flex items-center justify-center gap-2 bg-violet-600 hover:bg-violet-500 text-white text-sm font-medium px-4 py-2.5 rounded-lg transition">
+              className={`flex items-center justify-center gap-2 text-sm font-medium px-4 py-2.5 rounded-lg transition focus:outline-none focus-visible:ring-2 focus-visible:ring-violet-400 ${primary
+                ? 'bg-violet-600 hover:bg-violet-500 text-white shadow-lg shadow-violet-900/30'
+                : 'bg-violet-600/10 hover:bg-violet-600/20 text-violet-300 border border-violet-500/30'}`}>
               <Icon size={16} /> {label}
             </button>
           ))}
@@ -129,25 +156,28 @@ export default function TiendaDashboard() {
         ) : data ? (
           <>
             <Card icon={ShoppingCart} label="Ventas de hoy" value={formatCOP(data.sales_today.amount)}
-              sub={`${data.sales_today.count} venta${data.sales_today.count !== 1 ? 's' : ''}`} />
-            <Card icon={DollarSign} label="Ingresos del mes" value={formatCOP(data.income_month)} sub="Total del mes" />
+              sub={`${data.sales_today.count} venta${data.sales_today.count !== 1 ? 's' : ''}`}
+              onClick={() => navigate('/dashboard/caja')} />
+            <Card icon={DollarSign} label="Ingresos del mes" value={formatCOP(data.income_month)} sub="Total del mes"
+              onClick={() => navigate('/dashboard/caja')} />
             <Card icon={net >= 0 ? TrendingUp : TrendingDown} label="Ganancia neta" value={formatCOP(net)}
               sub="Ingresos menos egresos del mes"
               valueColor={net >= 0 ? 'text-emerald-400' : 'text-red-400'}
-              iconColor={net >= 0 ? 'bg-emerald-500/20 text-emerald-400' : 'bg-red-500/20 text-red-400'} />
+              iconColor={net >= 0 ? 'bg-emerald-500/20 text-emerald-400' : 'bg-red-500/20 text-red-400'}
+              onClick={() => navigate('/dashboard/caja')} />
             {!isLite && (
               <>
                 <Card icon={Clock} label="Pedidos por cobrar" value={data.unpaid_orders.count}
                   sub={formatCOP(data.unpaid_orders.amount)}
                   valueColor={data.unpaid_orders.count > 0 ? 'text-yellow-400' : 'text-white'}
-                  onClick={() => navigate('/dashboard/pedidos')} />
+                  onClick={() => navigate('/dashboard/pedidos?pago=pendiente')} />
                 <Card icon={Truck} label="Por enviar" value={data.to_ship_count} sub="Pagados sin enviar"
-                  onClick={() => navigate('/dashboard/pedidos')} />
+                  onClick={() => navigate('/dashboard/pedidos?vista=por-enviar')} />
                 <Card icon={AlertTriangle} label="Alertas de stock" value={alertsTotal}
-                  sub={`${data.stock_alerts.out_of_stock} agotado${data.stock_alerts.out_of_stock !== 1 ? 's' : ''} · ${data.stock_alerts.low} bajo${data.stock_alerts.low !== 1 ? 's' : ''}`}
-                  valueColor={alertsTotal > 0 ? 'text-red-400' : 'text-white'}
-                  iconColor={alertsTotal > 0 ? 'bg-red-500/20 text-red-400' : 'bg-violet-600/20 text-violet-400'}
-                  onClick={() => navigate('/dashboard/productos')} />
+                  sub={alertsSub}
+                  valueColor={alertsTone === 'critical' ? 'text-red-400' : alertsTone === 'warning' ? 'text-yellow-400' : 'text-white'}
+                  iconColor={alertsTone === 'critical' ? 'bg-red-500/20 text-red-400' : alertsTone === 'warning' ? 'bg-yellow-500/20 text-yellow-400' : 'bg-violet-600/20 text-violet-400'}
+                  onClick={() => navigate('/dashboard/productos?tab=inventario')} />
               </>
             )}
           </>
@@ -163,7 +193,7 @@ export default function TiendaDashboard() {
               <button onClick={() => navigate('/dashboard/pedidos')} className="text-violet-400 hover:text-violet-300 text-xs transition">Ver todos →</button>
             </div>
             {data.recent_orders.length === 0 ? (
-              <p className="text-slate-500 text-sm py-4 text-center">Aún no hay pedidos.</p>
+              <p className="text-slate-400 text-sm py-4 text-center">Aún no hay pedidos.</p>
             ) : (
               <div className="space-y-2">
                 {data.recent_orders.map((o) => {
@@ -175,15 +205,15 @@ export default function TiendaDashboard() {
                       <div className="min-w-0">
                         <p className="text-white text-sm font-medium truncate">{o.client_name || '—'}</p>
                         <div className="flex flex-wrap gap-1.5 mt-1">
-                          <span className={`text-[11px] border px-2 py-0.5 rounded-full ${st.color}`}>{st.label}</span>
+                          <span className={`text-xs border px-2 py-0.5 rounded-full ${st.color}`}>{st.label}</span>
                           {o.status !== 'cancelado' && (
-                            <span className={`text-[11px] border px-2 py-0.5 rounded-full ${pay.color}`}>{pay.label}</span>
+                            <span className={`text-xs border px-2 py-0.5 rounded-full ${pay.color}`}>{pay.label}</span>
                           )}
                         </div>
                       </div>
                       <div className="flex items-center gap-1 flex-shrink-0">
                         <span className="text-violet-400 font-semibold text-sm">{formatCOP(o.total_amount)}</span>
-                        <ChevronRight size={14} className="text-slate-600" />
+                        <ChevronRight size={14} className="text-slate-500" />
                       </div>
                     </button>
                   );
@@ -199,12 +229,12 @@ export default function TiendaDashboard() {
                 <TrendingUp size={14} className="text-emerald-400" /> Más vendidos 30 días
               </h2>
               {data.top_sellers.length === 0 ? (
-                <p className="text-slate-500 text-sm py-2">Sin ventas en los últimos 30 días.</p>
+                <p className="text-slate-400 text-sm py-2">Sin ventas en los últimos 30 días.</p>
               ) : (
                 <ul className="space-y-1.5">
                   {data.top_sellers.map((p, i) => (
                     <li key={p.product_id} className="flex items-center justify-between gap-2 text-sm">
-                      <span className="text-slate-300 truncate"><span className="text-slate-600 mr-1.5">{i + 1}.</span>{p.name}</span>
+                      <span className="text-slate-300 truncate"><span className="text-slate-500 mr-1.5">{i + 1}.</span>{p.name}</span>
                       <span className="text-emerald-400 font-semibold flex-shrink-0">{p.units} und.</span>
                     </li>
                   ))}
@@ -218,23 +248,41 @@ export default function TiendaDashboard() {
                 <h2 className="text-sm font-semibold text-slate-300 mb-3 flex items-center gap-2">
                   <AlertTriangle size={14} className="text-red-400" /> Stock por reponer
                 </h2>
-                <ul className="space-y-2">
-                  {data.stock_alerts.items.map((p) => (
-                    <li key={p.id} className="text-sm">
-                      <div className="flex items-center justify-between gap-2">
-                        <span className="text-slate-300 truncate">{p.name}</span>
-                        <span className={`flex-shrink-0 font-semibold ${Number(p.stock) === 0 ? 'text-red-400' : 'text-yellow-400'}`}>
-                          {Number(p.stock) === 0 ? 'Agotado' : `${p.stock} / mín ${p.min_stock}`}
-                        </span>
-                      </div>
-                      {(p.low_variants || []).length > 0 && (
-                        <p className="text-slate-500 text-xs mt-0.5">
-                          {p.low_variants.slice(0, 3).map((v) => `${variantText(v.attributes)}: ${v.stock} de mínimo ${v.min_stock}`).join(' · ')}
-                          {p.low_variants.length > 3 ? ` · +${p.low_variants.length - 3}` : ''}
-                        </p>
-                      )}
-                    </li>
-                  ))}
+                <ul className="space-y-3">
+                  {data.stock_alerts.items.map((p) => {
+                    const lows = p.low_variants || [];
+                    const productOut = isZero(p.stock);
+                    // El total solo se marca como bajo si él mismo está en o bajo el mínimo;
+                    // si el producto entró por una variante, el total se muestra neutro.
+                    const totalLow = !productOut && Number(p.stock) <= Number(p.min_stock);
+                    return (
+                      <li key={p.id} className="text-sm border-b border-slate-800/60 last:border-0 pb-3 last:pb-0">
+                        <div className="flex items-center justify-between gap-2">
+                          <span className="text-white font-medium truncate">{p.name}</span>
+                          <span className={`flex-shrink-0 ${productOut ? 'text-red-400 font-semibold' : totalLow ? 'text-yellow-400 font-semibold' : 'text-slate-300'}`}>
+                            {productOut ? 'Agotado' : totalLow ? `${p.stock} / mín ${p.min_stock}` : `${p.stock} en total`}
+                          </span>
+                        </div>
+                        {lows.length > 0 && (
+                          <ul className="mt-1.5 space-y-1">
+                            {lows.slice(0, 4).map((v) => (
+                              <li key={v.id}
+                                className={`text-[13px] sm:text-xs px-2 py-1 rounded ${isZero(v.stock)
+                                  ? 'text-red-300 font-semibold bg-red-500/10 border border-red-500/30'
+                                  : 'text-yellow-300 bg-yellow-500/5'}`}>
+                                {variantText(v.attributes)}: {v.stock} (mín {v.min_stock}){isZero(v.stock) ? ' · agotada' : ''}
+                              </li>
+                            ))}
+                            {lows.length > 4 && <li className="text-slate-300 text-[13px] sm:text-xs">y {lows.length - 4} variante{lows.length - 4 !== 1 ? 's' : ''} más</li>}
+                          </ul>
+                        )}
+                        <button onClick={() => navigate(restockUrl(p))}
+                          className="mt-2 w-full sm:w-auto text-xs font-medium text-violet-300 bg-violet-600/15 border border-violet-500/30 hover:bg-violet-600/25 px-3 py-1.5 rounded-lg transition focus:outline-none focus-visible:ring-2 focus-visible:ring-violet-400">
+                          Reponer
+                        </button>
+                      </li>
+                    );
+                  })}
                 </ul>
               </div>
             )}

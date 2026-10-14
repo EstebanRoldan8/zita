@@ -179,8 +179,20 @@ export const flowContent = {
   // Orden de categorías; las demás van después en orden alfabético y Archive siempre al final
   categoryOrder: ['Sets mujer', 'Hombre', 'Lifestyle', 'Básicos'],
   values: ['Empoderamiento', 'Valentía', 'Calidad', 'Versatilidad', 'Simplicidad'],
-  about: null, // TODO: texto "Sobre FLOW" completo
-  faq: [], // TODO: [{ q, a }]
+  about: `FLOW nace para empoderar a las personas a través del movimiento y ayudarlas a conectar con su esencia y su "FLOW".
+
+Nacimos como energía, rebeldía y movimiento consciente. Hubo pausas, crecimiento y aprendizajes. Hoy volvemos con intención.
+
+RENACER es el nuevo capítulo de FLOW. No es un comienzo desde cero, sino un regreso consciente. Esta colección nace desde la emoción, la honestidad y la decisión de hacerlo diferente.
+
+No se trata de cambiar quién eres. Se trata de volver más fuerte, más consciente y más alineado.
+
+Ropa deportiva y de lifestyle diseñada para acompañarte antes, durante y después de entrenar. Prendas simples, cómodas y versátiles para que te muevas a tu ritmo.`,
+  faq: [
+    { q: '¿Cómo hago mi pedido?', a: 'Eliges tus prendas, color y talla, las agregas a la bolsa y finalizas el pedido con tus datos de envío.\nDespués te escribimos por WhatsApp para confirmar el pedido y coordinar el pago.' },
+    { q: '¿Las prendas de RENACER se repiten?', a: 'Cada color es un drop. Cuando una talla o un color se agota, puede no volver a estar disponible.\nSi quieres enterarte primero de lo que viene, únete a Flow Club por WhatsApp.' },
+    { q: '¿Cómo puedo cambiar una prenda?', a: 'Escríbenos por WhatsApp con tu número de pedido y te ayudamos. Las condiciones están en la sección de Cambios y devoluciones.' },
+  ],
   shipping: null, // TODO: texto de envíos (si es null se usa store_settings.policies.envios)
   returns: null, // TODO: texto de cambios (si es null se usa store_settings.policies.cambios)
   sizeGuide: null, // TODO: { title, intro?, columns: [...], rows: [[...]] }

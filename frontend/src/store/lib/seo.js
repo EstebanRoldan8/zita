@@ -380,7 +380,7 @@ export function routeOf(path) {
   if (a === 'coleccion') return b ? { kind: 'collection', slug: decodeURIComponent(b) } : { kind: 'listing' };
   if (a === 'colores') return b ? { kind: 'drop', slug: decodeURIComponent(b) } : { kind: 'colors' };
   if (a === 'producto' && b) return { kind: 'product', id: decodeURIComponent(b) };
-  if (b) return { kind: a === 'pedido' ? 'private' : 'notFound', title: 'Pedido' };
+  if (b) return { kind: a === 'pedido' ? 'private' : 'notFound', title: 'Pedido recibido' };
   if (a === 'ayuda') return { kind: 'help' };
   if (a === 'sobre-flow' || a === 'nosotros') return { kind: 'about' };
   if (POLICIES[a]) return { kind: 'policy', policy: a };

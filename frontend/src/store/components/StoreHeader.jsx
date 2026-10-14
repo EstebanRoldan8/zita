@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import { Link, NavLink, useLocation } from 'react-router-dom';
+import { Link, useLocation } from 'react-router-dom';
 import { Menu, Search, ShoppingBag, X, MessageCircle, ChevronDown } from 'lucide-react';
 import { useStore, useStorePath } from '../hooks/useStore';
 import { useCart } from '../hooks/cartContext';
@@ -9,6 +9,15 @@ import { waLink } from '../lib/format';
 import Logo from './Logo';
 import ColorDot from './ColorDot';
 import SearchOverlay from './SearchOverlay';
+
+function isCurrent(href, location) {
+  const [hrefPath, hrefQuery = ''] = String(href).split('?');
+  if (location.pathname !== hrefPath && !location.pathname.startsWith(`${hrefPath}/`)) return false;
+  if (!hrefQuery) return !location.search || location.pathname !== hrefPath;
+  const want = new URLSearchParams(hrefQuery);
+  const have = new URLSearchParams(location.search);
+  return [...want.entries()].every(([k, v]) => have.get(k) === v);
+}
 
 // Header estilo ALO: logo centrado y grande, nav a la izquierda, íconos a la derecha.
 // En el inicio es transparente sobre el hero y pasa a sólido al hacer scroll.
@@ -76,15 +85,19 @@ export default function StoreHeader() {
               <Menu size={22} strokeWidth={1.5} />
             </button>
             <nav className="hidden min-w-0 items-center gap-5 lg:flex" aria-label="Principal">
-              {nav.items.map((item) => (
-                <NavLink key={item.id} to={item.href} onClick={closeAll}
-                  onMouseEnter={(e) => { if (item.mega) { megaTriggerRef.current = e.currentTarget; setMega(item.id); } else setMega(null); }}
-                  onFocus={(e) => { if (item.mega) { megaTriggerRef.current = e.currentTarget; setMega(item.id); } else setMega(null); }}
-                  aria-haspopup={item.mega ? 'true' : undefined} aria-expanded={item.mega ? mega === item.id : undefined}
-                  className={({ isActive }) => `flow-label flow-nav-link whitespace-nowrap border-b py-2 ${item.wide ? "hidden xl:inline-block" : ""} ${isActive || mega === item.id ? 'border-current' : 'border-transparent hover:border-current'}`}>
-                  {item.label}
-                </NavLink>
-              ))}
+              {nav.items.map((item) => {
+                // Activo = misma ruta y mismos parámetros (?categoria=...); NavLink solo compara la ruta
+                const active = isCurrent(item.href, location);
+                return (
+                  <Link key={item.id} to={item.href} onClick={closeAll} aria-current={active ? 'page' : undefined}
+                    onMouseEnter={(e) => { if (item.mega) { megaTriggerRef.current = e.currentTarget; setMega(item.id); } else setMega(null); }}
+                    onFocus={(e) => { if (item.mega) { megaTriggerRef.current = e.currentTarget; setMega(item.id); } else setMega(null); }}
+                    aria-haspopup={item.mega ? 'true' : undefined} aria-expanded={item.mega ? mega === item.id : undefined}
+                    className={`flow-label flow-nav-link whitespace-nowrap border-b py-2 ${item.wide ? 'hidden xl:inline-block' : ''} ${active || mega === item.id ? 'border-current' : 'border-transparent hover:border-current'}`}>
+                    {item.label}
+                  </Link>
+                );
+              })}
             </nav>
           </div>
 

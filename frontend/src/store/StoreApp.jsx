@@ -1,7 +1,7 @@
 // Tienda pública de Flow. Se monta en /tienda/:slug/* (o en la raíz con dominio propio),
 // fuera de ProtectedRoute, del Layout del panel y del Sidebar.
 import { lazy, Suspense, useEffect } from 'react';
-import { Routes, Route, useParams } from 'react-router-dom';
+import { Routes, Route, Navigate, useParams } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import './flow.css';
 import { storeApi } from './lib/storeApi';
@@ -18,7 +18,11 @@ const ProductPage = lazy(() => import('./pages/ProductPage'));
 const BagPage = lazy(() => import('./pages/BagPage'));
 const Checkout = lazy(() => import('./pages/Checkout'));
 const Confirmation = lazy(() => import('./pages/Confirmation'));
-const About = lazy(() => import('./pages/About'));
+const CollectionDetail = lazy(() => import('./pages/CollectionDetail'));
+const ColorsIndex = lazy(() => import('./pages/Colors').then((m) => ({ default: m.ColorsIndex })));
+const DropPage = lazy(() => import('./pages/Colors').then((m) => ({ default: m.DropPage })));
+const Help = lazy(() => import('./pages/Help'));
+const SobreFlow = lazy(() => import('./pages/SobreFlow'));
 const Policy = lazy(() => import('./pages/Policy'));
 
 function PageFallback() {
@@ -66,7 +70,14 @@ export default function StoreApp({ slugOverride }) {
             <Route path="bolsa" element={<Suspense fallback={<PageFallback />}><BagPage /></Suspense>} />
             <Route path="checkout" element={<Suspense fallback={<PageFallback />}><Checkout /></Suspense>} />
             <Route path="pedido/:orderId" element={<Suspense fallback={<PageFallback />}><Confirmation /></Suspense>} />
-            <Route path="nosotros" element={<Suspense fallback={<PageFallback />}><About /></Suspense>} />
+            <Route path="coleccion/:collectionSlug" element={<Suspense fallback={<PageFallback />}><CollectionDetail /></Suspense>} />
+            <Route path="productos" element={<Navigate to="../coleccion" replace />} />
+            <Route path="colores" element={<Suspense fallback={<PageFallback />}><ColorsIndex /></Suspense>} />
+            <Route path="colores/:dropSlug" element={<Suspense fallback={<PageFallback />}><DropPage /></Suspense>} />
+            <Route path="ayuda" element={<Suspense fallback={<PageFallback />}><Help /></Suspense>} />
+            <Route path="sobre-flow" element={<Suspense fallback={<PageFallback />}><SobreFlow /></Suspense>} />
+            <Route path="nosotros" element={<Navigate to="../sobre-flow" replace />} />
+            <Route path="terminos" element={<Suspense fallback={<PageFallback />}><Policy kind="terminos" /></Suspense>} />
             <Route path="envios" element={<Suspense fallback={<PageFallback />}><Policy kind="envios" /></Suspense>} />
             <Route path="cambios" element={<Suspense fallback={<PageFallback />}><Policy kind="cambios" /></Suspense>} />
             <Route path="privacidad" element={<Suspense fallback={<PageFallback />}><Policy kind="privacidad" /></Suspense>} />

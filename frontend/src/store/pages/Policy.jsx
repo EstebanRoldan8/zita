@@ -1,13 +1,17 @@
-import { useStore } from '../hooks/useStore';
+import { Link } from 'react-router-dom';
+import { useStore, useStorePath } from '../hooks/useStore';
 import { useDocumentMeta } from '../hooks/useDocumentMeta';
-import { POLICY_FALLBACK, POLICY_TITLES } from '../lib/copy';
+import { flowContent } from '../content/flowContent';
+import { POLICIES, policyText } from '../lib/policies';
 
-// /envios, /cambios, /privacidad desde store_settings.policies; si falta, texto base pendiente
+// /envios, /cambios, /privacidad, /terminos: de flowContent o store_settings.policies.
+// Si no hay texto no se inventa nada: se avisa que aún no está publicado.
 export default function Policy({ kind }) {
   const { store } = useStore();
-  const title = POLICY_TITLES[kind];
-  const text = store.policies?.[kind];
-  useDocumentMeta(`${title} — ${store.name || 'Flow'}`, `${title} de ${store.name || 'Flow'}.`);
+  const path = useStorePath();
+  const title = POLICIES[kind]?.title || 'Información';
+  const text = policyText(kind, store);
+  useDocumentMeta(`${title} — ${flowContent.brand.name}`, `${title} de ${flowContent.brand.name}.`);
 
   return (
     <article className="mx-auto max-w-2xl px-4 py-16 md:px-8">
@@ -16,9 +20,10 @@ export default function Policy({ kind }) {
       {text ? (
         <p className="whitespace-pre-line text-sm leading-relaxed">{text}</p>
       ) : (
-        <p className="whitespace-pre-line text-sm leading-relaxed text-flow-muted" data-placeholder={`politica-${kind}`}>
-          {POLICY_FALLBACK[kind]}
-        </p>
+        <div className="text-sm text-flow-muted">
+          <p>Esta información aún no está publicada.</p>
+          <Link to={path('/ayuda')} className="mt-4 inline-block underline">Ir a Ayuda</Link>
+        </div>
       )}
     </article>
   );

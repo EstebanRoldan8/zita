@@ -5,6 +5,7 @@ import { Search } from 'lucide-react';
 import { useStore, useStorePath } from '../hooks/useStore';
 import { useDocumentMeta } from '../hooks/useDocumentMeta';
 import { storeApi } from '../lib/storeApi';
+import { asArray } from '../lib/safe';
 import ProductCard from '../components/ProductCard';
 import { ProductGridSkeleton, ErrorState } from '../components/States';
 
@@ -41,11 +42,11 @@ export default function Collection() {
     queryKey: ['store', slug, 'products', { category, q }],
     queryFn: ({ pageParam }) => storeApi.getProducts(slug, { category, q, page: pageParam, limit: PAGE_SIZE }),
     initialPageParam: 1,
-    getNextPageParam: (last) => (last.page * last.limit < last.total ? last.page + 1 : undefined),
+    getNextPageParam: (last) => (Number(last?.page) * Number(last?.limit) < Number(last?.total) ? Number(last.page) + 1 : undefined),
     staleTime: 60 * 1000,
   });
 
-  const all = useMemo(() => (products.data?.pages || []).flatMap((p) => p.products), [products.data]);
+  const all = useMemo(() => asArray(products.data?.pages).flatMap((pg) => asArray(pg?.products)).filter((p) => p && p.id), [products.data]);
   // La API ordena por lo más nuevo; el orden por precio se aplica a lo ya cargado.
   const sorted = useMemo(() => {
     if (sort === 'precio-asc') return [...all].sort((a, b) => a.price - b.price);
@@ -62,7 +63,7 @@ export default function Collection() {
         <div className="flex flex-wrap gap-2" role="group" aria-label="Filtrar por categoría">
           <button type="button" onClick={() => setParam('categoria', '')} aria-pressed={!category}
             className={`flow-option ${!category ? 'is-active' : ''}`}>Todo</button>
-          {(categories.data?.categories || []).map((c) => (
+          {asArray(categories.data?.categories).map((c) => (
             <button key={c.name} type="button" onClick={() => setParam('categoria', c.name)} aria-pressed={category === c.name}
               className={`flow-option ${category === c.name ? 'is-active' : ''}`}>
               {c.name}

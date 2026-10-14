@@ -3,6 +3,7 @@ import { useQuery } from '@tanstack/react-query';
 import { useStore, useStorePath } from '../hooks/useStore';
 import { useDocumentMeta } from '../hooks/useDocumentMeta';
 import { storeApi } from '../lib/storeApi';
+import { asArray } from '../lib/safe';
 import { COPY } from '../lib/copy';
 import ProductCard from '../components/ProductCard';
 import { ProductGridSkeleton, ErrorState } from '../components/States';
@@ -31,7 +32,7 @@ export default function Home() {
     staleTime: 60 * 1000,
   });
 
-  const cats = (categories.data?.categories || []).slice(0, 4);
+  const cats = asArray(categories.data?.categories).slice(0, 4);
 
   return (
     <>
@@ -70,11 +71,11 @@ export default function Home() {
           <ProductGridSkeleton count={8} />
         ) : latest.isError ? (
           <ErrorState message="No pudimos cargar los productos." onRetry={latest.refetch} />
-        ) : (latest.data?.products || []).length === 0 ? (
+        ) : asArray(latest.data?.products).length === 0 ? (
           <p className="py-16 text-center text-sm text-flow-muted">Muy pronto tendremos productos para ti.</p>
         ) : (
           <div className="grid grid-cols-2 gap-x-4 gap-y-10 md:grid-cols-3 lg:grid-cols-4">
-            {latest.data.products.map((p) => <ProductCard key={p.id} product={p} to={path(`/producto/${p.id}`)} />)}
+            {asArray(latest.data?.products).filter((p) => p && p.id).map((p) => <ProductCard key={p.id} product={p} to={path(`/producto/${p.id}`)} />)}
           </div>
         )}
       </section>

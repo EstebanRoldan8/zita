@@ -11,7 +11,7 @@ export default function BagLines({ issues = {}, onNavigate, compact = false }) {
 
   return (
     <ul className="divide-y divide-[color:var(--flow-sand)]">
-      {lines.map((l) => {
+      {(Array.isArray(lines) ? lines : []).map((l) => {
         const issue = issues[l.key];
         const max = issue?.maxQty ?? l.max_qty ?? 10;
         const detail = [l.color, l.size].filter(Boolean).join(' / ');
@@ -60,7 +60,7 @@ export default function BagLines({ issues = {}, onNavigate, compact = false }) {
                       Dejar {issue.maxQty} {issue.maxQty === 1 ? 'unidad' : 'unidades'}
                     </button>
                   )}
-                  {(issue.type === 'soldout' || issue.type === 'gone') && (
+                  {['soldout', 'gone', 'error'].includes(issue.type) && (
                     <button type="button" className="mt-1 underline" onClick={() => remove(l.key)}>Quitar de la bolsa</button>
                   )}
                 </div>

@@ -9,6 +9,7 @@ import { loadFlowFonts } from './lib/fonts';
 import { StoreContext } from './hooks/useStore';
 import CartProvider from './components/CartProvider';
 import StoreLayout from './components/StoreLayout';
+import StoreErrorBoundary from './components/StoreErrorBoundary';
 import { StoreUnavailable, ErrorState, PageNotFound } from './components/States';
 
 const Home = lazy(() => import('./pages/Home'));
@@ -49,12 +50,13 @@ export default function StoreApp({ slugOverride }) {
       </div>
     );
   }
-  if (isError || !store) {
+  if (isError || !store || typeof store !== 'object') {
     return <div className="flow-store"><ErrorState message="No pudimos cargar la tienda." onRetry={refetch} /></div>;
   }
 
   return (
     <StoreContext.Provider value={{ slug, base, store }}>
+      <StoreErrorBoundary slug={slug} fullScreen>
       <CartProvider slug={slug}>
         <Routes>
           <Route element={<StoreLayout />}>
@@ -72,6 +74,7 @@ export default function StoreApp({ slugOverride }) {
           </Route>
         </Routes>
       </CartProvider>
+      </StoreErrorBoundary>
     </StoreContext.Provider>
   );
 }

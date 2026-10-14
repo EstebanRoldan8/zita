@@ -7,6 +7,7 @@ import { formatCOP } from '../lib/format';
 import { COPY } from '../lib/copy';
 import Logo from './Logo';
 import BagDrawer from './BagDrawer';
+import StoreErrorBoundary from './StoreErrorBoundary';
 
 const NAV = [
   { label: 'Inicio', path: '/' },
@@ -15,7 +16,7 @@ const NAV = [
 ];
 
 export default function StoreLayout() {
-  const { store } = useStore();
+  const { store, slug } = useStore();
   const path = useStorePath();
   const { count, setOpen } = useCart();
   const [menuOpen, setMenuOpen] = useState(false);
@@ -76,7 +77,10 @@ export default function StoreLayout() {
       </header>
 
       <main id="contenido" className="flex-1">
-        <Outlet />
+        {/* key: al cambiar de página se reintenta el contenido */}
+        <StoreErrorBoundary key={location.pathname} slug={slug}>
+          <Outlet />
+        </StoreErrorBoundary>
       </main>
 
       <footer className="bg-flow-black text-flow-white flow-on-dark">

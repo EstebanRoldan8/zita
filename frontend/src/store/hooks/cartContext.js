@@ -1,7 +1,8 @@
 import { createContext, useContext } from 'react';
 
+export { lineKey, bagStorageKey, clearStoredBag } from '../lib/bagStorage';
+
 export const CartContext = createContext(null);
-export const lineKey = (productId, variantId) => `${productId}:${variantId || ''}`;
 
 export function useCart() {
   const ctx = useContext(CartContext);

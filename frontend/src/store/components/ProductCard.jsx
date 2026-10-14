@@ -1,10 +1,19 @@
 import { Link } from 'react-router-dom';
 import { formatCOP } from '../lib/format';
 import { COPY } from '../lib/copy';
+import { asArray, asString, asUrls } from '../lib/safe';
 
 // Tarjeta: foto 4:5 (segunda foto en hover si existe), nombre, precio, chips de color y "Agotado".
-export default function ProductCard({ product, to, eager = false }) {
-  const [main, second] = product.images || [];
+// Los datos de la API se normalizan aquí para que una forma inesperada no rompa la grilla.
+export default function ProductCard({ product: raw, to, eager = false }) {
+  const product = {
+    ...raw,
+    name: asString(raw?.name, 'Producto'),
+    images: asUrls(raw?.images),
+    colors: asArray(raw?.colors).filter((c) => c && c.key).map((c) => ({ ...c, name: asString(c.name, c.key) })),
+    in_stock: raw?.in_stock !== false,
+  };
+  const [main, second] = product.images;
   return (
     <article className="flow-card">
       <Link to={to} className="block" aria-label={`${product.name}, ${formatCOP(product.price)}`}>
@@ -27,7 +36,7 @@ export default function ProductCard({ product, to, eager = false }) {
           <p className="mt-1 text-sm text-flow-muted">{formatCOP(product.price)}</p>
         </div>
       </Link>
-      {(product.colors || []).length > 0 && (
+      {product.colors.length > 0 && (
         <ul className="mt-3 flex flex-wrap gap-1.5" aria-label="Colores disponibles">
           {product.colors.slice(0, 6).map((c) => (
             <li key={c.key} title={c.name}

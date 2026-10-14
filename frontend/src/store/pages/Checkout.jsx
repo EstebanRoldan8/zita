@@ -65,7 +65,7 @@ export default function Checkout() {
   const path = useStorePath();
   const navigate = useNavigate();
   const qc = useQueryClient();
-  const { lines, subtotal, clear } = useCart();
+  const { lines, subtotal, clear, remove, setQuantity } = useCart();
   const { loading: validating, issues, blocking } = useBagValidation(slug, lines, true);
   useDocumentMeta(`${COPY.checkout} — ${store.name || 'Flow'}`, 'Completa tus datos para finalizar el pedido.');
 
@@ -129,11 +129,9 @@ export default function Checkout() {
       return;
     }
     if (blocking) {
-      setNotice({
-        text: 'Algunos productos de tu bolsa cambiaron y hay que ajustarlos antes de pedir:',
-        items: blockingLines.map((l) => `${lineLabel(l)}: ${issues[l.key]?.text || 'no disponible'}`),
-        bagLink: true,
-      });
+      // El detalle con "Quitar" ya está visible junto al botón (bloque de productos con problemas)
+      setNotice({ text: 'Ajusta los productos marcados antes de finalizar el pedido.' });
+      document.getElementById('f-bag-issues')?.scrollIntoView({ block: 'center' });
       return;
     }
 
@@ -313,8 +311,28 @@ export default function Checkout() {
               {notice.bagLink && <Link to={path('/bolsa')} className="mt-2 inline-block text-xs underline">Ir a mi bolsa</Link>}
             </div>
           )}
-          {!notice && blocking && !validating && (
-            <p className="mt-4 text-sm text-flow-merlot">Hay productos en tu bolsa que cambiaron. <Link to={path('/bolsa')} className="underline">Revisa tu bolsa</Link>.</p>
+          {/* Productos que no se pueden pedir (borrados, agotados, sin cupo): aviso y "Quitar" aquí mismo */}
+          {blockingLines.length > 0 && (
+            <div id="f-bag-issues" className="mt-4 border border-[color:var(--flow-merlot)] p-3 text-sm" role="alert">
+              <p className="text-flow-merlot">Estos productos no se pueden pedir así:</p>
+              <ul className="mt-2 space-y-2">
+                {blockingLines.map((l) => (
+                  <li key={l.key} className="flex items-start justify-between gap-3 text-xs">
+                    <span className="min-w-0">
+                      <span className="font-medium">{lineLabel(l)}</span>
+                      <span className="block text-flow-merlot">{issues[l.key]?.text || 'Ya no está disponible.'}</span>
+                    </span>
+                    {issues[l.key]?.type === 'qty' ? (
+                      <button type="button" onClick={() => setQuantity(l.key, issues[l.key].maxQty)}
+                        className="flex-shrink-0 underline">Dejar {issues[l.key].maxQty}</button>
+                    ) : (
+                      <button type="button" onClick={() => remove(l.key)} className="flex-shrink-0 underline">Quitar</button>
+                    )}
+                  </li>
+                ))}
+              </ul>
+              <Link to={path('/bolsa')} className="mt-2 inline-block text-xs underline">Ir a mi bolsa</Link>
+            </div>
           )}
 
           {/* Solo se deshabilita mientras envía, y el texto lo dice */}

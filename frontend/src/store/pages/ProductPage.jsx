@@ -8,6 +8,8 @@ import { useDocumentMeta } from '../hooks/useDocumentMeta';
 import { storeApi } from '../lib/storeApi';
 import { formatCOP, attrValue, optionKey, COLOR_KEYS, SIZE_KEYS } from '../lib/format';
 import { COPY, POLICY_FALLBACK } from '../lib/copy';
+import { asArray, asObject, asUrls } from '../lib/safe';
+import { assertProduct } from '../lib/bagRules';
 import { ErrorState, PageNotFound } from '../components/States';
 
 const SIZE_ORDER = ['xxs', 'xs', 's', 'm', 'l', 'xl', 'xxl', 'xxxl'];
@@ -68,7 +70,7 @@ export default function ProductPage() {
 
   const { data: p, isLoading, isError, error, refetch } = useQuery({
     queryKey: ['store', slug, 'product', id],
-    queryFn: () => storeApi.getProduct(slug, id),
+    queryFn: async () => assertProduct(await storeApi.getProduct(slug, id)),
     retry: (count, err) => err?.response?.status !== 404 && count < 2,
   });
 
@@ -80,15 +82,15 @@ export default function ProductPage() {
   const [added, setAdded] = useState(false);
 
   useDocumentMeta(p ? `${p.name} — ${store.name || 'Flow'}` : store.name || 'Flow',
-    p?.description?.slice(0, 150) || COPY.essence, p?.images?.[0]);
+    (typeof p?.description === 'string' && p.description.slice(0, 150)) || COPY.essence, asUrls(p?.images)[0]);
 
   // Variantes con su color (clave normalizada) y talla
-  const variants = useMemo(() => (p?.variants || []).map((v) => {
+  const variants = useMemo(() => asArray(p?.variants).filter((v) => v && v.id).map((v) => {
     const colorName = attrValue(v.attributes, COLOR_KEYS);
     return { ...v, colorKey: colorName ? optionKey(colorName) : '', colorName, size: attrValue(v.attributes, SIZE_KEYS) };
   }), [p]);
   const hasVariants = variants.length > 0;
-  const colors = useMemo(() => p?.colors || [], [p]);
+  const colors = useMemo(() => asArray(p?.colors).filter((c) => c && c.key).map((c) => ({ ...c, name: String(c.name ?? c.key) })), [p]);
   const hasColor = colors.length > 0;
   const sizes = useMemo(() => {
     const seen = new Map();
@@ -117,8 +119,8 @@ export default function ProductPage() {
 
   const gallery = useMemo(() => {
     if (!p) return [];
-    const byColor = colorKey ? p.images_by_color?.[colorKey] : null;
-    return byColor && byColor.length > 0 ? byColor : (p.images || []);
+    const byColor = colorKey ? asUrls(asObject(p.images_by_color)[colorKey]) : [];
+    return byColor.length > 0 ? byColor : asUrls(p.images);
   }, [p, colorKey]);
 
   if (isLoading) {
@@ -129,7 +131,7 @@ export default function ProductPage() {
       </div>
     );
   }
-  if (error?.response?.status === 404) return <PageNotFound homePath={path('/coleccion')} />;
+  if (error?.response?.status === 404 || error?.notAvailable) return <PageNotFound homePath={path('/coleccion')} />;
   if (isError || !p) return <ErrorState message="No pudimos cargar este producto." onRetry={refetch} />;
 
   const needsColor = hasColor && !colorKey;
@@ -146,7 +148,7 @@ export default function ProductPage() {
       variant_id: selected?.id || null,
       name: p.name,
       price: p.price,
-      image: gallery[0] || p.images?.[0] || null,
+      image: gallery[0] || asUrls(p.images)[0] || null,
       color: colorName || null,
       size: selected?.size || (genericOptions ? variantText(selected?.attributes) : null),
       quantity: qty,

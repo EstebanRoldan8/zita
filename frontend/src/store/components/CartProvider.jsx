@@ -1,29 +1,10 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { CartContext, lineKey } from '../hooks/cartContext';
+import { CartContext } from '../hooks/cartContext';
+import { MAX_LINES, lineKey, readBag, writeBag } from '../lib/bagStorage';
 
-// Bolsa por tienda en localStorage (try/catch: funciona igual si el almacenamiento falla).
+// Bolsa por tienda en localStorage (lib/bagStorage.js descarta líneas dañadas al leer).
 // Cada línea guarda solo lo necesario para mostrarla; el precio es informativo
 // (el total real lo calcula el servidor).
-const MAX_LINES = 20;
-const keyFor = (slug) => `flow-bag:${slug}`;
-
-function readBag(slug) {
-  try {
-    const raw = window.localStorage.getItem(keyFor(slug));
-    const parsed = raw ? JSON.parse(raw) : [];
-    return Array.isArray(parsed) ? parsed.filter((l) => l && l.product_id && l.quantity > 0) : [];
-  } catch {
-    return [];
-  }
-}
-
-function writeBag(slug, lines) {
-  try {
-    window.localStorage.setItem(keyFor(slug), JSON.stringify(lines));
-  } catch {
-    // sin almacenamiento: la bolsa vive solo en memoria
-  }
-}
 
 export default function CartProvider({ slug, children }) {
   const [lines, setLines] = useState(() => readBag(slug));

@@ -4,6 +4,7 @@ import { useStore, useStorePath } from '../hooks/useStore';
 import { useDocumentMeta } from '../hooks/useDocumentMeta';
 import { storeApi } from '../lib/storeApi';
 import { formatCOP, STATUS_LABELS } from '../lib/format';
+import { asArray, asObject, asString } from '../lib/safe';
 import { COPY } from '../lib/copy';
 import { ErrorState } from '../components/States';
 
@@ -39,12 +40,14 @@ export default function Confirmation() {
   }
   if (!fresh && status.isError) return <ErrorState message="No pudimos consultar tu pedido." onRetry={status.refetch} />;
 
-  const code = fresh ? fresh.order.code : status.data.code;
-  const total = fresh ? fresh.order.total : status.data.total;
-  const statusLabel = STATUS_LABELS[fresh ? fresh.order.status : status.data.status] || 'Recibido';
+  // Datos del estado de navegación o de la consulta pública, leídos de forma defensiva
+  const source = fresh ? asObject(fresh.order) : asObject(status.data);
+  const code = asString(source.code, '');
+  const total = source.total;
+  const statusLabel = STATUS_LABELS[source.status] || 'Recibido';
   const items = fresh
-    ? fresh.lines.map((l) => ({ text: `${l.name}${[l.color, l.size].filter(Boolean).length ? ` (${[l.color, l.size].filter(Boolean).join(' / ')})` : ''}`, quantity: l.quantity }))
-    : status.data.items.map((i) => ({ text: i.description, quantity: i.quantity }));
+    ? asArray(fresh.lines).filter(Boolean).map((l) => ({ text: `${asString(l.name, 'Producto')}${[l.color, l.size].filter(Boolean).length ? ` (${[l.color, l.size].filter(Boolean).join(' / ')})` : ''}`, quantity: l.quantity }))
+    : asArray(source.items).filter(Boolean).map((i) => ({ text: asString(i.description, 'Producto'), quantity: i.quantity }));
 
   // Al recargar no tenemos whatsapp_url: se arma un enlace simple con el código
   const whatsappUrl = fresh?.whatsapp_url

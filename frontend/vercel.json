@@ -1,5 +1,20 @@
 {
+  "functions": {
+    "api/store-prerender.js": { "includeFiles": "dist/index.html" }
+  },
   "rewrites": [
+    { "source": "/sitemap.xml", "destination": "/api/store-sitemap" },
+    { "source": "/robots.txt", "destination": "/api/store-robots" },
+    {
+      "source": "/tienda/:path*",
+      "has": [{ "type": "header", "key": "user-agent", "value": ".*(Googlebot|Google-InspectionTool|Storebot-Google|bingbot|BingPreview|DuckDuckBot|YandexBot|Baiduspider|facebookexternalhit|Facebot|meta-externalagent|Twitterbot|WhatsApp|TelegramBot|LinkedInBot|Slackbot|Discordbot|Pinterest|Applebot|Embedly|embedly).*" }],
+      "destination": "/api/store-prerender?path=/tienda/:path*"
+    },
+    {
+      "source": "/:section(producto|coleccion|colores|ayuda|sobre-flow|envios|cambios)/:rest*",
+      "has": [{ "type": "header", "key": "user-agent", "value": ".*(Googlebot|Google-InspectionTool|Storebot-Google|bingbot|BingPreview|DuckDuckBot|YandexBot|Baiduspider|facebookexternalhit|Facebot|meta-externalagent|Twitterbot|WhatsApp|TelegramBot|LinkedInBot|Slackbot|Discordbot|Pinterest|Applebot|Embedly|embedly).*" }],
+      "destination": "/api/store-prerender?path=/:section/:rest*"
+    },
     { "source": "/(.*)", "destination": "/" }
   ]
 }

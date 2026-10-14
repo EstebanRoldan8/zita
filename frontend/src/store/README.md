@@ -45,10 +45,11 @@ store/
                         Lo que no exista va en null / [] y la sección se oculta.
   lib/collections.js    helpers puros: colores, cápsulas, drops, jerarquía, filtros
   lib/policies.js       políticas, FAQ y guía de tallas (store_settings > flowContent; sin textos inventados)
+  lib/seo.js            SEO de cada página (compartido con frontend/api)
   lib/specs.js          lee líneas "Tela: …", "Cuidado: …" de la descripción del producto
   lib/copy.js           textos de interfaz (botones, estados)
   lib/fonts.js          carga de fuentes solo en la tienda (incluye Cormorant para nombres de colección)
-  hooks/                useStore, useCatalog, useStoreNav, useReveal, cartContext, useBagValidation, useDocumentMeta
+  hooks/                useStore, useCatalog, useStoreNav, useReveal, cartContext, useBagValidation, useSeo
   components/           StoreLayout, StoreHeader, AnnouncementBar, SearchOverlay, StoreFooter, WhatsAppFab,
                         ProductCard, ProductCarousel, ProductListing, ColorDot, SizeGuideTable, BagDrawer, Logo…
   components/home/      secciones del inicio (hero, colección, por color, protagonista, historia, cápsulas…)
@@ -92,12 +93,37 @@ Clases: `bg-flow-*`, `text-flow-*`, `border-flow-*`, `flow-rule`, `flow-display`
 - Honeypot: campo oculto `website`.
 - La API ordena por lo más nuevo; el orden por precio se aplica a los productos ya cargados (no hay orden en el servidor).
 
+## SEO
+
+La SPA y las funciones de Vercel usan las mismas funciones puras de `lib/seo.js`, así lo que recibe un bot es lo
+mismo que ve una persona (título, descripción, precio, fotos, disponibilidad). Nada se inventa.
+
+- **Cliente:** `useSeo(...)` en cada página pone título, description, robots, canonical, Open Graph, Twitter y
+  JSON-LD, y al salir de la tienda deja el `<head>` como estaba (el `index.html` es compartido con ZITA).
+- **noindex:** bolsa, checkout, pedido, 404, búsqueda (`?q=`) y filtros combinados. El canonical de un listado
+  filtrado apunta al listado sin filtros (la categoría sí es página: `/coleccion?categoria=X`).
+- **JSON-LD:** Organization + WebSite (home), Product + BreadcrumbList (producto), BreadcrumbList (colección,
+  categoría, drop). Sin reseñas ni ratings.
+- **Funciones (`frontend/api/`):**
+  - `store-sitemap.js` → `/sitemap.xml`: home, tienda, colección activa, colores/drops con productos, categorías
+    con productos, ayuda, Sobre FLOW, políticas con texto y cada producto. Sin `lastmod` (la API no expone fechas).
+    Si la API falla: 503 sin caché.
+  - `store-robots.js` → `/robots.txt`: en el dominio de ZITA conserva sus reglas (antes `public/robots.txt`) y
+    agrega las de `/tienda/*`; en el dominio propio, las reglas de la tienda en la raíz.
+  - `store-prerender.js`: solo para user-agents de buscadores y redes (`vercel.json` → `has`). Devuelve el
+    `index.html` de la build con el `<head>` SEO y el contenido de la página dentro de `#root` (React lo reemplaza
+    al montar). Producto o tienda inexistente: 404 + noindex. API caída: HTML base con `<head>` de marca.
+- **Variables en Vercel (solo servidor):** `STORE_API_URL`, `SITE_URL`, `STORE_SLUG`. Ver `frontend/.env.example`.
+- **Imagen por defecto de los previews:** `public/og-flow.jpg` y `public/flow-logo.png` (`scripts/og-image.mjs`).
+- **Pruebas locales:** `node _pruebas/seo/run.mjs` (API falsa, req/res simulados y simulación de los rewrites).
+
 ## TODO
 
 - [ ] **Fuente del slogan:** reemplazar "Mrs Saint Delafield" por **Autography** (`--flow-script` en `flow.css` y `lib/fonts.js`).
 - [ ] **Fotografía:** hero/campaña (hoy un placeholder CSS con sombra de palmera), fotos por color de cada producto, Sobre FLOW.
-- [ ] **Contenido pendiente en `flowContent.js`:** `about`, `faq`, `shipping`, `returns`, `sizeGuide`, `legal`, `brand.instagram`, `brand.email`, `brand.city`. Mientras sean null, sus secciones y enlaces no se muestran.
+- [ ] **Contenido pendiente en `flowContent.js`:** `shipping`, `returns`, `sizeGuide`, `legal`, `brand.instagram`, `brand.email`, `brand.city`. Mientras sean null, sus secciones y enlaces no se muestran.
 - [ ] **WhatsApp:** número en `store_settings` (sin él no aparecen el botón flotante ni los enlaces de WhatsApp).
 - [ ] **Necesita backend:** fecha de creación del producto ("Nuevo" por fecha), orden por popularidad/ventas, orden por precio en el servidor.
-- [ ] **Open Graph:** las páginas definen `og:*` en tiempo de ejecución (`useDocumentMeta`); para bots sin JS hace falta prerender o un `index.html` propio en el dominio de la tienda.
+- [ ] **Home en dominio propio para bots:** con `VITE_STORE_HOST`, la ruta `/` la sirve `index.html` (archivo estático, gana a cualquier rewrite), así que los bots reciben el `<head>` de ZITA en la raíz. Las demás rutas sí pasan por el prerender. Arreglo posible: Routing Middleware de Vercel.
+- [ ] **Imagen de previews:** `public/og-flow.jpg` es el logo sobre sand; reemplazar por una foto de campaña de 1200 × 630.
 - [ ] **Favicon** de Flow para el dominio propio.

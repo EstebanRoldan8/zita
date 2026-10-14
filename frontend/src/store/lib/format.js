@@ -54,3 +54,10 @@ export const STATUS_LABELS = {
   entregado: 'Entregado',
   cancelado: 'Cancelado',
 };
+
+// Enlace de WhatsApp (wa.me) con mensaje prellenado; null si no hay número
+export function waLink(number, text) {
+  const digits = String(number || '').replace(/\D/g, '');
+  if (digits.length < 8) return null;
+  return `https://wa.me/${digits}${text ? `?text=${encodeURIComponent(text)}` : ''}`;
+}

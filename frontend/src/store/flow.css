@@ -214,3 +214,38 @@
     scroll-behavior: auto !important;
   }
 }
+
+/* ============================================================================
+   RENACER: header, nombres de colección, carruseles y utilidades
+   ============================================================================ */
+
+/* Solo para NOMBRES de colección/cápsula (RENACER, ESENCIAL…) */
+.flow-store .flow-collection-name {
+  font-family: 'Cormorant Garamond', var(--flow-serif);
+  font-weight: 500;
+  letter-spacing: 0.08em;
+  line-height: 1;
+  text-transform: uppercase;
+}
+
+/* Header: logo grande (móvil 36px, desktop 48px); al hacer scroll se achica a 30/36, nunca menos */
+.flow-store .flow-header { padding-block: 14px; transition: padding 200ms var(--flow-ease), background-color 200ms; }
+.flow-store .flow-header-logo img { height: 36px; width: auto; transition: height 200ms var(--flow-ease); }
+.flow-store .flow-header.is-scrolled { padding-block: 8px; }
+.flow-store .flow-header.is-scrolled .flow-header-logo img { height: 30px; }
+@media (min-width: 768px) {
+  .flow-store .flow-header { padding-block: 16px; }
+  .flow-store .flow-header-logo img { height: 48px; }
+  .flow-store .flow-header.is-scrolled { padding-block: 10px; }
+  .flow-store .flow-header.is-scrolled .flow-header-logo img { height: 36px; }
+}
+.flow-store .flow-header-solid { box-shadow: 0 1px 0 rgba(160, 148, 134, 0.45), 0 6px 18px -14px rgba(28, 28, 28, 0.25); }
+
+/* Barra de anuncios: aparición suave del mensaje nuevo */
+.flow-store .flow-announce { animation: flow-announce-in 300ms var(--flow-ease); }
+@keyframes flow-announce-in { from { opacity: 0; transform: translateY(4px); } to { opacity: 1; transform: none; } }
+
+/* Ocultar marcadores de <summary> en acordeones */
+.flow-store summary::-webkit-details-marker { display: none; }
+.flow-store details[open] > summary svg { transform: rotate(180deg); }
+.flow-store details > summary svg { transition: transform 200ms var(--flow-ease); }

@@ -12,7 +12,9 @@ const SOURCES = {
   blanco: { webp: blancoWebp, png: blancoPng },
 };
 
-export default function Logo({ height = 40, variant = 'negro', className = '', safeArea = true, eager = false }) {
+// fluid: el tamaño lo controla el CSS del contenedor (header que se achica al hacer scroll);
+// width/height siguen en el HTML para reservar el espacio con la proporción correcta.
+export default function Logo({ height = 40, variant = 'negro', className = '', safeArea = true, eager = false, fluid = false }) {
   const src = SOURCES[variant] || SOURCES.negro;
   const width = Math.round(height * LOGO_RATIO);
   const pad = safeArea ? Math.round(height * 0.2) : 0;
@@ -22,7 +24,7 @@ export default function Logo({ height = 40, variant = 'negro', className = '', s
         <source srcSet={src.webp} type="image/webp" />
         <img src={src.png} alt="Flow" width={width} height={height} decoding="async"
           loading={eager ? 'eager' : 'lazy'} draggable="false"
-          style={{ width, height, objectFit: 'contain', display: 'block', transition: 'width 200ms, height 200ms' }} />
+          style={fluid ? { display: 'block', objectFit: 'contain' } : { width, height, objectFit: 'contain', display: 'block' }} />
       </picture>
     </span>
   );

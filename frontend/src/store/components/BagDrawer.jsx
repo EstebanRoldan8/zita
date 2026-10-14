@@ -30,7 +30,7 @@ export default function BagDrawer() {
   }, [open, setOpen]);
 
   return (
-    <div className={`fixed inset-0 z-50 ${open ? '' : 'pointer-events-none'}`} aria-hidden={!open}>
+    <div className={`fixed inset-0 z-50 overflow-hidden ${open ? '' : 'pointer-events-none'}`} aria-hidden={!open}>
       <div className={`flow-fade absolute inset-0 ${open ? 'opacity-100' : 'opacity-0'}`}
         style={{ backgroundColor: 'rgba(28,28,28,0.3)' }} onClick={() => setOpen(false)} />
       <aside role="dialog" aria-modal="true" aria-label={COPY.bag}

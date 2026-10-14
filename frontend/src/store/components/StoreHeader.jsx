@@ -75,13 +75,13 @@ export default function StoreHeader() {
               onClick={() => { setMobileOpen(true); setMega(null); }}>
               <Menu size={22} strokeWidth={1.5} />
             </button>
-            <nav className="hidden items-center gap-5 xl:gap-7 lg:flex" aria-label="Principal">
+            <nav className="hidden min-w-0 items-center gap-5 lg:flex" aria-label="Principal">
               {nav.items.map((item) => (
                 <NavLink key={item.id} to={item.href} onClick={closeAll}
                   onMouseEnter={(e) => { if (item.mega) { megaTriggerRef.current = e.currentTarget; setMega(item.id); } else setMega(null); }}
                   onFocus={(e) => { if (item.mega) { megaTriggerRef.current = e.currentTarget; setMega(item.id); } else setMega(null); }}
                   aria-haspopup={item.mega ? 'true' : undefined} aria-expanded={item.mega ? mega === item.id : undefined}
-                  className={({ isActive }) => `flow-label whitespace-nowrap border-b py-2 ${isActive || mega === item.id ? 'border-current' : 'border-transparent hover:border-current'}`}>
+                  className={({ isActive }) => `flow-label flow-nav-link whitespace-nowrap border-b py-2 ${item.wide ? "hidden xl:inline-block" : ""} ${isActive || mega === item.id ? 'border-current' : 'border-transparent hover:border-current'}`}>
                   {item.label}
                 </NavLink>
               ))}
@@ -89,7 +89,7 @@ export default function StoreHeader() {
           </div>
 
           {/* Centro: logo grande */}
-          <Link to={homePath} onClick={closeAll} className="flow-header-logo justify-self-center" aria-label="FLOW, inicio">
+          <Link to={homePath} onClick={closeAll} className="flow-header-logo flex justify-self-center" aria-label="FLOW, inicio">
             <Logo height={48} variant={lightText ? 'blanco' : 'negro'} safeArea={false} eager fluid />
           </Link>
 

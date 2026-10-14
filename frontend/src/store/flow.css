@@ -249,3 +249,17 @@
 .flow-store summary::-webkit-details-marker { display: none; }
 .flow-store details[open] > summary svg { transform: rotate(180deg); }
 .flow-store details > summary svg { transition: transform 200ms var(--flow-ease); }
+
+/* Botón outline sobre fondos oscuros o con foto */
+.flow-store .flow-btn-outline-light { color: var(--flow-white); border-color: var(--flow-white); }
+.flow-store .flow-btn-outline-light:hover:not(:disabled) { background: var(--flow-white); color: var(--flow-black); }
+
+/* Aparición suave al hacer scroll (desactivada con reduced-motion por el bloque global) */
+.flow-store .flow-reveal { opacity: 0; transform: translateY(16px); transition: opacity 600ms var(--flow-ease), transform 600ms var(--flow-ease); }
+.flow-store .flow-reveal.is-visible { opacity: 1; transform: none; }
+@media (prefers-reduced-motion: reduce) {
+  .flow-store .flow-reveal { opacity: 1; transform: none; }
+}
+
+/* Navegación principal: tracking algo menor para que entre junto al logo grande */
+.flow-store .flow-nav-link { letter-spacing: 0.1em; }

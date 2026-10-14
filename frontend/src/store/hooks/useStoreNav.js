@@ -36,8 +36,8 @@ export function useStoreNav() {
       mujer.length > 0 && { id: 'mujer', label: 'Mujer', href: catLink(path, mujer[0].name), mega: true, categories: mujer },
       hombre.length > 0 && { id: 'hombre', label: 'Hombre', href: catLink(path, hombre[0].name), mega: true, categories: hombre },
       drops.length > 0 && { id: 'colores', label: 'Colores', href: path('/colores'), mega: true },
-      archiveCategory && archive.length > 0 && { id: 'archive', label: 'Archive', href: catLink(path, archiveCategory.name) },
-      hasAbout && { id: 'sobre', label: 'Sobre FLOW', href: path('/sobre-flow') },
+      archiveCategory && archive.length > 0 && { id: 'archive', label: 'Archive', href: catLink(path, archiveCategory.name), wide: true },
+      hasAbout && { id: 'sobre', label: 'Sobre FLOW', href: path('/sobre-flow'), wide: true },
     ].filter(Boolean);
 
     return {

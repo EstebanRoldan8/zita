@@ -1,6 +1,6 @@
 // Textos de ayuda/legales: primero flowContent, luego store_settings.policies. null si no hay nada
 // (la sección o el enlace se ocultan). Nunca se inventa texto.
-import { flowContent } from '../content/flowContent';
+import { flowContent } from '../content/flowContent.js';
 
 const text = (v) => (typeof v === 'string' && v.trim() ? v.trim() : null);
 

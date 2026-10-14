@@ -2,7 +2,8 @@ import { Link, useLocation } from 'react-router-dom';
 import { useStore, useStorePath } from '../hooks/useStore';
 import { useCart } from '../hooks/cartContext';
 import { useBagValidation } from '../hooks/useBagValidation';
-import { useDocumentMeta } from '../hooks/useDocumentMeta';
+import { useSeo } from '../hooks/useSeo';
+import { privateSeo } from '../lib/seo';
 import { formatCOP, shippingFor } from '../lib/format';
 import { COPY } from '../lib/copy';
 import BagLines from '../components/BagLines';
@@ -13,7 +14,7 @@ export default function BagPage() {
   const location = useLocation();
   const { lines, subtotal } = useCart();
   const { loading, issues, blocking } = useBagValidation(slug, lines, true);
-  useDocumentMeta(`${COPY.bag} — ${store.name || 'Flow'}`, 'Revisa tu bolsa antes de finalizar el pedido.');
+  useSeo(privateSeo(COPY.bag));
 
   const soldOutNotice = location.state?.soldOut;
   const shipping = shippingFor(store, subtotal);

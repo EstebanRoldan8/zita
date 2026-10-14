@@ -166,6 +166,10 @@ export const flowContent = {
     email: null,
     city: null,
   },
+  // Título de la home para buscadores y previews (≤ 60 caracteres). El resto sale de lib/seo.js.
+  seo: {
+    homeTitle: 'FLOW | Ropa deportiva y lifestyle — Colección RENACER',
+  },
   // Mensajes rotativos de la barra superior. Los que dependen de store_settings
   // (envío gratis desde $X) se construyen en runtime y se omiten si no hay dato.
   announcement: ['Nueva colección RENACER ya disponible', 'Envíos a toda Colombia'],

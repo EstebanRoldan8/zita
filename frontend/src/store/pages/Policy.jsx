@@ -1,8 +1,8 @@
 import { Link } from 'react-router-dom';
 import { useStore, useStorePath } from '../hooks/useStore';
-import { useDocumentMeta } from '../hooks/useDocumentMeta';
-import { flowContent } from '../content/flowContent';
+import { useSeo, useSeoContext } from '../hooks/useSeo';
 import { POLICIES, policyText } from '../lib/policies';
+import { policySeo } from '../lib/seo';
 
 // /envios, /cambios, /privacidad, /terminos: de flowContent o store_settings.policies.
 // Si no hay texto no se inventa nada: se avisa que aún no está publicado.
@@ -11,7 +11,7 @@ export default function Policy({ kind }) {
   const path = useStorePath();
   const title = POLICIES[kind]?.title || 'Información';
   const text = policyText(kind, store);
-  useDocumentMeta(`${title} — ${flowContent.brand.name}`, `${title} de ${flowContent.brand.name}.`);
+  useSeo(policySeo(useSeoContext(), { kind, store }));
 
   return (
     <article className="mx-auto max-w-2xl px-4 py-16 md:px-8">

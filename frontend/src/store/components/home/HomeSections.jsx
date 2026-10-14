@@ -133,7 +133,7 @@ export function ShopByColor({ collection, products, path }) {
             return (
               <Link key={d.slug} to={path(`/colores/${d.slug}`)} className="group relative block overflow-hidden"
                 style={{ aspectRatio: '4 / 5', background: d.palette?.bg, color: d.palette?.fg }}>
-                {cover && <img src={cover} alt="" className="absolute inset-0 h-full w-full object-cover transition-transform duration-300 group-hover:scale-[1.02]" loading="lazy" />}
+                {cover && <img src={cover} alt="" width="800" height="1000" className="absolute inset-0 h-full w-full object-cover transition-transform duration-300 group-hover:scale-[1.02]" loading="lazy" />}
                 {cover && <span className="absolute inset-0" style={{ background: 'linear-gradient(to top, rgba(28,28,28,0.7), rgba(28,28,28,0) 55%)' }} aria-hidden="true" />}
                 <span className={`absolute inset-x-0 bottom-0 p-6 ${cover ? 'text-flow-white' : ''}`}>
                   <span className="flow-collection-name block text-3xl md:text-4xl">{d.name}</span>
@@ -246,7 +246,7 @@ export function PopularCategories({ categories, products }) {
           const dark = tone !== '#D9CFC3' && tone !== '#A09486';
           return (
             <Link key={c.name} to={c.href} className="group relative block overflow-hidden" style={{ aspectRatio: '4 / 5', background: tone }}>
-              {cover && <img src={cover} alt="" className="absolute inset-0 h-full w-full object-cover transition-transform duration-300 group-hover:scale-[1.02]" loading="lazy" />}
+              {cover && <img src={cover} alt="" width="800" height="1000" className="absolute inset-0 h-full w-full object-cover transition-transform duration-300 group-hover:scale-[1.02]" loading="lazy" />}
               <span className="absolute inset-0" style={{ background: cover ? 'linear-gradient(to top, rgba(28,28,28,0.6), rgba(28,28,28,0) 55%)' : 'none' }} aria-hidden="true" />
               <span className={`absolute bottom-4 left-4 right-4 ${cover || dark ? 'text-flow-white' : 'text-flow-black'}`}>
                 <span className="flow-serif block text-xl md:text-2xl">{c.name}</span>

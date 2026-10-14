@@ -1,6 +1,7 @@
 import { ChevronDown, MessageCircle } from 'lucide-react';
 import { useStore } from '../hooks/useStore';
-import { useDocumentMeta } from '../hooks/useDocumentMeta';
+import { useSeo, useSeoContext } from '../hooks/useSeo';
+import { helpSeo } from '../lib/seo';
 import { flowContent } from '../content/flowContent';
 import { policyText, faqItems, sizeGuide } from '../lib/policies';
 import { waLink } from '../lib/format';
@@ -21,7 +22,7 @@ function Accordion({ id, title, children, open = false }) {
 // /ayuda: cada bloque se oculta si no tiene contenido (FAQ, envíos, cambios, guía de tallas, contacto)
 export default function Help() {
   const { store } = useStore();
-  useDocumentMeta(`Ayuda — ${flowContent.brand.name}`, `Preguntas frecuentes, envíos, cambios y contacto de ${flowContent.brand.name}.`);
+  useSeo(helpSeo(useSeoContext(), { store }));
   const faq = faqItems();
   const envios = policyText('envios', store);
   const cambios = policyText('cambios', store);

@@ -4,11 +4,11 @@ import { useQuery } from '@tanstack/react-query';
 import { Minus, Plus, X } from 'lucide-react';
 import { useStore, useStorePath } from '../hooks/useStore';
 import { useCart } from '../hooks/cartContext';
-import { useDocumentMeta } from '../hooks/useDocumentMeta';
+import { useSeo, useSeoContext } from '../hooks/useSeo';
+import { productSeo, notFoundSeo } from '../lib/seo';
 import { storeApi } from '../lib/storeApi';
 import { formatCOP, attrValue, optionKey, COLOR_KEYS, SIZE_KEYS } from '../lib/format';
 import { COPY } from '../lib/copy';
-import { flowContent } from '../content/flowContent';
 import { policyText, sizeGuide } from '../lib/policies';
 import { normalize, getActiveCollection, productsInCollection, colorHex, isLightColor } from '../lib/collections';
 import { useCatalog } from '../hooks/useCatalog';
@@ -51,7 +51,7 @@ function Gallery({ images, name }) {
         {images.map((src, i) => (
           <div key={src} className="flow-photo w-full flex-shrink-0">
             <img src={src} alt={`${name}, foto ${i + 1} de ${images.length}`} width="800" height="1000"
-              loading={i === 0 ? 'eager' : 'lazy'} decoding="async" />
+              loading={i === 0 ? 'eager' : 'lazy'} fetchPriority={i === 0 ? 'high' : undefined} decoding="async" />
           </div>
         ))}
       </div>
@@ -93,8 +93,9 @@ export default function ProductPage() {
   const [pickedQty, setQty] = useState(1);
   const [added, setAdded] = useState(false);
 
-  useDocumentMeta(p ? `${p.name} — ${store.name || 'Flow'}` : store.name || 'Flow',
-    (typeof p?.description === 'string' && p.description.slice(0, 150)) || COPY.essence, asUrls(p?.images)[0]);
+  const seoCtx = useSeoContext();
+  const notFound = error?.response?.status === 404 || !!error?.notAvailable;
+  useSeo(notFound ? notFoundSeo() : p ? productSeo(seoCtx, { product: p, store, colorParam: searchParams.get('color') }) : null);
 
   // Variantes con su color (clave normalizada) y talla
   const variants = useMemo(() => asArray(p?.variants).filter((v) => v && v.id).map((v) => {
@@ -140,32 +141,6 @@ export default function ProductPage() {
   const related = useMemo(() => productsInCollection(catalog.data || [], getActiveCollection())
     .filter((x) => x.id !== id).slice(0, 8), [catalog.data, id]);
 
-  // SEO básico: JSON-LD Product (SPA; el prerender viene después)
-  useEffect(() => {
-    if (!p || typeof p !== 'object') return undefined;
-    const el = document.createElement('script');
-    el.type = 'application/ld+json';
-    el.dataset.flowStore = 'product';
-    el.textContent = JSON.stringify({
-      '@context': 'https://schema.org',
-      '@type': 'Product',
-      name: String(p.name || ''),
-      ...(asUrls(p.images).length ? { image: asUrls(p.images) } : {}),
-      ...(typeof p.description === 'string' && p.description.trim() ? { description: p.description.trim().slice(0, 500) } : {}),
-      ...(p.category ? { category: String(p.category) } : {}),
-      brand: { '@type': 'Brand', name: flowContent.brand.name },
-      offers: {
-        '@type': 'Offer',
-        price: Number(p.price) || 0,
-        priceCurrency: store.currency || 'COP',
-        availability: p.in_stock === false ? 'https://schema.org/OutOfStock' : 'https://schema.org/InStock',
-        url: window.location.href.split('?')[0],
-      },
-    });
-    document.head.appendChild(el);
-    return () => el.remove();
-  }, [p, store.currency]);
-
   // Avisa al botón flotante de WhatsApp que en móvil hay un botón fijo abajo
   useEffect(() => {
     document.body.dataset.flowStickyCta = '1';
@@ -186,7 +161,7 @@ export default function ProductPage() {
       </div>
     );
   }
-  if (error?.response?.status === 404 || error?.notAvailable) return <PageNotFound homePath={path('/coleccion')} />;
+  if (notFound) return <PageNotFound homePath={path('/coleccion')} />;
   if (isError || !p) return <ErrorState message="No pudimos cargar este producto." onRetry={refetch} />;
 
   const needsColor = hasColor && !colorKey;
@@ -226,7 +201,7 @@ export default function ProductPage() {
       </nav>
 
       <div className="grid gap-10 md:grid-cols-2 md:gap-16">
-        <Gallery key={gallery.join('|')} images={gallery} name={p.name} />
+        <Gallery key={gallery.join('|')} images={gallery} name={colorName ? `${p.name} en color ${colorName}` : p.name} />
 
         <div>
           <h1 className="flow-serif text-3xl leading-tight md:text-4xl">{p.name}</h1>

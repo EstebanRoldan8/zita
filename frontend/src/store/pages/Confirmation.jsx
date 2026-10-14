@@ -1,7 +1,8 @@
 import { Link, useLocation, useParams, useSearchParams } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import { useStore, useStorePath } from '../hooks/useStore';
-import { useDocumentMeta } from '../hooks/useDocumentMeta';
+import { useSeo } from '../hooks/useSeo';
+import { privateSeo } from '../lib/seo';
 import { storeApi } from '../lib/storeApi';
 import { formatCOP, STATUS_LABELS } from '../lib/format';
 import { asArray, asObject, asString } from '../lib/safe';
@@ -16,7 +17,7 @@ export default function Confirmation() {
   const { slug, store } = useStore();
   const path = useStorePath();
   const { state } = useLocation();
-  useDocumentMeta(`Pedido recibido — ${store.name || 'Flow'}`, COPY.thanks);
+  useSeo(privateSeo('Pedido recibido'));
 
   const fresh = state?.order?.id === orderId ? state : null;
   const status = useQuery({

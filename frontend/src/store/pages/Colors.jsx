@@ -1,8 +1,8 @@
 import { Link, useParams } from 'react-router-dom';
 import { useStorePath } from '../hooks/useStore';
-import { useDocumentMeta } from '../hooks/useDocumentMeta';
+import { useSeo, useSeoContext } from '../hooks/useSeo';
+import { colorsSeo, dropSeo } from '../lib/seo';
 import { useCatalog } from '../hooks/useCatalog';
-import { flowContent } from '../content/flowContent';
 import { getActiveCollection, productsInCollection, productsInDrop, coverForColors } from '../lib/collections';
 import ProductListing from '../components/ProductListing';
 import ColorDot from '../components/ColorDot';
@@ -13,9 +13,9 @@ export function ColorsIndex() {
   const path = useStorePath();
   const catalog = useCatalog();
   const collection = getActiveCollection();
-  useDocumentMeta(`Comprar por color — ${flowContent.brand.name}`, `${collection?.label || ''}: comprar por color.`);
   const products = productsInCollection(catalog.data || [], collection);
   const drops = (collection?.drops || []).map((d) => ({ ...d, items: productsInDrop(products, d) })).filter((d) => d.items.length > 0);
+  useSeo(colorsSeo(useSeoContext(), { drops }));
 
   return (
     <div className="mx-auto max-w-7xl px-4 py-10 md:px-8 md:py-14">
@@ -34,7 +34,7 @@ export function ColorsIndex() {
               return (
                 <Link key={d.slug} to={path(`/colores/${d.slug}`)} className="group relative block overflow-hidden"
                   style={{ aspectRatio: '4 / 5', background: d.palette?.bg, color: d.palette?.fg }}>
-                  {cover && <img src={cover} alt="" className="absolute inset-0 h-full w-full object-cover transition-transform duration-300 group-hover:scale-[1.02]" loading="lazy" />}
+                  {cover && <img src={cover} alt="" width="800" height="1000" className="absolute inset-0 h-full w-full object-cover transition-transform duration-300 group-hover:scale-[1.02]" loading="lazy" />}
                   {cover && <span className="absolute inset-0" style={{ background: 'linear-gradient(to top, rgba(28,28,28,0.7), rgba(28,28,28,0) 55%)' }} aria-hidden="true" />}
                   <span className={`absolute inset-x-0 bottom-0 p-6 ${cover ? 'text-flow-white' : ''}`}>
                     <span className="flow-collection-name block text-4xl">{d.name}</span>
@@ -59,7 +59,7 @@ export function DropPage() {
   const collection = getActiveCollection();
   const drop = (collection?.drops || []).find((d) => d.slug === dropSlug) || null;
   const capsule = drop ? collection.capsules?.find((c) => c.slug === drop.capsule) : null;
-  useDocumentMeta(drop ? `${drop.name} — ${flowContent.brand.name}` : flowContent.brand.name, drop?.description || flowContent.brand.slogan);
+  useSeo(dropSeo(useSeoContext(), { drop }));
 
   if (!drop) return <PageNotFound homePath={path('/colores')} />;
   const products = productsInDrop(productsInCollection(catalog.data || [], collection), drop);

@@ -1,6 +1,7 @@
 import { Link } from 'react-router-dom';
 import { useStorePath } from '../hooks/useStore';
-import { useDocumentMeta } from '../hooks/useDocumentMeta';
+import { useSeo, useSeoContext } from '../hooks/useSeo';
+import { aboutSeo, aboutText } from '../lib/seo';
 import { flowContent } from '../content/flowContent';
 import { getActiveCollection } from '../lib/collections';
 import { Storytelling, ValuesStrip, Capsules } from '../components/home/HomeSections';
@@ -10,9 +11,9 @@ import { PageNotFound } from '../components/States';
 export default function SobreFlow() {
   const path = useStorePath();
   const collection = getActiveCollection();
-  const about = typeof flowContent.about === 'string' && flowContent.about.trim() ? flowContent.about.trim() : null;
+  const about = aboutText();
   const hasStory = (collection?.storytelling || []).length > 0;
-  useDocumentMeta(`Sobre FLOW — ${flowContent.brand.slogan}`, about?.slice(0, 150) || collection?.intro || flowContent.brand.slogan);
+  useSeo(aboutSeo(useSeoContext()));
 
   if (!about && !hasStory) return <PageNotFound homePath={path('/')} />;
 

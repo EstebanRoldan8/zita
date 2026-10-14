@@ -1,6 +1,7 @@
-import { useSearchParams } from 'react-router-dom';
+import { useLocation, useSearchParams } from 'react-router-dom';
 import { Search } from 'lucide-react';
-import { useDocumentMeta } from '../hooks/useDocumentMeta';
+import { useSeo, useSeoContext } from '../hooks/useSeo';
+import { listingSeo } from '../lib/seo';
 import { useCatalog } from '../hooks/useCatalog';
 import { flowContent } from '../content/flowContent';
 import { isArchiveCategory } from '../lib/collections';
@@ -14,7 +15,7 @@ export default function Collection() {
   const catalog = useCatalog();
   const archive = isArchiveCategory(category);
   const title = archive ? flowContent.archive.title : category || 'Tienda';
-  useDocumentMeta(`${title} — ${flowContent.brand.name}`, archive ? flowContent.archive.text : `Tienda ${flowContent.brand.name}: ${flowContent.brand.slogan}.`);
+  useSeo(listingSeo(useSeoContext(), { search: useLocation().search }));
 
   const submitSearch = (e) => {
     e.preventDefault();

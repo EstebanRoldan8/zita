@@ -4,7 +4,8 @@ import { useQueryClient } from '@tanstack/react-query';
 import { useStore, useStorePath } from '../hooks/useStore';
 import { useCart } from '../hooks/cartContext';
 import { useBagValidation } from '../hooks/useBagValidation';
-import { useDocumentMeta } from '../hooks/useDocumentMeta';
+import { useSeo } from '../hooks/useSeo';
+import { privateSeo } from '../lib/seo';
 import { storeApi } from '../lib/storeApi';
 import { formatCOP, normalizePhone, isEmail, newIdempotencyKey, shippingFor } from '../lib/format';
 import { COPY } from '../lib/copy';
@@ -67,7 +68,7 @@ export default function Checkout() {
   const qc = useQueryClient();
   const { lines, subtotal, clear, remove, setQuantity } = useCart();
   const { loading: validating, issues, blocking } = useBagValidation(slug, lines, true);
-  useDocumentMeta(`${COPY.checkout} — ${store.name || 'Flow'}`, 'Completa tus datos para finalizar el pedido.');
+  useSeo(privateSeo(COPY.checkout));
 
   const methods = methodsFor(store.payment_methods);
   const [form, setForm] = useState({

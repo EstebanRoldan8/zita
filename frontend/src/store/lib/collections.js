@@ -1,7 +1,7 @@
 // Helpers puros (sin React) para colecciones, cápsulas, drops y colores.
 // Trabajan sobre las tarjetas de /api/store/:slug/products:
 //   { id, name, category, price, images[], colors[{ key, name, image, available }], sizes_available[], in_stock, low_stock }
-import { flowContent, colorMap } from '../content/flowContent';
+import { flowContent, colorMap } from '../content/flowContent.js';
 
 const arr = (v) => (Array.isArray(v) ? v : []);
 

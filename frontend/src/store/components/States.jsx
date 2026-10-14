@@ -1,5 +1,7 @@
 import { Link } from 'react-router-dom';
 import { COPY } from '../lib/copy';
+import { useSeo } from '../hooks/useSeo';
+import { notFoundSeo } from '../lib/seo';
 
 export function ErrorState({ message = 'No pudimos cargar esta sección.', onRetry }) {
   return (
@@ -11,6 +13,7 @@ export function ErrorState({ message = 'No pudimos cargar esta sección.', onRet
 }
 
 export function StoreUnavailable() {
+  useSeo(notFoundSeo());
   return (
     <div className="flow-store flex min-h-screen items-center justify-center px-6 text-center">
       <div>
@@ -22,7 +25,9 @@ export function StoreUnavailable() {
   );
 }
 
+// Cualquier 404 de la tienda queda en noindex
 export function PageNotFound({ homePath }) {
+  useSeo(notFoundSeo());
   return (
     <div className="py-24 text-center px-6">
       <p className="flow-label text-flow-muted mb-4">404</p>

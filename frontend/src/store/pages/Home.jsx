@@ -1,5 +1,6 @@
 import { useStore, useStorePath } from '../hooks/useStore';
-import { useDocumentMeta } from '../hooks/useDocumentMeta';
+import { useSeo, useSeoContext } from '../hooks/useSeo';
+import { homeSeo } from '../lib/seo';
 import { useCatalog } from '../hooks/useCatalog';
 import { useStoreNav } from '../hooks/useStoreNav';
 import { flowContent } from '../content/flowContent';
@@ -20,8 +21,7 @@ export default function Home() {
   const catalog = useCatalog();
   const nav = useStoreNav();
   const collection = getActiveCollection();
-  useDocumentMeta(`${flowContent.brand.name} — ${collection?.label || flowContent.brand.slogan}`,
-    collection?.hero?.subtitle || flowContent.brand.slogan);
+  useSeo(homeSeo(useSeoContext(), { store }));
 
   const all = catalog.data || [];
   const inCollection = sortByHierarchy(productsInCollection(all, collection), collection);

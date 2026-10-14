@@ -1,8 +1,8 @@
-import { useParams } from 'react-router-dom';
+import { useLocation, useParams } from 'react-router-dom';
 import { useStorePath } from '../hooks/useStore';
-import { useDocumentMeta } from '../hooks/useDocumentMeta';
+import { useSeo, useSeoContext } from '../hooks/useSeo';
+import { collectionSeo } from '../lib/seo';
 import { useCatalog } from '../hooks/useCatalog';
-import { flowContent } from '../content/flowContent';
 import { getCollection, productsInCollection, getActiveCollection } from '../lib/collections';
 import ProductListing from '../components/ProductListing';
 import { PageNotFound } from '../components/States';
@@ -13,8 +13,7 @@ export default function CollectionDetail() {
   const path = useStorePath();
   const catalog = useCatalog();
   const collection = getCollection(collectionSlug);
-  useDocumentMeta(collection ? `${collection.label} — ${flowContent.brand.name}` : flowContent.brand.name,
-    collection?.intro || collection?.hero?.subtitle || flowContent.brand.slogan);
+  useSeo(collectionSeo(useSeoContext(), { collection, search: useLocation().search }));
 
   if (!collection) return <PageNotFound homePath={path('/')} />;
   const products = productsInCollection(catalog.data || [], collection);

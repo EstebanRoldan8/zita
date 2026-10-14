@@ -21,7 +21,7 @@ export default function WhatsAppFab() {
   return (
     <a href={waLink(store.whatsapp_number, 'Hola FLOW, tengo una pregunta.')} onClick={onClick}
       target="_blank" rel="noopener noreferrer" aria-label="Escríbenos por WhatsApp"
-      className="flow-wa-fab fixed bottom-5 right-4 z-40 flex h-12 w-12 items-center justify-center rounded bg-flow-black text-flow-white md:bottom-8 md:right-8">
+      className="flow-wa-fab fixed bottom-5 right-4 z-40 flex h-12 w-12 items-center justify-center rounded border border-[color:var(--flow-sand)] bg-flow-black text-flow-white md:bottom-8 md:right-8">
       <MessageCircle size={22} strokeWidth={1.5} aria-hidden="true" />
     </a>
   );

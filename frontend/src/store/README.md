@@ -15,13 +15,16 @@ Tienda de la marca Flow dentro del frontend de ZITA. Consume la API pública
 | Ruta | Página |
 |---|---|
 | `/tienda/:slug` | Inicio |
-| `/tienda/:slug/coleccion` | Tienda (`?categoria=`, `?q=`, `?orden=precio-asc\|precio-desc`) |
-| `/tienda/:slug/producto/:id` | Producto |
+| `/tienda/:slug/coleccion` | Tienda completa (`?categoria=`, `?color=`, `?talla=`, `?q=`, `?orden=`) |
+| `/tienda/:slug/coleccion/:collectionSlug` | Colección (RENACER; `?capsula=esencial\|volver\|florecer`) |
+| `/tienda/:slug/colores` · `/colores/:dropSlug` | Comprar por color / drop |
+| `/tienda/:slug/producto/:id?color=` | Producto (color preseleccionado por URL) |
+| `/tienda/:slug/ayuda` | Ayuda: contacto, FAQ, guía de tallas, políticas (solo lo que exista) |
+| `/tienda/:slug/sobre-flow` | Sobre FLOW (`/nosotros` redirige aquí) |
 | `/tienda/:slug/bolsa` | Bolsa |
 | `/tienda/:slug/checkout` | Finalizar pedido |
 | `/tienda/:slug/pedido/:id?phone=` | Confirmación |
-| `/tienda/:slug/nosotros` | Nosotros |
-| `/tienda/:slug/envios` · `/cambios` · `/privacidad` | Políticas (desde `store_settings.policies`) |
+| `/tienda/:slug/envios` · `/cambios` · `/privacidad` · `/terminos` | Políticas (desde `store_settings.policies`) |
 
 Las rutas viven fuera de `AuthProvider`, `ProtectedRoute`, `Layout`, `Sidebar` y `SubscriptionWarning`
 (ver `src/App.jsx`). Todo se carga con `React.lazy`.
@@ -38,12 +41,21 @@ store/
   flow.css              tokens y clases flow-* (todo bajo .flow-store)
   lib/storeApi.js       axios propio SIN JWT ni redirect a login
   lib/format.js         COP, claves de atributos, teléfono, envío, idempotencia
-  lib/copy.js           TODOS los textos de marca (cámbialos aquí)
-  lib/fonts.js          carga de fuentes solo en la tienda
-  hooks/                useStore, cartContext, useBagValidation, useDocumentMeta
-  components/           StoreLayout, BagDrawer, BagLines, CartProvider, ProductCard, Logo, States
-  pages/                Home, Collection, ProductPage, BagPage, Checkout, Confirmation, About, Policy
-  assets/logo/          logos oficiales (PNG). No redibujar ni aproximar con CSS.
+  content/flowContent.js  FUENTE ÚNICA de contenido RENACER: textos, cápsulas, drops, colores, marca.
+                        Lo que no exista va en null / [] y la sección se oculta.
+  lib/collections.js    helpers puros: colores, cápsulas, drops, jerarquía, filtros
+  lib/policies.js       políticas, FAQ y guía de tallas (store_settings > flowContent; sin textos inventados)
+  lib/specs.js          lee líneas "Tela: …", "Cuidado: …" de la descripción del producto
+  lib/copy.js           textos de interfaz (botones, estados)
+  lib/fonts.js          carga de fuentes solo en la tienda (incluye Cormorant para nombres de colección)
+  hooks/                useStore, useCatalog, useStoreNav, useReveal, cartContext, useBagValidation, useDocumentMeta
+  components/           StoreLayout, StoreHeader, AnnouncementBar, SearchOverlay, StoreFooter, WhatsAppFab,
+                        ProductCard, ProductCarousel, ProductListing, ColorDot, SizeGuideTable, BagDrawer, Logo…
+  components/home/      secciones del inicio (hero, colección, por color, protagonista, historia, cápsulas…)
+  pages/                Home, Collection, CollectionDetail, Colors, ProductPage, Help, SobreFlow, BagPage,
+                        Checkout, Confirmation, Policy
+  assets/logo/          logos oficiales optimizados (webp + png 900 px, negro y blanco)
+  scripts/optimize-logo.mjs  regenera los logos desde el PNG original (sharp)
 ```
 
 ## Tokens de marca (Brand Book 2026)
@@ -82,10 +94,10 @@ Clases: `bg-flow-*`, `text-flow-*`, `border-flow-*`, `flow-rule`, `flow-display`
 
 ## TODO
 
-- [ ] **Fuente del slogan:** reemplazar "Mrs Saint Delafield" (Google Fonts) por **Autography**, la fuente oficial. Cambiar `--flow-script` en `flow.css` y la URL de `lib/fonts.js`.
-- [ ] **Logo blanco:** falta `assets/logo/flow-logo-blanco.png`. El footer (fondo negro) muestra un placeholder de texto "FLOW" (`Logo variant="blanco"`, marcado con `data-placeholder`).
-- [ ] **Optimizar el logo negro:** `flow-logo-negro.png` mide 15501 × 10417 px y pesa ~900 KB; se muestra a ~54 px de ancho. Conviene exportarlo a ~400 px de ancho (PNG/WebP con transparencia, < 20 KB) o como SVG.
-- [ ] **Fotografía:** hero, Nosotros y categorías usan bloques de color planos (marcados con `data-placeholder`). Faltan fotos lifestyle (luz natural, fondo limpio).
-- [ ] **Open Graph:** no se agregó un OG estático de Flow en `index.html` porque ese archivo también sirve el sitio de ZITA. Las páginas de la tienda definen título, descripción y `og:*` en tiempo de ejecución (`useDocumentMeta`), que los bots sin JavaScript no leen. Para OG real hace falta prerender o un `index.html` propio en el dominio de la tienda.
-- [ ] **Políticas:** si `store_settings.policies` no trae texto, se muestra un texto base marcado como pendiente.
+- [ ] **Fuente del slogan:** reemplazar "Mrs Saint Delafield" por **Autography** (`--flow-script` en `flow.css` y `lib/fonts.js`).
+- [ ] **Fotografía:** hero/campaña (hoy un placeholder CSS con sombra de palmera), fotos por color de cada producto, Sobre FLOW.
+- [ ] **Contenido pendiente en `flowContent.js`:** `about`, `faq`, `shipping`, `returns`, `sizeGuide`, `legal`, `brand.instagram`, `brand.email`, `brand.city`. Mientras sean null, sus secciones y enlaces no se muestran.
+- [ ] **WhatsApp:** número en `store_settings` (sin él no aparecen el botón flotante ni los enlaces de WhatsApp).
+- [ ] **Necesita backend:** fecha de creación del producto ("Nuevo" por fecha), orden por popularidad/ventas, orden por precio en el servidor.
+- [ ] **Open Graph:** las páginas definen `og:*` en tiempo de ejecución (`useDocumentMeta`); para bots sin JS hace falta prerender o un `index.html` propio en el dominio de la tienda.
 - [ ] **Favicon** de Flow para el dominio propio.

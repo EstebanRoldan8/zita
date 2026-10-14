@@ -263,3 +263,29 @@
 
 /* Navegación principal: tracking algo menor para que entre junto al logo grande */
 .flow-store .flow-nav-link { letter-spacing: 0.1em; }
+
+/* Swatch redondo grande con anillo en el seleccionado (página de producto) */
+.flow-store .flow-swatch-round {
+  position: relative; display: inline-flex; align-items: center; justify-content: center;
+  width: 44px; height: 44px; border-radius: 9999px; cursor: pointer;
+}
+.flow-store .flow-swatch-round input { position: absolute; inset: 0; opacity: 0; margin: 0; cursor: pointer; }
+.flow-store .flow-swatch-round .flow-swatch-fill { width: 32px; height: 32px; border-radius: 9999px; border: 1px solid var(--flow-stone); }
+.flow-store .flow-swatch-round.is-selected { box-shadow: 0 0 0 1.5px var(--flow-black); }
+.flow-store .flow-swatch-round:has(input:focus-visible) { outline: 2px solid var(--flow-black); outline-offset: 2px; }
+.flow-store .flow-swatch-round.is-unavailable::after {
+  content: ''; position: absolute; left: 6px; right: 6px; top: 50%; height: 1px;
+  background: var(--flow-black); transform: rotate(-45deg); pointer-events: none;
+}
+
+/* "Agregar a la bolsa" fijo abajo en móvil; en desktop vuelve a su lugar */
+.flow-store .flow-sticky-cta {
+  position: fixed; left: 0; right: 0; bottom: 0; z-index: 30;
+  padding: 12px 16px calc(12px + env(safe-area-inset-bottom));
+  background: var(--flow-white); border-top: 1px solid var(--flow-stone);
+}
+.flow-store .flow-product-page { padding-bottom: 96px; }
+@media (min-width: 768px) {
+  .flow-store .flow-sticky-cta { position: static; padding: 0; border: 0; background: transparent; }
+  .flow-store .flow-product-page { padding-bottom: 0; }
+}

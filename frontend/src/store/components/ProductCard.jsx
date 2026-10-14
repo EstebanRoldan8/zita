@@ -1,25 +1,38 @@
+import { useState } from 'react';
 import { Link } from 'react-router-dom';
 import { formatCOP } from '../lib/format';
 import { COPY } from '../lib/copy';
-import { asArray, asString, asUrls } from '../lib/safe';
+import { asString, asUrls } from '../lib/safe';
+import { colorsOfProduct } from '../lib/collections';
+import ColorDot from './ColorDot';
 
-// Tarjeta: foto 4:5 (segunda foto en hover si existe), nombre, precio, chips de color y "Agotado".
-// Los datos de la API se normalizan aquí para que una forma inesperada no rompa la grilla.
-export default function ProductCard({ product: raw, to, eager = false }) {
-  const product = {
-    ...raw,
-    name: asString(raw?.name, 'Producto'),
-    images: asUrls(raw?.images),
-    colors: asArray(raw?.colors).filter((c) => c && c.key).map((c) => ({ ...c, name: asString(c.name, c.key) })),
-    in_stock: raw?.in_stock !== false,
-  };
-  const [main, second] = product.images;
+const MAX_DOTS = 5;
+
+// Tarjeta estilo ALO: foto 4:5 (segunda foto en hover), puntos de color bajo la foto que cambian la
+// foto a la de ese color (si existe), etiqueta "Nuevo" y estado de stock sin cifras.
+// El clic lleva al producto con ?color= preseleccionado.
+export default function ProductCard({ product: raw, to, eager = false, isNew = false, activeColor = '' }) {
+  const name = asString(raw?.name, 'Producto');
+  const images = asUrls(raw?.images);
+  const colors = colorsOfProduct(raw);
+  const initial = colors.find((c) => c.key === activeColor)?.key || '';
+  const [selected, setSelected] = useState(initial);
+  const [hover, setHover] = useState('');
+
+  const shownKey = hover || selected;
+  const shownColor = colors.find((c) => c.key === shownKey) || null;
+  const main = shownColor?.image || images[0] || null;
+  const second = !shownColor ? images[1] : null;
+  const href = shownColor ? `${to}?color=${encodeURIComponent(shownColor.apiKey || shownColor.key)}` : to;
+  const inStock = raw?.in_stock !== false;
+  const lowStock = inStock && raw?.low_stock === true;
+
   return (
     <article className="flow-card">
-      <Link to={to} className="block" aria-label={`${product.name}, ${formatCOP(product.price)}`}>
+      <Link to={href} className="block" aria-label={`${name}, ${formatCOP(raw?.price)}${shownColor ? `, color ${shownColor.name}` : ''}`}>
         <div className="flow-photo">
           {main ? (
-            <img src={main} alt={product.name} width="400" height="500"
+            <img key={main} src={main} alt={shownColor ? `${name} en color ${shownColor.name}` : name} width="400" height="500"
               loading={eager ? 'eager' : 'lazy'} decoding="async" />
           ) : (
             <div className="absolute inset-0 flex items-center justify-center">
@@ -27,26 +40,34 @@ export default function ProductCard({ product: raw, to, eager = false }) {
             </div>
           )}
           {second && <img src={second} alt="" aria-hidden="true" className="flow-photo-alt" width="400" height="500" loading="lazy" decoding="async" />}
-          {!product.in_stock && (
-            <span className="absolute left-2 top-2 bg-flow-white px-2 py-1 flow-label">{COPY.soldOut}</span>
-          )}
+          <span className="absolute left-2 top-2 flex flex-col items-start gap-1">
+            {!inStock && <span className="bg-flow-white px-2 py-1 flow-label" style={{ fontSize: '10px' }}>{COPY.soldOut}</span>}
+            {inStock && isNew && <span className="bg-flow-black px-2 py-1 flow-label text-flow-white" style={{ fontSize: '10px' }}>Nuevo</span>}
+            {lowStock && <span className="bg-flow-white px-2 py-1 flow-label" style={{ fontSize: '10px' }}>Pocas unidades</span>}
+          </span>
         </div>
-        <div className="pt-4">
-          <h3 className="text-sm font-medium leading-snug">{product.name}</h3>
-          <p className="mt-1 text-sm text-flow-muted">{formatCOP(product.price)}</p>
+        <div className="pt-3">
+          <h3 className="text-sm font-medium leading-snug">{name}</h3>
+          <p className="mt-1 text-sm text-flow-muted">{formatCOP(raw?.price)}</p>
         </div>
       </Link>
-      {product.colors.length > 0 && (
-        <ul className="mt-3 flex flex-wrap gap-1.5" aria-label="Colores disponibles">
-          {product.colors.slice(0, 6).map((c) => (
-            <li key={c.key} title={c.name}
-              className={`h-4 w-4 overflow-hidden border border-flow-stone bg-flow-sand ${c.available ? '' : 'opacity-40'}`}>
-              {c.image ? <img src={c.image} alt={c.name} width="16" height="16" loading="lazy" className="h-full w-full object-cover" />
-                : <span className="flow-sr-only">{c.name}</span>}
-            </li>
-          ))}
-          {product.colors.length > 6 && <li className="text-xs text-flow-muted">+{product.colors.length - 6}</li>}
-        </ul>
+      {colors.length > 0 && (
+        <div className="mt-2 flex flex-wrap items-center gap-1.5" role="group" aria-label={`Colores de ${name}`}>
+          {colors.slice(0, MAX_DOTS).map((c) => {
+            const on = selected === c.key;
+            return (
+              <button key={c.key} type="button" title={c.name} aria-label={`Ver en ${c.name}`} aria-pressed={on}
+                onClick={() => setSelected(on ? '' : c.key)}
+                onMouseEnter={() => setHover(c.key)} onMouseLeave={() => setHover('')}
+                onFocus={() => setHover(c.key)} onBlur={() => setHover('')}
+                className={`flex h-7 w-7 items-center justify-center rounded-full ${on ? 'ring-1 ring-flow-black' : ''} ${c.available ? '' : 'opacity-40'}`}
+                style={on ? { boxShadow: '0 0 0 1px var(--flow-black)' } : undefined}>
+                <ColorDot name={c.name} size={14} label={false} />
+              </button>
+            );
+          })}
+          {colors.length > MAX_DOTS && <span className="text-xs text-flow-muted">+{colors.length - MAX_DOTS}</span>}
+        </div>
       )}
     </article>
   );

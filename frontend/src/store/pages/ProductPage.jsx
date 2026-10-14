@@ -1,13 +1,21 @@
-import { useMemo, useRef, useState } from 'react';
-import { Link, useParams } from 'react-router-dom';
+import { useEffect, useMemo, useRef, useState } from 'react';
+import { Link, useParams, useSearchParams } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
-import { Minus, Plus } from 'lucide-react';
+import { Minus, Plus, X } from 'lucide-react';
 import { useStore, useStorePath } from '../hooks/useStore';
 import { useCart } from '../hooks/cartContext';
 import { useDocumentMeta } from '../hooks/useDocumentMeta';
 import { storeApi } from '../lib/storeApi';
 import { formatCOP, attrValue, optionKey, COLOR_KEYS, SIZE_KEYS } from '../lib/format';
-import { COPY, POLICY_FALLBACK } from '../lib/copy';
+import { COPY } from '../lib/copy';
+import { flowContent } from '../content/flowContent';
+import { policyText, sizeGuide } from '../lib/policies';
+import { normalize, getActiveCollection, productsInCollection, colorHex, isLightColor } from '../lib/collections';
+import { useCatalog } from '../hooks/useCatalog';
+import ProductCard from '../components/ProductCard';
+import ProductCarousel from '../components/ProductCarousel';
+import SizeGuideTable from '../components/SizeGuideTable';
+import { parseSpecs } from '../lib/specs';
 import { asArray, asObject, asUrls } from '../lib/safe';
 import { assertProduct } from '../lib/bagRules';
 import { ErrorState, PageNotFound } from '../components/States';
@@ -67,6 +75,10 @@ export default function ProductPage() {
   const { slug, store } = useStore();
   const path = useStorePath();
   const { add, setOpen, isFull } = useCart();
+  const [searchParams] = useSearchParams();
+  const colorParam = normalize(searchParams.get('color'));
+  const catalog = useCatalog();
+  const [guideOpen, setGuideOpen] = useState(false);
 
   const { data: p, isLoading, isError, error, refetch } = useQuery({
     queryKey: ['store', slug, 'product', id],
@@ -102,7 +114,8 @@ export default function ProductPage() {
 
   // Si hay un solo color disponible, queda elegido sin que la persona lo toque
   const availableColors = colors.filter((c) => c.available);
-  const colorKey = pickedColor || (hasColor && availableColors.length === 1 ? availableColors[0].key : '');
+  const fromUrl = colorParam ? colors.find((c) => normalize(c.key) === colorParam || normalize(c.name) === colorParam)?.key : '';
+  const colorKey = pickedColor || fromUrl || (hasColor && availableColors.length === 1 ? availableColors[0].key : '');
 
   const sizeAvailable = (s) => variants.some((v) => v.available && v.size === s && (!hasColor || !colorKey || v.colorKey === colorKey));
   // Una talla elegida que no existe en el color actual deja de contar
@@ -122,6 +135,42 @@ export default function ProductPage() {
     const byColor = colorKey ? asUrls(asObject(p.images_by_color)[colorKey]) : [];
     return byColor.length > 0 ? byColor : asUrls(p.images);
   }, [p, colorKey]);
+
+  // Completa tu look: otros productos de la colección activa (sin el actual)
+  const related = useMemo(() => productsInCollection(catalog.data || [], getActiveCollection())
+    .filter((x) => x.id !== id).slice(0, 8), [catalog.data, id]);
+
+  // SEO básico: JSON-LD Product (SPA; el prerender viene después)
+  useEffect(() => {
+    if (!p || typeof p !== 'object') return undefined;
+    const el = document.createElement('script');
+    el.type = 'application/ld+json';
+    el.dataset.flowStore = 'product';
+    el.textContent = JSON.stringify({
+      '@context': 'https://schema.org',
+      '@type': 'Product',
+      name: String(p.name || ''),
+      ...(asUrls(p.images).length ? { image: asUrls(p.images) } : {}),
+      ...(typeof p.description === 'string' && p.description.trim() ? { description: p.description.trim().slice(0, 500) } : {}),
+      ...(p.category ? { category: String(p.category) } : {}),
+      brand: { '@type': 'Brand', name: flowContent.brand.name },
+      offers: {
+        '@type': 'Offer',
+        price: Number(p.price) || 0,
+        priceCurrency: store.currency || 'COP',
+        availability: p.in_stock === false ? 'https://schema.org/OutOfStock' : 'https://schema.org/InStock',
+        url: window.location.href.split('?')[0],
+      },
+    });
+    document.head.appendChild(el);
+    return () => el.remove();
+  }, [p, store.currency]);
+
+  // Avisa al botón flotante de WhatsApp que en móvil hay un botón fijo abajo
+  useEffect(() => {
+    document.body.dataset.flowStickyCta = '1';
+    return () => { delete document.body.dataset.flowStickyCta; };
+  }, []);
 
   if (isLoading) {
     return (
@@ -158,10 +207,13 @@ export default function ProductPage() {
     setOpen(true);
   };
 
-  const policies = store.policies || {};
+  const envios = policyText('envios', store);
+  const cambios = policyText('cambios', store);
+  const guide = sizeGuide();
+  const { specs, rest: specRest } = parseSpecs(p.description);
 
   return (
-    <div className="mx-auto max-w-7xl px-4 py-8 md:px-8 md:py-12">
+    <div className="flow-product-page mx-auto max-w-7xl px-4 py-8 md:px-8 md:py-12">
       <nav className="flow-label mb-6 text-flow-muted" aria-label="Ruta">
         <Link to={path('/coleccion')} className="hover:underline">Tienda</Link>
         {p.category && <> <span aria-hidden="true">/</span> <Link to={`${path('/coleccion')}?categoria=${encodeURIComponent(p.category)}`} className="hover:underline">{p.category}</Link></>}
@@ -185,14 +237,18 @@ export default function ProductPage() {
             <fieldset className="mb-8">
               <legend className="flow-label mb-3">{COPY.chooseColor}{colorName ? `: ${colorName}` : ''}</legend>
               <div className="flex flex-wrap gap-3">
-                {colors.map((c) => (
-                  <label key={c.key} title={c.name} className={`flow-swatch ${c.available ? '' : 'is-unavailable'}`}>
-                    <input type="radio" name="flow-color" value={c.key} checked={colorKey === c.key}
-                      onChange={() => setColorKey(c.key)} aria-label={`${c.name}${c.available ? '' : ' (agotado)'}`} />
-                    {c.image ? <img src={c.image} alt="" width="44" height="44" className="h-full w-full object-cover" loading="lazy" />
-                      : <span className="flex h-full w-full items-center justify-center text-[10px] uppercase">{c.name.slice(0, 3)}</span>}
-                  </label>
-                ))}
+                {colors.map((c) => {
+                  const hex = colorHex(c.name) || colorHex(c.key);
+                  return (
+                    <label key={c.key} title={c.name}
+                      className={`flow-swatch-round ${c.available ? '' : 'is-unavailable'} ${colorKey === c.key ? 'is-selected' : ''}`}>
+                      <input type="radio" name="flow-color" value={c.key} checked={colorKey === c.key}
+                        onChange={() => setColorKey(c.key)} aria-label={`${c.name}${c.available ? '' : ' (agotado)'}`} />
+                      <span className="flow-swatch-fill" aria-hidden="true"
+                        style={{ background: hex || 'var(--flow-stone)', borderColor: hex && !isLightColor(hex) ? 'transparent' : 'var(--flow-stone)' }} />
+                    </label>
+                  );
+                })}
               </div>
             </fieldset>
           )}
@@ -248,9 +304,15 @@ export default function ProductPage() {
             </div>
           )}
 
-          <button type="button" onClick={handleAdd} disabled={!canAdd} className="flow-btn flow-btn-primary w-full">
-            {soldOut ? COPY.soldOut : COPY.addToBag}
-          </button>
+          {/* En móvil queda fijo abajo; en desktop vuelve a su lugar */}
+          <div className="flow-sticky-cta">
+            <div className="flex items-center gap-3">
+              <span className="flex-shrink-0 text-sm md:hidden">{formatCOP(p.price)}</span>
+              <button type="button" onClick={handleAdd} disabled={!canAdd} className="flow-btn flow-btn-primary w-full">
+                {soldOut ? COPY.soldOut : COPY.addToBag}
+              </button>
+            </div>
+          </div>
           {!soldOut && (needsColor || needsSize || needsOption) && (
             <p className="mt-3 text-xs text-flow-muted">
               {needsColor ? 'Elige un color' : needsSize ? COPY.chooseSize : 'Elige una opción'} para agregarlo a tu bolsa.
@@ -259,25 +321,73 @@ export default function ProductPage() {
           {isFull && <p className="mt-3 text-xs text-flow-merlot">Tu bolsa llegó al máximo de 20 productos distintos.</p>}
           {added && <p className="mt-3 text-xs" role="status">Agregado a tu bolsa.</p>}
 
-          {p.description && (
+          {(specs.length > 0 || specRest) && (
             <div className="mt-10">
               <h2 className="flow-label mb-3">Descripción</h2>
-              <p className="whitespace-pre-line text-sm leading-relaxed">{p.description}</p>
+              {specRest && <p className="whitespace-pre-line text-sm leading-relaxed">{specRest}</p>}
+              {specs.length > 0 && (
+                <dl className="mt-4 divide-y divide-[color:var(--flow-sand)] border-y border-[color:var(--flow-sand)] text-sm">
+                  {specs.map((sp) => (
+                    <div key={sp.label} className="grid grid-cols-[7rem_1fr] gap-3 py-3">
+                      <dt className="flow-label text-flow-muted">{sp.label}</dt>
+                      <dd>{sp.value}</dd>
+                    </div>
+                  ))}
+                </dl>
+              )}
             </div>
           )}
 
-          <div className="mt-10 border-t border-flow-stone">
-            <details className="border-b border-flow-stone py-4">
-              <summary className="flow-label cursor-pointer list-none">Envíos</summary>
-              <p className="mt-3 whitespace-pre-line text-sm leading-relaxed text-flow-muted">{policies.envios || POLICY_FALLBACK.envios}</p>
-            </details>
-            <details className="border-b border-flow-stone py-4">
-              <summary className="flow-label cursor-pointer list-none">Cambios y devoluciones</summary>
-              <p className="mt-3 whitespace-pre-line text-sm leading-relaxed text-flow-muted">{policies.cambios || POLICY_FALLBACK.cambios}</p>
-            </details>
-          </div>
+          {guide && (
+            <button type="button" onClick={() => setGuideOpen(true)} className="flow-label mt-8 border-b border-flow-black pb-1">
+              Guía de tallas
+            </button>
+          )}
+
+          {(envios || cambios) && (
+            <div className="mt-10 border-t border-flow-stone">
+              {envios && (
+                <details className="border-b border-flow-stone py-2">
+                  <summary className="flow-label flex min-h-11 cursor-pointer list-none items-center">Envíos</summary>
+                  <p className="pb-3 whitespace-pre-line text-sm leading-relaxed text-flow-muted">{envios}</p>
+                </details>
+              )}
+              {cambios && (
+                <details className="border-b border-flow-stone py-2">
+                  <summary className="flow-label flex min-h-11 cursor-pointer list-none items-center">Cambios y devoluciones</summary>
+                  <p className="pb-3 whitespace-pre-line text-sm leading-relaxed text-flow-muted">{cambios}</p>
+                </details>
+              )}
+            </div>
+          )}
         </div>
       </div>
+
+      {related.length > 0 && (
+        <section className="mt-20" aria-labelledby="flow-look">
+          <h2 id="flow-look" className="flow-serif mb-8 text-2xl md:text-3xl">Completa tu look</h2>
+          <ProductCarousel label="Completa tu look">
+            {related.map((r) => <ProductCard key={r.id} product={r} to={path(`/producto/${r.id}`)} isNew />)}
+          </ProductCarousel>
+        </section>
+      )}
+
+      {guide && guideOpen && (
+        <div className="fixed inset-0 z-[60] flex items-end justify-center md:items-center" role="dialog" aria-modal="true" aria-label="Guía de tallas"
+          onKeyDown={(e) => { if (e.key === 'Escape') setGuideOpen(false); }}>
+          <div className="absolute inset-0" style={{ background: 'rgba(28,28,28,0.4)' }} onClick={() => setGuideOpen(false)} />
+          <div className="relative max-h-[85vh] w-full max-w-lg overflow-y-auto bg-flow-white p-6 md:p-8">
+            <div className="mb-4 flex items-center justify-between">
+              <h2 className="flow-serif text-2xl">{guide.title || 'Guía de tallas'}</h2>
+              <button type="button" onClick={() => setGuideOpen(false)} aria-label="Cerrar guía de tallas" autoFocus
+                className="flex h-11 w-11 items-center justify-center">
+                <X size={18} strokeWidth={1.5} />
+              </button>
+            </div>
+            <SizeGuideTable guide={guide} />
+          </div>
+        </div>
+      )}
     </div>
   );
 }

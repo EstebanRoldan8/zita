@@ -171,6 +171,12 @@ export default function ProductPage() {
     document.body.dataset.flowStickyCta = '1';
     return () => { delete document.body.dataset.flowStickyCta; };
   }, []);
+  // Nombre del producto para el mensaje del botón flotante de WhatsApp
+  useEffect(() => {
+    if (!p?.name) return undefined;
+    document.body.dataset.flowProduct = String(p.name);
+    return () => { delete document.body.dataset.flowProduct; };
+  }, [p?.name]);
 
   if (isLoading) {
     return (

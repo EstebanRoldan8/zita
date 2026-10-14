@@ -289,3 +289,8 @@
   .flow-store .flow-sticky-cta { position: static; padding: 0; border: 0; background: transparent; }
   .flow-store .flow-product-page { padding-bottom: 0; }
 }
+
+/* Botón flotante de WhatsApp: en móvil sube por encima del botón fijo de la página de producto */
+@media (max-width: 767.98px) {
+  body[data-flow-sticky-cta] .flow-store .flow-wa-fab { bottom: calc(84px + env(safe-area-inset-bottom)); }
+}

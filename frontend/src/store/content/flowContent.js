@@ -6,7 +6,11 @@
 // Para cambiar de temporada: agregar un objeto a `collections` y cambiar `activeCollection`.
 // ============================================================================
 
-// Nombre de color normalizado (minúsculas, sin tildes, trim) → hex.
+// Bicolor ("negro/azul"): punto partido en dos mitades con el hex de cada parte. Es un valor de
+// `background`; isLightColor() no lo reconoce como hex y le pone el borde sutil.
+const bicolor = (a, b) => `linear-gradient(90deg, ${a} 50%, ${b} 50%)`;
+
+// Nombre de color normalizado (minúsculas, sin tildes, trim) → hex (o gradiente si es bicolor).
 // Color desconocido => círculo stone con borde + tooltip con el nombre (nunca rompe).
 export const colorMap = {
   negro: '#1C1C1C',
@@ -26,7 +30,15 @@ export const colorMap = {
   lavanda: '#AE9BB7',
   lavander: '#AE9BB7',
   blanco: '#FFFFFF',
+  verde: '#5E8C5A',
+  'verde oliva': '#6B6B3A',
+  'azul claro': '#8DB6DD',
+  cafe: '#6B4A36',
+  amarillo: '#E8C547',
+  'negro viejo': '#2B2B2B',
 };
+colorMap['negro/azul'] = bicolor(colorMap.negro, colorMap.azul);
+colorMap['negro/gris'] = bicolor(colorMap.negro, colorMap.gris);
 
 // ── Colección RENACER (textos tomados tal cual de la presentación de la colección) ──
 const RENACER = {
@@ -117,12 +129,12 @@ const RENACER = {
   // "Comprar por color"
   drops: [
     {
-      slug: 'noir', name: 'NOIR DROP', capsule: 'esencial', colors: ['negro'],
+      slug: 'noir', name: 'NOIR DROP', capsule: 'esencial', colors: ['negro', 'negro viejo', 'negro/gris'],
       tagline: 'Volver a la raíz', description: 'El negro de siempre, con intención renovada.',
       protagonist: 'Set Aria', palette: { bg: '#1C1C1C', fg: '#D9CFC3' },
     },
     {
-      slug: 'deep-blue', name: 'DEEP BLUE DROP', capsule: 'esencial', colors: ['azul', 'azul noche', 'azul rey'],
+      slug: 'deep-blue', name: 'DEEP BLUE DROP', capsule: 'esencial', colors: ['azul', 'azul noche', 'azul rey', 'azul claro', 'negro/azul'],
       tagline: 'Volver a la raíz', description: 'Calma profunda para empezar otra vez.',
       protagonist: 'Set Aria y Pantaloneta azul', palette: { bg: '#19212C', fg: '#D9CFC3' },
     },
@@ -137,7 +149,7 @@ const RENACER = {
       protagonist: 'Pantaloneta (beige y rojo)', palette: { bg: '#D9CFC3', fg: '#1C1C1C' },
     },
     {
-      slug: 'dew', name: 'DEW DROP', capsule: 'florecer', colors: ['verde rocio', 'verde limon', 'gris', 'cool grey'],
+      slug: 'dew', name: 'DEW DROP', capsule: 'florecer', colors: ['verde rocio', 'verde limon', 'gris', 'cool grey', 'verde'],
       tagline: 'Expansión visible', description: 'Energía y luz que se dejan ver.',
       protagonist: 'Faldas', palette: { bg: '#BFDB95', fg: '#1C1C1C' },
     },
@@ -181,7 +193,7 @@ export const flowContent = {
     text: 'RENACER es capítulo nuevo. El stock viejo es archivo.',
   },
   // Orden de categorías; las demás van después en orden alfabético y Archive siempre al final
-  categoryOrder: ['Sets mujer', 'Hombre', 'Lifestyle', 'Básicos'],
+  categoryOrder: ['Tops', 'Licras', 'Shorts', 'Faldas', 'Hombre', 'Unisex'],
   values: ['Empoderamiento', 'Valentía', 'Calidad', 'Versatilidad', 'Simplicidad'],
   about: `FLOW nace para empoderar a las personas a través del movimiento y ayudarlas a conectar con su esencia y su "FLOW".
 

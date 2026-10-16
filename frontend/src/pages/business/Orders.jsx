@@ -451,6 +451,9 @@ function OrderDetailModal({ order: initialOrder, onClose, isTienda, onNotice }) 
             <span className={`text-xs border px-3 py-1 rounded-full ${config.color}`}>
               {config.label}
             </span>
+            {order.source === 'web' && (
+              <span className="ml-2 text-xs border px-3 py-1 rounded-full bg-sky-500/10 text-sky-400 border-sky-500/20">Web</span>
+            )}
           </div>
 
           <div>
@@ -467,6 +470,13 @@ function OrderDetailModal({ order: initialOrder, onClose, isTienda, onNotice }) 
             <div>
               <p className="text-slate-500 text-xs">Dirección</p>
               <p className="text-white text-sm">{order.delivery_address}</p>
+            </div>
+          )}
+
+          {order.shipping_city && (
+            <div>
+              <p className="text-slate-500 text-xs">Ciudad</p>
+              <p className="text-white text-sm">{order.shipping_city}</p>
             </div>
           )}
 

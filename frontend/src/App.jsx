@@ -1,5 +1,5 @@
 // ZITA - Main application entry point
-import { useEffect } from 'react';
+import { useEffect, lazy, Suspense } from 'react';
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { AuthProvider } from './context/AuthContext';
@@ -46,14 +46,49 @@ const queryClient = new QueryClient({
   },
 });
 
+// Tienda pública de Flow: carga diferida, fuera de AuthProvider, ProtectedRoute y Layout del panel
+const StoreApp = lazy(() => import('./store/StoreApp'));
+
+// Dominio propio: si el hostname es VITE_STORE_HOST, la raíz sirve la tienda de VITE_STORE_HOST_SLUG
+const STORE_HOST = import.meta.env.VITE_STORE_HOST;
+const STORE_HOST_SLUG = import.meta.env.VITE_STORE_HOST_SLUG;
+const isStoreHost = typeof window !== 'undefined' && !!STORE_HOST && !!STORE_HOST_SLUG
+  && window.location.hostname.toLowerCase() === String(STORE_HOST).toLowerCase();
+
 export default function App() {
   useEffect(() => {
     startKeepAlive();
   }, []);
 
+  if (isStoreHost) {
+    return (
+      <QueryClientProvider client={queryClient}>
+        <BrowserRouter>
+          <Suspense fallback={null}>
+            <Routes>
+              <Route path="/*" element={<StoreApp slugOverride={STORE_HOST_SLUG} />} />
+            </Routes>
+          </Suspense>
+        </BrowserRouter>
+      </QueryClientProvider>
+    );
+  }
+
   return (
     <QueryClientProvider client={queryClient}>
       <BrowserRouter>
+        <Routes>
+          <Route path="/tienda/:slug/*" element={<Suspense fallback={null}><StoreApp /></Suspense>} />
+          <Route path="*" element={<PanelApp />} />
+        </Routes>
+      </BrowserRouter>
+    </QueryClientProvider>
+  );
+}
+
+// Sitio de ZITA y panel (sin cambios): AuthProvider solo envuelve estas rutas
+function PanelApp() {
+  return (
         <AuthProvider>
           <Routes>
             {/* Públicas */}
@@ -124,7 +159,5 @@ export default function App() {
             <Route path="*" element={<Navigate to="/" replace />} />
           </Routes>
         </AuthProvider>
-      </BrowserRouter>
-    </QueryClientProvider>
   );
 }

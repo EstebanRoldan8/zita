@@ -1,0 +1,296 @@
+/* ============================================================================
+   Flow — Brand Book 2026. Todo vive bajo .flow-store: el tema del panel no cambia.
+   Fuentes (Playfair Display, Montserrat, Mrs Saint Delafield) se cargan solo en la tienda
+   desde StoreLayout (lib/fonts.js).
+   ============================================================================ */
+
+.flow-store {
+  --flow-black: #1C1C1C;
+  --flow-white: #FFFFFF;
+  --flow-sand: #D9CFC3;
+  --flow-stone: #A09486;
+  --flow-navy: #19212C;
+  --flow-merlot: #5C1923;
+  --flow-rocio: #BFDB95;
+  --flow-lavender: #AE9BB7;
+
+  --flow-serif: 'Playfair Display', Georgia, 'Times New Roman', serif;
+  --flow-sans: 'Montserrat', system-ui, -apple-system, 'Segoe UI', sans-serif;
+  /* TODO: reemplazar por Autography (fuente oficial del slogan) cuando esté disponible */
+  --flow-script: 'Mrs Saint Delafield', 'Brush Script MT', cursive;
+
+  --flow-ease: cubic-bezier(0.2, 0, 0, 1);
+  --flow-fast: 200ms;
+
+  background: var(--flow-white);
+  color: var(--flow-black);
+  font-family: var(--flow-sans);
+  -webkit-font-smoothing: antialiased;
+  min-height: 100vh;
+}
+
+/* Foco visible: outline 2px soft black (AA sobre fondos claros) */
+.flow-store :focus-visible {
+  outline: 2px solid var(--flow-black);
+  outline-offset: 2px;
+}
+.flow-store .flow-on-dark :focus-visible { outline-color: var(--flow-white); }
+
+/* ── Colores ── */
+.flow-store .bg-flow-black { background-color: var(--flow-black); }
+.flow-store .bg-flow-white { background-color: var(--flow-white); }
+.flow-store .bg-flow-sand { background-color: var(--flow-sand); }
+.flow-store .bg-flow-stone { background-color: var(--flow-stone); }
+.flow-store .bg-flow-navy { background-color: var(--flow-navy); }
+.flow-store .bg-flow-merlot { background-color: var(--flow-merlot); }
+.flow-store .bg-flow-rocio { background-color: var(--flow-rocio); }
+.flow-store .bg-flow-lavender { background-color: var(--flow-lavender); }
+.flow-store .text-flow-black { color: var(--flow-black); }
+.flow-store .text-flow-white { color: var(--flow-white); }
+.flow-store .text-flow-stone { color: var(--flow-stone); }
+.flow-store .text-flow-sand { color: var(--flow-sand); }
+.flow-store .text-flow-merlot { color: var(--flow-merlot); }
+.flow-store .text-flow-lavender { color: var(--flow-lavender); }
+.flow-store .border-flow-stone { border-color: var(--flow-stone); }
+.flow-store .border-flow-black { border-color: var(--flow-black); }
+/* Texto secundario sobre blanco: stone no da AA en tamaños chicos, se oscurece un poco */
+.flow-store .text-flow-muted { color: #6E655B; }
+
+/* Separador fino 1px stone */
+.flow-store .flow-rule { border: 0; border-top: 1px solid var(--flow-stone); }
+
+/* ── Tipografía ── */
+.flow-store .flow-serif { font-family: var(--flow-serif); font-weight: 500; }
+.flow-store .flow-display {
+  font-family: var(--flow-serif);
+  font-weight: 500;
+  text-transform: uppercase;
+  letter-spacing: 0.12em;
+  line-height: 1.1;
+}
+.flow-store .flow-label {
+  font-family: var(--flow-sans);
+  font-size: 0.72rem;
+  font-weight: 500;
+  text-transform: uppercase;
+  letter-spacing: 0.15em;
+}
+.flow-store .flow-script {
+  font-family: var(--flow-script);
+  font-weight: 400;
+  letter-spacing: 0;
+  text-transform: none;
+}
+
+/* ── Botones rectangulares, sin sombras ni gradientes ── */
+.flow-store .flow-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  min-height: 48px;
+  padding: 0 1.75rem;
+  border: 1px solid var(--flow-black);
+  border-radius: 2px;
+  font-family: var(--flow-sans);
+  font-size: 0.78rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.15em;
+  transition: background-color var(--flow-fast) var(--flow-ease), color var(--flow-fast) var(--flow-ease), opacity var(--flow-fast);
+  cursor: pointer;
+}
+.flow-store .flow-btn-primary { background: var(--flow-black); color: var(--flow-white); }
+.flow-store .flow-btn-primary:hover:not(:disabled) { background: #333; }
+.flow-store .flow-btn-outline { background: transparent; color: var(--flow-black); }
+.flow-store .flow-btn-outline:hover:not(:disabled) { background: var(--flow-black); color: var(--flow-white); }
+.flow-store .flow-btn-light { background: var(--flow-white); color: var(--flow-black); border-color: var(--flow-white); }
+.flow-store .flow-btn:disabled { opacity: 0.4; cursor: not-allowed; }
+
+/* ── Campos ── */
+.flow-store .flow-input {
+  width: 100%;
+  min-height: 48px;
+  padding: 0.75rem 0.9rem;
+  border: 1px solid var(--flow-stone);
+  border-radius: 2px;
+  background: var(--flow-white);
+  color: var(--flow-black);
+  font-family: var(--flow-sans);
+  font-size: 16px; /* evita el zoom de iOS */
+}
+.flow-store .flow-input:focus { outline: 2px solid var(--flow-black); outline-offset: 0; border-color: var(--flow-black); }
+.flow-store .flow-input[aria-invalid='true'] { border-color: var(--flow-merlot); }
+
+/* ── Opciones (tallas, colores, pago): radios accesibles con apariencia de botón ── */
+.flow-store .flow-option {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 48px;
+  min-height: 44px;
+  padding: 0 0.9rem;
+  border: 1px solid var(--flow-stone);
+  border-radius: 2px;
+  font-size: 0.85rem;
+  font-weight: 500;
+  cursor: pointer;
+  user-select: none;
+  transition: border-color var(--flow-fast), background-color var(--flow-fast);
+}
+.flow-store .flow-option input { position: absolute; opacity: 0; inset: 0; margin: 0; cursor: pointer; }
+.flow-store .flow-option:has(input:checked),
+.flow-store .flow-option.is-active { border-color: var(--flow-black); background: var(--flow-black); color: var(--flow-white); }
+.flow-store .flow-option:has(input:focus-visible) { outline: 2px solid var(--flow-black); outline-offset: 2px; }
+.flow-store .flow-option:has(input:disabled) {
+  color: var(--flow-stone);
+  border-color: #E3DDD6;
+  text-decoration: line-through;
+  cursor: not-allowed;
+}
+.flow-store .flow-option:has(input:disabled) input { cursor: not-allowed; }
+
+/* Swatch de color */
+.flow-store .flow-swatch {
+  position: relative;
+  width: 44px;
+  height: 44px;
+  border-radius: 2px;
+  border: 1px solid var(--flow-stone);
+  overflow: hidden;
+  cursor: pointer;
+  background: var(--flow-sand);
+}
+.flow-store .flow-swatch input { position: absolute; opacity: 0; inset: 0; margin: 0; cursor: pointer; }
+.flow-store .flow-swatch:has(input:checked) { outline: 2px solid var(--flow-black); outline-offset: 2px; }
+.flow-store .flow-swatch:has(input:focus-visible) { outline: 2px solid var(--flow-black); outline-offset: 4px; }
+/* Color sin unidades: línea fina diagonal (sin gradientes) */
+.flow-store .flow-swatch.is-unavailable::after {
+  content: '';
+  position: absolute;
+  left: -20%;
+  top: 50%;
+  width: 140%;
+  height: 1px;
+  background: var(--flow-black);
+  transform: rotate(-45deg);
+  pointer-events: none;
+}
+
+/* Skeleton: bloques sand */
+.flow-store .flow-skeleton { background: var(--flow-sand); animation: flow-pulse 1.4s ease-in-out infinite; }
+@keyframes flow-pulse { 0%, 100% { opacity: 0.55; } 50% { opacity: 0.9; } }
+
+/* Foto de producto 4:5 con segunda foto en hover */
+.flow-store .flow-photo { position: relative; aspect-ratio: 4 / 5; overflow: hidden; background: var(--flow-sand); }
+.flow-store .flow-photo img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; }
+.flow-store .flow-photo .flow-photo-alt { opacity: 0; transition: opacity 250ms var(--flow-ease); }
+@media (hover: hover) {
+  .flow-store .flow-card:hover .flow-photo-alt { opacity: 1; }
+}
+
+/* Drawer y transiciones cortas */
+.flow-store .flow-drawer { transition: transform 250ms var(--flow-ease); }
+.flow-store .flow-fade { transition: opacity var(--flow-fast) var(--flow-ease); }
+
+/* Visualmente oculto (honeypot y textos para lectores de pantalla) */
+.flow-store .flow-sr-only {
+  position: absolute !important;
+  width: 1px; height: 1px; padding: 0; margin: -1px;
+  overflow: hidden; clip: rect(0, 0, 0, 0); white-space: nowrap; border: 0;
+}
+
+/* Galería con swipe en móvil */
+.flow-store .flow-snap { scroll-snap-type: x mandatory; -webkit-overflow-scrolling: touch; scrollbar-width: none; }
+.flow-store .flow-snap::-webkit-scrollbar { display: none; }
+.flow-store .flow-snap > * { scroll-snap-align: start; }
+
+@media (prefers-reduced-motion: reduce) {
+  .flow-store *, .flow-store *::before, .flow-store *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}
+
+/* ============================================================================
+   RENACER: header, nombres de colección, carruseles y utilidades
+   ============================================================================ */
+
+/* Solo para NOMBRES de colección/cápsula (RENACER, ESENCIAL…) */
+.flow-store .flow-collection-name {
+  font-family: 'Cormorant Garamond', var(--flow-serif);
+  font-weight: 500;
+  letter-spacing: 0.08em;
+  line-height: 1;
+  text-transform: uppercase;
+}
+
+/* Header: logo grande (móvil 36px, desktop 48px); al hacer scroll se achica a 30/36, nunca menos */
+.flow-store .flow-header { padding-block: 14px; transition: padding 200ms var(--flow-ease), background-color 200ms; }
+.flow-store .flow-header-logo img { height: 36px; width: auto; transition: height 200ms var(--flow-ease); }
+.flow-store .flow-header.is-scrolled { padding-block: 8px; }
+.flow-store .flow-header.is-scrolled .flow-header-logo img { height: 30px; }
+@media (min-width: 768px) {
+  .flow-store .flow-header { padding-block: 16px; }
+  .flow-store .flow-header-logo img { height: 48px; }
+  .flow-store .flow-header.is-scrolled { padding-block: 10px; }
+  .flow-store .flow-header.is-scrolled .flow-header-logo img { height: 36px; }
+}
+.flow-store .flow-header-solid { box-shadow: 0 1px 0 rgba(160, 148, 134, 0.45), 0 6px 18px -14px rgba(28, 28, 28, 0.25); }
+
+/* Barra de anuncios: aparición suave del mensaje nuevo */
+.flow-store .flow-announce { animation: flow-announce-in 300ms var(--flow-ease); }
+@keyframes flow-announce-in { from { opacity: 0; transform: translateY(4px); } to { opacity: 1; transform: none; } }
+
+/* Ocultar marcadores de <summary> en acordeones */
+.flow-store summary::-webkit-details-marker { display: none; }
+.flow-store details[open] > summary svg { transform: rotate(180deg); }
+.flow-store details > summary svg { transition: transform 200ms var(--flow-ease); }
+
+/* Botón outline sobre fondos oscuros o con foto */
+.flow-store .flow-btn-outline-light { color: var(--flow-white); border-color: var(--flow-white); }
+.flow-store .flow-btn-outline-light:hover:not(:disabled) { background: var(--flow-white); color: var(--flow-black); }
+
+/* Aparición suave al hacer scroll (desactivada con reduced-motion por el bloque global) */
+.flow-store .flow-reveal { opacity: 0; transform: translateY(16px); transition: opacity 600ms var(--flow-ease), transform 600ms var(--flow-ease); }
+.flow-store .flow-reveal.is-visible { opacity: 1; transform: none; }
+@media (prefers-reduced-motion: reduce) {
+  .flow-store .flow-reveal { opacity: 1; transform: none; }
+}
+
+/* Navegación principal: tracking algo menor para que entre junto al logo grande */
+.flow-store .flow-nav-link { letter-spacing: 0.1em; }
+
+/* Swatch redondo grande con anillo en el seleccionado (página de producto) */
+.flow-store .flow-swatch-round {
+  position: relative; display: inline-flex; align-items: center; justify-content: center;
+  width: 44px; height: 44px; border-radius: 9999px; cursor: pointer;
+}
+.flow-store .flow-swatch-round input { position: absolute; inset: 0; opacity: 0; margin: 0; cursor: pointer; }
+.flow-store .flow-swatch-round .flow-swatch-fill { width: 32px; height: 32px; border-radius: 9999px; border: 1px solid var(--flow-stone); }
+.flow-store .flow-swatch-round.is-selected { box-shadow: 0 0 0 1.5px var(--flow-black); }
+.flow-store .flow-swatch-round:has(input:focus-visible) { outline: 2px solid var(--flow-black); outline-offset: 2px; }
+.flow-store .flow-swatch-round.is-unavailable::after {
+  content: ''; position: absolute; left: 6px; right: 6px; top: 50%; height: 1px;
+  background: var(--flow-black); transform: rotate(-45deg); pointer-events: none;
+}
+
+/* "Agregar a la bolsa" fijo abajo en móvil; en desktop vuelve a su lugar */
+.flow-store .flow-sticky-cta {
+  position: fixed; left: 0; right: 0; bottom: 0; z-index: 30;
+  padding: 12px 16px calc(12px + env(safe-area-inset-bottom));
+  background: var(--flow-white); border-top: 1px solid var(--flow-stone);
+}
+.flow-store .flow-product-page { padding-bottom: 96px; }
+@media (min-width: 768px) {
+  .flow-store .flow-sticky-cta { position: static; padding: 0; border: 0; background: transparent; }
+  .flow-store .flow-product-page { padding-bottom: 0; }
+}
+
+/* Botón flotante de WhatsApp: en móvil sube por encima del botón fijo de la página de producto */
+@media (max-width: 767.98px) {
+  body[data-flow-sticky-cta] .flow-store .flow-wa-fab { bottom: calc(84px + env(safe-area-inset-bottom)); }
+}

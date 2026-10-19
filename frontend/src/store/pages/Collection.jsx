@@ -5,11 +5,11 @@ import { listingSeo } from '../lib/seo';
 import { useCatalog } from '../hooks/useCatalog';
 import { useStorePath } from '../hooks/useStore';
 import { flowContent } from '../content/flowContent';
-import { isArchiveCategory, productsInCatalog, sectionForCategory } from '../lib/collections';
+import { isArchiveCategory, sectionForCategory } from '../lib/collections';
 import ProductListing from '../components/ProductListing';
 
-// /coleccion ("Ver todo"): el catálogo sin las categorías que solo se ven en su sección (Hombre).
-// Incluye Archive y Unisex. Filtros por categoría, color, talla y orden en la URL.
+// /coleccion ("Ver todo"): TODO el catálogo (también Hombre, Unisex y Archive). ?categoria= es un tipo de
+// prenda (collections.productType). Filtros por categoría, color, talla y orden en la URL.
 export default function Collection() {
   const [params, setParams] = useSearchParams();
   const category = params.get('categoria') || '';
@@ -20,9 +20,9 @@ export default function Collection() {
   const archive = isArchiveCategory(category);
   const title = archive ? flowContent.archive.title : category || 'Tienda';
   useSeo(listingSeo(useSeoContext(), { search: useLocation().search }));
-  const products = catalog.data ? productsInCatalog(catalog.data) : catalog.data;
+  const products = catalog.data;
 
-  // ?categoria=Hombre → su página propia (no se muestra en "Ver todo")
+  // ?categoria=Hombre (enlaces viejos): Hombre es género, no tipo de prenda → su sección
   if (section) return <Navigate to={path(`/coleccion/${section.slug}`)} replace />;
 
   const submitSearch = (e) => {

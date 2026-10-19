@@ -3,7 +3,7 @@
 // a lo que ve una persona. Nada se inventa: sin dato, el campo no se incluye.
 // Imports con extensión .js: este archivo también se carga en Node (funciones serverless).
 import { flowContent } from '../content/flowContent.js';
-import { getActiveCollection, isArchiveCategory, normalize, categoryPath, sectionForCategory } from './collections.js';
+import { getActiveCollection, isArchiveCategory, isGenderCategory, normalize, sectionForCategory, productType, typePath } from './collections.js';
 import { policyText, faqItems, sizeGuide, POLICIES } from './policies.js';
 import { parseSpecs } from './specs.js';
 
@@ -66,8 +66,8 @@ export function compact(value) {
 
 // ctx = { origin: 'https://dominio', base: '' | '/tienda/flow' }
 export const storeUrl = (ctx, path = '/') => absoluteUrl(ctx.origin, `${ctx.base || ''}${path === '/' ? '' : path}` || '/');
-// Página de una categoría: /coleccion?categoria=X, o su sección si no sale en "Ver todo" (Hombre)
-const categoryUrl = (ctx, category) => storeUrl(ctx, categoryPath(category));
+// Página de un tipo de prenda: /coleccion?categoria=X (Hombre/Mujer/Unisex nunca son tipo)
+const categoryUrl = (ctx, type) => storeUrl(ctx, typePath(type));
 
 // Descripción de marca: primera frase del último párrafo de "Sobre FLOW" + intro de la colección activa
 function brandSentence() {
@@ -165,7 +165,8 @@ export function listingSeo(ctx, { search } = {}) {
     canonical,
     h1: name,
     category: category || null,
-    noindex: active.includes('q') || total >= 2,
+    // Un género sin sección propia (Unisex) no es un tipo de prenda: listado vacío, no se indexa
+    noindex: active.includes('q') || total >= 2 || isGenderCategory(category),
     jsonLd: category ? [breadcrumbLd([
       { name: 'Inicio', url: storeUrl(ctx, '/') },
       { name: 'Tienda', url: storeUrl(ctx, '/coleccion') },
@@ -287,7 +288,7 @@ export function productSeo(ctx, { product, store, colorParam } = {}) {
   const price = Number(product.price);
   const currency = clean(store?.currency) || 'COP';
   const soldOut = productSoldOut(product);
-  const category = clean(product.category);
+  const category = clean(productType(product));
   return finish({
     title: withSite(fullName),
     description: truncate(text || `${fullName}. ${SITE_NAME}.`),

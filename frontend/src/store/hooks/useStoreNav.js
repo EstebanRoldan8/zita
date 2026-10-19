@@ -4,8 +4,8 @@ import { useStorePath } from './useStore';
 import { flowContent } from '../content/flowContent';
 import {
   getActiveCollection, productsInCollection, productsInArchive, productsInDrop, productsInSection,
-  productsInCatalog, categoriesOrdered, categoryInSection, categoryPath, isArchiveCategory,
-  isHiddenFromFilters, firstImage, sortByHierarchy, garmentGroups,
+  categoriesOrdered, categoryInSection, categoryPath, typePath, isArchiveCategory,
+  firstImage, sortByHierarchy, garmentGroups, productTypes,
 } from '../lib/collections';
 
 const catLink = (path, name) => path(categoryPath(name));
@@ -22,8 +22,9 @@ export function useStoreNav() {
     const inCollection = productsInCollection(products, collection);
     const archive = productsInArchive(products);
     const categories = categoriesOrdered(categoriesQ.data || []).filter((c) => Number(c.count) > 0);
-    // Categorías del menú: sin Archive y sin las ocultas en menús/filtros (Hombre, Unisex)
-    const shopCategories = categories.filter((c) => !isArchiveCategory(c.name) && !isHiddenFromFilters(c.name));
+    // Tipos de prenda de "Ver todo" (Tops, Licras, …, Pantalonetas): mismo helper que el filtro del listado.
+    // Nunca Mujer/Hombre/Unisex; Archive va aparte.
+    const shopCategories = productTypes(products, { archive: false });
     const archiveCategory = categories.find((c) => isArchiveCategory(c.name)) || null;
     const drops = (collection?.drops || [])
       .map((d) => ({ ...d, count: productsInDrop(inCollection, d).length, href: path(`/colores/${d.slug}`) }))
@@ -43,8 +44,8 @@ export function useStoreNav() {
     }).filter((s) => s.count > 0);
     const mujer = sections.find((s) => s.slug === 'mujer');
     const hombre = sections.find((s) => s.slug === 'hombre');
-    const catalogCount = productsInCatalog(products).length;
-    const shopLinks = shopCategories.map((c) => ({ ...c, href: catLink(path, c.name) }));
+    const catalogCount = products.length;
+    const shopLinks = shopCategories.map((c) => ({ ...c, href: path(typePath(c.name)) }));
     const featuredProduct = sortByHierarchy(inCollection, collection).find((p) => firstImage(p)) || null;
 
     const hasAbout = !!flowContent.about || (collection?.storytelling || []).length > 0;

@@ -5,7 +5,7 @@ import {
   storeUrl, listingSeo, helpSeo, aboutSeo, policySeo,
 } from '../src/store/lib/seo.js';
 import {
-  getActiveCollection, productsInCollection, productsInDrop, productsInSection, isHiddenFromCatalog,
+  getActiveCollection, productsInCollection, productsInDrop, productsInSection, productTypes,
 } from '../src/store/lib/collections.js';
 import { flowContent } from '../src/store/content/flowContent.js';
 import { POLICIES } from '../src/store/lib/policies.js';
@@ -22,10 +22,9 @@ export async function sitemapUrls(req, cfg = config()) {
   const target = sitemapStore(req, cfg);
   if (!target) return [];
   const ctx = { origin: canonicalOrigin(req, cfg), base: target.base };
-  const [store, products, categories] = await Promise.all([
+  const [store, products] = await Promise.all([
     storeApi.store(target.slug, cfg),
     storeApi.catalog(target.slug, cfg),
-    storeApi.categories(target.slug, cfg),
   ]);
 
   const collection = getActiveCollection();
@@ -43,9 +42,9 @@ export async function sitemapUrls(req, cfg = config()) {
       .map((sec) => storeUrl(ctx, `/coleccion/${sec.slug}`)),
     drops.length > 0 && storeUrl(ctx, '/colores'),
     ...drops.map((d) => storeUrl(ctx, `/colores/${d.slug}`)),
-    // Categorías con productos; las que solo se ven en su sección (Hombre) ya van arriba
-    ...categories.filter((c) => c && c.name && Number(c.count) > 0 && !isHiddenFromCatalog(c.name))
-      .map((c) => listingSeo(ctx, { search: `?categoria=${encodeURIComponent(c.name)}` }).canonical),
+    // Tipos de prenda con productos (mismo helper que el listado y el menú; incluye Flow Archive)
+    ...productTypes(products)
+      .map((t) => listingSeo(ctx, { search: `?categoria=${encodeURIComponent(t.name)}` }).canonical),
     !help.noindex && help.canonical,
     !about.noindex && about.canonical,
     ...Object.keys(POLICIES).map((kind) => policySeo(ctx, { kind, store })).filter((s) => !s.noindex).map((s) => s.canonical),

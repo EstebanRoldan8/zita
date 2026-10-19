@@ -5,7 +5,7 @@ import { flowContent } from '../content/flowContent';
 import {
   getActiveCollection, productsInCollection, productsInArchive, productsInDrop, productsInSection,
   productsInCatalog, categoriesOrdered, categoryInSection, categoryPath, isArchiveCategory,
-  isHiddenFromFilters, firstImage, sortByHierarchy,
+  isHiddenFromFilters, firstImage, sortByHierarchy, garmentGroups,
 } from '../lib/collections';
 
 const catLink = (path, name) => path(categoryPath(name));
@@ -28,13 +28,19 @@ export function useStoreNav() {
     const drops = (collection?.drops || [])
       .map((d) => ({ ...d, count: productsInDrop(inCollection, d).length, href: path(`/colores/${d.slug}`) }))
       .filter((d) => d.count > 0);
-    // Secciones (Mujer, Hombre): solo si tienen productos; sus categorías en el orden de config
-    const sections = (flowContent.sections || []).map((s) => ({
-      ...s,
-      count: productsInSection(products, s).length,
-      href: path(`/coleccion/${s.slug}`),
-      categories: categories.filter((c) => categoryInSection(c.name, s)).map((c) => ({ ...c, href: catLink(path, c.name) })),
-    })).filter((s) => s.count > 0);
+    // Secciones (Mujer, Hombre): solo si tienen productos. Su catálogo en el menú:
+    //  - con varias categorías (Mujer): esas categorías, filtradas dentro de la sección;
+    //  - con una sola (Hombre): sus productos agrupados por tipo de prenda (garmentGroups, sin adivinar).
+    const sections = (flowContent.sections || []).map((s) => {
+      const items = productsInSection(products, s);
+      const href = path(`/coleccion/${s.slug}`);
+      const cats = categories.filter((c) => categoryInSection(c.name, s));
+      const byCategory = (s.categories || []).length > 1;
+      const menu = byCategory
+        ? cats.map((c) => ({ name: c.name, count: c.count, href: `${href}?categoria=${encodeURIComponent(c.name)}` }))
+        : garmentGroups(items).map((g) => ({ name: g.label, count: g.count, href: `${href}?q=${encodeURIComponent(g.key)}` }));
+      return { ...s, count: items.length, href, menu, menuTitle: byCategory ? 'Categorías' : 'Prendas' };
+    }).filter((s) => s.count > 0);
     const mujer = sections.find((s) => s.slug === 'mujer');
     const hombre = sections.find((s) => s.slug === 'hombre');
     const catalogCount = productsInCatalog(products).length;
@@ -43,10 +49,11 @@ export function useStoreNav() {
 
     const hasAbout = !!flowContent.about || (collection?.storytelling || []).length > 0;
     const items = [
-      // "Ver todo" primero: su desplegable lleva las categorías del menú y la columna "Por color"
-      catalogCount > 0 && { id: 'todo', label: 'Ver todo', href: path('/coleccion'), mega: true, categories: shopLinks, byColor: true },
-      mujer && { id: 'mujer', label: mujer.label, href: mujer.href, mega: mujer.categories.length > 1, categories: mujer.categories },
-      hombre && { id: 'hombre', label: hombre.label, href: hombre.href },
+      // "Ver todo" primero. Los tres desplegables llevan su catálogo y la columna "Comprar por color"
+      catalogCount > 0 && { id: 'todo', label: 'Ver todo', href: path('/coleccion'), mega: true, categories: shopLinks, menuTitle: 'Categorías', byColor: true, extras: true },
+      ...[mujer, hombre].filter(Boolean).map((sec) => ({
+        id: sec.slug, label: sec.label, href: sec.href, mega: true, categories: sec.menu, menuTitle: sec.menuTitle, byColor: true, section: true,
+      })),
       archiveCategory && archive.length > 0 && { id: 'archive', label: 'Archive', href: catLink(path, archiveCategory.name), wide: true },
       hasAbout && { id: 'sobre', label: 'Sobre FLOW', href: path('/sobre-flow'), wide: true },
     ].filter(Boolean);

@@ -191,6 +191,30 @@ export function categoryPath(category, content = flowContent) {
   return section ? `/coleccion/${section.slug}` : `/coleccion?categoria=${encodeURIComponent(category)}`;
 }
 
+// Tipo de prenda por la primera palabra del nombre ("Pantaloneta Nila" → Pantalonetas). Solo palabras de
+// este diccionario: si el nombre no empieza por una de ellas, el producto no se agrupa (no se adivina).
+const GARMENTS = {
+  pantaloneta: 'Pantalonetas', camiseta: 'Camisetas', buzo: 'Buzos', jogger: 'Joggers', sudadera: 'Sudaderas',
+  chaqueta: 'Chaquetas', bermuda: 'Bermudas', short: 'Shorts', oversize: 'Oversize', esqueleto: 'Esqueletos',
+};
+
+export function garmentOf(product) {
+  const word = normalize(product?.name).split(' ')[0];
+  return word && Object.prototype.hasOwnProperty.call(GARMENTS, word) ? { key: word, label: GARMENTS[word] } : null;
+}
+
+// [{ key, label, count }] por tipo de prenda, en orden alfabético; los productos sin tipo reconocido no cuentan
+export function garmentGroups(products) {
+  const groups = new Map();
+  for (const p of arr(products)) {
+    const g = garmentOf(p);
+    if (!g) continue;
+    if (!groups.has(g.key)) groups.set(g.key, { ...g, count: 0 });
+    groups.get(g.key).count += 1;
+  }
+  return [...groups.values()].sort((a, b) => a.label.localeCompare(b.label, 'es'));
+}
+
 // Categorías que coinciden con un término de navegación ("mujer", "hombre")
 export function categoriesMatching(categories, term) {
   const t = normalize(term);

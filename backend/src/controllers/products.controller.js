@@ -456,7 +456,7 @@ async function deleteProduct(req, res) {
       const names = [...new Set((sets || []).map((x) => x.name).filter(Boolean))];
       return res.status(409).json({
         success: false,
-        error: `"${product.name}" es parte de ${names.length === 1 ? 'el set' : 'los sets'} ${names.map((n) => `"${n}"`).join(', ')}. Quítalo del set (o borra el set) antes de eliminarlo.`,
+        error: `"${product.name}" es parte ${names.length === 1 ? 'del set' : 'de los sets'} ${names.map((n) => `"${n}"`).join(', ')}. Quítalo del set (o borra el set) antes de eliminarlo.`,
       });
     }
 
@@ -768,13 +768,17 @@ const STORAGE_PUBLIC_MARKER = '/storage/v1/object/public/product-images/';
 async function loadOptionContext(sb, productId, businessId) {
   const { data: product, error } = await sb
     .from('products')
-    .select('id, is_active, has_variants, option_images')
+    .select('id, is_active, has_variants, is_bundle, option_images')
     .eq('id', productId)
     .eq('business_id', businessId)
     .maybeSingle();
   if (error || !product) return { product: null };
   let variants = [];
-  if (product.has_variants) {
+  if (product.is_bundle) {
+    // Set: sus colores salen de las variantes derivadas de sus productos
+    const { componentsByBundle, variantsByProduct } = await loadBundles(supabaseAdmin, businessId, [productId]);
+    variants = deriveBundle(product, componentsByBundle[productId] || [], variantsByProduct).variants;
+  } else if (product.has_variants) {
     const { data, error: vErr } = await sb
       .from('product_variants')
       .select('id, attributes, is_active')
@@ -830,7 +834,7 @@ async function uploadOptionImages(req, res) {
     const { product, options } = await loadOptionContext(sb, id, req.businessId);
     if (!product) return res.status(404).json({ success: false, error: 'Producto no encontrado.' });
     if (!product.is_active) return res.status(400).json({ success: false, error: 'El producto no está activo.' });
-    if (!product.has_variants) return res.status(400).json({ success: false, error: 'Este producto no tiene variantes.' });
+    if (!product.has_variants && !product.is_bundle) return res.status(400).json({ success: false, error: 'Este producto no tiene variantes.' });
     if (options.length === 0) {
       return res.status(400).json({ success: false, error: 'Las variantes activas de este producto no tienen un atributo «color».' });
     }

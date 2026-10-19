@@ -6,6 +6,7 @@ const {
   restock, getMovements,
   getOptionImages, uploadOptionImages, deleteOptionImage, setOptionCover,
 } = require('../controllers/products.controller');
+const bundles = require('../controllers/bundles.controller');
 const { verifyToken } = require('../middlewares/auth');
 const { businessContext } = require('../middlewares/businessContext');
 
@@ -54,6 +55,11 @@ router.use(verifyToken, businessContext);
 router.get('/low-stock', getLowStock);
 router.get('/inventory-summary', getInventorySummary);
 router.get('/sales',     getSales);
+// Sets / combos (antes de las rutas con :id)
+router.post('/bundles/preview', bundles.preview);
+router.post('/bundles',          bundles.create);
+router.get('/bundles/:id',       bundles.getOne);
+router.put('/bundles/:id',       bundles.update);
 router.get('/',          getAll);
 router.post('/',         create);
 router.put('/:id',       update);

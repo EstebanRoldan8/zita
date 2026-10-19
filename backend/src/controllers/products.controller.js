@@ -6,6 +6,31 @@ const { findLowStock } = require('../utils/lowStock');
 const { normalizeOptionKey } = require('../utils/optionKey');
 const { getColorOptions, uniqueUrls } = require('../utils/variantImages');
 const { getTopSellers } = require('../utils/topSellers');
+const { loadBundles, deriveBundle } = require('../utils/bundles');
+
+const MSG_SET_SIN_STOCK = 'Un set no tiene stock propio: su disponibilidad se calcula de sus productos. Ajusta el stock de cada producto del set.';
+
+// Sets de una lista de productos: stock calculado de sus componentes + resumen para el panel
+async function withBundleInfo(businessId, products) {
+  const sets = (products || []).filter((p) => p.is_bundle);
+  if (sets.length === 0) return products || [];
+  const { componentsByBundle, variantsByProduct } = await loadBundles(supabaseAdmin, businessId, sets.map((p) => p.id));
+  const info = {};
+  for (const p of sets) {
+    const comps = componentsByBundle[p.id] || [];
+    const d = deriveBundle(p, comps, variantsByProduct);
+    info[p.id] = {
+      stock: d.error ? 0 : (d.hasVariants ? d.variants.reduce((n, v) => n + v.stock, 0) : d.simpleStock),
+      bundle: {
+        components: comps.map((c) => ({ product_id: c.product.id, name: c.product.name, quantity: c.quantity, is_active: c.product.is_active !== false })),
+        variants: d.variants.map((v) => ({ id: v.id, attributes: v.attributes, stock: v.stock })),
+        lost: d.lost.map((l) => ({ attributes: l.attributes, missing: l.missing })),
+        error: d.error,
+      },
+    };
+  }
+  return products.map((p) => (info[p.id] ? { ...p, stock: info[p.id].stock, stock_calculated: true, bundle: info[p.id].bundle } : p));
+}
 
 const MSG_VARIANTES_ACTIVAS = 'Debes desactivar todas las variantes antes de quitar esta opción.';
 const msgStockAntesDeVariantes = (n) =>
@@ -30,7 +55,7 @@ async function getAll(req, res) {
       logger.error('products.getAll query error: ' + error.message);
       throw error;
     }
-    return res.json({ success: true, data: data || [] });
+    return res.json({ success: true, data: await withBundleInfo(req.businessId, data || []) });
   } catch (err) {
     logger.error('products.getAll: ' + err.message);
     return res.status(500).json({ success: false, error: 'Error al obtener productos.' });
@@ -45,6 +70,7 @@ async function getLowStock(req, res) {
       .select('*')
       .eq('business_id', req.businessId)
       .eq('is_active', true)
+      .eq('is_bundle', false)
       .order('stock');
     if (error) throw error;
     const lowStock = await findLowStock(sb, req.businessId, data);
@@ -66,7 +92,8 @@ async function getInventorySummary(req, res) {
       .from('products')
       .select('id, name, stock, min_stock, price, cost_price, has_variants')
       .eq('business_id', req.businessId)
-      .eq('is_active', true);
+      .eq('is_active', true)
+      .eq('is_bundle', false);
     if (error) throw error;
     const list = products || [];
 
@@ -248,11 +275,14 @@ async function update(req, res) {
 
     const { data: current, error: cErr } = await sb
       .from('products')
-      .select('id, stock, has_variants')
+      .select('id, stock, has_variants, is_bundle')
       .eq('id', id)
       .eq('business_id', req.businessId)
       .single();
     if (cErr || !current) return res.status(404).json({ success: false, error: 'Producto no encontrado.' });
+    if (current.is_bundle && ((stock !== undefined && Number(stock) !== 0) || has_variants)) {
+      return res.status(400).json({ success: false, error: MSG_SET_SIN_STOCK });
+    }
 
     const willHaveVariants = has_variants !== undefined ? Boolean(has_variants) : Boolean(current.has_variants);
 
@@ -412,6 +442,24 @@ async function deleteProduct(req, res) {
       return res.status(404).json({ success: false, error: 'Producto no encontrado.' });
     }
 
+    // Un producto que es parte de un set no se puede borrar (la base también lo impide: RESTRICT)
+    const { data: usedIn, error: uErr } = await supabaseAdmin
+      .from('product_bundle_components')
+      .select('bundle_product_id')
+      .eq('business_id', req.businessId)
+      .eq('component_product_id', id);
+    if (uErr) throw uErr;
+    if ((usedIn || []).length > 0) {
+      const { data: sets, error: sErr } = await supabaseAdmin
+        .from('products').select('name').eq('business_id', req.businessId).in('id', usedIn.map((u) => u.bundle_product_id));
+      if (sErr) throw sErr;
+      const names = [...new Set((sets || []).map((x) => x.name).filter(Boolean))];
+      return res.status(409).json({
+        success: false,
+        error: `"${product.name}" es parte de ${names.length === 1 ? 'el set' : 'los sets'} ${names.map((n) => `"${n}"`).join(', ')}. Quítalo del set (o borra el set) antes de eliminarlo.`,
+      });
+    }
+
     const { data, error } = await sb
       .from('products')
       .delete()
@@ -444,6 +492,9 @@ async function sell(req, res) {
       .from('products').select('*').eq('id', id).single();
     if (pErr || !product) return res.status(404).json({ success: false, error: 'Producto no encontrado.' });
     if (!product.is_active) return res.status(400).json({ success: false, error: 'El producto no está activo.' });
+    if (product.is_bundle) {
+      return res.status(400).json({ success: false, error: 'Los sets no se venden desde caja: registra la venta como pedido, que descuenta cada producto del set.' });
+    }
 
     if (product.has_variants && !variant_id) {
       return res.status(400).json({ success: false, error: 'Este producto tiene variantes, debes especificar cuál (talla/color).' });
@@ -941,12 +992,13 @@ async function restock(req, res) {
 
     const { data: product, error: pErr } = await sb
       .from('products')
-      .select('id, is_active, has_variants')
+      .select('id, is_active, has_variants, is_bundle')
       .eq('id', id)
       .eq('business_id', req.businessId)
       .maybeSingle();
     if (pErr || !product) return res.status(404).json({ success: false, error: 'Producto no encontrado.' });
     if (!product.is_active) return res.status(400).json({ success: false, error: 'El producto no está activo.' });
+    if (product.is_bundle) return res.status(400).json({ success: false, error: MSG_SET_SIN_STOCK });
 
     if (product.has_variants) {
       if (!variant_id) {

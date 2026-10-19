@@ -166,9 +166,11 @@ export function getSection(slug, content = flowContent) {
 
 export const categoryInSection = (category, section) => inList(category, section?.categories);
 
-export function productsInSection(products, section) {
+// Productos de la sección: sus categorías más las de género compartido (Unisex), que van en todas
+export function productsInSection(products, section, content = flowContent) {
   if (!section) return [];
-  return arr(products).filter((p) => p && p.id && inList(p.category, section.categories));
+  return arr(products).filter((p) => p && p.id
+    && (inList(p.category, section.categories) || inList(p.category, content?.unisexCategories)));
 }
 
 // Mujer / Hombre / Unisex son GÉNERO (flowContent.genderCategories), nunca tipo de prenda ni filtro

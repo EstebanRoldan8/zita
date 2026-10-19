@@ -4,8 +4,8 @@ import { useStorePath } from './useStore';
 import { flowContent } from '../content/flowContent';
 import {
   getActiveCollection, productsInCollection, productsInArchive, productsInDrop, productsInSection,
-  categoriesOrdered, categoryInSection, categoryPath, typePath, isArchiveCategory,
-  firstImage, sortByHierarchy, garmentGroups, productTypes,
+  categoriesOrdered, categoryPath, typePath, isArchiveCategory,
+  firstImage, sortByHierarchy, productTypes,
 } from '../lib/collections';
 
 const catLink = (path, name) => path(categoryPath(name));
@@ -29,18 +29,15 @@ export function useStoreNav() {
     const drops = (collection?.drops || [])
       .map((d) => ({ ...d, count: productsInDrop(inCollection, d).length, href: path(`/colores/${d.slug}`) }))
       .filter((d) => d.count > 0);
-    // Secciones (Mujer, Hombre): solo si tienen productos. Su catálogo en el menú:
-    //  - con varias categorías (Mujer): esas categorías, filtradas dentro de la sección;
-    //  - con una sola (Hombre): sus productos agrupados por tipo de prenda (garmentGroups, sin adivinar).
+    // Secciones (Mujer, Hombre): solo si tienen productos (incluye los Unisex). Su catálogo en el menú son
+    // los tipos de prenda de esos productos (productTypes, el mismo helper del filtro), filtrados dentro de
+    // la sección: Mujer → Tops, Licras, Shorts, Faldas, Oversize; Hombre → Pantalonetas, Oversize.
     const sections = (flowContent.sections || []).map((s) => {
       const items = productsInSection(products, s);
       const href = path(`/coleccion/${s.slug}`);
-      const cats = categories.filter((c) => categoryInSection(c.name, s));
-      const byCategory = (s.categories || []).length > 1;
-      const menu = byCategory
-        ? cats.map((c) => ({ name: c.name, count: c.count, href: `${href}?categoria=${encodeURIComponent(c.name)}` }))
-        : garmentGroups(items).map((g) => ({ name: g.label, count: g.count, href: `${href}?q=${encodeURIComponent(g.key)}` }));
-      return { ...s, count: items.length, href, menu, menuTitle: byCategory ? 'Categorías' : 'Prendas' };
+      const menu = productTypes(items, { archive: false })
+        .map((t) => ({ name: t.name, count: t.count, href: `${href}?categoria=${encodeURIComponent(t.name)}` }));
+      return { ...s, count: items.length, href, menu, menuTitle: (s.categories || []).length > 1 ? 'Categorías' : 'Prendas' };
     }).filter((s) => s.count > 0);
     const mujer = sections.find((s) => s.slug === 'mujer');
     const hombre = sections.find((s) => s.slug === 'hombre');

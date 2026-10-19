@@ -203,6 +203,8 @@ export const flowContent = {
   // Categorías de la base que son GÉNERO, no tipo de prenda: nunca salen como categoría ni filtro.
   // Sus productos van en "Ver todo" bajo su tipo de prenda (collections.productType / garmentOf).
   genderCategories: ['Mujer', 'Hombre', 'Unisex'],
+  // Género compartido: sus productos aparecen en TODAS las secciones (Mujer y Hombre), con su tipo de prenda
+  unisexCategories: ['Unisex'],
   values: ['Empoderamiento', 'Valentía', 'Calidad', 'Versatilidad', 'Simplicidad'],
   about: `FLOW nace para empoderar a las personas a través del movimiento y ayudarlas a conectar con su esencia y su "FLOW".
 

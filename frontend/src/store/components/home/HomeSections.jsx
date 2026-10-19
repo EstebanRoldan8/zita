@@ -124,7 +124,9 @@ export function ShopByColor({ collection, products, path }) {
     <section className="bg-flow-white py-16 md:py-24" aria-labelledby="flow-por-color">
       <div className="mx-auto max-w-7xl px-4 md:px-8">
         <div className="mb-8 flex items-end justify-between gap-4">
-          <h2 id="flow-por-color" className="flow-serif text-2xl sm:text-3xl md:text-4xl">Comprar por color</h2>
+          <h2 id="flow-por-color" className="flow-serif text-2xl sm:text-3xl md:text-4xl">
+            <Link to={path('/colores')} className="hover:underline">Comprar por color</Link>
+          </h2>
           <Link to={path('/colores')} className="flow-label flex-shrink-0 border-b border-flow-black pb-1">Ver todos</Link>
         </div>
         <ProductCarousel label="Comprar por color" itemClass="w-[78%] sm:w-[46%] md:w-[31.5%]">

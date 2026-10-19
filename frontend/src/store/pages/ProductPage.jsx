@@ -10,7 +10,7 @@ import { storeApi } from '../lib/storeApi';
 import { formatCOP, attrValue, optionKey, COLOR_KEYS, SIZE_KEYS } from '../lib/format';
 import { COPY } from '../lib/copy';
 import { policyText, sizeGuide } from '../lib/policies';
-import { normalize, getActiveCollection, productsInCollection, colorHex, isLightColor } from '../lib/collections';
+import { normalize, getActiveCollection, productsInCollection, colorHex, isLightColor, categoryPath } from '../lib/collections';
 import { useCatalog } from '../hooks/useCatalog';
 import ProductCard from '../components/ProductCard';
 import ProductCarousel from '../components/ProductCarousel';
@@ -197,7 +197,7 @@ export default function ProductPage() {
     <div className="flow-product-page mx-auto max-w-7xl px-4 py-8 md:px-8 md:py-12">
       <nav className="flow-label mb-6 text-flow-muted" aria-label="Ruta">
         <Link to={path('/coleccion')} className="hover:underline">Tienda</Link>
-        {p.category && <> <span aria-hidden="true">/</span> <Link to={`${path('/coleccion')}?categoria=${encodeURIComponent(p.category)}`} className="hover:underline">{p.category}</Link></>}
+        {p.category && <> <span aria-hidden="true">/</span> <Link to={path(categoryPath(p.category))} className="hover:underline">{p.category}</Link></>}
       </nav>
 
       <div className="grid gap-10 md:grid-cols-2 md:gap-16">

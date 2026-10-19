@@ -50,7 +50,7 @@ const RENACER = {
   // Categorías extra que no son de esta colección (además de las de archive)
   excludeCategories: [],
   hero: {
-    title: 'FLOW RENACE',
+    title: 'RENACER',
     subtitle: 'Hubo pausas. Hoy volvemos.',
     cta1: 'Comprar la colección',
     cta2: 'Comprar por color',
@@ -165,7 +165,7 @@ const RENACER = {
     icon: 'aria',
     disruptive: ['falda lira', 'falda vela'],
     expansion: ['oversize'],
-    essential: ['jana', 'nila', 'liva', 'pantaloneta'],
+    essential: ['jana', 'nila', 'pantaloneta'],
   },
 };
 
@@ -194,6 +194,16 @@ export const flowContent = {
   },
   // Orden de categorías; las demás van después en orden alfabético y Archive siempre al final
   categoryOrder: ['Tops', 'Licras', 'Shorts', 'Faldas', 'Hombre', 'Unisex'],
+  // Secciones del menú: páginas /coleccion/<slug> con un grupo fijo de categorías (por nombre de
+  // categoría, nunca por nombre de producto). Una sección sin productos no aparece.
+  sections: [
+    { slug: 'mujer', label: 'Mujer', categories: ['Tops', 'Licras', 'Shorts', 'Faldas'] },
+    { slug: 'hombre', label: 'Hombre', categories: ['Hombre'] },
+  ],
+  // "Ver todo" (/coleccion) no muestra estas categorías: se ven solo en su sección
+  hiddenFromCatalog: ['Hombre'],
+  // Categorías que no se ofrecen en menús ni filtros (siguen visibles donde corresponda)
+  hiddenFromFilters: ['Hombre', 'Unisex'],
   values: ['Empoderamiento', 'Valentía', 'Calidad', 'Versatilidad', 'Simplicidad'],
   about: `FLOW nace para empoderar a las personas a través del movimiento y ayudarlas a conectar con su esencia y su "FLOW".
 

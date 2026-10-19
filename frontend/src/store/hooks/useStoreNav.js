@@ -3,11 +3,12 @@ import { useCatalog, useCategories } from './useCatalog';
 import { useStorePath } from './useStore';
 import { flowContent } from '../content/flowContent';
 import {
-  getActiveCollection, productsInCollection, productsInArchive, productsInDrop,
-  categoriesOrdered, categoriesMatching, isArchiveCategory, firstImage, sortByHierarchy,
+  getActiveCollection, productsInCollection, productsInArchive, productsInDrop, productsInSection,
+  productsInCatalog, categoriesOrdered, categoryInSection, categoryPath, isArchiveCategory,
+  isHiddenFromFilters, firstImage, sortByHierarchy,
 } from '../lib/collections';
 
-const catLink = (path, name) => `${path('/coleccion')}?categoria=${encodeURIComponent(name)}`;
+const catLink = (path, name) => path(categoryPath(name));
 
 // Navegación derivada de las categorías reales + flowContent. Lo que no tiene productos no aparece.
 export function useStoreNav() {
@@ -21,21 +22,29 @@ export function useStoreNav() {
     const inCollection = productsInCollection(products, collection);
     const archive = productsInArchive(products);
     const categories = categoriesOrdered(categoriesQ.data || []).filter((c) => Number(c.count) > 0);
-    const shopCategories = categories.filter((c) => !isArchiveCategory(c.name));
+    // Categorías del menú: sin Archive y sin las ocultas en menús/filtros (Hombre, Unisex)
+    const shopCategories = categories.filter((c) => !isArchiveCategory(c.name) && !isHiddenFromFilters(c.name));
     const archiveCategory = categories.find((c) => isArchiveCategory(c.name)) || null;
     const drops = (collection?.drops || [])
       .map((d) => ({ ...d, count: productsInDrop(inCollection, d).length, href: path(`/colores/${d.slug}`) }))
       .filter((d) => d.count > 0);
-    const mujer = categoriesMatching(shopCategories, 'mujer');
-    const hombre = categoriesMatching(shopCategories, 'hombre');
+    // Secciones (Mujer, Hombre): solo si tienen productos; sus categorías en el orden de config
+    const sections = (flowContent.sections || []).map((s) => ({
+      ...s,
+      count: productsInSection(products, s).length,
+      href: path(`/coleccion/${s.slug}`),
+      categories: categories.filter((c) => categoryInSection(c.name, s)).map((c) => ({ ...c, href: catLink(path, c.name) })),
+    })).filter((s) => s.count > 0);
+    const mujer = sections.find((s) => s.slug === 'mujer');
+    const hombre = sections.find((s) => s.slug === 'hombre');
+    const catalogCount = productsInCatalog(products).length;
     const featuredProduct = sortByHierarchy(inCollection, collection).find((p) => firstImage(p)) || null;
 
     const hasAbout = !!flowContent.about || (collection?.storytelling || []).length > 0;
     const items = [
-      collection && inCollection.length > 0 && { id: 'nuevo', label: 'Nuevo', href: path(`/coleccion/${collection.slug}`), mega: true },
-      mujer.length > 0 && { id: 'mujer', label: 'Mujer', href: catLink(path, mujer[0].name), mega: true, categories: mujer },
-      hombre.length > 0 && { id: 'hombre', label: 'Hombre', href: catLink(path, hombre[0].name), mega: true, categories: hombre },
-      drops.length > 0 && { id: 'colores', label: 'Colores', href: path('/colores'), mega: true },
+      mujer && { id: 'mujer', label: mujer.label, href: mujer.href, mega: mujer.categories.length > 1, categories: mujer.categories },
+      hombre && { id: 'hombre', label: hombre.label, href: hombre.href },
+      catalogCount > 0 && { id: 'todo', label: 'Ver todo', href: path('/coleccion'), mega: true },
       archiveCategory && archive.length > 0 && { id: 'archive', label: 'Archive', href: catLink(path, archiveCategory.name), wide: true },
       hasAbout && { id: 'sobre', label: 'Sobre FLOW', href: path('/sobre-flow'), wide: true },
     ].filter(Boolean);
@@ -43,6 +52,7 @@ export function useStoreNav() {
     return {
       ready: catalog.isSuccess && categoriesQ.isSuccess,
       items,
+      sections,
       collection,
       shopCategories: shopCategories.map((c) => ({ ...c, href: catLink(path, c.name) })),
       archiveCategory: archiveCategory ? { ...archiveCategory, href: catLink(path, archiveCategory.name) } : null,

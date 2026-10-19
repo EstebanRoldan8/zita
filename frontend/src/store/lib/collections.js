@@ -157,6 +157,40 @@ export function categoriesOrdered(categories, content = flowContent) {
     .sort((a, b) => rank(a) - rank(b) || a.name.localeCompare(b.name, 'es'));
 }
 
+// ── Secciones del menú (Mujer, Hombre) y catálogo "Ver todo" ─────────────────
+const inList = (category, list) => !!normalize(category) && arr(list).some((c) => normalize(c) === normalize(category));
+
+export function getSection(slug, content = flowContent) {
+  return arr(content?.sections).find((s) => s && s.slug === slug) || null;
+}
+
+export const categoryInSection = (category, section) => inList(category, section?.categories);
+
+export function productsInSection(products, section) {
+  if (!section) return [];
+  return arr(products).filter((p) => p && p.id && inList(p.category, section.categories));
+}
+
+// "Ver todo": todo menos las categorías que solo se ven en su sección (Hombre)
+export const isHiddenFromCatalog = (category, content = flowContent) => inList(category, content?.hiddenFromCatalog);
+export const isHiddenFromFilters = (category, content = flowContent) => inList(category, content?.hiddenFromFilters);
+
+export function productsInCatalog(products, content = flowContent) {
+  return arr(products).filter((p) => p && p.id && !isHiddenFromCatalog(p.category, content));
+}
+
+// Sección propia de una categoría que no sale en "Ver todo" (Hombre → sección hombre); null si no aplica
+export function sectionForCategory(category, content = flowContent) {
+  if (!isHiddenFromCatalog(category, content)) return null;
+  return arr(content?.sections).find((s) => inList(category, s.categories)) || null;
+}
+
+// Ruta interna (sin el prefijo de la tienda) de la página de una categoría
+export function categoryPath(category, content = flowContent) {
+  const section = sectionForCategory(category, content);
+  return section ? `/coleccion/${section.slug}` : `/coleccion?categoria=${encodeURIComponent(category)}`;
+}
+
 // Categorías que coinciden con un término de navegación ("mujer", "hombre")
 export function categoriesMatching(categories, term) {
   const t = normalize(term);

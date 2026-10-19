@@ -40,8 +40,8 @@ export default function StoreFooter() {
     {
       title: 'Comprar',
       links: [
-        nav.items.some((i) => i.id === 'nuevo') && collection && { label: 'Nuevo', href: path(`/coleccion/${collection.slug}`) },
-        ...nav.shopCategories.slice(0, 6).map((c) => ({ label: c.name, href: c.href })),
+        ...nav.sections.map((sec) => ({ label: sec.label, href: sec.href })),
+        nav.items.some((i) => i.id === 'todo') && { label: 'Ver todo', href: path('/coleccion') },
         nav.drops.length > 0 && { label: 'Colores', href: path('/colores') },
         nav.archiveCategory && { label: 'Archive', href: nav.archiveCategory.href },
       ],

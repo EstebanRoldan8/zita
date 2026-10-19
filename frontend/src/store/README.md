@@ -15,7 +15,8 @@ Tienda de la marca Flow dentro del frontend de ZITA. Consume la API pública
 | Ruta | Página |
 |---|---|
 | `/tienda/:slug` | Inicio |
-| `/tienda/:slug/coleccion` | Tienda completa (`?categoria=`, `?color=`, `?talla=`, `?q=`, `?orden=`) |
+| `/tienda/:slug/coleccion` | "Ver todo": catálogo sin Hombre (`?categoria=`, `?color=`, `?talla=`, `?q=`, `?orden=`). `?categoria=Hombre` redirige a `/coleccion/hombre` |
+| `/tienda/:slug/coleccion/mujer` · `/coleccion/hombre` | Secciones del menú (`flowContent.sections`): Tops, Licras, Shorts y Faldas · Hombre |
 | `/tienda/:slug/coleccion/:collectionSlug` | Colección (RENACER; `?capsula=esencial\|volver\|florecer`) |
 | `/tienda/:slug/colores` · `/colores/:dropSlug` | Comprar por color / drop |
 | `/tienda/:slug/producto/:id?color=` | Producto (color preseleccionado por URL) |

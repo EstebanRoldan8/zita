@@ -7,12 +7,13 @@ import {
 } from './_lib/store.js';
 import { esc, escLines, headTags, compose, loadBaseHtml } from './_lib/html.js';
 import {
-  routeOf, homeSeo, listingSeo, collectionSeo, colorsSeo, dropSeo, productSeo, helpSeo, aboutSeo,
+  routeOf, homeSeo, listingSeo, collectionSeo, sectionSeo, colorsSeo, dropSeo, productSeo, helpSeo, aboutSeo,
   aboutText, policySeo, privateSeo, notFoundSeo, brandDescription, productColor, productImages,
   productSoldOut, productDescription,
 } from '../src/store/lib/seo.js';
 import {
-  getActiveCollection, getCollection, productsInCollection, productsInDrop, productsInCapsule,
+  getActiveCollection, getCollection, getSection, productsInCollection, productsInDrop, productsInCapsule,
+  productsInSection, productsInCatalog, sectionForCategory, categoryPath,
   sortByHierarchy, filterProducts, firstImage,
 } from '../src/store/lib/collections.js';
 import { policyText, faqItems, sizeGuide } from '../src/store/lib/policies.js';
@@ -87,7 +88,7 @@ function productContent(base, p, colorParam) {
   const soldOut = productSoldOut(p);
   return `<main>`
     + `<nav aria-label="Ruta"><a href="${esc(link(base, '/coleccion'))}">Tienda</a>`
-    + (p.category ? ` / <a href="${esc(`${link(base, '/coleccion')}?categoria=${encodeURIComponent(p.category)}`)}">${esc(p.category)}</a>` : '')
+    + (p.category ? ` / <a href="${esc(link(base, categoryPath(p.category)))}">${esc(p.category)}</a>` : '')
     + `</nav>`
     + images.map((src, i) => `<img src="${esc(src)}" alt="${esc(`${alt}, foto ${i + 1} de ${images.length}`)}" width="800" height="1000"${i === 0 ? ' fetchpriority="high"' : ' loading="lazy"'}>`).join('')
     + `<h1>${esc(name)}</h1><p>${esc(formatCOP(p.price))}</p>`
@@ -154,11 +155,19 @@ async function renderPage(target, ctx, params, cfg) {
     case 'listing': {
       const all = await storeApi.catalog(slug, cfg);
       const seo = listingSeo(ctx, { search });
+      // ?categoria=Hombre: la SPA redirige a su sección; aquí se muestra ese mismo contenido (noindex)
+      const section = sectionForCategory(params.get('categoria'));
+      if (section) return { status: 200, seo, content: simple(section.label, productList(base, productsInSection(all, section))) };
       const archiveText = seo.category && seo.h1 === flowContent.archive.title ? `<p>${esc(flowContent.archive.text)}</p>` : '';
-      return { status: 200, seo, content: simple(seo.h1, archiveText + productList(base, listingContent(base, all, params, null))) };
+      return { status: 200, seo, content: simple(seo.h1, archiveText + productList(base, listingContent(base, productsInCatalog(all), params, null))) };
     }
     case 'collection': {
       const collection = getCollection(route.slug);
+      const section = collection ? null : getSection(route.slug);
+      if (section) {
+        const all = await storeApi.catalog(slug, cfg);
+        return { status: 200, seo: sectionSeo(ctx, { section, search }), content: simple(section.label, productList(base, listingContent(base, productsInSection(all, section), params, null))) };
+      }
       if (!collection) return notFoundPage(base);
       const all = await storeApi.catalog(slug, cfg);
       const intro = [collection.intro, collection.hero?.subtitle].filter(Boolean).map((t) => `<p>${esc(t)}</p>`).join('');

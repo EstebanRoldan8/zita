@@ -38,13 +38,15 @@ export function useStoreNav() {
     const mujer = sections.find((s) => s.slug === 'mujer');
     const hombre = sections.find((s) => s.slug === 'hombre');
     const catalogCount = productsInCatalog(products).length;
+    const shopLinks = shopCategories.map((c) => ({ ...c, href: catLink(path, c.name) }));
     const featuredProduct = sortByHierarchy(inCollection, collection).find((p) => firstImage(p)) || null;
 
     const hasAbout = !!flowContent.about || (collection?.storytelling || []).length > 0;
     const items = [
+      // "Ver todo" primero: su desplegable lleva las categorías del menú y la columna "Por color"
+      catalogCount > 0 && { id: 'todo', label: 'Ver todo', href: path('/coleccion'), mega: true, categories: shopLinks, byColor: true },
       mujer && { id: 'mujer', label: mujer.label, href: mujer.href, mega: mujer.categories.length > 1, categories: mujer.categories },
       hombre && { id: 'hombre', label: hombre.label, href: hombre.href },
-      catalogCount > 0 && { id: 'todo', label: 'Ver todo', href: path('/coleccion'), mega: true },
       archiveCategory && archive.length > 0 && { id: 'archive', label: 'Archive', href: catLink(path, archiveCategory.name), wide: true },
       hasAbout && { id: 'sobre', label: 'Sobre FLOW', href: path('/sobre-flow'), wide: true },
     ].filter(Boolean);
@@ -54,7 +56,7 @@ export function useStoreNav() {
       items,
       sections,
       collection,
-      shopCategories: shopCategories.map((c) => ({ ...c, href: catLink(path, c.name) })),
+      shopCategories: shopLinks,
       archiveCategory: archiveCategory ? { ...archiveCategory, href: catLink(path, archiveCategory.name) } : null,
       drops,
       featured: collection ? {

@@ -3,7 +3,7 @@ import { useSearchParams } from 'react-router-dom';
 import { SlidersHorizontal, X } from 'lucide-react';
 import { useStorePath } from '../hooks/useStore';
 import {
-  filterProducts, colorsIn, sizesOf, productsInCapsule, normalize, categoriesOrdered,
+  filterProducts, colorsIn, sizesOf, productsInCapsule, normalize, categoriesOrdered, isHiddenFromFilters,
 } from '../lib/collections';
 import ProductCard from './ProductCard';
 import ColorDot from './ColorDot';
@@ -51,7 +51,8 @@ export default function ProductListing({
   const sizeOptions = useMemo(() => sizesOf(afterCapsule), [afterCapsule]);
   const categoryOptions = useMemo(() => {
     const counts = {};
-    for (const p of afterCapsule) if (p.category) counts[p.category] = (counts[p.category] || 0) + 1;
+    // Hombre y Unisex no se ofrecen como filtro (flowContent.hiddenFromFilters)
+    for (const p of afterCapsule) if (p.category && !isHiddenFromFilters(p.category)) counts[p.category] = (counts[p.category] || 0) + 1;
     return categoriesOrdered(Object.entries(counts).map(([name, count]) => ({ name, count })));
   }, [afterCapsule]);
 

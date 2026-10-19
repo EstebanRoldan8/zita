@@ -3,7 +3,7 @@
 // a lo que ve una persona. Nada se inventa: sin dato, el campo no se incluye.
 // Imports con extensión .js: este archivo también se carga en Node (funciones serverless).
 import { flowContent } from '../content/flowContent.js';
-import { getActiveCollection, isArchiveCategory, normalize } from './collections.js';
+import { getActiveCollection, isArchiveCategory, normalize, categoryPath, sectionForCategory } from './collections.js';
 import { policyText, faqItems, sizeGuide, POLICIES } from './policies.js';
 import { parseSpecs } from './specs.js';
 
@@ -66,7 +66,8 @@ export function compact(value) {
 
 // ctx = { origin: 'https://dominio', base: '' | '/tienda/flow' }
 export const storeUrl = (ctx, path = '/') => absoluteUrl(ctx.origin, `${ctx.base || ''}${path === '/' ? '' : path}` || '/');
-const categoryUrl = (ctx, category) => `${storeUrl(ctx, '/coleccion')}?categoria=${encodeURIComponent(category)}`;
+// Página de una categoría: /coleccion?categoria=X, o su sección si no sale en "Ver todo" (Hombre)
+const categoryUrl = (ctx, category) => storeUrl(ctx, categoryPath(category));
 
 // Descripción de marca: primera frase del último párrafo de "Sobre FLOW" + intro de la colección activa
 function brandSentence() {
@@ -154,6 +155,9 @@ export function listingSeo(ctx, { search } = {}) {
   const name = archive ? flowContent.archive.title : category || 'Tienda';
   const canonical = category ? categoryUrl(ctx, category) : storeUrl(ctx, '/coleccion');
   const total = active.length + (category ? 1 : 0);
+  // ?categoria=Hombre: la SPA redirige a su sección; para bots, noindex con canonical a la sección
+  const section = category ? sectionForCategory(category) : null;
+  if (section) return { ...sectionSeo(ctx, { section }), noindex: true };
   return finish({
     title: withSite(name),
     description: archive ? truncate(flowContent.archive.text)
@@ -167,6 +171,27 @@ export function listingSeo(ctx, { search } = {}) {
       { name: 'Tienda', url: storeUrl(ctx, '/coleccion') },
       { name, url: canonical },
     ])] : [],
+  });
+}
+
+// /coleccion/mujer, /coleccion/hombre: secciones del menú. Aquí ?categoria= también es un filtro.
+export function sectionSeo(ctx, { section, search } = {}) {
+  if (!section) return notFoundSeo();
+  const { params, active } = filtersOf(search);
+  const total = active.length + (clean(params.get('categoria')) ? 1 : 0);
+  const canonical = storeUrl(ctx, `/coleccion/${section.slug}`);
+  const cats = (section.categories || []).filter((c) => normalize(c) !== normalize(section.label));
+  const list = cats.length > 1 ? `${cats.slice(0, -1).join(', ')} y ${cats[cats.length - 1]}` : cats[0] || '';
+  return finish({
+    title: withSite(section.label),
+    description: truncate(`${section.label} de ${SITE_NAME}${list ? `: ${list.toLowerCase()}` : ''}. ${brandSentence()}`),
+    canonical,
+    h1: section.label,
+    noindex: active.includes('q') || total >= 2,
+    jsonLd: [breadcrumbLd([
+      { name: 'Inicio', url: storeUrl(ctx, '/') },
+      { name: section.label, url: canonical },
+    ])],
   });
 }
 

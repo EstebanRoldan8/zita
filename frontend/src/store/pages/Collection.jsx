@@ -1,21 +1,29 @@
-import { useLocation, useSearchParams } from 'react-router-dom';
+import { Navigate, useLocation, useSearchParams } from 'react-router-dom';
 import { Search } from 'lucide-react';
 import { useSeo, useSeoContext } from '../hooks/useSeo';
 import { listingSeo } from '../lib/seo';
 import { useCatalog } from '../hooks/useCatalog';
+import { useStorePath } from '../hooks/useStore';
 import { flowContent } from '../content/flowContent';
-import { isArchiveCategory } from '../lib/collections';
+import { isArchiveCategory, productsInCatalog, sectionForCategory } from '../lib/collections';
 import ProductListing from '../components/ProductListing';
 
-// /coleccion: todo el catálogo (incluye Archive). Filtros por categoría, color, talla y orden en la URL.
+// /coleccion ("Ver todo"): el catálogo sin las categorías que solo se ven en su sección (Hombre).
+// Incluye Archive y Unisex. Filtros por categoría, color, talla y orden en la URL.
 export default function Collection() {
   const [params, setParams] = useSearchParams();
   const category = params.get('categoria') || '';
   const q = params.get('q') || '';
   const catalog = useCatalog();
+  const path = useStorePath();
+  const section = sectionForCategory(category);
   const archive = isArchiveCategory(category);
   const title = archive ? flowContent.archive.title : category || 'Tienda';
   useSeo(listingSeo(useSeoContext(), { search: useLocation().search }));
+  const products = catalog.data ? productsInCatalog(catalog.data) : catalog.data;
+
+  // ?categoria=Hombre → su página propia (no se muestra en "Ver todo")
+  if (section) return <Navigate to={path(`/coleccion/${section.slug}`)} replace />;
 
   const submitSearch = (e) => {
     e.preventDefault();
@@ -40,7 +48,7 @@ export default function Collection() {
           </button>
         </form>
       </div>
-      <ProductListing products={catalog.data} loading={catalog.isLoading} error={catalog.isError} onRetry={catalog.refetch} />
+      <ProductListing products={products} loading={catalog.isLoading} error={catalog.isError} onRetry={catalog.refetch} />
     </div>
   );
 }

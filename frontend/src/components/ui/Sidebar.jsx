@@ -236,7 +236,7 @@ export default function Sidebar() {
       {/* Footer */}
       <div className="px-3 py-4 border-t border-white/10 mt-auto flex-shrink-0 space-y-2">
         <div className="px-3 py-2">
-          <p className="text-white text-sm font-medium truncate">Mi negocio</p>
+          <p className="text-white text-sm font-medium truncate">{business?.name || 'Mi negocio'}</p>
           <p className="text-white/50 text-xs truncate">{user?.email}</p>
         </div>
         <NavLink
@@ -253,7 +253,7 @@ export default function Sidebar() {
           <CreditCard size={17} />
           Mi suscripción
         </NavLink>
-        {sub?.estado === 'trial' && (
+        {sub?.estado === 'trial' && !business?.onboarding_completed && (
           <button
             onClick={() => {
               navigate('/onboarding');

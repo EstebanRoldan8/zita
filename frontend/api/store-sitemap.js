@@ -4,7 +4,10 @@ import { config, sitemapStore, canonicalOrigin, storeApi, send, CACHE } from './
 import {
   storeUrl, listingSeo, helpSeo, aboutSeo, policySeo,
 } from '../src/store/lib/seo.js';
-import { getActiveCollection, productsInCollection, productsInDrop } from '../src/store/lib/collections.js';
+import {
+  getActiveCollection, productsInCollection, productsInDrop, productsInSection, isHiddenFromCatalog,
+} from '../src/store/lib/collections.js';
+import { flowContent } from '../src/store/content/flowContent.js';
 import { POLICIES } from '../src/store/lib/policies.js';
 
 const xml = (s) => String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
@@ -35,9 +38,13 @@ export async function sitemapUrls(req, cfg = config()) {
     storeUrl(ctx, '/'),
     storeUrl(ctx, '/coleccion'),
     collection && storeUrl(ctx, `/coleccion/${collection.slug}`),
+    // Secciones del menú con productos (Mujer, Hombre)
+    ...(flowContent.sections || []).filter((sec) => productsInSection(products, sec).length > 0)
+      .map((sec) => storeUrl(ctx, `/coleccion/${sec.slug}`)),
     drops.length > 0 && storeUrl(ctx, '/colores'),
     ...drops.map((d) => storeUrl(ctx, `/colores/${d.slug}`)),
-    ...categories.filter((c) => c && c.name && Number(c.count) > 0)
+    // Categorías con productos; las que solo se ven en su sección (Hombre) ya van arriba
+    ...categories.filter((c) => c && c.name && Number(c.count) > 0 && !isHiddenFromCatalog(c.name))
       .map((c) => listingSeo(ctx, { search: `?categoria=${encodeURIComponent(c.name)}` }).canonical),
     !help.noindex && help.canonical,
     !about.noindex && about.canonical,

@@ -166,29 +166,78 @@ export function getSection(slug, content = flowContent) {
 
 export const categoryInSection = (category, section) => inList(category, section?.categories);
 
-export function productsInSection(products, section) {
+// Productos de la sección: sus categorías más las de género compartido (Unisex), que van en todas
+export function productsInSection(products, section, content = flowContent) {
   if (!section) return [];
-  return arr(products).filter((p) => p && p.id && inList(p.category, section.categories));
+  return arr(products).filter((p) => p && p.id
+    && (inList(p.category, section.categories) || inList(p.category, content?.unisexCategories)));
 }
 
-// "Ver todo": todo menos las categorías que solo se ven en su sección (Hombre)
-export const isHiddenFromCatalog = (category, content = flowContent) => inList(category, content?.hiddenFromCatalog);
-export const isHiddenFromFilters = (category, content = flowContent) => inList(category, content?.hiddenFromFilters);
+// Mujer / Hombre / Unisex son GÉNERO (flowContent.genderCategories), nunca tipo de prenda ni filtro
+export const isGenderCategory = (category, content = flowContent) => inList(category, content?.genderCategories);
 
-export function productsInCatalog(products, content = flowContent) {
-  return arr(products).filter((p) => p && p.id && !isHiddenFromCatalog(p.category, content));
-}
-
-// Sección propia de una categoría que no sale en "Ver todo" (Hombre → sección hombre); null si no aplica
+// Sección de una categoría de género (Hombre → sección hombre); null si no es género o no tiene sección
 export function sectionForCategory(category, content = flowContent) {
-  if (!isHiddenFromCatalog(category, content)) return null;
-  return arr(content?.sections).find((s) => inList(category, s.categories)) || null;
+  if (!isGenderCategory(category, content)) return null;
+  return arr(content?.sections).find((s) => inList(category, s.categories) || normalize(s.label) === normalize(category)) || null;
 }
 
-// Ruta interna (sin el prefijo de la tienda) de la página de una categoría
+// Página de un tipo de prenda dentro de "Ver todo"
+export const typePath = (type) => `/coleccion?categoria=${encodeURIComponent(type)}`;
+
+// Ruta interna de una categoría de la base: una de género va a su sección; el resto, a su tipo de prenda
 export function categoryPath(category, content = flowContent) {
   const section = sectionForCategory(category, content);
-  return section ? `/coleccion/${section.slug}` : `/coleccion?categoria=${encodeURIComponent(category)}`;
+  return section ? `/coleccion/${section.slug}` : typePath(category);
+}
+
+// Tipo de prenda por la primera palabra del nombre ("Pantaloneta Nila" → Pantalonetas). Solo palabras de
+// este diccionario: si el nombre no empieza por una de ellas, el producto no se agrupa (no se adivina).
+const GARMENTS = {
+  pantaloneta: 'Pantalonetas', camiseta: 'Camisetas', buzo: 'Buzos', jogger: 'Joggers', sudadera: 'Sudaderas',
+  chaqueta: 'Chaquetas', bermuda: 'Bermudas', short: 'Shorts', oversize: 'Oversize', esqueleto: 'Esqueletos',
+};
+
+export function garmentOf(product) {
+  const word = normalize(product?.name).split(' ')[0];
+  return word && Object.prototype.hasOwnProperty.call(GARMENTS, word) ? { key: word, label: GARMENTS[word] } : null;
+}
+
+// [{ key, label, count }] por tipo de prenda, en orden alfabético; los productos sin tipo reconocido no cuentan
+export function garmentGroups(products) {
+  const groups = new Map();
+  for (const p of arr(products)) {
+    const g = garmentOf(p);
+    if (!g) continue;
+    if (!groups.has(g.key)) groups.set(g.key, { ...g, count: 0 });
+    groups.get(g.key).count += 1;
+  }
+  return [...groups.values()].sort((a, b) => a.label.localeCompare(b.label, 'es'));
+}
+
+// ── Tipo de prenda: helper ÚNICO del menú, del filtro del listado, del sitemap y del prerender ──
+// Categoría normal (Tops, Licras…) y Flow Archive: la misma categoría. Categoría de género
+// (Hombre, Unisex): el tipo de prenda del nombre (garmentOf); null si no se puede deducir.
+export function productType(product, content = flowContent) {
+  const category = String(product?.category || '').trim();
+  if (!category) return null;
+  if (isGenderCategory(category, content)) return garmentOf(product)?.label || null;
+  return category;
+}
+
+// [{ name, count }] de tipos de prenda en el orden de categoryOrder (Archive al final).
+// archive: false deja fuera Flow Archive (el menú lo enlaza aparte).
+export function productTypes(products, { archive = true } = {}, content = flowContent) {
+  const counts = new Map();
+  for (const p of arr(products)) {
+    if (!p || !p.id) continue;
+    const type = productType(p, content);
+    if (!type || (!archive && isArchiveCategory(type, content))) continue;
+    const key = normalize(type);
+    if (!counts.has(key)) counts.set(key, { name: type, count: 0 });
+    counts.get(key).count += 1;
+  }
+  return categoriesOrdered([...counts.values()], content);
 }
 
 // Categorías que coinciden con un término de navegación ("mujer", "hombre")
@@ -232,7 +281,7 @@ export function filterProducts(products, { category, color, size, q, sort, colle
   const sz = normalize(size);
   const query = normalize(q);
   let list = arr(products).filter((p) => p && p.id);
-  if (cat) list = list.filter((p) => normalize(p.category) === cat);
+  if (cat) list = list.filter((p) => normalize(productType(p)) === cat);
   if (col) list = list.filter((p) => colorsOfProduct(p).some((c) => c.key === col));
   if (sz) list = list.filter((p) => arr(p.sizes_available).some((s) => normalize(s) === sz));
   if (query) {

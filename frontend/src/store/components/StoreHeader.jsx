@@ -7,6 +7,7 @@ import { useStoreNav } from '../hooks/useStoreNav';
 import { flowContent } from '../content/flowContent';
 import { waLink } from '../lib/format';
 import Logo from './Logo';
+import ColorDot from './ColorDot';
 import SearchOverlay from './SearchOverlay';
 
 function isCurrent(href, location) {
@@ -131,21 +132,38 @@ export default function StoreHeader() {
         {/* Mega menú (desktop) */}
         {megaItem && (
           <div className="absolute inset-x-0 top-full hidden border-t border-flow-stone bg-flow-white text-flow-black lg:block" role="region" aria-label={`Menú ${megaItem.label}`}>
-            <div className="mx-auto grid max-w-7xl grid-cols-[1fr_1.4fr] gap-10 px-8 py-10">
+            <div className={`mx-auto grid max-w-7xl gap-10 px-8 py-10 ${megaItem.byColor && nav.drops.length > 0 ? 'grid-cols-[1fr_1fr_1.2fr]' : 'grid-cols-[1fr_1.4fr]'}`}>
               <div>
-                <p className="flow-label mb-4 text-flow-muted">Categorías</p>
+                <p className="flow-label mb-4 text-flow-muted">{megaItem.menuTitle || 'Categorías'}</p>
                 <ul className="space-y-3 text-sm">
+                  {megaItem.section && (
+                    <li><Link to={megaItem.href} onClick={closeAll} className="font-medium hover:underline">Ver todo {megaItem.label}</Link></li>
+                  )}
                   {(megaItem.categories || nav.shopCategories).map((c) => (
                     <li key={c.name}><Link to={c.href || `${path('/coleccion')}?categoria=${encodeURIComponent(c.name)}`} onClick={closeAll} className="hover:underline">{c.name}</Link></li>
                   ))}
-                  {nav.collection && (
+                  {megaItem.extras && nav.collection && (
                     <li><Link to={path(`/coleccion/${nav.collection.slug}`)} onClick={closeAll} className="font-medium hover:underline">{nav.collection.label}</Link></li>
                   )}
-                  {nav.archiveCategory && (
+                  {megaItem.extras && nav.archiveCategory && (
                     <li><Link to={nav.archiveCategory.href} onClick={closeAll} className="text-flow-muted hover:underline">{flowContent.archive.title}</Link></li>
                   )}
                 </ul>
               </div>
+              {megaItem.byColor && nav.drops.length > 0 && (
+                <div>
+                  <Link to={path('/colores')} onClick={closeAll} className="flow-label mb-4 block text-flow-muted hover:underline">Comprar por color</Link>
+                  <ul className="space-y-3 text-sm">
+                    {nav.drops.map((d) => (
+                      <li key={d.slug}>
+                        <Link to={d.href} onClick={closeAll} className="inline-flex items-center gap-3 hover:underline">
+                          <ColorDot name={d.colors[0]} hex={d.palette?.bg} size={12} label={false} /> {d.name}
+                        </Link>
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              )}
               {nav.featured && (
                 <Link to={nav.featured.href} onClick={closeAll} className="group relative block overflow-hidden" style={{ aspectRatio: '16 / 10', background: nav.featured.palette?.bg || 'var(--flow-sand)' }}>
                   {nav.featured.image && (
@@ -174,17 +192,31 @@ export default function StoreHeader() {
             <span className="h-11 w-11" aria-hidden="true" />
           </div>
           <nav className="flex-1 px-5 py-4" aria-label="Menú móvil">
-            {nav.items.filter((i) => i.id === 'mujer' || i.id === 'hombre' || i.id === 'todo').map((i) => (i.categories?.length > 1 ? (
-              <details key={i.id} className="border-b border-[color:var(--flow-sand)]" open>
+            {nav.items.filter((i) => i.id === 'mujer' || i.id === 'hombre' || i.id === 'todo').map((i, n) => (i.mega ? (
+              <details key={i.id} className="border-b border-[color:var(--flow-sand)]" open={n === 0}>
                 <summary className="flow-label flex cursor-pointer list-none items-center justify-between py-4">
                   {i.label} <ChevronDown size={16} strokeWidth={1.5} aria-hidden="true" />
                 </summary>
                 <ul className="space-y-1 pb-4">
-                  <li><Link to={i.href} onClick={closeAll} className="block py-2 text-sm font-medium">Ver todo {i.label}</Link></li>
-                  {i.categories.map((c) => (
+                  <li><Link to={i.href} onClick={closeAll} className="block py-2 text-sm font-medium">{i.section ? `Ver todo ${i.label}` : 'Todo el catálogo'}</Link></li>
+                  {(i.categories || []).map((c) => (
                     <li key={c.name}><Link to={c.href} onClick={closeAll} className="block py-2 text-sm">{c.name}</Link></li>
                   ))}
                 </ul>
+                {i.byColor && nav.drops.length > 0 && (
+                  <div className="pb-4">
+                    <Link to={path('/colores')} onClick={closeAll} className="flow-label block py-2 text-flow-muted">Comprar por color</Link>
+                    <ul className="space-y-1">
+                      {nav.drops.map((d) => (
+                        <li key={d.slug}>
+                          <Link to={d.href} onClick={closeAll} className="flex items-center gap-3 py-2 text-sm">
+                            <ColorDot name={d.colors[0]} hex={d.palette?.bg} size={12} label={false} /> {d.name}
+                          </Link>
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+                )}
               </details>
             ) : (
               <Link key={i.id} to={i.href} onClick={closeAll} className="flow-label block border-b border-[color:var(--flow-sand)] py-4">{i.label}</Link>

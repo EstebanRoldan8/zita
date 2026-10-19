@@ -3,7 +3,7 @@ import { useSearchParams } from 'react-router-dom';
 import { SlidersHorizontal, X } from 'lucide-react';
 import { useStorePath } from '../hooks/useStore';
 import {
-  filterProducts, colorsIn, sizesOf, productsInCapsule, normalize, categoriesOrdered, isHiddenFromFilters,
+  filterProducts, colorsIn, sizesOf, productsInCapsule, normalize, productTypes,
 } from '../lib/collections';
 import ProductCard from './ProductCard';
 import ColorDot from './ColorDot';
@@ -49,12 +49,8 @@ export default function ProductListing({
 
   const colorOptions = useMemo(() => colorsIn(afterCapsule), [afterCapsule]);
   const sizeOptions = useMemo(() => sizesOf(afterCapsule), [afterCapsule]);
-  const categoryOptions = useMemo(() => {
-    const counts = {};
-    // Hombre y Unisex no se ofrecen como filtro (flowContent.hiddenFromFilters)
-    for (const p of afterCapsule) if (p.category && !isHiddenFromFilters(p.category)) counts[p.category] = (counts[p.category] || 0) + 1;
-    return categoriesOrdered(Object.entries(counts).map(([name, count]) => ({ name, count })));
-  }, [afterCapsule]);
+  // Tipos de prenda (mismo helper que el menú): nunca Mujer/Hombre/Unisex
+  const categoryOptions = useMemo(() => productTypes(afterCapsule), [afterCapsule]);
 
   const active = [capsule && { key: 'capsula', label: capsule.name }, color && { key: 'color', label: colorOptions.find((c) => c.key === normalize(color))?.name || color },
     category && { key: 'categoria', label: category }, size && { key: 'talla', label: `Talla ${size}` }].filter(Boolean);

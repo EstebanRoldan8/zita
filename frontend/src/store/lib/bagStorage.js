@@ -27,6 +27,8 @@ export function sanitizeLine(raw) {
     image: typeof raw.image === 'string' && raw.image ? raw.image : null,
     color: optText(raw.color),
     size: optText(raw.size),
+    // Solo en sets: qué incluye ("Top Aria + Licra Aria"), para mostrarlo en la bolsa y el checkout
+    includes: optText(raw.includes),
     max_qty: Number.isInteger(maxQty) && maxQty > 0 ? Math.min(maxQty, 10) : 10,
     quantity: Math.min(quantity, 10),
   };

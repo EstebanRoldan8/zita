@@ -182,7 +182,7 @@ function snapshotCost(snapshot, setQuantity) {
 }
 
 // ── Base de datos ────────────────────────────────────────────────────────────
-const COMPONENT_PRODUCT_COLUMNS = 'id, name, price, cost_price, stock, has_variants, is_active, is_bundle, option_images, business_id';
+const COMPONENT_PRODUCT_COLUMNS = 'id, name, category, price, cost_price, stock, has_variants, is_active, is_bundle, option_images, business_id';
 
 // { [bundleId]: [{ quantity, product }] } y { [productId]: variantes activas } — SIEMPRE filtrado por negocio
 async function loadBundles(client, businessId, bundleIds) {

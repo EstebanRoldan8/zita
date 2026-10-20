@@ -111,7 +111,9 @@ async function bundleViews(businessId, products) {
     const d = deriveBundle(p, components, variantsByProduct);
     const variants = d.error ? [] : d.variants;
     const stock = d.error ? 0 : (d.hasVariants ? variants.reduce((n, v) => n + v.stock, 0) : d.simpleStock);
-    out[p.id] = { product: { ...p, has_variants: d.hasVariants && !d.error, stock }, variants, components, derived: d };
+    // Categorías de sus productos (públicas): la tienda decide con ellas si el set es de Mujer u Hombre
+    const bundleCategories = [...new Set(components.map((c) => c.product.category).filter(Boolean))];
+    out[p.id] = { product: { ...p, has_variants: d.hasVariants && !d.error, stock, bundle_categories: bundleCategories }, variants, components, derived: d };
   }
   return out;
 }
@@ -133,7 +135,7 @@ function productCard(product, variants) {
     sizes_available: sizes,
     ...stockFlags(product, variants),
     // Solo en sets (los productos normales quedan idénticos)
-    ...(product.is_bundle ? { is_bundle: true } : {}),
+    ...(product.is_bundle ? { is_bundle: true, bundle_categories: product.bundle_categories || [] } : {}),
   };
 }
 

@@ -96,6 +96,10 @@ function productContent(base, p, colorParam) {
     + (colors.length ? `<p>Colores: ${esc(colors.join(', '))}</p>` : '')
     + (sizes.length ? `<p>Tallas: ${esc(sizes.join(', '))}</p>` : '')
     + (text ? paragraphs(text) : '')
+    // Set: qué incluye (igual que el bloque "Incluye" de la página)
+    + (Array.isArray(p.bundle?.components) && p.bundle.components.length
+      ? `<h2>Incluye</h2><ul>${p.bundle.components.map((c) => `<li>${Number(c.quantity) > 1 ? `${esc(c.quantity)} × ` : ''}${esc(c.name)}</li>`).join('')}</ul>`
+      : '')
     + (specs.length ? `<dl>${specs.map((s) => `<dt>${esc(s.label)}</dt><dd>${esc(s.value)}</dd>`).join('')}</dl>` : '')
     + `</main>`;
 }

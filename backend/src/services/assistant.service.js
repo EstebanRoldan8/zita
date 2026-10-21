@@ -2284,12 +2284,19 @@ async function executeTool(toolName, toolInput, businessId) {
         return { success: false, error: 'Los sets no se venden desde el asistente: registra la venta como pedido, que descuenta cada producto del set.' };
       }
 
-      if (!product || product.stock < toolInput.quantity) {
-        return { success: false, error: 'Stock insuficiente' };
+      if (!product) {
+        return { success: false, error: 'No encontré ese producto. No se registró la venta.' };
+      }
+      const sinStock = (quedan) => `No hay stock suficiente de ${product.name} (quedan ${quedan}). No se registró la venta.`;
+      if (product.stock < toolInput.quantity) {
+        return { success: false, error: sinStock(product.stock) };
       }
 
+      // El descuento de stock es la PRIMERA escritura de la venta: si falla, no se escribe nada más.
+      // supabase.rpc() no lanza: devuelve { error } (el catch cubre solo fallas de red del cliente).
+      let stockError = null;
       try {
-        await supabaseAdmin.rpc('adjust_stock', {
+        ({ error: stockError } = await supabaseAdmin.rpc('adjust_stock', {
           p_business_id: businessId,
           p_product_id: toolInput.product_id,
           p_variant_id: toolInput.variant_id || null,
@@ -2299,14 +2306,21 @@ async function executeTool(toolName, toolInput, businessId) {
           p_ref_type: 'product_sale',
           p_ref_id: null,
           p_user: null
-        });
+        }));
       } catch (err) {
-        if (err.message?.includes('STOCK_INSUFICIENTE_O_NO_ENCONTRADO')) {
+        stockError = err;
+      }
+      if (stockError) {
+        if (stockError.message?.includes('STOCK_INSUFICIENTE_O_NO_ENCONTRADO')) {
           logger.error('[REGISTRAR_VENTA_STOCK_INSUFICIENTE]', { businessId, productId: toolInput.product_id, variantId: toolInput.variant_id, attempted_qty: toolInput.quantity });
-          return { success: false, error: 'Stock insuficiente' };
+          // Stock real en este momento (pudo cambiar desde la lectura de arriba)
+          const { data: actual } = toolInput.variant_id
+            ? await supabaseAdmin.from('product_variants').select('stock').eq('business_id', businessId).eq('id', toolInput.variant_id).maybeSingle()
+            : await supabaseAdmin.from('products').select('stock').eq('business_id', businessId).eq('id', toolInput.product_id).maybeSingle();
+          return { success: false, error: sinStock(actual?.stock ?? 0) };
         }
-        logger.error('[REGISTRAR_VENTA_STOCK_RPC_FAILED]', { businessId, productId: toolInput.product_id, error: err.message });
-        return { success: false, error: 'No se pudo actualizar el stock del producto' };
+        logger.error('[REGISTRAR_VENTA_STOCK_RPC_FAILED]', { businessId, productId: toolInput.product_id, error: stockError.message });
+        return { success: false, error: `No se pudo descontar el stock de ${product.name}. No se registró la venta.` };
       }
 
       const saleDate = new Date().toLocaleDateString('en-CA', { timeZone: 'America/Bogota' });

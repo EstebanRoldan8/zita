@@ -120,7 +120,7 @@ mismo que ve una persona (título, descripción, precio, fotos, disponibilidad).
 
 ## TODO
 
-- [ ] **Fuente del slogan:** reemplazar "Mrs Saint Delafield" por **Autography** (`--flow-script` en `flow.css` y `lib/fonts.js`).
+- [x] **Fuente del slogan:** Autography (uso autorizado por el autor por correo) en `assets/fonts/autography-latin.woff2`, subset latino; `@font-face` y `--flow-font-script` en `flow.css`, precarga en `lib/fonts.js`. El archivo es la versión que trae "DEMO - Personal Use Only" en sus metadatos: si el autor envía la versión comercial, regenerar el woff2 con el mismo subset.
 - [ ] **Fotografía:** hero/campaña (hoy un placeholder CSS con sombra de palmera), fotos por color de cada producto, Sobre FLOW.
 - [ ] **Contenido pendiente en `flowContent.js`:** `shipping`, `returns`, `sizeGuide`, `legal`, `brand.instagram`, `brand.email`, `brand.city`. Mientras sean null, sus secciones y enlaces no se muestran.
 - [ ] **WhatsApp:** número en `store_settings` (sin él no aparecen el botón flotante ni los enlaces de WhatsApp).

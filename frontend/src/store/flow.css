@@ -1,8 +1,21 @@
 /* ============================================================================
    Flow — Brand Book 2026. Todo vive bajo .flow-store: el tema del panel no cambia.
-   Fuentes (Playfair Display, Montserrat, Mrs Saint Delafield) se cargan solo en la tienda
-   desde StoreLayout (lib/fonts.js).
+   Fuentes (Playfair Display, Montserrat) se cargan solo en la tienda desde StoreLayout
+   (lib/fonts.js). Autography (slogan) es propia: @font-face de abajo, subset latino en woff2.
    ============================================================================ */
+
+/* Autography — uso en la tienda autorizado por el autor (Hendra Pratama Typework) por correo.
+   Subset latino (ASCII, Latin-1 con tildes, ñ, ¡¿, comillas, guiones, €) generado con pyftsubset
+   desde Autography.otf; °ºª…· no están en la fuente y salen con el respaldo. Solo se descarga
+   cuando una página de la tienda muestra texto con .flow-script. */
+@font-face {
+  font-family: 'Autography';
+  src: url('./assets/fonts/autography-latin.woff2') format('woff2');
+  font-weight: 400;
+  font-style: normal;
+  font-display: swap;
+  unicode-range: U+0020-007E, U+00A0-00FF, U+0131, U+0152-0153, U+2013-2014, U+2018-201E, U+2022, U+2026, U+2039-203A, U+20AC, U+2122;
+}
 
 .flow-store {
   --flow-black: #1C1C1C;
@@ -16,8 +29,8 @@
 
   --flow-serif: 'Playfair Display', Georgia, 'Times New Roman', serif;
   --flow-sans: 'Montserrat', system-ui, -apple-system, 'Segoe UI', sans-serif;
-  /* TODO: reemplazar por Autography (fuente oficial del slogan) cuando esté disponible */
-  --flow-script: 'Mrs Saint Delafield', 'Brush Script MT', cursive;
+  /* Fuente oficial del slogan ("Just go with the flow"), solo con .flow-script */
+  --flow-font-script: 'Autography', 'Brush Script MT', cursive;
 
   --flow-ease: cubic-bezier(0.2, 0, 0, 1);
   --flow-fast: 200ms;
@@ -75,9 +88,12 @@
   text-transform: uppercase;
   letter-spacing: 0.15em;
 }
+/* Clase utilitaria del slogan. El line-height propio (más fuerte que el text-* de Tailwind) fija
+   la altura de la línea igual con el respaldo y con Autography: al cambiar de fuente no salta el diseño. */
 .flow-store .flow-script {
-  font-family: var(--flow-script);
+  font-family: var(--flow-font-script);
   font-weight: 400;
+  line-height: 1.3;
   letter-spacing: 0;
   text-transform: none;
 }

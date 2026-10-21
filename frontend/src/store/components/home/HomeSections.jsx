@@ -347,7 +347,7 @@ export function SloganBand() {
   return (
     <section className="bg-flow-white">
       <div className="mx-auto max-w-7xl px-6 py-20 text-center">
-        <p className="flow-script text-5xl md:text-7xl">{flowContent.brand.slogan}</p>
+        <p className="flow-script text-4xl sm:text-5xl md:text-7xl">{flowContent.brand.slogan}</p>
       </div>
     </section>
   );

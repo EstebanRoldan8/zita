@@ -8,6 +8,7 @@ const { findColorAttribute, normalizeOptionKey, normalizeAttributeName } = requi
 const { normalizeColombianPhone, maskPhone } = require('../utils/phone');
 const { decrypt } = require('../utils/encrypt');
 const { sendMessage } = require('../config/whatsapp');
+const { loadBundles, deriveBundle, bundleSnapshot, applyMoves, variantLabel: bundleVariantLabel } = require('../utils/bundles');
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const SIZE_KEYS = ['talla', 'size', 'tamano'];
@@ -53,7 +54,7 @@ function publicSettings(settings = {}) {
 }
 
 // ── Helpers de catálogo ──────────────────────────────────────────────────────
-const PRODUCT_COLUMNS = 'id, name, description, category, price, image_url, images, option_images, stock, min_stock, has_variants, created_at';
+const PRODUCT_COLUMNS = 'id, name, description, category, price, image_url, images, option_images, stock, min_stock, has_variants, is_bundle, created_at';
 const VARIANT_COLUMNS = 'id, product_id, attributes, stock, image_url, is_active';
 
 async function loadActiveVariants(businessId, productIds) {
@@ -98,6 +99,25 @@ function colorSwatches(product, variants) {
   }));
 }
 
+// Sets: producto "adaptado" (has_variants y stock calculados) + variantes derivadas de sus componentes.
+// Con eso productCard, colorSwatches y resolveImages funcionan igual que con un producto normal.
+async function bundleViews(businessId, products) {
+  const sets = (products || []).filter((p) => p.is_bundle);
+  if (sets.length === 0) return {};
+  const { componentsByBundle, variantsByProduct } = await loadBundles(supabaseAdmin, businessId, sets.map((p) => p.id));
+  const out = {};
+  for (const p of sets) {
+    const components = componentsByBundle[p.id] || [];
+    const d = deriveBundle(p, components, variantsByProduct);
+    const variants = d.error ? [] : d.variants;
+    const stock = d.error ? 0 : (d.hasVariants ? variants.reduce((n, v) => n + v.stock, 0) : d.simpleStock);
+    // Categorías de sus productos (públicas): la tienda decide con ellas si el set es de Mujer u Hombre
+    const bundleCategories = [...new Set(components.map((c) => c.product.category).filter(Boolean))];
+    out[p.id] = { product: { ...p, has_variants: d.hasVariants && !d.error, stock, bundle_categories: bundleCategories }, variants, components, derived: d };
+  }
+  return out;
+}
+
 function productCard(product, variants) {
   const sizes = [];
   for (const v of variants) {
@@ -114,6 +134,8 @@ function productCard(product, variants) {
     colors: product.has_variants ? colorSwatches(product, variants) : [],
     sizes_available: sizes,
     ...stockFlags(product, variants),
+    // Solo en sets (los productos normales quedan idénticos)
+    ...(product.is_bundle ? { is_bundle: true, bundle_categories: product.bundle_categories || [] } : {}),
   };
 }
 
@@ -165,11 +187,12 @@ async function listProducts(req, res) {
     if (error) throw error;
 
     const products = data || [];
-    const variantsByProduct = await loadActiveVariants(req.storeBusinessId, products.filter((p) => p.has_variants).map((p) => p.id));
+    const variantsByProduct = await loadActiveVariants(req.storeBusinessId, products.filter((p) => p.has_variants && !p.is_bundle).map((p) => p.id));
+    const sets = await bundleViews(req.storeBusinessId, products);
     return res.json({
       success: true,
       data: {
-        products: products.map((p) => productCard(p, variantsByProduct[p.id] || [])),
+        products: products.map((p) => (sets[p.id] ? productCard(sets[p.id].product, sets[p.id].variants) : productCard(p, variantsByProduct[p.id] || []))),
         page,
         limit,
         total: count || 0,
@@ -186,16 +209,20 @@ async function getProduct(req, res) {
   try {
     const { id } = req.params;
     if (!UUID_RE.test(id)) return notFound(res, 'Producto no encontrado.');
-    const { data: product, error } = await supabaseAdmin
+    const { data: rawProduct, error } = await supabaseAdmin
       .from('products')
       .select(PRODUCT_COLUMNS)
       .eq('id', id)
       .eq('business_id', req.storeBusinessId)
       .eq('is_active', true)
       .maybeSingle();
-    if (error || !product) return notFound(res, 'Producto no encontrado.');
+    if (error || !rawProduct) return notFound(res, 'Producto no encontrado.');
 
-    const variants = product.has_variants ? ((await loadActiveVariants(req.storeBusinessId, [id]))[id] || []) : [];
+    // Set: producto adaptado + variantes derivadas (sin stock ni variantes propias)
+    const set = rawProduct.is_bundle ? (await bundleViews(req.storeBusinessId, [rawProduct]))[rawProduct.id] : null;
+    const product = set ? set.product : rawProduct;
+    const variants = set ? set.variants
+      : (product.has_variants ? ((await loadActiveVariants(req.storeBusinessId, [id]))[id] || []) : []);
     const card = productCard(product, variants);
 
     const imagesByColor = {};
@@ -217,6 +244,8 @@ async function getProduct(req, res) {
         })),
         max_qty: product.has_variants ? null : Math.max(Math.min(Number(product.stock) || 0, MAX_QTY_PER_LINE), 0),
         images_by_color: imagesByColor,
+        // Solo lectura: qué incluye el set (sin costos ni ids internos)
+        ...(set ? { bundle: { components: set.components.map((c) => ({ name: c.product.name, quantity: Number(c.quantity) || 1 })) } } : {}),
       },
     });
   } catch (err) {
@@ -334,12 +363,6 @@ function notifyOwner(contact, order, items, customer, city) {
   });
 }
 
-async function callAdjustStock(params) {
-  const { data, error } = await supabaseAdmin.rpc('adjust_stock', params);
-  if (error) throw error;
-  return data;
-}
-
 // Honeypot: el campo oculto "website" lleno indica un bot. Se responde 200 sin crear nada.
 function honeypot(req, res, next) {
   const trap = req.body?.website;
@@ -374,7 +397,7 @@ async function createOrder(req, res) {
     const productIds = [...new Set(items.map((i) => i.product_id))];
     const { data: products, error: pErr } = await supabaseAdmin
       .from('products')
-      .select('id, name, price, stock, has_variants')
+      .select('id, name, price, stock, has_variants, is_bundle')
       .eq('business_id', businessId)
       .eq('is_active', true)
       .in('id', productIds);
@@ -385,7 +408,7 @@ async function createOrder(req, res) {
       return res.status(400).json({ success: false, error: 'producto_no_disponible', items: missingProducts });
     }
 
-    const variantIds = [...new Set(items.map((i) => i.variant_id).filter(Boolean))];
+    const variantIds = [...new Set(items.filter((i) => !productById[i.product_id].is_bundle).map((i) => i.variant_id).filter(Boolean))];
     let variantById = {};
     if (variantIds.length > 0) {
       const { data: variants, error: vErr } = await supabaseAdmin
@@ -398,50 +421,110 @@ async function createOrder(req, res) {
       variantById = Object.fromEntries((variants || []).map((v) => [v.id, v]));
     }
 
+    // Sets del pedido: variantes derivadas de sus componentes (mismo negocio, calculado en el servidor)
+    const sets = await bundleViews(businessId, (products || []).filter((p) => p.is_bundle));
+    const hasSets = Object.keys(sets).length > 0;
+
     const badVariants = [];
-    for (const item of items) {
+    const setVariantOf = []; // por índice de item: variante derivada elegida (o null)
+    items.forEach((item, idx) => {
       const p = productById[item.product_id];
-      if (p.has_variants) {
+      if (p.is_bundle) {
+        const set = sets[p.id];
+        if (!set || set.derived.error) { badVariants.push(item.variant_id || item.product_id); return; }
+        if (set.product.has_variants) {
+          const dv = item.variant_id ? set.variants.find((v) => v.id === item.variant_id) : null;
+          if (!dv) badVariants.push(item.variant_id || item.product_id);
+          setVariantOf[idx] = dv || null;
+        } else if (item.variant_id) {
+          badVariants.push(item.variant_id);
+        }
+      } else if (p.has_variants) {
         const v = item.variant_id ? variantById[item.variant_id] : null;
         if (!v || v.product_id !== p.id) badVariants.push(item.variant_id || item.product_id);
       } else if (item.variant_id) {
         badVariants.push(item.variant_id);
       }
-    }
+    });
     if (badVariants.length > 0) {
       return res.status(400).json({ success: false, error: 'variante_no_disponible', items: [...new Set(badVariants)] });
     }
 
-    // 3) Pre-chequeo de stock (sumando líneas repetidas). adjust_stock sigue siendo la verdad.
-    const needed = {};
-    for (const item of items) {
-      const key = item.variant_id || item.product_id;
-      needed[key] = (needed[key] || 0) + item.quantity;
-    }
-    const short = Object.entries(needed)
-      .filter(([key, qty]) => {
-        const available = variantById[key] ? Number(variantById[key].stock) : Number(productById[key]?.stock);
-        return !(available >= qty);
-      })
-      .map(([key]) => key);
-    if (short.length > 0) return res.status(409).json({ success: false, error: 'sin_stock', items: short });
-
-    // 4) Totales calculados en el servidor (cualquier precio del body se ignora)
-    const lines = items.map((item) => {
+    // 3) Líneas (totales calculados en el servidor; cualquier precio del body se ignora) y movimientos de
+    //    stock: línea normal → ella misma; línea de set → un movimiento por componente (snapshot)
+    const available = {}; // clave (variant_id || product_id) → stock disponible
+    const lines = items.map((item, idx) => {
       const p = productById[item.product_id];
-      const v = item.variant_id ? variantById[item.variant_id] : null;
       const unitPrice = toNumber(p.price);
+      const lineId = item.variant_id || item.product_id;
+      if (p.is_bundle) {
+        const set = sets[p.id];
+        const dv = setVariantOf[idx] || null;
+        const snapshot = bundleSnapshot(set.product, dv, set.components);
+        const parts = dv ? dv.components
+          : set.components.map((c) => ({ product_id: c.product.id, variant_id: null, stock: Number(c.product.stock) || 0 }));
+        for (const c of parts) available[c.variant_id || c.product_id] = Number(c.stock) || 0;
+        const label = dv ? bundleVariantLabel(dv.attributes) : '';
+        return {
+          lineId,
+          moves: snapshot.components.map((c) => ({
+            product_id: c.product_id, variant_id: c.variant_id, quantity: c.quantity * item.quantity,
+            label: [c.name, c.label].filter(Boolean).join(' '),
+          })),
+          row: {
+            product_id: p.id,
+            variant_id: null,
+            description: label ? `${p.name} (${label})` : p.name,
+            quantity: item.quantity,
+            unit_price: unitPrice,
+            total_price: round2(unitPrice * item.quantity),
+            bundle_snapshot: snapshot,
+          },
+        };
+      }
+      const v = item.variant_id ? variantById[item.variant_id] : null;
+      available[lineId] = v ? Number(v.stock) : Number(p.stock);
       const label = v ? variantLabel(v.attributes) : '';
+      const description = label ? `${p.name} (${label})` : p.name;
       return {
-        product_id: p.id,
-        variant_id: v ? v.id : null,
-        description: label ? `${p.name} (${label})` : p.name,
-        quantity: item.quantity,
-        unit_price: unitPrice,
-        total_price: round2(unitPrice * item.quantity),
+        lineId,
+        moves: [{ product_id: p.id, variant_id: v ? v.id : null, quantity: item.quantity, label: description }],
+        row: {
+          product_id: p.id,
+          variant_id: v ? v.id : null,
+          description,
+          quantity: item.quantity,
+          unit_price: unitPrice,
+          total_price: round2(unitPrice * item.quantity),
+        },
       };
     });
-    const subtotal = round2(lines.reduce((s, l) => s + l.total_price, 0));
+
+    // Pre-chequeo de stock de TODO el pedido junto (piezas sueltas + componentes de sets).
+    // adjust_stock sigue siendo la verdad.
+    const needed = {};
+    const usedBy = {};
+    for (const line of lines) {
+      for (const m of line.moves) {
+        const key = m.variant_id || m.product_id;
+        needed[key] = (needed[key] || 0) + m.quantity;
+        (usedBy[key] ||= { lines: new Set(), label: m.label }).lines.add(line.lineId);
+      }
+    }
+    const shortKeys = Object.entries(needed).filter(([key, qty]) => !(available[key] >= qty)).map(([key]) => key);
+    if (shortKeys.length > 0) {
+      const shortLines = [...new Set(shortKeys.flatMap((k) => [...usedBy[k].lines]))];
+      return res.status(409).json({
+        success: false,
+        error: 'sin_stock',
+        items: shortLines,
+        // Solo con sets: qué pieza falta ("Licra Aria S / Negro"). Pedidos sin sets: respuesta igual que antes
+        ...(hasSets ? { missing: shortKeys.map((k) => usedBy[k].label) } : {}),
+      });
+    }
+
+    // 4) Totales
+    const subtotal = round2(lines.reduce((sum, l) => sum + l.row.total_price, 0));
     const settings = publicSettings(req.storeBusiness.settings);
     const shippingCost = settings.free_shipping_from > 0 && subtotal >= settings.free_shipping_from ? 0 : settings.shipping_flat_cost;
     const total = round2(subtotal + shippingCost);
@@ -483,61 +566,42 @@ async function createOrder(req, res) {
     // 6) Ítems (snapshot de nombre y precio)
     const { error: iErr } = await supabaseAdmin
       .from('order_items')
-      .insert(lines.map((l) => ({ ...l, order_id: orderId, business_id: businessId })));
+      .insert(lines.map((l) => ({ ...l.row, order_id: orderId, business_id: businessId })));
     if (iErr) throw iErr;
 
-    // 7) Stock: un adjust_stock por ítem; si uno falla se restauran los anteriores y se borra el pedido
-    const applied = [];
-    for (const line of lines) {
-      try {
-        await callAdjustStock({
-          p_business_id: businessId,
-          p_product_id: line.product_id,
-          p_variant_id: line.variant_id,
-          p_change: -line.quantity,
-          p_type: 'venta',
-          p_reason: null,
-          p_ref_type: 'order',
-          p_ref_id: orderId,
-          p_user: null,
+    // 7) Stock: un adjust_stock por movimiento (un set: uno por componente). Si uno falla se revierten
+    //    los ya aplicados y se borra el pedido.
+    try {
+      await applyMoves(
+        lines.flatMap((l) => l.moves.map((m) => ({ ...m, lineId: l.lineId }))),
+        { businessId, type: 'venta', refType: 'order', refId: orderId, revertReason: 'Reversión por error en pedido web' },
+        undefined,
+        (done, revErr) => logger.error(`store.createOrder revert failed order=${orderId}: ${revErr.message}`),
+      );
+    } catch (stockErr) {
+      await supabaseAdmin.from('order_items').delete().eq('order_id', orderId);
+      await supabaseAdmin.from('orders').delete().eq('id', orderId).eq('business_id', businessId);
+      orderId = null;
+      if (stockErr.message?.includes('STOCK_INSUFICIENTE_O_NO_ENCONTRADO')) {
+        const failed = stockErr.failedMove;
+        return res.status(409).json({
+          success: false,
+          error: 'sin_stock',
+          items: [failed?.lineId].filter(Boolean),
+          ...(hasSets && failed ? { missing: [failed.label] } : {}),
         });
-        applied.push(line);
-      } catch (stockErr) {
-        for (const done of applied) {
-          try {
-            await callAdjustStock({
-              p_business_id: businessId,
-              p_product_id: done.product_id,
-              p_variant_id: done.variant_id,
-              p_change: done.quantity,
-              p_type: 'ajuste',
-              p_reason: 'Reversión por error en pedido web',
-              p_ref_type: 'order',
-              p_ref_id: orderId,
-              p_user: null,
-            });
-          } catch (revErr) {
-            logger.error(`store.createOrder revert failed order=${orderId}: ${revErr.message}`);
-          }
-        }
-        await supabaseAdmin.from('order_items').delete().eq('order_id', orderId);
-        await supabaseAdmin.from('orders').delete().eq('id', orderId).eq('business_id', businessId);
-        orderId = null;
-        if (stockErr.message?.includes('STOCK_INSUFICIENTE_O_NO_ENCONTRADO')) {
-          return res.status(409).json({ success: false, error: 'sin_stock', items: [line.variant_id || line.product_id] });
-        }
-        throw stockErr;
       }
+      throw stockErr;
     }
 
     logger.info(`store.createOrder ok order=${orderId} business=${businessId} items=${lines.length} phone=${maskPhone(customer.phone)}`);
-    notifyOwner(req.storeOwnerContact, order, lines, customer, shipping.city);
+    notifyOwner(req.storeOwnerContact, order, lines.map((l) => l.row), customer, shipping.city);
 
     return res.status(201).json({
       success: true,
       data: {
         order: publicOrder(order),
-        whatsapp_url: whatsappUrl(settings, order, lines, customer.name, req.storeBusiness.name),
+        whatsapp_url: whatsappUrl(settings, order, lines.map((l) => l.row), customer.name, req.storeBusiness.name),
       },
     });
   } catch (err) {

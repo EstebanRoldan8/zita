@@ -2,6 +2,53 @@ const { createUserClient } = require('../config/supabase');
 const logger = require('../utils/logger');
 const { restoreOrderStock, undoRestoredItems } = require('../utils/orderStock');
 const { recordOrderAccounting, removeOrderAccounting } = require('../utils/orderAccounting');
+const {
+  loadBundles, deriveBundle, bundleSnapshot, simpleComponents, snapshotMoves, applyMoves, variantLabel: bundleVariantLabel,
+} = require('../utils/bundles');
+
+// Líneas de set de un pedido manual. El precio sale del set (nunca del body); el set y sus componentes
+// se buscan SOLO en el negocio del JWT. Devuelve { byIndex: { [i]: { snapshot, moves, price, description, short } } }
+// o { error } con un mensaje claro.
+async function resolveSetItems(supabaseAdmin, businessId, items) {
+  const ids = [...new Set(items.map((i) => i.product_id).filter(Boolean))];
+  if (ids.length === 0) return { byIndex: {} };
+  const { data: sets, error } = await supabaseAdmin
+    .from('products')
+    .select('id, name, price, stock, has_variants, is_bundle, is_active')
+    .eq('business_id', businessId)
+    .eq('is_bundle', true)
+    .in('id', ids);
+  if (error) throw error;
+  if (!sets || sets.length === 0) return { byIndex: {} };
+  const { componentsByBundle, variantsByProduct } = await loadBundles(supabaseAdmin, businessId, sets.map((p) => p.id));
+  const byIndex = {};
+  for (const [idx, item] of items.entries()) {
+    const set = sets.find((p) => p.id === item.product_id);
+    if (!set) continue;
+    if (set.is_active === false) return { error: `El set ${set.name} está inactivo.` };
+    const components = componentsByBundle[set.id] || [];
+    const d = deriveBundle(set, components, variantsByProduct);
+    if (d.error) return { error: `${set.name}: ${d.error}` };
+    let dv = null;
+    if (d.hasVariants) {
+      dv = d.variants.find((v) => v.id === item.variant_id) || null;
+      if (!dv) return { error: `El set ${set.name} tiene variantes, debes especificar cuál (talla/color).` };
+    } else if (item.variant_id) {
+      return { error: `El set ${set.name} no tiene variantes.` };
+    }
+    const snapshot = bundleSnapshot(set, dv, components);
+    const parts = dv ? dv.components : simpleComponents(components);
+    const short = parts.find((c) => (Number(c.stock) || 0) < c.quantity * item.quantity);
+    byIndex[idx] = {
+      snapshot,
+      moves: snapshotMoves(snapshot, item.quantity),
+      price: Number(set.price) || 0,
+      description: dv ? `${set.name} (${bundleVariantLabel(dv.attributes)})` : set.name,
+      short: short ? [short.name, short.label].filter(Boolean).join(' ') : null,
+    };
+  }
+  return { byIndex };
+}
 const { isTiendaBusiness } = require('../utils/businessType');
 
 // Best-effort: vuelve a registrar la caja de un pedido pagado cuando una operación se revierte
@@ -202,6 +249,17 @@ async function create(req, res) {
       }
     }
 
+    // Sets: precio, descripción y snapshot salen del set; su variant_id derivado no se guarda (FK)
+    const setInfo = await resolveSetItems(supabaseAdmin, req.businessId, items);
+    if (setInfo.error) return res.status(400).json({ success: false, error: setInfo.error });
+    items.forEach((item, idx) => {
+      const info = setInfo.byIndex[idx];
+      if (!info) return;
+      item.__set = info;
+      item.unit_price = info.price;
+      item.description = info.description;
+    });
+
     const validStatuses = ['recibido', 'en_proceso', 'listo', 'enviado', 'entregado', 'cancelado'];
     const totalAmount = items.reduce((sum, item) => sum + (item.quantity * item.unit_price), 0);
 
@@ -230,6 +288,17 @@ async function create(req, res) {
 
     const itemsWithStock = [];
     for (const item of items) {
+      if (item.__set) {
+        if (item.__set.short) {
+          await sb.from('orders').delete().eq('id', orderData.id);
+          return res.status(400).json({
+            success: false,
+            error: `Stock insuficiente para ${item.description}: falta ${item.__set.short}.`
+          });
+        }
+        itemsWithStock.push(item);
+        continue;
+      }
       let stockAvailable = 0;
       if (item.product_id) {
         const { data: product } = await sb
@@ -270,7 +339,8 @@ async function create(req, res) {
       itemsWithStock.push(item);
     }
 
-    const processedItems = [];
+    // Movimientos ya aplicados en este pedido (para revertir si algo falla)
+    const processedMoves = [];
     for (const item of itemsWithStock) {
       const { error: itemError } = await sb
         .from('order_items')
@@ -278,11 +348,12 @@ async function create(req, res) {
           order_id: orderData.id,
           business_id: req.businessId,
           product_id: item.product_id || null,
-          variant_id: item.variant_id || null,
+          variant_id: item.__set ? null : (item.variant_id || null),
           description: item.description,
           quantity: item.quantity,
           unit_price: item.unit_price,
           total_price: item.quantity * item.unit_price,
+          ...(item.__set ? { bundle_snapshot: item.__set.snapshot } : {}),
         });
 
       if (itemError) {
@@ -294,6 +365,15 @@ async function create(req, res) {
 
       if (item.product_id) {
         try {
+          if (item.__set) {
+            // Set: un movimiento por componente; applyMoves revierte los suyos si uno falla
+            await applyMoves(item.__set.moves, {
+              businessId: req.businessId, type: 'venta', refType: 'order', refId: orderData.id,
+              revertReason: 'Reversión por error en creación de orden',
+            }, undefined, (done, revErr) => logger.error('orders.create revert adjust_stock failed: ' + revErr.message));
+            processedMoves.push(...item.__set.moves);
+            continue;
+          }
           // rpc() no lanza: hay que revisar error para que el rollback de abajo se ejecute
           const { error: rpcErr } = await supabaseAdmin.rpc('adjust_stock', {
             p_business_id: req.businessId,
@@ -307,10 +387,10 @@ async function create(req, res) {
             p_user: null
           });
           if (rpcErr) throw rpcErr;
-          processedItems.push(item);
+          processedMoves.push({ product_id: item.product_id, variant_id: item.variant_id || null, quantity: item.quantity });
         } catch (err) {
           logger.error('orders.create adjust_stock error: ' + err.message);
-          for (const pItem of processedItems) {
+          for (const pItem of processedMoves) {
             if (pItem.product_id) {
               try {
                 const { error: revRpcErr } = await supabaseAdmin.rpc('adjust_stock', {
@@ -333,15 +413,14 @@ async function create(req, res) {
           await sb.from('order_items').delete().eq('order_id', orderData.id);
           await sb.from('orders').delete().eq('id', orderData.id);
           if (err.message?.includes('STOCK_INSUFICIENTE_O_NO_ENCONTRADO')) {
+            const piece = item.__set && err.failedMove?.label ? `: falta ${err.failedMove.label}` : '';
             return res.status(400).json({
               success: false,
-              error: `Stock insuficiente para ${item.description || 'sin nombre'}.`
+              error: `Stock insuficiente para ${item.description || 'sin nombre'}${piece}.`
             });
           }
           throw err;
         }
-      } else {
-        processedItems.push(item);
       }
     }
 

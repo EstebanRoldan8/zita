@@ -175,6 +175,12 @@ export default function ProductPage() {
   const canAdd = !soldOut && !needsColor && !needsSize && !needsOption && maxQty > 0 && !isFull && (!hasVariants || !!selected?.available);
   const colorName = colors.find((c) => c.key === colorKey)?.name || selected?.colorName || '';
 
+  // Set: qué incluye (de la API pública, sin ids ni costos)
+  const bundleParts = Array.isArray(p.bundle?.components) ? p.bundle.components : [];
+  const includes = bundleParts.length
+    ? bundleParts.map((c) => `${Number(c.quantity) > 1 ? `${c.quantity} × ` : ''}${c.name}`).join(' + ')
+    : null;
+
   const handleAdd = () => {
     if (!canAdd) return;
     add({
@@ -187,6 +193,7 @@ export default function ProductPage() {
       size: selected?.size || (genericOptions ? variantText(selected?.attributes) : null),
       quantity: qty,
       max_qty: maxQty,
+      includes,
     });
     setAdded(true);
     setOpen(true);
@@ -305,6 +312,18 @@ export default function ProductPage() {
           )}
           {isFull && <p className="mt-3 text-xs text-flow-merlot">Tu bolsa llegó al máximo de 20 productos distintos.</p>}
           {added && <p className="mt-3 text-xs" role="status">Agregado a tu bolsa.</p>}
+
+          {bundleParts.length > 0 && (
+            <div className="mt-10">
+              <h2 className="flow-label mb-3">Incluye</h2>
+              <ul className="space-y-1 text-sm">
+                {bundleParts.map((c) => (
+                  <li key={c.name}>{Number(c.quantity) > 1 ? `${c.quantity} × ` : ''}{c.name}</li>
+                ))}
+              </ul>
+              <p className="mt-2 text-xs text-flow-muted">Todas las piezas en la talla y el color que elijas.</p>
+            </div>
+          )}
 
           {(specs.length > 0 || specRest) && (
             <div className="mt-10">

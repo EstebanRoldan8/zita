@@ -42,7 +42,14 @@ const paymentOf = (order) => order.payment_status || 'pendiente';
 // Unidades de catálogo que vuelven al inventario al cancelar o eliminar
 const unitsToReturn = (order) => (order.order_items || [])
   .filter((i) => i.product_id)
-  .reduce((s, i) => s + Number(i.quantity || 0), 0);
+  .reduce((s, i) => s + (i.bundle_snapshot
+    ? (i.bundle_snapshot.components || []).reduce((n, c) => n + Number(c.quantity || 1) * Number(i.quantity || 0), 0)
+    : Number(i.quantity || 0)), 0);
+
+// Set con variantes derivadas (las trae GET /api/products en p.bundle.variants)
+const isSetWithVariants = (p) => !!p?.is_bundle && (p.bundle?.variants?.length || 0) > 0;
+const needsVariant = (p) => !!p && (p.has_variants || isSetWithVariants(p));
+const bundleLine = (snap) => [snap?.bundle_name, Object.values(snap?.attributes || {}).filter(Boolean).join(' / ')].filter(Boolean).join(' — ');
 
 const variantLabel = (attributes) => Object.entries(attributes || {}).map(([k, v]) => `${k}: ${v}`).join(' · ');
 
@@ -96,6 +103,11 @@ function NewOrderModal({ onClose, onSuccess, clients, isTienda, products }) {
   // Solo tienda: elegir un producto del catálogo (y su variante) para que el pedido descuente stock
   const loadVariants = (productId) => {
     if (variantsByProduct[productId]) return;
+    const prod = productById[productId];
+    if (prod?.is_bundle) {
+      setVariantsByProduct((prev) => ({ ...prev, [productId]: { loading: false, list: prod.bundle?.variants || [] } }));
+      return;
+    }
     setVariantsByProduct((prev) => ({ ...prev, [productId]: { loading: true, list: [] } }));
     api.get(`/api/products/${productId}/variants`)
       .then((r) => setVariantsByProduct((prev) => ({ ...prev, [productId]: { loading: false, list: (r.data?.data || []).filter((v) => v.is_active) } })))
@@ -109,7 +121,7 @@ function NewOrderModal({ onClose, onSuccess, clients, isTienda, products }) {
       ? { ...updated[idx], product_id: p.id, variant_id: '', description: p.name, unit_price: Number(p.price) || 0 }
       : { ...updated[idx], product_id: '', variant_id: '' };
     setForm({ ...form, items: updated });
-    if (p?.has_variants) loadVariants(p.id);
+    if (needsVariant(p)) loadVariants(p.id);
   };
 
   const handleSelectVariant = (idx, variantId) => {
@@ -134,7 +146,7 @@ function NewOrderModal({ onClose, onSuccess, clients, isTienda, products }) {
     if (form.items.length === 0 || form.items.some(i => !i.description?.trim() || i.quantity <= 0 || i.unit_price < 0)) {
       return setError('Todos los items deben ser válidos.');
     }
-    if (isTienda && form.items.some(i => i.product_id && productById[i.product_id]?.has_variants && !i.variant_id)) {
+    if (isTienda && form.items.some(i => i.product_id && needsVariant(productById[i.product_id]) && !i.variant_id)) {
       return setError('Selecciona la variante (talla/color) de cada producto que la tenga.');
     }
 
@@ -220,9 +232,9 @@ function NewOrderModal({ onClose, onSuccess, clients, isTienda, products }) {
             <div className="space-y-2">
               {form.items.map((item, idx) => {
                 const p = item.product_id ? productById[item.product_id] : null;
-                const vState = p?.has_variants ? variantsByProduct[p.id] : null;
+                const vState = needsVariant(p) ? variantsByProduct[p.id] : null;
                 const selectedVariant = (vState?.list || []).find((v) => v.id === item.variant_id);
-                const available = p ? (p.has_variants ? selectedVariant?.stock : p.stock) : null;
+                const available = p ? (needsVariant(p) ? selectedVariant?.stock : p.stock) : null;
                 return (
                   <div key={idx} className={isTienda ? 'p-2 rounded-lg border border-slate-800 space-y-2' : ''}>
                     {isTienda && (
@@ -231,10 +243,10 @@ function NewOrderModal({ onClose, onSuccess, clients, isTienda, products }) {
                           className="flex-1 bg-[#131929] border border-slate-700 text-white rounded px-3 py-2 text-sm focus:outline-none focus:border-violet-500">
                           <option value="">Artículo libre (no descuenta stock)</option>
                           {catalog.map((x) => (
-                            <option key={x.id} value={x.id}>{x.name}{x.has_variants ? '' : ` · stock ${x.stock ?? 0}`}</option>
+                            <option key={x.id} value={x.id}>{x.is_bundle ? 'Set · ' : ''}{x.name}{needsVariant(x) ? '' : ` · stock ${x.stock ?? 0}`}</option>
                           ))}
                         </select>
-                        {p?.has_variants && (
+                        {needsVariant(p) && (
                           <select value={item.variant_id || ''} onChange={(e) => handleSelectVariant(idx, e.target.value)}
                             disabled={vState?.loading}
                             className="flex-1 bg-[#131929] border border-slate-700 text-white rounded px-3 py-2 text-sm focus:outline-none focus:border-violet-500">
@@ -255,7 +267,8 @@ function NewOrderModal({ onClose, onSuccess, clients, isTienda, products }) {
                         className="w-16 sm:w-20 bg-[#131929] border border-slate-700 text-white rounded px-3 py-2 text-sm focus:outline-none focus:border-violet-500" />
                       <input type="number" inputMode="numeric" placeholder="Precio" min="0" step="100" value={item.unit_price}
                         onChange={(e) => handleItemChange(idx, 'unit_price', e.target.value)}
-                        className="w-24 bg-[#131929] border border-slate-700 text-white rounded px-3 py-2 text-sm focus:outline-none focus:border-violet-500" />
+                        readOnly={!!p?.is_bundle} title={p?.is_bundle ? 'Precio del set (lo fija el set)' : undefined}
+                        className={`w-24 bg-[#131929] border border-slate-700 text-white rounded px-3 py-2 text-sm focus:outline-none focus:border-violet-500 ${p?.is_bundle ? 'opacity-60 cursor-not-allowed' : ''}`} />
                       {form.items.length > 1 && (
                         <button type="button" onClick={() => handleRemoveItem(idx)}
                           className="px-2 py-2 text-slate-500 hover:text-red-400 transition">
@@ -263,6 +276,9 @@ function NewOrderModal({ onClose, onSuccess, clients, isTienda, products }) {
                         </button>
                       )}
                     </div>
+                    {isTienda && p?.is_bundle && p.bundle && (
+                      <p className="text-xs text-slate-500">Incluye: {p.bundle.components.map((c) => `${c.quantity > 1 ? c.quantity + ' × ' : ''}${c.name}`).join(' + ')} · descuenta cada producto</p>
+                    )}
                     {isTienda && available != null && (
                       <p className={`text-xs ${item.quantity > available ? 'text-red-400' : 'text-slate-500'}`}>
                         Disponible: {available}{item.quantity > available ? ' · cantidad mayor al stock' : ''}
@@ -493,8 +509,15 @@ function OrderDetailModal({ order: initialOrder, onClose, isTienda, onNotice }) 
               {(order.order_items || []).map((item, idx) => (
                 <div key={idx} className="flex items-center justify-between gap-2 text-sm">
                   <div className="flex-1 min-w-0">
-                    <p className="text-white">{item.description}</p>
+                    <p className="text-white">{item.bundle_snapshot ? bundleLine(item.bundle_snapshot) : item.description}</p>
                     <p className="text-slate-500 text-xs">{item.quantity}x {formatCOP(item.unit_price)}</p>
+                    {item.bundle_snapshot && (
+                      <ul className="mt-1 space-y-0.5">
+                        {(item.bundle_snapshot.components || []).map((c, ci) => (
+                          <li key={ci} className="text-slate-500 text-xs">↳ {Number(c.quantity || 1) * Number(item.quantity || 0)} × {c.name}{c.label ? ` (${c.label})` : ''}</li>
+                        ))}
+                      </ul>
+                    )}
                   </div>
                   <p className="text-violet-400 font-semibold">{formatCOP(item.quantity * item.unit_price)}</p>
                 </div>

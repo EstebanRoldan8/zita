@@ -42,8 +42,9 @@ async function tiendaSummary(req, res) {
         .or('status.is.null,status.not.in.(enviado,entregado,cancelado)'),
       sb.from('orders').select('id, client_name, total_amount, status, payment_status, created_at')
         .eq('business_id', req.businessId).order('created_at', { ascending: false }).limit(5),
+      // Sin sets: su stock es calculado; las alertas van por sus componentes
       sb.from('products').select('id, name, stock, min_stock, has_variants')
-        .eq('business_id', req.businessId).eq('is_active', true),
+        .eq('business_id', req.businessId).eq('is_active', true).eq('is_bundle', false),
     ]);
     const firstError = e1 || e2 || e3 || e4 || e5 || e6 || e7;
     if (firstError) throw firstError;

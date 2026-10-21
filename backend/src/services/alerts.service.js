@@ -112,8 +112,9 @@ async function getAlerts(businessId) {
       .maybeSingle(),
 
     supabaseAdmin
+      // Sin sets: las alertas de stock van por sus componentes
       .from('products').select('id, name, stock, min_stock, has_variants')
-      .eq('business_id', businessId).eq('is_active', true),
+      .eq('business_id', businessId).eq('is_active', true).eq('is_bundle', false),
   ]);
 
   const alerts = [];

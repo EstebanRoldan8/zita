@@ -167,10 +167,13 @@ export function getSection(slug, content = flowContent) {
 export const categoryInSection = (category, section) => inList(category, section?.categories);
 
 // Productos de la sección: sus categorías más las de género compartido (Unisex), que van en todas
+// Un set (is_bundle) entra si TODOS sus productos son de la sección o Unisex (bundle_categories de la API)
 export function productsInSection(products, section, content = flowContent) {
   if (!section) return [];
-  return arr(products).filter((p) => p && p.id
-    && (inList(p.category, section.categories) || inList(p.category, content?.unisexCategories)));
+  const fits = (category) => inList(category, section.categories) || inList(category, content?.unisexCategories);
+  return arr(products).filter((p) => p && p.id && (p.is_bundle
+    ? arr(p.bundle_categories).length > 0 && arr(p.bundle_categories).every(fits)
+    : fits(p.category)));
 }
 
 // Mujer / Hombre / Unisex son GÉNERO (flowContent.genderCategories), nunca tipo de prenda ni filtro
@@ -218,7 +221,11 @@ export function garmentGroups(products) {
 // ── Tipo de prenda: helper ÚNICO del menú, del filtro del listado, del sitemap y del prerender ──
 // Categoría normal (Tops, Licras…) y Flow Archive: la misma categoría. Categoría de género
 // (Hombre, Unisex): el tipo de prenda del nombre (garmentOf); null si no se puede deducir.
+export const SETS_TYPE = 'Sets';
+
 export function productType(product, content = flowContent) {
+  // Un set es un tipo de prenda propio, por is_bundle (nunca por el nombre)
+  if (product?.is_bundle) return SETS_TYPE;
   const category = String(product?.category || '').trim();
   if (!category) return null;
   if (isGenderCategory(category, content)) return garmentOf(product)?.label || null;
@@ -291,6 +298,8 @@ export function filterProducts(products, { category, color, size, q, sort, colle
   }
   if (sort === 'precio-asc') list = [...list].sort((a, b) => Number(a.price) - Number(b.price));
   else if (sort === 'precio-desc') list = [...list].sort((a, b) => Number(b.price) - Number(a.price));
+  // Al buscar por nombre, los sets van antes que sus piezas sueltas ("aria" → Set Aria, luego Top Aria…)
+  if (query && sort !== 'precio-asc' && sort !== 'precio-desc') list = [...list.filter((p) => p.is_bundle), ...list.filter((p) => !p.is_bundle)];
   else if (sort === 'sugerido' && collection) list = sortByHierarchy(list, collection);
   return list;
 }

@@ -9,16 +9,27 @@ const isUniqueViolation = (err) => err?.code === '23505';
 
 // Suma quantity × cost_price de los items con producto que tengan costo definido.
 // Usa el cost_price vigente del producto al momento de registrar el pago.
+// Líneas de set (bundle_snapshot): suma de los costos de sus componentes GUARDADOS en el snapshot,
+// nunca el cost_price del set; un pedido viejo no cambia si después se edita el set.
 async function computeOrderCost(client, order) {
   const { data: items, error } = await client
     .from('order_items')
-    .select('product_id, quantity')
+    .select('product_id, quantity, bundle_snapshot')
     .eq('order_id', order.id)
     .eq('business_id', order.business_id);
   if (error) throw error;
 
-  const productIds = [...new Set((items || []).map((i) => i.product_id).filter(Boolean))];
-  if (productIds.length === 0) return { cost: 0, hasCost: false };
+  let cost = 0;
+  let hasCost = false;
+  const { snapshotCost } = require('./bundles');
+  for (const item of items || []) {
+    if (!item.bundle_snapshot) continue;
+    const c = snapshotCost(item.bundle_snapshot, item.quantity);
+    if (c.hasCost) { hasCost = true; cost += c.cost; }
+  }
+  const plain = (items || []).filter((i) => !i.bundle_snapshot);
+  const productIds = [...new Set(plain.map((i) => i.product_id).filter(Boolean))];
+  if (productIds.length === 0) return { cost, hasCost };
 
   const { data: products, error: pErr } = await client
     .from('products')
@@ -28,9 +39,7 @@ async function computeOrderCost(client, order) {
   if (pErr) throw pErr;
 
   const costById = Object.fromEntries((products || []).map((p) => [p.id, p.cost_price]));
-  let cost = 0;
-  let hasCost = false;
-  for (const item of items || []) {
+  for (const item of plain) {
     const unitCost = costById[item.product_id];
     if (item.product_id && unitCost != null) {
       hasCost = true;

@@ -12,6 +12,7 @@ import {
   Hero, CurrentCollection, ShopByColor, Protagonist, Storytelling, Capsules,
   PopularCategories, ValuesStrip, ArchiveBanner, FirstTime, FlowClub, SloganBand,
 } from '../components/home/HomeSections';
+import InstagramReels from '../components/home/InstagramReels';
 
 // Inicio. Todo se pinta desde getActiveCollection(): al cambiar activeCollection en flowContent,
 // el hero y la sección de colección cambian solos.
@@ -43,6 +44,7 @@ export default function Home() {
       <ValuesStrip values={collection?.values || flowContent.values} />
       <ArchiveBanner category={nav.archiveCategory} count={productsInArchive(all).length} />
       <FirstTime path={path} />
+      <InstagramReels />
       <FlowClub store={store} />
       <SloganBand />
     </>

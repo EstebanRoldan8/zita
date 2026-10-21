@@ -6,6 +6,7 @@ import { useCatalog } from '../hooks/useCatalog';
 import { getActiveCollection, productsInCollection, productsInDrop, coverForColors } from '../lib/collections';
 import ProductListing from '../components/ProductListing';
 import ColorDot from '../components/ColorDot';
+import StoreImage from '../components/StoreImage';
 import { PageNotFound, ProductGridSkeleton } from '../components/States';
 
 // /colores: índice de los drops de la colección activa (solo los que tienen productos)
@@ -34,7 +35,7 @@ export function ColorsIndex() {
               return (
                 <Link key={d.slug} to={path(`/colores/${d.slug}`)} className="group relative block overflow-hidden"
                   style={{ aspectRatio: '4 / 5', background: d.palette?.bg, color: d.palette?.fg }}>
-                  {cover && <img src={cover} alt="" width="800" height="1000" className="absolute inset-0 h-full w-full object-cover transition-transform duration-300 group-hover:scale-[1.02]" loading="lazy" />}
+                  {cover && <StoreImage src={cover} alt="" width="800" height="1000" sizes="(min-width: 1024px) 33vw, (min-width: 640px) 50vw, 100vw" className="absolute inset-0 h-full w-full object-cover transition-transform duration-300 group-hover:scale-[1.02]" />}
                   {cover && <span className="absolute inset-0" style={{ background: 'linear-gradient(to top, rgba(28,28,28,0.7), rgba(28,28,28,0) 55%)' }} aria-hidden="true" />}
                   <span className={`absolute inset-x-0 bottom-0 p-6 ${cover ? 'text-flow-white' : ''}`}>
                     <span className="flow-collection-name block text-4xl">{d.name}</span>

@@ -231,6 +231,23 @@ Ropa deportiva y de lifestyle diseñada para acompañarte antes, durante y despu
     'Confirma tu pedido',
     'Te escribimos por WhatsApp para coordinar el pago y el envío',
   ],
+  // Reels de Instagram de la portada (encima de Flow Club), en orden: el primero es el que más se ve.
+  // code: el código del reel tal cual (instagram.com/reel/<code>/), con mayúsculas y minúsculas.
+  // cover: portada opcional en frontend/public/reels/ (720x1280, WebP o JPG, máx ~150 KB), p. ej.
+  // '/reels/Dep0av0pkja.webp'. Sin cover sale una tarjeta oscura con "Ver reel". title: opcional.
+  instagram: {
+    title: 'Síguenos en Instagram',
+    handle: '@flow.col',
+    url: 'https://www.instagram.com/flow.col/',
+    reels: [
+      { code: 'Dep0av0pkja', title: null, cover: null },
+      { code: 'DehQauGxGWf', title: null, cover: null },
+      { code: 'DeXCI9mx_Cd', title: null, cover: null },
+      { code: 'DOMbMbwiVjk', title: null, cover: null },
+      { code: 'DI_neNLNKm9', title: null, cover: null },
+      { code: 'DIXJx0FSDFG', title: null, cover: null },
+    ],
+  },
   club: {
     title: 'Flow Club',
     text: 'Entérate primero de lo que viene',

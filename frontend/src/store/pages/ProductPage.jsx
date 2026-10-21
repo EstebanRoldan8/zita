@@ -12,7 +12,8 @@ import { COPY } from '../lib/copy';
 import { policyText, sizeGuide } from '../lib/policies';
 import { normalize, getActiveCollection, productsInCollection, colorHex, isLightColor, productType, typePath } from '../lib/collections';
 import { useCatalog } from '../hooks/useCatalog';
-import ProductCard from '../components/ProductCard';
+import ProductCard, { CAROUSEL_SIZES } from '../components/ProductCard';
+import StoreImage from '../components/StoreImage';
 import ProductCarousel from '../components/ProductCarousel';
 import SizeGuideTable from '../components/SizeGuideTable';
 import { parseSpecs } from '../lib/specs';
@@ -26,6 +27,8 @@ const sizeRank = (s) => {
   return i === -1 ? 100 + (Number(s) || 0) : i;
 };
 const variantText = (attributes) => Object.values(attributes || {}).join(' / ');
+// Miniaturas de 64 px: la versión de 400 cubre hasta DPR 3
+const THUMB_WIDTHS = [400];
 
 // Se monta con key = fotos del color elegido: al cambiar de color arranca en la primera foto
 function Gallery({ images, name }) {
@@ -43,15 +46,16 @@ function Gallery({ images, name }) {
   }
 
   return (
-    <div>
+    // min-w-0: celda de la grilla; sin esto, con muchas miniaturas la fila ensancha la galería y hay scroll horizontal
+    <div className="min-w-0">
       {/* Swipe en móvil (scroll-snap); en desktop se navega con las miniaturas */}
       <div ref={scroller} className="flow-snap flex overflow-x-auto"
         onScroll={(e) => { const el = e.currentTarget; setActive(Math.round(el.scrollLeft / Math.max(el.clientWidth, 1))); }}
         aria-label={`Fotos de ${name}`}>
         {images.map((src, i) => (
           <div key={src} className="flow-photo w-full flex-shrink-0">
-            <img src={src} alt={`${name}, foto ${i + 1} de ${images.length}`} width="800" height="1000"
-              loading={i === 0 ? 'eager' : 'lazy'} fetchPriority={i === 0 ? 'high' : undefined} decoding="async" />
+            <StoreImage src={src} alt={`${name}, foto ${i + 1} de ${images.length}`} width="800" height="1000"
+              sizes="(min-width: 768px) 50vw, 100vw" loading={i === 0 ? 'eager' : 'lazy'} fetchPriority={i === 0 ? 'high' : undefined} />
           </div>
         ))}
       </div>
@@ -61,7 +65,7 @@ function Gallery({ images, name }) {
             <button key={src} type="button" role="tab" aria-selected={i === active} aria-label={`Ver foto ${i + 1}`}
               onClick={() => goTo(i)}
               className={`flow-photo w-16 flex-shrink-0 border ${i === active ? 'border-flow-black' : 'border-transparent'}`}>
-              <img src={src} alt="" width="64" height="80" loading="lazy" />
+              <StoreImage src={src} alt="" width="64" height="80" widths={THUMB_WIDTHS} baseWidth={400} sizes="64px" />
             </button>
           ))}
         </div>
@@ -367,7 +371,7 @@ export default function ProductPage() {
         <section className="mt-20" aria-labelledby="flow-look">
           <h2 id="flow-look" className="flow-serif mb-8 text-2xl md:text-3xl">Completa tu look</h2>
           <ProductCarousel label="Completa tu look">
-            {related.map((r) => <ProductCard key={r.id} product={r} to={path(`/producto/${r.id}`)} isNew />)}
+            {related.map((r) => <ProductCard key={r.id} product={r} to={path(`/producto/${r.id}`)} isNew sizes={CAROUSEL_SIZES} />)}
           </ProductCarousel>
         </section>
       )}

@@ -5,6 +5,7 @@ import { useCatalog } from '../hooks/useCatalog';
 import { useStorePath } from '../hooks/useStore';
 import { filterProducts, firstImage } from '../lib/collections';
 import { formatCOP } from '../lib/format';
+import StoreImage from './StoreImage';
 
 // Buscador a pantalla completa: filtra en el cliente sobre el catálogo ya cargado
 // (nombre, categoría, colores). Sin llamadas nuevas al backend. Esc cierra.
@@ -57,7 +58,7 @@ export default function SearchOverlay({ onClose }) {
                     <li key={p.id}>
                       <Link to={path(`/producto/${p.id}`)} onClick={onClose} className="block">
                         <div className="flow-photo">
-                          {img ? <img src={img} alt={p.name} width="400" height="500" loading="lazy" decoding="async" />
+                          {img ? <StoreImage src={img} alt={p.name} width="400" height="500" sizes="(min-width: 768px) 25vw, 50vw" />
                             : <span className="absolute inset-0 flex items-center justify-center flow-label text-flow-muted">Sin foto</span>}
                         </div>
                         <p className="mt-3 text-sm font-medium">{p.name}</p>

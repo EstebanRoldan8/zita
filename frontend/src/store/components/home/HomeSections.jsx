@@ -12,6 +12,7 @@ import ProductCard, { CAROUSEL_SIZES } from '../ProductCard';
 import StoreImage from '../StoreImage';
 import ProductCarousel from '../ProductCarousel';
 import ColorDot from '../ColorDot';
+import InstagramReels from './InstagramReels';
 
 // Sombra de palma sutil (solo CSS, sin imágenes): hojas diagonales difuminadas sobre sand
 const PALM_SHADOW = [
@@ -319,26 +320,34 @@ export function FirstTime({ path }) {
   );
 }
 
+// Banda Flow Club: título, frase, botones (WhatsApp si hay número, la cuenta de Instagram) y los reels.
 export function FlowClub({ store }) {
   const club = flowContent.club;
+  const insta = flowContent.instagram;
   const wa = waLink(store?.whatsapp_number, club?.whatsappMessage);
-  const ig = store?.social?.instagram || flowContent.brand.instagram;
-  if (!club || (!wa && !ig)) return null;
+  const ig = insta?.url || store?.social?.instagram || flowContent.brand.instagram;
+  const hasReels = (insta?.reels || []).length > 0;
+  if (!club || (!wa && !ig && !hasReels)) return null;
   return (
     <section className="bg-flow-navy text-flow-white flow-on-dark" aria-labelledby="flow-club">
-      <div className="mx-auto flex max-w-7xl flex-col gap-6 px-4 py-14 md:flex-row md:items-center md:justify-between md:px-8">
-        <div>
-          <p id="flow-club" className="flow-collection-name text-3xl">{club.title}</p>
-          <p className="mt-2 text-sm text-flow-sand">{club.text}</p>
-        </div>
-        <div className="flex flex-col gap-3 sm:flex-row">
-          {wa && (
-            <a href={wa} target="_blank" rel="noopener noreferrer" className="flow-btn flow-btn-light">
-              <MessageCircle size={16} strokeWidth={1.5} aria-hidden="true" /> Unirme por WhatsApp
-            </a>
+      <div className="mx-auto max-w-7xl px-4 py-16 md:px-8 md:py-24">
+        <div className="flex flex-col gap-6 md:flex-row md:items-end md:justify-between">
+          <div>
+            <h2 id="flow-club" className="flow-collection-name text-3xl md:text-4xl">{club.title}</h2>
+            <p className="mt-2 text-sm text-flow-sand md:text-base">{club.text}</p>
+          </div>
+          {(wa || ig) && (
+            <div className="flex flex-col gap-3 sm:flex-row">
+              {wa && (
+                <a href={wa} target="_blank" rel="noopener noreferrer" className="flow-btn flow-btn-light">
+                  <MessageCircle size={16} strokeWidth={1.5} aria-hidden="true" /> Unirme por WhatsApp
+                </a>
+              )}
+              {ig && <a href={ig} target="_blank" rel="noopener noreferrer" className="flow-btn flow-btn-outline flow-btn-outline-light">{insta?.handle || 'Instagram'}</a>}
+            </div>
           )}
-          {ig && <a href={ig} target="_blank" rel="noopener noreferrer" className="flow-btn flow-btn-outline flow-btn-outline-light">Instagram</a>}
         </div>
+        {hasReels && <div className="mt-10"><InstagramReels onDark /></div>}
       </div>
     </section>
   );

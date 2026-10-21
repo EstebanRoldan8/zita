@@ -1,5 +1,5 @@
 import { Link } from 'react-router-dom';
-import { ChevronDown, MessageCircle } from 'lucide-react';
+import { ChevronDown } from 'lucide-react';
 import { useStore, useStorePath } from '../hooks/useStore';
 import { useStoreNav } from '../hooks/useStoreNav';
 import { flowContent } from '../content/flowContent';
@@ -16,7 +16,7 @@ function FooterLink({ link }) {
   return <Link to={link.href} className={cls}>{link.label}</Link>;
 }
 
-// Footer: logo blanco grande, columnas (acordeones en móvil), Flow Club, pagos, legal.
+// Footer: logo blanco grande, columnas (acordeones en móvil), pagos, legal. Flow Club vive en la banda de la portada.
 // Cada enlace se oculta si su destino es null.
 export default function StoreFooter() {
   const { store } = useStore();
@@ -113,23 +113,6 @@ export default function StoreFooter() {
             ))}
           </div>
         </div>
-
-        {(clubWa || ig) && (
-          <div className="mt-14 flex flex-col gap-4 border-y border-[color:var(--flow-stone)] py-8 md:flex-row md:items-center md:justify-between">
-            <div>
-              <p className="flow-collection-name text-2xl">{flowContent.club.title}</p>
-              <p className="mt-1 text-sm text-flow-sand">{flowContent.club.text}</p>
-            </div>
-            <div className="flex flex-col gap-3 sm:flex-row">
-              {clubWa && (
-                <a href={clubWa} target="_blank" rel="noopener noreferrer" className="flow-btn flow-btn-light">
-                  <MessageCircle size={16} strokeWidth={1.5} aria-hidden="true" /> WhatsApp
-                </a>
-              )}
-              {ig && <a href={ig} target="_blank" rel="noopener noreferrer" className="flow-btn flow-btn-outline flow-btn-outline-light">Instagram</a>}
-            </div>
-          </div>
-        )}
 
         {payments && (
           <p className="mt-8 text-xs text-flow-sand"><span className="flow-label text-flow-stone">Medios de pago</span> · {payments}</p>

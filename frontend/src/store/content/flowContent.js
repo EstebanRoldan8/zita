@@ -198,7 +198,7 @@ export const flowContent = {
   // Secciones del menú: páginas /coleccion/<slug> con un grupo fijo de categorías (por nombre de
   // categoría, nunca por nombre de producto). Una sección sin productos no aparece.
   sections: [
-    { slug: 'mujer', label: 'Mujer', categories: ['Tops', 'Licras', 'Shorts', 'Faldas'] },
+    { slug: 'mujer', label: 'Mujer', categories: ['Tops', 'Licras', 'Shorts', 'Faldas', 'Pantalonetas'] },
     { slug: 'hombre', label: 'Hombre', categories: ['Hombre'] },
   ],
   // Categorías de la base que son GÉNERO, no tipo de prenda: nunca salen como categoría ni filtro.

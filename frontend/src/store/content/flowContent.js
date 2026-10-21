@@ -231,19 +231,15 @@ Ropa deportiva y de lifestyle diseñada para acompañarte antes, durante y despu
     'Confirma tu pedido',
     'Te escribimos por WhatsApp para coordinar el pago y el envío',
   ],
-  // Video "Sobre FLOW" de la portada (YouTube Short vertical, va antes de Flow Club). youtubeId: solo el ID
-  // (youtube.com/shorts/<ID>); vacío = la sección no sale. cover: portada vertical en frontend/public/video/
-  // (720 px de ancho, WebP, máx ~100 KB). No se carga nada de YouTube hasta que la persona da play.
+  // Video de la página Sobre FLOW (YouTube Short vertical, junto al texto de presentación). youtubeId: solo
+  // el ID (youtube.com/shorts/<ID>); vacío = la página va sin video, en una columna. cover: portada vertical
+  // en frontend/public/video/ (720 px de ancho, WebP, máx ~100 KB). No se carga nada de YouTube hasta el play.
   aboutVideo: {
     youtubeId: 'dDmn6yzQaZg',
-    eyebrow: 'Sobre FLOW',
-    title: 'Esto es FLOW',
-    text: 'Nacimos como energía, rebeldía y movimiento consciente. Hoy volvemos con intención.',
     cover: '/video/flow-sobre.webp',
     coverAlt: 'Portada del video sobre FLOW',
     playLabel: 'Ver video sobre Flow',
-    iframeTitle: 'Video: Esto es FLOW',
-    linkLabel: 'Nuestra historia', // enlace a /sobre-flow; vacío = sin enlace
+    iframeTitle: 'Video sobre FLOW',
   },
   // Reels de Instagram de la portada (dentro de la banda Flow Club), en orden: el primero es el que más se ve.
   // code: el código del reel tal cual (instagram.com/reel/<code>/), con mayúsculas y minúsculas.

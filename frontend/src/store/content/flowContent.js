@@ -146,7 +146,7 @@ const RENACER = {
     {
       slug: 'sand', name: 'SAND DROP', capsule: 'volver', colors: ['beige', 'arena', 'nude'],
       tagline: 'Reconexión y decisión', description: 'Tonos tierra para una versión más segura.',
-      protagonist: 'Pantaloneta (beige y rojo)', palette: { bg: '#D9CFC3', fg: '#1C1C1C' },
+      protagonist: null, palette: { bg: '#D9CFC3', fg: '#1C1C1C' },
     },
     {
       slug: 'dew', name: 'DEW DROP', capsule: 'florecer', colors: ['verde rocio', 'verde limon', 'gris', 'cool grey', 'verde'],

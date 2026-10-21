@@ -189,7 +189,7 @@ async function renderPage(target, ctx, params, cfg) {
       if (!drop) return notFoundPage(base);
       const all = await storeApi.catalog(slug, cfg);
       const items = productsInDrop(productsInCollection(all, collection), drop);
-      return { status: 200, seo: dropSeo(ctx, { drop }), content: simple(drop.name, (drop.description ? `<p>${esc(drop.description)}</p>` : '') + productList(base, items)) };
+      return { status: 200, seo: dropSeo(ctx, { drop, count: items.length }), content: simple(drop.name, (drop.description ? `<p>${esc(drop.description)}</p>` : '') + productList(base, items)) };
     }
     case 'product': {
       let product;

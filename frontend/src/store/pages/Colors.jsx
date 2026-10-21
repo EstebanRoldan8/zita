@@ -60,10 +60,10 @@ export function DropPage() {
   const collection = getActiveCollection();
   const drop = (collection?.drops || []).find((d) => d.slug === dropSlug) || null;
   const capsule = drop ? collection.capsules?.find((c) => c.slug === drop.capsule) : null;
-  useSeo(dropSeo(useSeoContext(), { drop }));
+  const products = drop ? productsInDrop(productsInCollection(catalog.data || [], collection), drop) : [];
+  useSeo(dropSeo(useSeoContext(), { drop, count: catalog.isSuccess ? products.length : undefined }));
 
   if (!drop) return <PageNotFound homePath={path('/colores')} />;
-  const products = productsInDrop(productsInCollection(catalog.data || [], collection), drop);
 
   return (
     <>

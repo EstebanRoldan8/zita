@@ -230,7 +230,8 @@ export function colorsSeo(ctx, { drops = [] } = {}) {
 }
 
 // /colores/:dropSlug
-export function dropSeo(ctx, { drop } = {}) {
+// count: productos del drop. Con 0 (drop sin productos) va noindex; sin dato (catálogo cargando) no se decide.
+export function dropSeo(ctx, { drop, count } = {}) {
   if (!drop) return notFoundSeo();
   const collection = getActiveCollection();
   const canonical = storeUrl(ctx, `/colores/${drop.slug}`);
@@ -239,6 +240,7 @@ export function dropSeo(ctx, { drop } = {}) {
     description: truncate([drop.description, collection?.label ? `${collection.label}.` : ''].filter(Boolean).join(' ')),
     canonical,
     h1: drop.name,
+    noindex: count === 0,
     jsonLd: [breadcrumbLd([
       { name: 'Inicio', url: storeUrl(ctx, '/') },
       { name: 'Comprar por color', url: storeUrl(ctx, '/colores') },

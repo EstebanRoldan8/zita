@@ -9,6 +9,7 @@ import { waLink } from '../lib/format';
 import Logo from './Logo';
 import ColorDot from './ColorDot';
 import SearchOverlay from './SearchOverlay';
+import StoreImage from './StoreImage';
 
 function isCurrent(href, location) {
   const [hrefPath, hrefQuery = ''] = String(href).split('?');
@@ -167,7 +168,7 @@ export default function StoreHeader() {
               {nav.featured && (
                 <Link to={nav.featured.href} onClick={closeAll} className="group relative block overflow-hidden" style={{ aspectRatio: '16 / 10', background: nav.featured.palette?.bg || 'var(--flow-sand)' }}>
                   {nav.featured.image && (
-                    <img src={nav.featured.image} alt="" width="800" height="1000" className="absolute inset-0 h-full w-full object-cover" loading="lazy" />
+                    <StoreImage src={nav.featured.image} alt="" width="800" height="1000" sizes="460px" className="absolute inset-0 h-full w-full object-cover" />
                   )}
                   <span className="absolute inset-0" style={{ background: 'linear-gradient(to top, rgba(28,28,28,0.65), rgba(28,28,28,0) 60%)' }} aria-hidden="true" />
                   <span className="absolute bottom-5 left-5 text-flow-white">

@@ -3,6 +3,10 @@ import { Minus, Plus, X } from 'lucide-react';
 import { useCart } from '../hooks/cartContext';
 import { useStorePath } from '../hooks/useStore';
 import { formatCOP } from '../lib/format';
+import StoreImage from './StoreImage';
+
+// Foto de 80-96 px: la versión de 400 cubre hasta DPR 3
+const THUMB_WIDTHS = [400];
 
 // Ítems de la bolsa: foto, talla/color, cantidad editable, quitar y avisos de revalidación.
 export default function BagLines({ issues = {}, onNavigate, compact = false }) {
@@ -18,7 +22,7 @@ export default function BagLines({ issues = {}, onNavigate, compact = false }) {
         return (
           <li key={l.key} className="flex gap-4 py-5">
             <Link to={path(`/producto/${l.product_id}`)} onClick={onNavigate} className={`flow-photo flex-shrink-0 ${compact ? 'w-20' : 'w-24'}`}>
-              {l.image ? <img src={l.image} alt={l.name} width="96" height="120" loading="lazy" /> : null}
+              {l.image ? <StoreImage src={l.image} alt={l.name} width="96" height="120" widths={THUMB_WIDTHS} baseWidth={400} sizes="96px" /> : null}
             </Link>
             <div className="min-w-0 flex-1">
               <div className="flex items-start justify-between gap-3">

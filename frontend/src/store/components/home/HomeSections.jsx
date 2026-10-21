@@ -8,7 +8,8 @@ import {
 } from '../../lib/collections';
 import { formatCOP, waLink } from '../../lib/format';
 import { useReveal } from '../../hooks/useReveal';
-import ProductCard from '../ProductCard';
+import ProductCard, { CAROUSEL_SIZES } from '../ProductCard';
+import StoreImage from '../StoreImage';
 import ProductCarousel from '../ProductCarousel';
 import ColorDot from '../ColorDot';
 
@@ -103,7 +104,7 @@ export function CurrentCollection({ collection, products, path, loading }) {
         ) : (
           <ProductCarousel label={capsule ? `Cápsula ${capsule.name}` : collection.label}>
             {list.slice(0, 12).map((p) => (
-              <ProductCard key={p.id} product={p} to={path(`/producto/${p.id}`)} isNew />
+              <ProductCard key={p.id} product={p} to={path(`/producto/${p.id}`)} isNew sizes={CAROUSEL_SIZES} />
             ))}
           </ProductCarousel>
         )}
@@ -135,7 +136,7 @@ export function ShopByColor({ collection, products, path }) {
             return (
               <Link key={d.slug} to={path(`/colores/${d.slug}`)} className="group relative block overflow-hidden"
                 style={{ aspectRatio: '4 / 5', background: d.palette?.bg, color: d.palette?.fg }}>
-                {cover && <img src={cover} alt="" width="800" height="1000" className="absolute inset-0 h-full w-full object-cover transition-transform duration-300 group-hover:scale-[1.02]" loading="lazy" />}
+                {cover && <StoreImage src={cover} alt="" width="800" height="1000" sizes="(min-width: 768px) 32vw, (min-width: 640px) 46vw, 78vw" className="absolute inset-0 h-full w-full object-cover transition-transform duration-300 group-hover:scale-[1.02]" />}
                 {cover && <span className="absolute inset-0" style={{ background: 'linear-gradient(to top, rgba(28,28,28,0.7), rgba(28,28,28,0) 55%)' }} aria-hidden="true" />}
                 <span className={`absolute inset-x-0 bottom-0 p-6 ${cover ? 'text-flow-white' : ''}`}>
                   <span className="flow-collection-name block text-3xl md:text-4xl">{d.name}</span>
@@ -158,7 +159,7 @@ export function Protagonist({ product, path }) {
   return (
     <section className="grid md:grid-cols-2" aria-labelledby="flow-protagonista">
       <div className="flow-photo md:aspect-auto md:min-h-[560px]">
-        {img ? <img src={img} alt={product.name} width="800" height="1000" loading="lazy" />
+        {img ? <StoreImage src={img} alt={product.name} width="800" height="1000" sizes="(min-width: 768px) 50vw, 100vw" />
           : <span className="absolute inset-0 bg-flow-sand" aria-hidden="true" />}
       </div>
       <div className="flex flex-col justify-center bg-flow-sand px-6 py-14 md:px-16">
@@ -248,7 +249,7 @@ export function PopularCategories({ categories, products }) {
           const dark = tone !== '#D9CFC3' && tone !== '#A09486';
           return (
             <Link key={c.name} to={c.href} className="group relative block overflow-hidden" style={{ aspectRatio: '4 / 5', background: tone }}>
-              {cover && <img src={cover} alt="" width="800" height="1000" className="absolute inset-0 h-full w-full object-cover transition-transform duration-300 group-hover:scale-[1.02]" loading="lazy" />}
+              {cover && <StoreImage src={cover} alt="" width="800" height="1000" sizes="(min-width: 768px) 25vw, 50vw" className="absolute inset-0 h-full w-full object-cover transition-transform duration-300 group-hover:scale-[1.02]" />}
               <span className="absolute inset-0" style={{ background: cover ? 'linear-gradient(to top, rgba(28,28,28,0.6), rgba(28,28,28,0) 55%)' : 'none' }} aria-hidden="true" />
               <span className={`absolute bottom-4 left-4 right-4 ${cover || dark ? 'text-flow-white' : 'text-flow-black'}`}>
                 <span className="flow-serif block text-xl md:text-2xl">{c.name}</span>

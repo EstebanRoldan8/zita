@@ -25,6 +25,7 @@ export default function BagLines({ issues = {}, onNavigate, compact = false }) {
                 <div className="min-w-0">
                   <p className="text-sm font-medium leading-snug">{l.name}</p>
                   {detail && <p className="mt-1 text-xs text-flow-muted">{detail}</p>}
+                  {l.includes && <p className="mt-0.5 text-xs text-flow-muted">Incluye: {l.includes}</p>}
                 </div>
                 <button type="button" onClick={() => remove(l.key)} aria-label={`Quitar ${l.name} de la bolsa`}
                   className="-mr-2 -mt-2 flex h-11 w-11 items-center justify-center text-flow-muted hover:text-flow-black">

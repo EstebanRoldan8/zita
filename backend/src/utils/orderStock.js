@@ -8,6 +8,17 @@ async function callAdjustStock(params) {
   return data;
 }
 
+// Una línea de pedido → movimientos de stock. Línea normal: ella misma. Línea de set (bundle_snapshot):
+// un movimiento por componente según el snapshot guardado al vender (no según el set actual).
+function itemMoves(item) {
+  if (item.bundle_snapshot) {
+    const { snapshotMoves } = require('./bundles');
+    return snapshotMoves(item.bundle_snapshot, item.quantity).map((m) => ({ ...m, description: item.description }));
+  }
+  if (!item.product_id || !(item.quantity > 0)) return [];
+  return [{ product_id: item.product_id, variant_id: item.variant_id || null, quantity: item.quantity, description: item.description }];
+}
+
 // Deshace devoluciones ya aplicadas (adjust_stock negativo, type 'ajuste').
 // Best-effort: si una reversión falla se registra en el log y se sigue con las demás.
 async function undoRestoredItems(order, refType, restored, userId) {
@@ -36,14 +47,13 @@ async function undoRestoredItems(order, refType, restored, userId) {
 async function restoreOrderStock(order, refType, userId) {
   const { data: items, error } = await supabaseAdmin
     .from('order_items')
-    .select('product_id, variant_id, quantity, description')
+    .select('product_id, variant_id, quantity, description, bundle_snapshot')
     .eq('order_id', order.id)
     .eq('business_id', order.business_id);
   if (error) throw error;
 
   const restored = [];
-  for (const item of items || []) {
-    if (!item.product_id || !(item.quantity > 0)) continue;
+  for (const item of (items || []).flatMap(itemMoves)) {
     try {
       await callAdjustStock({
         p_business_id: order.business_id,
@@ -68,4 +78,4 @@ async function restoreOrderStock(order, refType, userId) {
   return restored;
 }
 
-module.exports = { restoreOrderStock, undoRestoredItems, callAdjustStock };
+module.exports = { restoreOrderStock, undoRestoredItems, callAdjustStock, itemMoves };

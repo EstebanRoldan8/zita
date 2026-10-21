@@ -61,13 +61,17 @@ async function create(req, res) {
 
     const { data: product, error: productErr } = await sb
       .from('products')
-      .select('id, category, name, stock, has_variants')
+      .select('id, category, name, stock, has_variants, is_bundle')
       .eq('id', productId)
       .eq('business_id', req.businessId)
       .single();
 
     if (productErr || !product) {
       return res.status(404).json({ success: false, error: 'Producto no encontrado.' });
+    }
+    // Un set no tiene variantes propias: se derivan de sus productos (la base también lo impide)
+    if (product.is_bundle) {
+      return res.status(400).json({ success: false, error: 'Un set no tiene variantes propias: sus tallas y colores salen de los productos que lo forman.' });
     }
 
     // adjust_stock recalcula products.stock como suma de variantes: si el producto aún no

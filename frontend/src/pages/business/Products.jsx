@@ -11,6 +11,7 @@ import { useAuth } from '../../context/AuthContext';
 import { useSearchParams } from 'react-router-dom';
 import RestockModal from '../../components/inventory/RestockModal';
 import { ColorPhotosEdit, ColorPhotosCreate } from '../../components/products/ColorPhotos';
+import BundleModal from '../../components/products/BundleModal';
 import { getColorOptions } from '../../lib/optionKey';
 import MovementsModal from '../../components/inventory/MovementsModal';
 import InventorySummary from '../../components/inventory/InventorySummary';
@@ -1047,7 +1048,11 @@ function CatalogoTab({ products, clients, showInactive, onShowInactiveChange, so
                   ) : (
                     <ImageIcon size={40} className="text-slate-700" />
                   )}
-                  {p.has_variants && (
+                  {p.is_bundle ? (
+                    <div className="absolute top-2 right-2 flex items-center gap-1 bg-amber-500/90 px-2 py-1 rounded-full text-black text-[10px] font-semibold">
+                      <Package size={12} /> Set
+                    </div>
+                  ) : p.has_variants && (
                     <div className="absolute top-2 right-2 flex items-center gap-1 bg-violet-600/90 px-2 py-1 rounded-full text-white text-[10px] font-medium">
                       <Layers2 size={12} /> Variantes
                     </div>
@@ -1060,6 +1065,11 @@ function CatalogoTab({ products, clients, showInactive, onShowInactiveChange, so
                   <div className="min-w-0 flex-1 pr-2">
                     <p className="text-white font-semibold text-sm leading-tight truncate">{p.name}</p>
                     {p.category && <p className="text-slate-500 text-xs mt-0.5">{p.category}</p>}
+                    {p.is_bundle && p.bundle && (
+                      <p className="text-slate-500 text-[11px] mt-0.5 truncate" title={p.bundle.components.map((c) => `${c.quantity > 1 ? c.quantity + ' × ' : ''}${c.name}`).join(' + ')}>
+                        Incluye: {p.bundle.components.map((c) => `${c.quantity > 1 ? c.quantity + ' × ' : ''}${c.name}`).join(' + ')}
+                      </p>
+                    )}
                   </div>
                   {inactive ? (
                     <span className="text-xs font-medium text-slate-600 bg-[#131929] border border-slate-700 px-2 py-0.5 rounded-full flex-shrink-0">Inactivo</span>
@@ -1090,7 +1100,7 @@ function CatalogoTab({ products, clients, showInactive, onShowInactiveChange, so
                         </p>
                       </>
                     )}
-                    <p className="text-slate-500 text-xs mt-0.5">{p.has_variants ? 'Stock (total)' : 'Stock'}</p>
+                    <p className="text-slate-500 text-xs mt-0.5">{p.stock_calculated ? 'Stock (calculado)' : p.has_variants ? 'Stock (total)' : 'Stock'}</p>
                     <p className={`font-bold text-sm ${displayStock === 0 ? 'text-red-400' : displayStock <= p.min_stock ? 'text-yellow-400' : 'text-white'}`}>
                       {displayStock} <span className="text-slate-500 text-xs font-normal">/ mín {p.min_stock}</span>
                     </p>
@@ -1098,11 +1108,15 @@ function CatalogoTab({ products, clients, showInactive, onShowInactiveChange, so
                 </div>
 
                 <div className="flex gap-2 mt-auto">
+                  {p.is_bundle ? (
+                    <p className="w-full text-slate-500 text-[11px] leading-tight self-center">Se vende como pedido; descuenta cada producto del set.</p>
+                  ) : (
                   <button onClick={() => setSellProduct(p)} disabled={displayStock === 0 || !p.is_active}
                     className="w-full bg-violet-600 hover:bg-violet-700 text-white py-2 text-sm font-medium rounded-lg flex items-center justify-center gap-2 transition disabled:opacity-40"
                     style={{ backgroundColor: '#7c3aed', color: 'white' }}>
                     <ShoppingCart size={13} /> Vender
                   </button>
+                  )}
                   <div className="ml-auto flex gap-2 sm:opacity-0 sm:group-hover:opacity-100 transition-opacity">
                     <button onClick={() => setEditProduct(p)}
                       className="p-2 rounded-lg text-slate-400 hover:text-blue-400 hover:bg-blue-500/20 transition">
@@ -1139,13 +1153,17 @@ function CatalogoTab({ products, clients, showInactive, onShowInactiveChange, so
           onSuccess={() => { qc.invalidateQueries({ queryKey: ['products'] }); qc.invalidateQueries({ queryKey: ['product-sales'] }); setSellProduct(null); }}
         />
       )}
-      {editProduct && (
+      {editProduct && !editProduct.is_bundle && (
         <ProductModal
           initial={editProduct}
           onClose={() => setEditProduct(null)}
           onSave={() => { qc.invalidateQueries({ queryKey: ['products'] }); setEditProduct(null); }}
           isTienda={isTienda}
         />
+      )}
+
+      {editProduct?.is_bundle && (
+        <BundleModal initial={editProduct} products={products} onClose={() => setEditProduct(null)} onSave={() => setEditProduct(null)} />
       )}
 
       {deleteConfirm && (
@@ -1155,10 +1173,15 @@ function CatalogoTab({ products, clients, showInactive, onShowInactiveChange, so
             <p className="text-slate-300 text-sm mb-6">
               ¿Estás seguro que deseas eliminar <span className="font-semibold">{deleteConfirm.name}</span>? Esta acción no se puede deshacer.
             </p>
+            {deleteMutation.error && (
+              <p className="text-red-400 text-sm bg-red-500/10 border border-red-500/20 px-3 py-2 rounded-lg -mt-3 mb-5">
+                {deleteMutation.error.response?.data?.error || 'No se pudo eliminar el producto.'}
+              </p>
+            )}
             <div className="flex gap-3">
               <button
                 type="button"
-                onClick={() => setDeleteConfirm(null)}
+                onClick={() => { setDeleteConfirm(null); deleteMutation.reset(); }}
                 disabled={deleteMutation.isPending}
                 className="flex-1 bg-slate-800 hover:bg-slate-700 disabled:opacity-50 text-slate-300 text-sm font-medium py-2.5 rounded-lg transition"
               >
@@ -1578,6 +1601,7 @@ export default function Products() {
   const [showInactive, setShowInactive] = useState(false);
   const [sortBy, setSortBy] = useState('name');
   const [newModal, setNewModal] = useState(false);
+  const [newSet, setNewSet] = useState(false);
   const [openRestock, setOpenRestock] = useState(false);
   const [searchParams, setSearchParams] = useSearchParams();
   const { business } = useAuth();
@@ -1650,9 +1674,16 @@ export default function Products() {
             </button>
           ))}
         </div>
-        <button onClick={() => setNewModal(true)} className="flex-shrink-0 px-3 py-2 text-xs sm:text-sm bg-violet-600 hover:bg-violet-500 text-white rounded-xl transition-colors flex items-center gap-1 whitespace-nowrap">
-          <Plus size={14} /> Nuevo producto
-        </button>
+        <div className="flex gap-2 flex-shrink-0">
+          {isTienda && (
+            <button onClick={() => setNewSet(true)} className="px-3 py-2 text-xs sm:text-sm bg-slate-800 hover:bg-slate-700 border border-slate-700 text-white rounded-xl transition-colors flex items-center gap-1 whitespace-nowrap">
+              <Package size={14} /> Crear set
+            </button>
+          )}
+          <button onClick={() => setNewModal(true)} className="px-3 py-2 text-xs sm:text-sm bg-violet-600 hover:bg-violet-500 text-white rounded-xl transition-colors flex items-center gap-1 whitespace-nowrap">
+            <Plus size={14} /> Nuevo producto
+          </button>
+        </div>
       </div>
 
       {isLoading ? (
@@ -1666,7 +1697,7 @@ export default function Products() {
           {tab === 'catalogo' ? (
             <CatalogoTab products={products} clients={clients} showInactive={showInactive} onShowInactiveChange={setShowInactive} sortBy={sortBy} onSortChange={setSortBy} isTienda={isTienda} newModal={newModal} setNewModal={setNewModal} />
           ) : (
-            <InventarioTab products={products.filter((p) => p.is_active)} sales={sales} sortBy={sortBy} onSortChange={setSortBy} isTienda={isTienda}
+            <InventarioTab products={products.filter((p) => p.is_active && !p.is_bundle)} sales={sales} sortBy={sortBy} onSortChange={setSortBy} isTienda={isTienda}
               openRestock={openRestock} onRestockHandled={() => setOpenRestock(false)} />
           )}
         </>
@@ -1678,6 +1709,9 @@ export default function Products() {
           onSave={() => { qc.invalidateQueries({ queryKey: ['products'] }); setNewModal(false); }}
           isTienda={isTienda}
         />
+      )}
+      {newSet && isTienda && (
+        <BundleModal products={products} onClose={() => setNewSet(false)} onSave={() => setNewSet(false)} />
       )}
     </div>
   );

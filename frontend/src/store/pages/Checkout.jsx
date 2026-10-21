@@ -173,7 +173,8 @@ export default function Checkout() {
           text: body.error === 'sin_stock'
             ? 'Estos productos ya no tienen unidades suficientes:'
             : 'Estos productos ya no están disponibles:',
-          items: (affected.length ? affected : lines).map(lineLabel),
+          // Con sets, el servidor dice qué pieza falta ("Licra Aria Negro / S")
+          items: [...(affected.length ? affected : lines).map(lineLabel), ...(Array.isArray(body.missing) ? body.missing.map((m) => `Falta: ${m}`) : [])],
           bagLink: true,
         });
         qc.invalidateQueries({ queryKey: ['store', slug, 'product'] }); // la bolsa se revalida

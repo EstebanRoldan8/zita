@@ -2274,10 +2274,15 @@ async function executeTool(toolName, toolInput, businessId) {
     case 'registrar_venta': {
       const { data: product } = await supabaseAdmin
         .from('products')
-        .select('stock, price, name, cost_price')
+        .select('stock, price, name, cost_price, is_bundle')
         .eq('business_id', businessId)
         .eq('id', toolInput.product_id)
         .maybeSingle();
+
+      // Los sets no se venden por aquí: no tienen stock propio (se venden como pedido)
+      if (product?.is_bundle) {
+        return { success: false, error: 'Los sets no se venden desde el asistente: registra la venta como pedido, que descuenta cada producto del set.' };
+      }
 
       if (!product || product.stock < toolInput.quantity) {
         return { success: false, error: 'Stock insuficiente' };

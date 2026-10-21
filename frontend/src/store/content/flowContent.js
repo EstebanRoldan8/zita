@@ -193,7 +193,8 @@ export const flowContent = {
     text: 'RENACER es capítulo nuevo. El stock viejo es archivo.',
   },
   // Orden de categorías; las demás van después en orden alfabético y Archive siempre al final
-  categoryOrder: ['Tops', 'Licras', 'Shorts', 'Faldas', 'Pantalonetas', 'Camisetas'],
+  // Sets primero (tipo propio: productos con is_bundle)
+  categoryOrder: ['Sets', 'Tops', 'Licras', 'Shorts', 'Faldas', 'Pantalonetas', 'Camisetas'],
   // Secciones del menú: páginas /coleccion/<slug> con un grupo fijo de categorías (por nombre de
   // categoría, nunca por nombre de producto). Una sección sin productos no aparece.
   sections: [

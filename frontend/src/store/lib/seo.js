@@ -129,6 +129,10 @@ export function homeSeo(ctx, { store } = {}) {
         url: home,
         logo: absoluteUrl(ctx.origin, LOGO_IMAGE),
         sameAs: socialLinks(store),
+        email: flowContent.brand.email,
+        contactPoint: flowContent.brand.email
+          ? { '@type': 'ContactPoint', contactType: 'customer service', email: flowContent.brand.email, availableLanguage: 'es' }
+          : null,
       },
       {
         '@context': SCHEMA,

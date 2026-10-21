@@ -11,7 +11,11 @@ import Logo from './Logo';
 function FooterLink({ link }) {
   const cls = 'inline-flex min-h-9 items-center hover:underline';
   if (link.external) return <a href={link.href} target="_blank" rel="noopener noreferrer" className={cls}>{link.label}</a>;
-  if (link.mailto) return <a href={link.href} className={cls}>{link.label}</a>;
+  // El correo es largo: si no cabe se parte antes de la @ (y, como último recurso, donde haga falta)
+  if (link.mailto) {
+    const [user, domain] = String(link.label).split('@');
+    return <a href={link.href} className={`${cls} [overflow-wrap:anywhere]`}>{domain ? <>{user}<wbr />@{domain}</> : link.label}</a>;
+  }
   if (!link.href) return <span className="inline-flex min-h-9 items-center text-flow-sand">{link.label}</span>;
   return <Link to={link.href} className={cls}>{link.label}</Link>;
 }

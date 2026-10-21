@@ -175,7 +175,7 @@ export const flowContent = {
     slogan: 'Just go with the flow',
     whatsapp: null, // sale de store_settings.whatsapp_number
     instagram: null, // sale de store_settings.social.instagram si existe
-    email: null,
+    email: 'flowactivewear.co@gmail.com', // correo de contacto: footer, Ayuda (Contacto) y datos de la organización (SEO)
     city: null,
   },
   // Título de la home para buscadores y previews (≤ 60 caracteres). El resto sale de lib/seo.js.

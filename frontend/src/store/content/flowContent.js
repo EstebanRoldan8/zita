@@ -239,12 +239,12 @@ Ropa deportiva y de lifestyle diseñada para acompañarte antes, durante y despu
     handle: '@flow.col',
     url: 'https://www.instagram.com/flow.col/',
     reels: [
-      { code: 'Dep0av0pkja', title: null, cover: null },
-      { code: 'DehQauGxGWf', title: null, cover: null },
-      { code: 'DeXCI9mx_Cd', title: null, cover: null },
-      { code: 'DOMbMbwiVjk', title: null, cover: null },
-      { code: 'DI_neNLNKm9', title: null, cover: null },
-      { code: 'DIXJx0FSDFG', title: null, cover: null },
+      { code: 'Dep0av0pkja', title: null, cover: '/reels/Dep0av0pkja.webp' },
+      { code: 'DehQauGxGWf', title: null, cover: '/reels/DehQauGxGWf.webp' },
+      { code: 'DeXCI9mx_Cd', title: null, cover: '/reels/DeXCI9mx_Cd.webp' },
+      { code: 'DOMbMbwiVjk', title: null, cover: '/reels/DOMbMbwiVjk.webp' },
+      { code: 'DI_neNLNKm9', title: null, cover: '/reels/DI_neNLNKm9.webp' },
+      { code: 'DIXJx0FSDFG', title: null, cover: '/reels/DIXJx0FSDFG.webp' },
     ],
   },
   club: {

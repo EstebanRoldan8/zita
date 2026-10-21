@@ -235,7 +235,7 @@ Ropa deportiva y de lifestyle diseñada para acompañarte antes, durante y despu
   // el ID (youtube.com/shorts/<ID>); vacío = la página va sin video, en una columna. cover: portada vertical
   // en frontend/public/video/ (720 px de ancho, WebP, máx ~100 KB). No se carga nada de YouTube hasta el play.
   aboutVideo: {
-    youtubeId: 'dDmn6yzQaZg',
+    youtubeId: 'H7r7j6YAyGg',
     cover: '/video/flow-sobre.webp',
     coverAlt: 'Portada del video sobre FLOW',
     playLabel: 'Ver video sobre Flow',

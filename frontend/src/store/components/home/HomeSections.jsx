@@ -4,7 +4,7 @@ import { Link } from 'react-router-dom';
 import { MessageCircle } from 'lucide-react';
 import { flowContent } from '../../content/flowContent';
 import {
-  productsInCapsule, capsuleColorOrder, productsInDrop, coverForColors, firstImage, colorsOfProduct, productType,
+  productsInCapsule, capsuleColorOrder, dropColorOrder, productsInDrop, coverForColors, firstImage, colorsOfProduct, productType,
 } from '../../lib/collections';
 import { formatCOP, waLink } from '../../lib/format';
 import { sizeGuide } from '../../lib/policies';
@@ -155,7 +155,7 @@ export function ShopByColor({ collection, products, path }) {
         </div>
         <ProductCarousel label="Comprar por color" itemClass="w-[78%] sm:w-[46%] md:w-[31.5%]">
           {drops.map((d) => {
-            const cover = coverForColors(d.items, d.colors);
+            const cover = coverForColors(d.items, dropColorOrder(d));
             return (
               <Link key={d.slug} to={path(`/colores/${d.slug}`)} className="group relative block overflow-hidden"
                 style={{ aspectRatio: '4 / 5', background: d.palette?.bg, color: d.palette?.fg }}>

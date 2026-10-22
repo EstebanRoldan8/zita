@@ -97,14 +97,22 @@ const COLOR_ALIASES = {
   lavanda: ['lila', 'lavender', 'lavander', 'dew'], verde: ['dew'],
 };
 
-// Colores de una cápsula en el orden en que se elige la foto principal de cada tarjeta: primero
-// capsule.photoPriority, luego el resto de los colores de la cápsula y sus drops, cada uno con sus alias.
-// La tarjeta usa el primero de la lista que el producto tenga CON foto.
+// Orden de colores para la foto principal de las tarjetas (cápsulas y drops): primero `priority`, luego el
+// resto de `colors`, cada uno con sus alias. La tarjeta usa el primero que el producto tenga CON foto.
+function colorPriority(priority, colors) {
+  const all = arr(colors).map(normalize);
+  const first = arr(priority).map(normalize).filter((k) => all.includes(k));
+  return [...new Set([...first, ...all].flatMap((k) => [k, ...arr(COLOR_ALIASES[k]).map(normalize)]))];
+}
+
+// Cápsula: capsule.photoPriority y luego los colores de la cápsula y sus drops
 export function capsuleColorOrder(collection, capsule) {
-  const all = capsuleColors(collection, capsule);
-  const first = arr(capsule?.photoPriority).map(normalize).filter((k) => all.includes(k));
-  const withAliases = [...first, ...all].flatMap((k) => [k, ...arr(COLOR_ALIASES[k]).map(normalize)]);
-  return [...new Set(withAliases)];
+  return colorPriority(capsule?.photoPriority, capsuleColors(collection, capsule));
+}
+
+// Drop ("Comprar por color"): drop.photoPriority (si la tiene) y luego sus colores
+export function dropColorOrder(drop) {
+  return colorPriority(drop?.photoPriority, drop?.colors);
 }
 
 export function productsInCapsule(products, collection, capsule) {
@@ -114,10 +122,14 @@ export function productsInCapsule(products, collection, capsule) {
 }
 
 // Foto del producto para un conjunto de colores (la del primer color que coincida) o null
+// Foto del producto para unos colores, respetando su orden (el primero de la lista que tenga foto)
 export function imageForColors(product, colors) {
-  const wanted = new Set(arr(colors).map(normalize));
-  const hit = colorsOfProduct(product).find((c) => wanted.has(c.key) && c.image);
-  return hit ? hit.image : null;
+  const own = colorsOfProduct(product);
+  for (const k of arr(colors).map(normalize)) {
+    const hit = own.find((c) => c.key === k && c.image);
+    if (hit) return hit.image;
+  }
+  return null;
 }
 
 export function firstImage(product) {

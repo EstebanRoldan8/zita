@@ -13,9 +13,10 @@ const PAGE = 24;
 
 // Listado con filtros en query params: capsula, color, categoria, talla, orden.
 // Filtra en el cliente sobre el catálogo ya cargado (sin llamadas nuevas al backend).
+// colorKeys: colores en orden de prioridad para la foto principal de las tarjetas (página de un drop).
 export default function ProductListing({
   products, loading, error, onRetry, collection = null, showCategory = true, isNew = false,
-  emptyText = 'No hay productos con estos filtros.',
+  emptyText = 'No hay productos con estos filtros.', colorKeys = null,
 }) {
   const path = useStorePath();
   const [params, setParams] = useSearchParams();
@@ -168,7 +169,7 @@ export default function ProductListing({
             <div className="grid grid-cols-2 gap-x-3 gap-y-10 md:grid-cols-3 md:gap-x-4 lg:grid-cols-4">
               {list.slice(0, shown).map((p, i) => (
                 <ProductCard key={`${capsule?.slug || ''}-${p.id}`} product={p} to={path(`/producto/${p.id}`)} eager={i < 4} isNew={isNew}
-                  activeColor={normalize(color)} colorKeys={capsule ? capsuleColorOrder(collection, capsule) : null} />
+                  activeColor={normalize(color)} colorKeys={capsule ? capsuleColorOrder(collection, capsule) : colorKeys} />
               ))}
             </div>
             {list.length > shown && (

@@ -155,6 +155,7 @@ const RENACER = {
     },
     {
       slug: 'dew', name: 'DEW DROP', capsule: 'florecer', colors: ['verde rocio', 'verde limon', 'gris', 'cool grey', 'verde'],
+      photoPriority: ['verde', 'verde rocio', 'verde limon', 'gris'], // foto principal de las tarjetas del drop (en este orden)
       tagline: 'Expansión visible', description: 'Energía y luz que se dejan ver.',
       protagonist: 'Faldas', palette: { bg: '#BFDB95', fg: '#1C1C1C' },
     },

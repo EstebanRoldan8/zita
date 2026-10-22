@@ -3,7 +3,7 @@ import { useStorePath } from '../hooks/useStore';
 import { useSeo, useSeoContext } from '../hooks/useSeo';
 import { colorsSeo, dropSeo } from '../lib/seo';
 import { useCatalog } from '../hooks/useCatalog';
-import { getActiveCollection, productsInCollection, productsInDrop, coverForColors } from '../lib/collections';
+import { getActiveCollection, productsInCollection, productsInDrop, coverForColors, dropColorOrder } from '../lib/collections';
 import ProductListing from '../components/ProductListing';
 import ColorDot from '../components/ColorDot';
 import StoreImage from '../components/StoreImage';
@@ -31,7 +31,7 @@ export function ColorsIndex() {
         ) : (
           <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
             {drops.map((d) => {
-              const cover = coverForColors(d.items, d.colors);
+              const cover = coverForColors(d.items, dropColorOrder(d));
               return (
                 <Link key={d.slug} to={path(`/colores/${d.slug}`)} className="group relative block overflow-hidden"
                   style={{ aspectRatio: '4 / 5', background: d.palette?.bg, color: d.palette?.fg }}>
@@ -82,8 +82,9 @@ export function DropPage() {
         </div>
       </header>
       <div className="mx-auto max-w-7xl px-4 py-10 md:px-8">
-        <ProductListing products={products} loading={catalog.isLoading} error={catalog.isError} onRetry={catalog.refetch}
-          isNew emptyText="Este color se está preparando." />
+        {/* Tarjetas en el color del drop (como en las cápsulas); key por drop: al cambiar de drop vuelven a su color */}
+        <ProductListing key={drop.slug} products={products} loading={catalog.isLoading} error={catalog.isError} onRetry={catalog.refetch}
+          isNew emptyText="Este color se está preparando." colorKeys={dropColorOrder(drop)} />
       </div>
     </>
   );

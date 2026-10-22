@@ -131,36 +131,38 @@ const RENACER = {
       photoPriority: ['lavanda', 'verde'],
     },
   ],
-  // "Comprar por color"
+  // "Comprar por color". defines = colores que DEFINEN el drop: un producto entra solo si tiene uno de ellos
+  // (con alias). colors = todos los tonos del drop (orden de foto y portada); photoPriority = foto primero.
+  // Las cápsulas son la unión de los `defines` de sus drops.
   drops: [
     {
-      slug: 'noir', name: 'NOIR DROP', capsule: 'esencial', colors: ['negro', 'negro viejo', 'negro/gris'],
+      slug: 'noir', name: 'NOIR DROP', capsule: 'esencial', defines: ['negro'], colors: ['negro', 'negro viejo', 'negro/gris'],
       tagline: 'Volver a la raíz', description: 'El negro de siempre, con intención renovada.',
       protagonist: 'Set Aria', palette: { bg: '#1C1C1C', fg: '#D9CFC3' },
     },
     {
-      slug: 'deep-blue', name: 'DEEP BLUE DROP', capsule: 'esencial', colors: ['azul', 'azul noche', 'azul rey', 'azul claro', 'negro/azul'],
+      slug: 'deep-blue', name: 'DEEP BLUE DROP', capsule: 'esencial', defines: ['azul'], colors: ['azul', 'azul noche', 'azul rey', 'azul claro', 'negro/azul'],
       tagline: 'Volver a la raíz', description: 'Calma profunda para empezar otra vez.',
       protagonist: 'Set Aria y Pantaloneta azul', palette: { bg: '#19212C', fg: '#D9CFC3' },
     },
     {
-      slug: 'merlot', name: 'MERLOT DROP', capsule: 'volver', colors: ['vino tinto', 'merlot', 'rojo'],
+      slug: 'merlot', name: 'MERLOT DROP', capsule: 'volver', defines: ['vino tinto', 'rojo'], colors: ['vino tinto', 'merlot', 'rojo'],
       tagline: 'Reconexión y decisión', description: 'Volviste a creer. Volviste a sentirte fuerte.',
       protagonist: 'Set Jana', palette: { bg: '#5C1923', fg: '#D9CFC3' },
     },
     {
-      slug: 'sand', name: 'SAND DROP', capsule: 'volver', colors: ['beige', 'arena', 'nude'],
+      slug: 'sand', name: 'SAND DROP', capsule: 'volver', defines: ['beige'], colors: ['beige', 'arena', 'nude'],
       tagline: 'Reconexión y decisión', description: 'Tonos tierra para una versión más segura.',
       protagonist: 'Pantaloneta (beige y rojo)', palette: { bg: '#D9CFC3', fg: '#1C1C1C' },
     },
     {
-      slug: 'dew', name: 'DEW DROP', capsule: 'florecer', colors: ['verde rocio', 'verde limon', 'gris', 'cool grey', 'verde'],
+      slug: 'dew', name: 'DEW DROP', capsule: 'florecer', defines: ['verde'], colors: ['verde rocio', 'verde limon', 'gris', 'cool grey', 'verde'],
       photoPriority: ['verde', 'verde rocio', 'verde limon', 'gris'], // foto principal de las tarjetas del drop (en este orden)
       tagline: 'Expansión visible', description: 'Energía y luz que se dejan ver.',
       protagonist: 'Faldas', palette: { bg: '#BFDB95', fg: '#1C1C1C' },
     },
     {
-      slug: 'lavander', name: 'LAVANDER DROP', capsule: 'florecer', colors: ['lavanda', 'lavander', 'blanco'],
+      slug: 'lavander', name: 'LAVANDER DROP', capsule: 'florecer', defines: ['lavanda'], colors: ['lavanda', 'lavander', 'blanco'],
       tagline: 'Expansión visible', description: 'No es perfección. Es seguridad.',
       protagonist: 'Faldas', palette: { bg: '#AE9BB7', fg: '#1C1C1C' },
     },

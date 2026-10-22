@@ -78,9 +78,16 @@ export function productsInArchive(products, content = flowContent) {
   return arr(products).filter((p) => p && p.id && isArchiveCategory(p.category, content));
 }
 
+// Colores que DEFINEN un drop (drop.defines con sus alias; si no tiene, sus colores). Solo estos deciden
+// qué productos entran: un producto con gris pero sin verde no entra a DEW.
+export function dropDefiningColors(drop) {
+  return colorPriority(null, arr(drop?.defines).length ? drop.defines : drop?.colors);
+}
+
 export function productsInDrop(products, drop) {
   if (!drop) return [];
-  return arr(products).filter((p) => p && p.id && hasAnyColor(p, drop.colors));
+  const colors = dropDefiningColors(drop);
+  return arr(products).filter((p) => p && p.id && hasAnyColor(p, colors));
 }
 
 // Colores de una cápsula: los propios más los de sus drops
@@ -115,9 +122,16 @@ export function dropColorOrder(drop) {
   return colorPriority(drop?.photoPriority, drop?.colors);
 }
 
+// Colores que definen una cápsula: la unión de los que definen sus drops (si no tiene drops, sus colores)
+export function capsuleDefiningColors(collection, capsule) {
+  if (!capsule) return [];
+  const drops = arr(collection?.drops).filter((d) => d && d.capsule === capsule.slug);
+  return drops.length ? [...new Set(drops.flatMap(dropDefiningColors))] : colorPriority(null, capsule.colors);
+}
+
 export function productsInCapsule(products, collection, capsule) {
   if (!capsule) return [];
-  const colors = capsuleColors(collection, capsule);
+  const colors = capsuleDefiningColors(collection, capsule);
   return arr(products).filter((p) => p && p.id && hasAnyColor(p, colors));
 }
 

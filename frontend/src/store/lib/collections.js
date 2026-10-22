@@ -168,12 +168,13 @@ export const categoryInSection = (category, section) => inList(category, section
 
 // Productos de la sección: sus categorías más las de género compartido (Unisex), que van en todas
 // Un set (is_bundle) entra si TODOS sus productos son de la sección o Unisex (bundle_categories de la API)
+// Flow Archive: entra si su prenda (por el nombre: "Licra Liva" → Licras) es una categoría de la sección.
 export function productsInSection(products, section, content = flowContent) {
   if (!section) return [];
   const fits = (category) => inList(category, section.categories) || inList(category, content?.unisexCategories);
   return arr(products).filter((p) => p && p.id && (p.is_bundle
     ? arr(p.bundle_categories).length > 0 && arr(p.bundle_categories).every(fits)
-    : fits(p.category)));
+    : fits(p.category) || (isArchiveCategory(p.category, content) && inList(garmentOf(p)?.label, section.categories))));
 }
 
 // Mujer / Hombre / Unisex son GÉNERO (flowContent.genderCategories), nunca tipo de prenda ni filtro
@@ -242,17 +243,29 @@ export function productType(product, content = flowContent) {
   return category;
 }
 
+// Tipos de prenda en los que se LISTA un producto (filtro, menús, conteos). Normal: [productType]. Flow Archive:
+// su prenda por el nombre (garmentOf) y además Flow Archive; si el nombre no dice la prenda, solo Flow Archive.
+// productType (uno solo) sigue siendo la etiqueta del producto (ruta de la ficha, SEO).
+export function productTypesOf(product, content = flowContent) {
+  const type = productType(product, content);
+  if (!type) return [];
+  if (!isArchiveCategory(product?.category, content)) return [type];
+  const garment = garmentOf(product)?.label;
+  return garment && normalize(garment) !== normalize(type) ? [garment, type] : [type];
+}
+
 // [{ name, count }] de tipos de prenda en el orden de categoryOrder (Archive al final).
-// archive: false deja fuera Flow Archive (el menú lo enlaza aparte).
+// archive: false deja fuera Flow Archive (el menú lo enlaza aparte); sus prendas sí cuentan en su tipo.
 export function productTypes(products, { archive = true } = {}, content = flowContent) {
   const counts = new Map();
   for (const p of arr(products)) {
     if (!p || !p.id) continue;
-    const type = productType(p, content);
-    if (!type || (!archive && isArchiveCategory(type, content))) continue;
-    const key = normalize(type);
-    if (!counts.has(key)) counts.set(key, { name: type, count: 0 });
-    counts.get(key).count += 1;
+    for (const type of productTypesOf(p, content)) {
+      if (!archive && isArchiveCategory(type, content)) continue;
+      const key = normalize(type);
+      if (!counts.has(key)) counts.set(key, { name: type, count: 0 });
+      counts.get(key).count += 1;
+    }
   }
   return categoriesOrdered([...counts.values()], content);
 }
@@ -298,7 +311,7 @@ export function filterProducts(products, { category, color, size, q, sort, colle
   const sz = normalize(size);
   const query = normalize(q);
   let list = arr(products).filter((p) => p && p.id);
-  if (cat) list = list.filter((p) => normalize(productType(p)) === cat);
+  if (cat) list = list.filter((p) => productTypesOf(p).some((t) => normalize(t) === cat));
   if (col) list = list.filter((p) => colorsOfProduct(p).some((c) => c.key === col));
   if (sz) list = list.filter((p) => arr(p.sizes_available).some((s) => normalize(s) === sz));
   if (query) {

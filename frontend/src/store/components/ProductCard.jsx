@@ -16,12 +16,17 @@ export const CAROUSEL_SIZES = '(min-width: 1024px) 24vw, (min-width: 768px) 31vw
 // Tarjeta estilo ALO: foto 4:5 (segunda foto en hover), puntos de color bajo la foto que cambian la
 // foto a la de ese color (si existe), etiqueta "Nuevo" y estado de stock sin cifras.
 // El clic lleva al producto con ?color= preseleccionado.
-export default function ProductCard({ product: raw, to, eager = false, isNew = false, activeColor = '', sizes = CARD_SIZES }) {
+// colorKeys (cápsula): solo esos colores, en ese orden; la foto principal es la del primero que tenga foto.
+export default function ProductCard({ product: raw, to, eager = false, isNew = false, activeColor = '', sizes = CARD_SIZES, colorKeys = null }) {
   const name = asString(raw?.name, 'Producto');
   const images = asUrls(raw?.images);
-  const colors = colorsOfProduct(raw);
-  const initial = colors.find((c) => c.key === activeColor)?.key || '';
-  const [selected, setSelected] = useState(initial);
+  const allColors = colorsOfProduct(raw);
+  const colors = colorKeys ? colorKeys.map((k) => allColors.find((c) => c.key === k)).filter(Boolean) : allColors;
+  const fallback = colorKeys ? (colors.find((c) => c.image) || colors[0])?.key || '' : '';
+  const initial = colors.find((c) => c.key === activeColor)?.key || fallback;
+  const [selected, setSelectedRaw] = useState(initial);
+  // En una cápsula siempre queda un color elegido: tocar el activo vuelve al de la cápsula
+  const setSelected = (k) => setSelectedRaw(k || fallback);
   const [hover, setHover] = useState('');
 
   const shownKey = hover || selected;

@@ -90,6 +90,14 @@ export function capsuleColors(collection, capsule) {
   return [...new Set([...arr(capsule.colors), ...fromDrops].map(normalize))];
 }
 
+// Colores de una cápsula en el orden en que se elige la foto principal de cada tarjeta: primero
+// capsule.photoPriority, luego el resto de los colores de la cápsula y sus drops.
+export function capsuleColorOrder(collection, capsule) {
+  const all = capsuleColors(collection, capsule);
+  const first = arr(capsule?.photoPriority).map(normalize).filter((k) => all.includes(k));
+  return [...new Set([...first, ...all])];
+}
+
 export function productsInCapsule(products, collection, capsule) {
   if (!capsule) return [];
   const colors = capsuleColors(collection, capsule);

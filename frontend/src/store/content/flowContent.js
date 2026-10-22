@@ -104,6 +104,7 @@ const RENACER = {
       ],
       palette: { bg: 'linear-gradient(160deg, #0B0B10 0%, #12163A 100%)', solid: '#12163A', fg: '#D9CFC3' },
       colors: ['negro', 'azul'],
+      photoPriority: ['negro', 'azul'], // color de la foto principal de cada tarjeta en la cápsula (en este orden)
     },
     {
       slug: 'volver',
@@ -115,6 +116,7 @@ const RENACER = {
       ],
       palette: { bg: 'linear-gradient(160deg, #5C1923 0%, #A09486 100%)', solid: '#5C1923', fg: '#D9CFC3' },
       colors: ['vino tinto', 'rojo', 'beige', 'arena', 'nude'],
+      photoPriority: ['vino tinto', 'rojo', 'beige'],
     },
     {
       slug: 'florecer',
@@ -126,6 +128,7 @@ const RENACER = {
       ],
       palette: { bg: 'linear-gradient(160deg, #6E5F7E 0%, #4F6B4A 100%)', solid: '#4F6B4A', fg: '#D9CFC3' },
       colors: ['verde rocio', 'verde limon', 'gris', 'cool grey', 'lavanda', 'lavander', 'blanco'],
+      photoPriority: ['lavanda', 'verde'],
     },
   ],
   // "Comprar por color"

@@ -4,7 +4,7 @@ import { Link } from 'react-router-dom';
 import { MessageCircle } from 'lucide-react';
 import { flowContent } from '../../content/flowContent';
 import {
-  productsInCapsule, productsInDrop, coverForColors, firstImage, colorsOfProduct, productType,
+  productsInCapsule, capsuleColorOrder, productsInDrop, coverForColors, firstImage, colorsOfProduct, productType,
 } from '../../lib/collections';
 import { formatCOP, waLink } from '../../lib/format';
 import { sizeGuide } from '../../lib/policies';
@@ -126,7 +126,8 @@ export function CurrentCollection({ collection, products, path, loading }) {
         ) : (
           <ProductCarousel label={capsule ? `Cápsula ${capsule.name}` : collection.label}>
             {list.slice(0, 12).map((p) => (
-              <ProductCard key={p.id} product={p} to={path(`/producto/${p.id}`)} isNew sizes={CAROUSEL_SIZES} />
+              <ProductCard key={`${tab}-${p.id}`} product={p} to={path(`/producto/${p.id}`)} isNew sizes={CAROUSEL_SIZES}
+                colorKeys={capsule ? capsuleColorOrder(collection, capsule) : null} />
             ))}
           </ProductCarousel>
         )}

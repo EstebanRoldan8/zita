@@ -3,7 +3,7 @@ import { useSearchParams } from 'react-router-dom';
 import { SlidersHorizontal, X } from 'lucide-react';
 import { useStorePath } from '../hooks/useStore';
 import {
-  filterProducts, colorsIn, sizesOf, productsInCapsule, normalize, productTypes,
+  filterProducts, colorsIn, sizesOf, productsInCapsule, capsuleColorOrder, normalize, productTypes,
 } from '../lib/collections';
 import ProductCard from './ProductCard';
 import ColorDot from './ColorDot';
@@ -167,7 +167,8 @@ export default function ProductListing({
           <>
             <div className="grid grid-cols-2 gap-x-3 gap-y-10 md:grid-cols-3 md:gap-x-4 lg:grid-cols-4">
               {list.slice(0, shown).map((p, i) => (
-                <ProductCard key={p.id} product={p} to={path(`/producto/${p.id}`)} eager={i < 4} isNew={isNew} activeColor={normalize(color)} />
+                <ProductCard key={`${capsule?.slug || ''}-${p.id}`} product={p} to={path(`/producto/${p.id}`)} eager={i < 4} isNew={isNew}
+                  activeColor={normalize(color)} colorKeys={capsule ? capsuleColorOrder(collection, capsule) : null} />
               ))}
             </div>
             {list.length > shown && (

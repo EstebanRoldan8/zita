@@ -57,7 +57,7 @@ export default function StoreFooter() {
         cambios && { label: 'Cambios y devoluciones', href: path('/cambios') },
         hasContact && { label: 'Contacto', href: path('/ayuda') },
         faqItems().length > 0 && { label: 'Preguntas frecuentes', href: path('/ayuda') },
-        sizeGuide() && { label: 'Guía de tallas', href: `${path('/ayuda')}#guia-de-tallas` },
+        sizeGuide() && { label: sizeGuide().title, href: path('/guia-de-tallas') },
       ],
     },
     {

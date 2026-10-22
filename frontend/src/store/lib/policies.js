@@ -19,8 +19,18 @@ export function faqItems() {
   return (Array.isArray(flowContent.faq) ? flowContent.faq : []).filter((f) => f && text(f.q) && text(f.a));
 }
 
+// Guía de tallas: { title, intro, note, tables: [{ title, types, columns, rows }] } con solo las tablas válidas,
+// o null si no hay ninguna (la página, los enlaces y el SEO se ocultan).
 export function sizeGuide() {
   const g = flowContent.sizeGuide;
-  if (!g || !Array.isArray(g.columns) || !Array.isArray(g.rows) || g.rows.length === 0) return null;
-  return g;
+  const tables = (Array.isArray(g?.tables) ? g.tables : [])
+    .filter((t) => t && text(t.title) && Array.isArray(t.columns) && t.columns.length && Array.isArray(t.rows) && t.rows.length);
+  if (!tables.length) return null;
+  return { title: text(g.title) || 'Guía de tallas', intro: text(g.intro), note: text(g.note), tables };
+}
+
+// Tablas de la guía que aplican a unos tipos de prenda (p. ej. ['Licras']); [] si ninguna
+export function sizeGuideTablesFor(types) {
+  const want = new Set((Array.isArray(types) ? types : []).map((t) => String(t).trim().toLowerCase()));
+  return (sizeGuide()?.tables || []).filter((t) => (t.types || []).some((x) => want.has(String(x).trim().toLowerCase())));
 }

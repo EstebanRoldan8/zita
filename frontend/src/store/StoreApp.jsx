@@ -22,6 +22,7 @@ const CollectionDetail = lazy(() => import('./pages/CollectionDetail'));
 const ColorsIndex = lazy(() => import('./pages/Colors').then((m) => ({ default: m.ColorsIndex })));
 const DropPage = lazy(() => import('./pages/Colors').then((m) => ({ default: m.DropPage })));
 const Help = lazy(() => import('./pages/Help'));
+const SizeGuide = lazy(() => import('./pages/SizeGuide'));
 const SobreFlow = lazy(() => import('./pages/SobreFlow'));
 const Policy = lazy(() => import('./pages/Policy'));
 
@@ -75,6 +76,7 @@ export default function StoreApp({ slugOverride }) {
             <Route path="colores" element={<Suspense fallback={<PageFallback />}><ColorsIndex /></Suspense>} />
             <Route path="colores/:dropSlug" element={<Suspense fallback={<PageFallback />}><DropPage /></Suspense>} />
             <Route path="ayuda" element={<Suspense fallback={<PageFallback />}><Help /></Suspense>} />
+            <Route path="guia-de-tallas" element={<Suspense fallback={<PageFallback />}><SizeGuide /></Suspense>} />
             <Route path="sobre-flow" element={<Suspense fallback={<PageFallback />}><SobreFlow /></Suspense>} />
             <Route path="nosotros" element={<Navigate to="../sobre-flow" replace />} />
             <Route path="terminos" element={<Suspense fallback={<PageFallback />}><Policy kind="terminos" /></Suspense>} />

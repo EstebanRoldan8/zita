@@ -7,7 +7,7 @@ import {
 } from './_lib/store.js';
 import { esc, escLines, headTags, compose, loadBaseHtml } from './_lib/html.js';
 import {
-  routeOf, homeSeo, listingSeo, collectionSeo, sectionSeo, colorsSeo, dropSeo, productSeo, helpSeo, aboutSeo,
+  routeOf, homeSeo, listingSeo, collectionSeo, sectionSeo, colorsSeo, dropSeo, productSeo, helpSeo, aboutSeo, sizeGuideSeo,
   aboutText, policySeo, privateSeo, notFoundSeo, brandDescription, productColor, productImages,
   productSoldOut, productDescription,
 } from '../src/store/lib/seo.js';
@@ -104,7 +104,18 @@ function productContent(base, p, colorParam) {
     + `</main>`;
 }
 
-function helpContent(store) {
+// /guia-de-tallas: una tabla por tipo de prenda y la nota
+function sizeGuideContent() {
+  const guide = sizeGuide();
+  return `<main><h1>${esc(guide.title)}</h1>`
+    + (guide.intro ? `<p>${esc(guide.intro)}</p>` : '')
+    + guide.tables.map((t) => `<section><h2>${esc(t.title)}</h2><table><thead><tr>${t.columns.map((c) => `<th scope="col">${esc(c)}</th>`).join('')}</tr></thead>`
+      + `<tbody>${t.rows.map((r) => `<tr>${(Array.isArray(r) ? r : []).map((c, j) => (j === 0 ? `<th scope="row">${esc(c)}</th>` : `<td>${esc(c)}</td>`)).join('')}</tr>`).join('')}</tbody></table></section>`).join('')
+    + (guide.note ? `<p>${esc(guide.note)}</p>` : '')
+    + `</main>`;
+}
+
+function helpContent(base, store) {
   const faq = faqItems();
   const envios = policyText('envios', store);
   const cambios = policyText('cambios', store);
@@ -117,7 +128,7 @@ function helpContent(store) {
     + ((envios || cambios || guide) ? `<section><h2>Pedidos</h2>`
       + (envios ? `<h3>Envíos</h3><p>${escLines(envios)}</p>` : '')
       + (cambios ? `<h3>Cambios y devoluciones</h3><p>${escLines(cambios)}</p>` : '')
-      + (guide ? `<h3>${esc(guide.title || 'Guía de tallas')}</h3><table><thead><tr>${guide.columns.map((c) => `<th scope="col">${esc(c)}</th>`).join('')}</tr></thead><tbody>${guide.rows.map((r) => `<tr>${(Array.isArray(r) ? r : []).map((c) => `<td>${esc(c)}</td>`).join('')}</tr>`).join('')}</tbody></table>` : '')
+      + (guide ? `<h3><a href="${esc(link(base, '/guia-de-tallas'))}">${esc(guide.title)}</a></h3>` : '')
       + `</section>` : '')
     + ((wa || ig || email || city) ? `<section><h2>Contacto</h2><ul>`
       + (city ? `<li>${esc(city)}</li>` : '')
@@ -203,7 +214,8 @@ async function renderPage(target, ctx, params, cfg) {
       if (seo.notFound) return notFoundPage(base);
       return { status: 200, seo, content: productContent(base, product, params.get('color')) };
     }
-    case 'help': return { status: 200, seo: helpSeo(ctx, { store }), content: helpContent(store) };
+    case 'help': return { status: 200, seo: helpSeo(ctx, { store }), content: helpContent(base, store) };
+    case 'sizeGuide': return sizeGuide() ? { status: 200, seo: sizeGuideSeo(ctx), content: sizeGuideContent() } : notFoundPage(base);
     case 'about': {
       const seo = aboutSeo(ctx);
       return seo.notFound ? notFoundPage(base) : { status: 200, seo, content: aboutContent() };

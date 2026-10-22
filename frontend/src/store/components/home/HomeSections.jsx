@@ -7,6 +7,7 @@ import {
   productsInCapsule, productsInDrop, coverForColors, firstImage, colorsOfProduct, productType,
 } from '../../lib/collections';
 import { formatCOP, waLink } from '../../lib/format';
+import { sizeGuide } from '../../lib/policies';
 import { useReveal } from '../../hooks/useReveal';
 import ProductCard, { CAROUSEL_SIZES } from '../ProductCard';
 import StoreImage from '../StoreImage';
@@ -312,7 +313,7 @@ export function FirstTime({ path }) {
           ))}
         </ol>
         <div className="mt-10 flex flex-wrap gap-6">
-          {flowContent.sizeGuide && <Link to={`${path('/ayuda')}#guia-de-tallas`} className="flow-label border-b border-flow-black pb-1">Guía de tallas</Link>}
+          {sizeGuide() && <Link to={path('/guia-de-tallas')} className="flow-label border-b border-flow-black pb-1">{sizeGuide().title}</Link>}
           <Link to={path('/ayuda')} className="flow-label border-b border-flow-black pb-1">Ayuda</Link>
         </div>
       </div>

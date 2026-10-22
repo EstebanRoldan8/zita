@@ -9,8 +9,8 @@ import { productSeo, notFoundSeo } from '../lib/seo';
 import { storeApi } from '../lib/storeApi';
 import { formatCOP, attrValue, optionKey, COLOR_KEYS, SIZE_KEYS } from '../lib/format';
 import { COPY } from '../lib/copy';
-import { policyText, sizeGuide } from '../lib/policies';
-import { normalize, getActiveCollection, productsInCollection, colorHex, isLightColor, productType, typePath } from '../lib/collections';
+import { policyText, sizeGuide, sizeGuideTablesFor } from '../lib/policies';
+import { normalize, getActiveCollection, productsInCollection, colorHex, isLightColor, productType, typePath, garmentTypesOf } from '../lib/collections';
 import { useCatalog } from '../hooks/useCatalog';
 import ProductCard, { CAROUSEL_SIZES } from '../components/ProductCard';
 import StoreImage from '../components/StoreImage';
@@ -201,7 +201,9 @@ export default function ProductPage() {
 
   const envios = policyText('envios', store);
   const cambios = policyText('cambios', store);
-  const guide = sizeGuide();
+  // Guía de tallas: solo las tablas del tipo de prenda del producto (o de los componentes de un set)
+  const guideTables = sizeGuideTablesFor(garmentTypesOf(p));
+  const guide = guideTables.length ? sizeGuide() : null;
   const { specs, rest: specRest } = parseSpecs(p.description);
 
   return (
@@ -246,8 +248,14 @@ export default function ProductPage() {
           )}
 
           {hasSize && (
-            <fieldset className="mb-8">
+            <fieldset className="relative mb-8">
               <legend className="flow-label mb-3">{COPY.chooseSize}</legend>
+              {guide && (
+                <button type="button" onClick={() => setGuideOpen(true)} aria-haspopup="dialog"
+                  className="flow-label absolute right-0 top-0 border-b border-flow-black pb-0.5">
+                  {guide.title}
+                </button>
+              )}
               <div className="flex flex-wrap gap-2">
                 {sizes.map((s) => {
                   const ok = sizeAvailable(s);
@@ -342,12 +350,6 @@ export default function ProductPage() {
             </div>
           )}
 
-          {guide && (
-            <button type="button" onClick={() => setGuideOpen(true)} className="flow-label mt-8 border-b border-flow-black pb-1">
-              Guía de tallas
-            </button>
-          )}
-
           {(envios || cambios) && (
             <div className="mt-10 border-t border-flow-stone">
               {envios && (
@@ -382,13 +384,17 @@ export default function ProductPage() {
           <div className="absolute inset-0" style={{ background: 'rgba(28,28,28,0.4)' }} onClick={() => setGuideOpen(false)} />
           <div className="relative max-h-[85vh] w-full max-w-lg overflow-y-auto bg-flow-white p-6 md:p-8">
             <div className="mb-4 flex items-center justify-between">
-              <h2 className="flow-serif text-2xl">{guide.title || 'Guía de tallas'}</h2>
+              <h2 className="flow-label">{guide.title}</h2>
               <button type="button" onClick={() => setGuideOpen(false)} aria-label="Cerrar guía de tallas" autoFocus
                 className="flex h-11 w-11 items-center justify-center">
                 <X size={18} strokeWidth={1.5} />
               </button>
             </div>
-            <SizeGuideTable guide={guide} />
+            <div className="space-y-8">
+              {guideTables.map((t) => <SizeGuideTable key={t.title} table={t} headingLevel={3} />)}
+            </div>
+            {guide.note && <p className="mt-6 text-sm text-flow-muted">{guide.note}</p>}
+            <Link to={path('/guia-de-tallas')} className="flow-label mt-6 inline-block border-b border-flow-black pb-1">Ver guía completa</Link>
           </div>
         </div>
       )}

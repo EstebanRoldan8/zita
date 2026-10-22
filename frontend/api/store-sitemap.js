@@ -2,7 +2,7 @@
 // que usa la SPA (src/store/lib/seo.js), así coinciden con los canonical de cada página.
 import { config, sitemapStore, canonicalOrigin, storeApi, send, CACHE } from './_lib/store.js';
 import {
-  storeUrl, listingSeo, helpSeo, aboutSeo, policySeo,
+  storeUrl, listingSeo, helpSeo, aboutSeo, policySeo, sizeGuideSeo,
 } from '../src/store/lib/seo.js';
 import {
   getActiveCollection, productsInCollection, productsInDrop, productsInSection, productTypes,
@@ -47,6 +47,7 @@ export async function sitemapUrls(req, cfg = config()) {
       .map((t) => listingSeo(ctx, { search: `?categoria=${encodeURIComponent(t.name)}` }).canonical),
     !help.noindex && help.canonical,
     !about.noindex && about.canonical,
+    !sizeGuideSeo(ctx).noindex && sizeGuideSeo(ctx).canonical,
     ...Object.keys(POLICIES).map((kind) => policySeo(ctx, { kind, store })).filter((s) => !s.noindex).map((s) => s.canonical),
     ...products.map((p) => storeUrl(ctx, `/producto/${encodeURIComponent(p.id)}`)),
   ];

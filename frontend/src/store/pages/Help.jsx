@@ -1,11 +1,11 @@
-import { ChevronDown, MessageCircle } from 'lucide-react';
-import { useStore } from '../hooks/useStore';
+import { ChevronDown, ChevronRight, MessageCircle } from 'lucide-react';
+import { Link } from 'react-router-dom';
+import { useStore, useStorePath } from '../hooks/useStore';
 import { useSeo, useSeoContext } from '../hooks/useSeo';
 import { helpSeo } from '../lib/seo';
 import { flowContent } from '../content/flowContent';
 import { policyText, faqItems, sizeGuide } from '../lib/policies';
 import { waLink } from '../lib/format';
-import SizeGuideTable from '../components/SizeGuideTable';
 
 function Accordion({ id, title, children, open = false }) {
   return (
@@ -22,6 +22,7 @@ function Accordion({ id, title, children, open = false }) {
 // /ayuda: cada bloque se oculta si no tiene contenido (FAQ, envíos, cambios, guía de tallas, contacto)
 export default function Help() {
   const { store } = useStore();
+  const path = useStorePath();
   useSeo(helpSeo(useSeoContext(), { store }));
   const faq = faqItems();
   const envios = policyText('envios', store);
@@ -51,7 +52,13 @@ export default function Help() {
               <h2 id="flow-politicas" className="flow-label mb-2">Pedidos</h2>
               {envios && <Accordion id="envios" title="Envíos"><p className="whitespace-pre-line">{envios}</p></Accordion>}
               {cambios && <Accordion id="cambios" title="Cambios y devoluciones"><p className="whitespace-pre-line">{cambios}</p></Accordion>}
-              {guide && <Accordion id="guia-de-tallas" title={guide.title || 'Guía de tallas'}><SizeGuideTable guide={guide} /></Accordion>}
+              {guide && (
+                <Link id="guia-de-tallas" to={path('/guia-de-tallas')}
+                  className="flex min-h-14 items-center justify-between gap-4 border-b border-flow-stone py-4 text-base">
+                  <span className="font-medium">{guide.title}</span>
+                  <ChevronRight size={18} strokeWidth={1.5} aria-hidden="true" />
+                </Link>
+              )}
             </section>
           )}
           {hasContact && (

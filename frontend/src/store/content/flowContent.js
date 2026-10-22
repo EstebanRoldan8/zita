@@ -223,7 +223,36 @@ Ropa deportiva y de lifestyle diseñada para acompañarte antes, durante y despu
   ],
   shipping: null, // TODO: texto de envíos (si es null se usa store_settings.policies.envios)
   returns: null, // TODO: texto de cambios (si es null se usa store_settings.policies.cambios)
-  sizeGuide: null, // TODO: { title, intro?, columns: [...], rows: [[...]] }
+  // Guía de tallas (página /guia-de-tallas, footer, Ayuda y ficha de producto). Una tabla por tipo de prenda:
+  // `types` son los tipos de prenda de la tienda a los que aplica (Licras, Shorts…); la ficha muestra el enlace
+  // solo si el producto (o algún componente de un set) es de uno de esos tipos. Medidas en cm.
+  sizeGuide: {
+    title: 'Guía de tallas',
+    intro: null,
+    tables: [
+      {
+        title: 'Licras',
+        types: ['Licras'],
+        columns: ['Talla', 'Cintura', 'Cadera', 'Largo total'],
+        rows: [
+          ['S', '68–76', '88–95', '95'],
+          ['M', '74–80', '94–105', '105'],
+          ['L', '76–86', '98–116', '107'],
+        ],
+      },
+      {
+        title: 'Shorts',
+        types: ['Shorts'],
+        columns: ['Talla', 'Cintura', 'Cadera', 'Largo total'],
+        rows: [
+          ['S', '68–76', '88–95', '33'],
+          ['M', '74–80', '94–105', '35'],
+          ['L', '76–86', '98–116', '40'],
+        ],
+      },
+    ],
+    note: 'Medidas en centímetros. Si estás entre dos tallas, escríbenos y te ayudamos a elegir.',
+  },
   legal: { terms: null, privacy: null, returns: null },
   // Pasos de "¿Primera vez en FLOW?" (flujo real de la tienda)
   firstTime: [

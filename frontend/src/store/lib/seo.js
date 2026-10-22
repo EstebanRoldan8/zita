@@ -380,6 +380,26 @@ export function aboutSeo(ctx) {
   });
 }
 
+// /guia-de-tallas (sin guía publicada: no existe)
+export function sizeGuideSeo(ctx) {
+  const guide = sizeGuide();
+  if (!guide) return notFoundSeo();
+  const names = guide.tables.map((t) => t.title.toLowerCase());
+  const list = names.length > 1 ? `${names.slice(0, -1).join(', ')} y ${names[names.length - 1]}` : names[0];
+  const canonical = storeUrl(ctx, '/guia-de-tallas');
+  return finish({
+    title: withSite(guide.title),
+    description: truncate(`${guide.title} de ${SITE_NAME}: medidas de ${list} en centímetros.`),
+    canonical,
+    h1: guide.title,
+    jsonLd: [breadcrumbLd([
+      { name: 'Inicio', url: storeUrl(ctx, '/') },
+      { name: 'Ayuda', url: storeUrl(ctx, '/ayuda') },
+      { name: guide.title, url: canonical },
+    ])],
+  });
+}
+
 // /envios, /cambios, /privacidad, /terminos (sin texto: noindex, la página avisa que no está publicada)
 export function policySeo(ctx, { kind, store } = {}) {
   const title = POLICIES[kind]?.title || 'Información';
@@ -414,6 +434,7 @@ export function routeOf(path) {
   if (a === 'producto' && b) return { kind: 'product', id: decodeURIComponent(b) };
   if (b) return { kind: a === 'pedido' ? 'private' : 'notFound', title: 'Pedido recibido' };
   if (a === 'ayuda') return { kind: 'help' };
+  if (a === 'guia-de-tallas') return { kind: 'sizeGuide' };
   if (a === 'sobre-flow' || a === 'nosotros') return { kind: 'about' };
   if (POLICIES[a]) return { kind: 'policy', policy: a };
   if (a === 'bolsa') return { kind: 'private', title: 'Tu bolsa' };

@@ -197,13 +197,23 @@ export function categoryPath(category, content = flowContent) {
 // Tipo de prenda por la primera palabra del nombre ("Pantaloneta Nila" → Pantalonetas). Solo palabras de
 // este diccionario: si el nombre no empieza por una de ellas, el producto no se agrupa (no se adivina).
 const GARMENTS = {
-  pantaloneta: 'Pantalonetas', camiseta: 'Camisetas', buzo: 'Buzos', jogger: 'Joggers', sudadera: 'Sudaderas',
+  licra: 'Licras', pantaloneta: 'Pantalonetas', camiseta: 'Camisetas', buzo: 'Buzos', jogger: 'Joggers', sudadera: 'Sudaderas',
   chaqueta: 'Chaquetas', bermuda: 'Bermudas', short: 'Shorts', oversize: 'Oversize', esqueleto: 'Esqueletos',
 };
 
 export function garmentOf(product) {
   const word = normalize(product?.name).split(' ')[0];
   return word && Object.prototype.hasOwnProperty.call(GARMENTS, word) ? { key: word, label: GARMENTS[word] } : null;
+}
+
+// Tipos de prenda de un producto, para la guía de tallas: su tipo (productType) y el de su nombre (garmentOf,
+// así una "Licra" de Flow Archive cuenta como Licras). Un set: los de sus componentes (por su nombre).
+export function garmentTypesOf(product, content = flowContent) {
+  const parts = Array.isArray(product?.bundle?.components) ? product.bundle.components : [];
+  const types = parts.length
+    ? parts.map((c) => garmentOf(c)?.label)
+    : [productType(product, content), garmentOf(product)?.label];
+  return [...new Set(types.filter(Boolean))];
 }
 
 // [{ key, label, count }] por tipo de prenda, en orden alfabético; los productos sin tipo reconocido no cuentan

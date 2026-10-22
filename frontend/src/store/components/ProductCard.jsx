@@ -16,13 +16,20 @@ export const CAROUSEL_SIZES = '(min-width: 1024px) 24vw, (min-width: 768px) 31vw
 // Tarjeta estilo ALO: foto 4:5 (segunda foto en hover), puntos de color bajo la foto que cambian la
 // foto a la de ese color (si existe), etiqueta "Nuevo" y estado de stock sin cifras.
 // El clic lleva al producto con ?color= preseleccionado.
-// colorKeys (cápsula): solo esos colores, en ese orden; la foto principal es la del primero que tenga foto.
+// colorKeys (cápsula, en orden de prioridad): la foto por defecto es la del primero de esos colores que tenga
+// foto y su punto queda activo. Los puntos son TODOS los colores del producto con foto (los de la cápsula
+// primero, para que el activo siempre se vea). El estado vive en la tarjeta: quien la use le pone una key por
+// cápsula para que al cambiar de cápsula vuelva a su color.
 export default function ProductCard({ product: raw, to, eager = false, isNew = false, activeColor = '', sizes = CARD_SIZES, colorKeys = null }) {
   const name = asString(raw?.name, 'Producto');
   const images = asUrls(raw?.images);
   const allColors = colorsOfProduct(raw);
-  const colors = colorKeys ? colorKeys.map((k) => allColors.find((c) => c.key === k)).filter(Boolean) : allColors;
-  const fallback = colorKeys ? (colors.find((c) => c.image) || colors[0])?.key || '' : '';
+  const capsuleColors = colorKeys ? colorKeys.map((k) => allColors.find((c) => c.key === k)).filter(Boolean) : [];
+  const withPhoto = allColors.filter((c) => c.image);
+  const colors = colorKeys
+    ? [...new Set([...capsuleColors.filter((c) => c.image), ...(withPhoto.length ? withPhoto : allColors)])]
+    : allColors;
+  const fallback = colorKeys ? (capsuleColors.find((c) => c.image) || capsuleColors[0])?.key || '' : '';
   const initial = colors.find((c) => c.key === activeColor)?.key || fallback;
   const [selected, setSelectedRaw] = useState(initial);
   // En una cápsula siempre queda un color elegido: tocar el activo vuelve al de la cápsula

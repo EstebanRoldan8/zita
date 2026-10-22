@@ -6,6 +6,7 @@ import { useCart } from '../hooks/cartContext';
 import { useStoreNav } from '../hooks/useStoreNav';
 import { flowContent } from '../content/flowContent';
 import { waLink } from '../lib/format';
+import { heroIsDark } from '../lib/heroVideo';
 import Logo from './Logo';
 import ColorDot from './ColorDot';
 import SearchOverlay from './SearchOverlay';
@@ -66,8 +67,8 @@ export default function StoreHeader() {
 
   const closeAll = () => { setMega(null); setMobileOpen(false); };
   const transparent = isHome && !scrolled && !mega && !mobileOpen;
-  // Hero sin foto = fondo sand claro → texto oscuro; con foto (overlay oscuro) → texto claro
-  const heroHasImage = !!nav.collection?.hero?.image;
+  // Hero sin foto ni video = fondo sand claro → texto oscuro; con foto o video (overlay oscuro) → texto claro
+  const heroHasImage = heroIsDark(nav.collection?.hero);
   const lightText = transparent && heroHasImage;
   const whatsapp = waLink(store?.whatsapp_number, 'Hola FLOW, tengo una pregunta.');
   const megaItem = nav.items.find((i) => i.id === mega);

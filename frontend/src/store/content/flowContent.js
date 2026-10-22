@@ -55,6 +55,9 @@ const RENACER = {
     cta1: 'Comprar la colección',
     cta2: 'Comprar por color',
     image: null, // TODO: foto de campaña. Con null se usa composición tipográfica sobre sand.
+    // Video vertical de fondo (frontend/public/video/): H.264 sin audio ~720 px y una portada WebP del inicio.
+    // Sin src el hero queda como antes (imagen o composición sobre sand).
+    video: { src: '/video/hero-renacer.mp4', poster: '/video/hero-renacer-poster.webp' },
   },
   // Bloques editoriales en orden. `accent` = palabra que va en color stone.
   storytelling: [

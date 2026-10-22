@@ -8,6 +8,8 @@ import {
 } from '../../lib/collections';
 import { formatCOP, waLink } from '../../lib/format';
 import { sizeGuide } from '../../lib/policies';
+import { heroVideoOf } from '../../lib/heroVideo';
+import HeroVideo from './HeroVideo';
 import { useReveal } from '../../hooks/useReveal';
 import ProductCard, { CAROUSEL_SIZES } from '../ProductCard';
 import StoreImage from '../StoreImage';
@@ -34,11 +36,20 @@ function Accented({ text, accent }) {
 export function Hero({ collection, path }) {
   const hero = collection?.hero;
   if (!hero) return null;
-  const hasImage = !!hero.image;
+  // Video de fondo (hero.video) o foto: fondo oscuro con texto claro. Sin ninguno: composición sobre sand.
+  const video = heroVideoOf(hero);
+  const hasImage = !!hero.image || !!video;
   return (
     <section className={`relative -mt-16 flex min-h-[calc(100svh-36px)] items-end md:-mt-20 md:items-center ${hasImage ? 'text-flow-white flow-on-dark' : 'bg-flow-sand text-flow-black'}`}
       style={hasImage ? undefined : { backgroundImage: PALM_SHADOW }}>
-      {hasImage && (
+      {video ? (
+        <>
+          <HeroVideo video={video} />
+          {/* Legibilidad: abajo (texto en móvil) y a la izquierda (texto en escritorio), más un velo general */}
+          <span className="absolute inset-0" aria-hidden="true"
+            style={{ background: 'linear-gradient(to top, rgba(28,28,28,0.80), rgba(28,28,28,0.25) 55%, rgba(28,28,28,0.30)), linear-gradient(to right, rgba(28,28,28,0.45), rgba(28,28,28,0) 60%)' }} />
+        </>
+      ) : hasImage && (
         <>
           <img src={hero.image} alt="" className="absolute inset-0 h-full w-full object-cover" loading="eager" fetchpriority="high" />
           <span className="absolute inset-0" style={{ background: 'linear-gradient(to top, rgba(28,28,28,0.70), rgba(28,28,28,0.15) 60%)' }} aria-hidden="true" />

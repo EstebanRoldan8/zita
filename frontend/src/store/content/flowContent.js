@@ -149,7 +149,7 @@ const RENACER = {
     {
       slug: 'sand', name: 'SAND DROP', capsule: 'volver', colors: ['beige', 'arena', 'nude'],
       tagline: 'Reconexión y decisión', description: 'Tonos tierra para una versión más segura.',
-      protagonist: null, palette: { bg: '#D9CFC3', fg: '#1C1C1C' },
+      protagonist: 'Pantaloneta (beige y rojo)', palette: { bg: '#D9CFC3', fg: '#1C1C1C' },
     },
     {
       slug: 'dew', name: 'DEW DROP', capsule: 'florecer', colors: ['verde rocio', 'verde limon', 'gris', 'cool grey', 'verde'],
@@ -202,7 +202,7 @@ export const flowContent = {
   // Secciones del menú: páginas /coleccion/<slug> con un grupo fijo de categorías (por nombre de
   // categoría, nunca por nombre de producto). Una sección sin productos no aparece.
   sections: [
-    { slug: 'mujer', label: 'Mujer', categories: ['Tops', 'Licras', 'Shorts', 'Faldas', 'Pantalonetas'] },
+    { slug: 'mujer', label: 'Mujer', categories: ['Tops', 'Licras', 'Shorts', 'Faldas'] },
     { slug: 'hombre', label: 'Hombre', categories: ['Hombre'] },
   ],
   // Categorías de la base que son GÉNERO, no tipo de prenda: nunca salen como categoría ni filtro.

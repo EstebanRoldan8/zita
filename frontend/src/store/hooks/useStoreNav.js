@@ -31,7 +31,7 @@ export function useStoreNav() {
       .filter((d) => d.count > 0);
     // Secciones (Mujer, Hombre): solo si tienen productos (incluye los Unisex). Su catálogo en el menú son
     // los tipos de prenda de esos productos (productTypes, el mismo helper del filtro), filtrados dentro de
-    // la sección: Mujer → Tops, Licras, Shorts, Faldas, Pantalonetas, Oversize; Hombre → Oversize.
+    // la sección: Mujer → Tops, Licras, Shorts, Faldas, Oversize; Hombre → Pantalonetas, Oversize.
     const sections = (flowContent.sections || []).map((s) => {
       const items = productsInSection(products, s);
       const href = path(`/coleccion/${s.slug}`);

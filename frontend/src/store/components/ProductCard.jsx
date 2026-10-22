@@ -4,7 +4,7 @@ import { formatCOP } from '../lib/format';
 import { COPY } from '../lib/copy';
 import { asString, asUrls } from '../lib/safe';
 import { colorsOfProduct } from '../lib/collections';
-import ColorDot from './ColorDot';
+import ColorSwatches from './ColorSwatches';
 import StoreImage from './StoreImage';
 
 const MAX_DOTS = 5;
@@ -56,24 +56,8 @@ export default function ProductCard({ product: raw, to, eager = false, isNew = f
           <p className="mt-1 text-sm text-flow-muted">{formatCOP(raw?.price)}</p>
         </div>
       </Link>
-      {colors.length > 0 && (
-        <div className="mt-2 flex flex-wrap items-center gap-1.5" role="group" aria-label={`Colores de ${name}`}>
-          {colors.slice(0, MAX_DOTS).map((c) => {
-            const on = selected === c.key;
-            return (
-              <button key={c.key} type="button" title={c.name} aria-label={`Ver en ${c.name}`} aria-pressed={on}
-                onClick={() => setSelected(on ? '' : c.key)}
-                onMouseEnter={() => setHover(c.key)} onMouseLeave={() => setHover('')}
-                onFocus={() => setHover(c.key)} onBlur={() => setHover('')}
-                className={`flex h-7 w-7 items-center justify-center rounded-full ${on ? 'ring-1 ring-flow-black' : ''} ${c.available ? '' : 'opacity-40'}`}
-                style={on ? { boxShadow: '0 0 0 1px var(--flow-black)' } : undefined}>
-                <ColorDot name={c.name} size={14} label={false} />
-              </button>
-            );
-          })}
-          {colors.length > MAX_DOTS && <span className="text-xs text-flow-muted">+{colors.length - MAX_DOTS}</span>}
-        </div>
-      )}
+      <ColorSwatches colors={colors} selected={selected} onSelect={setSelected} onPreview={setHover}
+        label={`Colores de ${name}`} max={MAX_DOTS} className="mt-2" />
     </article>
   );
 }

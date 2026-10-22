@@ -14,7 +14,7 @@ import { useReveal } from '../../hooks/useReveal';
 import ProductCard, { CAROUSEL_SIZES } from '../ProductCard';
 import StoreImage from '../StoreImage';
 import ProductCarousel from '../ProductCarousel';
-import ColorDot from '../ColorDot';
+import ColorSwatches from '../ColorSwatches';
 import InstagramReels from './InstagramReels';
 
 // Sombra de palma sutil (solo CSS, sin imágenes): hojas diagonales difuminadas sobre sand
@@ -174,27 +174,30 @@ export function ShopByColor({ collection, products, path }) {
   );
 }
 
+// "Producto ícono": los puntos (solo colores con foto) cambian la foto principal y el color con el que abre la ficha.
 export function Protagonist({ product, path }) {
+  const [selected, setSelected] = useState('');
+  const [preview, setPreview] = useState('');
   if (!product) return null;
-  const img = firstImage(product);
-  const colors = colorsOfProduct(product);
+  const colors = colorsOfProduct(product).filter((c) => c.image);
+  const shown = colors.find((c) => c.key === (preview || selected)) || null;
+  const picked = colors.find((c) => c.key === selected) || null;
+  const img = shown?.image || firstImage(product);
+  const href = path(`/producto/${product.id}${picked ? `?color=${encodeURIComponent(picked.apiKey || picked.key)}` : ''}`);
   return (
     <section className="grid md:grid-cols-2" aria-labelledby="flow-protagonista">
       <div className="flow-photo md:aspect-auto md:min-h-[560px]">
-        {img ? <StoreImage src={img} alt={product.name} width="800" height="1000" sizes="(min-width: 768px) 50vw, 100vw" />
+        {img ? <StoreImage key={img} src={img} alt={shown ? `${product.name} en color ${shown.name}` : product.name} width="800" height="1000" sizes="(min-width: 768px) 50vw, 100vw" />
           : <span className="absolute inset-0 bg-flow-sand" aria-hidden="true" />}
       </div>
       <div className="flex flex-col justify-center bg-flow-sand px-6 py-14 md:px-16">
         <p className="flow-label">Producto ícono</p>
         <h2 id="flow-protagonista" className="flow-serif mt-4 text-4xl md:text-5xl">{product.name}</h2>
         <p className="mt-3 text-lg">{formatCOP(product.price)}</p>
-        {colors.length > 0 && (
-          <div className="mt-5 flex flex-wrap items-center gap-2">
-            {colors.slice(0, 6).map((c) => <ColorDot key={c.key} name={c.name} size={14} />)}
-          </div>
-        )}
+        <ColorSwatches colors={colors} selected={selected} onSelect={setSelected} onPreview={setPreview}
+          label={`Colores de ${product.name}`} max={8} className="mt-4" />
         <div className="mt-8">
-          <Link to={path(`/producto/${product.id}`)} className="flow-btn flow-btn-primary">Ver producto</Link>
+          <Link to={href} className="flow-btn flow-btn-primary">Ver producto{picked ? <span className="flow-sr-only"> en color {picked.name}</span> : null}</Link>
         </div>
       </div>
     </section>

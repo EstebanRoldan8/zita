@@ -40,7 +40,7 @@ export function Hero({ collection, path }) {
   const video = heroVideoOf(hero);
   const hasImage = !!hero.image || !!video;
   return (
-    <section className={`relative -mt-16 flex min-h-[calc(100svh-36px)] items-end md:-mt-20 md:items-center ${video ? 'overflow-hidden' : ''} ${hasImage ? 'text-flow-white flow-on-dark' : 'bg-flow-sand text-flow-black'}`}
+    <section className={`flow-hero relative flex items-end md:items-center ${video ? 'overflow-hidden' : ''} ${hasImage ? 'text-flow-white flow-on-dark' : 'bg-flow-sand text-flow-black'}`}
       style={hasImage ? undefined : { backgroundImage: PALM_SHADOW }}>
       {video ? (
         <>
@@ -70,7 +70,8 @@ export function Hero({ collection, path }) {
           {hero.cta1 && <Link to={path(`/coleccion/${collection.slug}`)} className={`flow-btn ${hasImage ? 'flow-btn-light' : 'flow-btn-primary'}`}>{hero.cta1}</Link>}
           {hero.cta2 && <Link to={path('/colores')} className={`flow-btn flow-btn-outline ${hasImage ? 'flow-btn-outline-light' : ''}`}>{hero.cta2}</Link>}
         </div>
-        <p className="flow-script mt-10 text-3xl opacity-80">{flowContent.brand.slogan}</p>
+        {/* 80 % con el color (no con opacity: en Safari la opacidad recorta los rizos de la fuente) */}
+        <p className="flow-script mt-10 text-3xl" style={{ color: hasImage ? 'rgba(255,255,255,0.8)' : 'rgba(28,28,28,0.8)' }}>{flowContent.brand.slogan}</p>
         </div>
       </div>
     </section>

@@ -96,6 +96,18 @@
   line-height: 1.3;
   letter-spacing: 0;
   text-transform: none;
+  /* Holgura para los rizos de Autography (la J sobresale a la izquierda): la caja los abarca sin mover el texto.
+     Safari recorta a la caja lo que sobresale si el elemento queda en una capa propia (opacity, transform…). */
+  padding-inline: 0.3em;
+  margin-inline: -0.3em;
+}
+
+/* Hero: sube bajo el header (alto real medido en StoreLayout → --flow-header-h) y ocupa la pantalla menos la
+   barra de anuncios. 100svh no cambia cuando aparece/desaparece la barra de Safari; 100vh es el respaldo. */
+.flow-store .flow-hero {
+  margin-top: calc(-1 * var(--flow-header-h, 4rem));
+  min-height: calc(100vh - var(--flow-announce-h, 36px));
+  min-height: calc(100svh - var(--flow-announce-h, 36px));
 }
 
 /* ── Botones rectangulares, sin sombras ni gradientes ── */

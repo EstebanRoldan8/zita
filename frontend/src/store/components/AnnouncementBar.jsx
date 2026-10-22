@@ -28,7 +28,7 @@ export default function AnnouncementBar() {
   const current = messages[index % messages.length];
 
   return (
-    <div className="bg-flow-black text-flow-sand flow-on-dark"
+    <div data-flow-announce className="bg-flow-black text-flow-sand flow-on-dark"
       onMouseEnter={() => setPaused(true)} onMouseLeave={() => setPaused(false)}
       onFocus={() => setPaused(true)} onBlur={() => setPaused(false)}>
       <div className="mx-auto flex h-9 max-w-7xl items-center justify-center px-4">

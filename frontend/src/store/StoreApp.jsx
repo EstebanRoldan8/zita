@@ -26,8 +26,10 @@ const SizeGuide = lazy(() => import('./pages/SizeGuide'));
 const SobreFlow = lazy(() => import('./pages/SobreFlow'));
 const Policy = lazy(() => import('./pages/Policy'));
 
+// Mientras llega el código de la página: reserva el alto de la pantalla para que el footer no se asome y
+// luego salte cuando se pinta el contenido (era casi todo el CLS de la portada).
 function PageFallback() {
-  return <div className="mx-auto max-w-7xl px-4 py-16 md:px-8"><div className="flow-skeleton h-8 w-1/3" /></div>;
+  return <div className="mx-auto min-h-[100svh] max-w-7xl px-4 py-16 md:px-8"><div className="flow-skeleton h-8 w-1/3" /></div>;
 }
 
 // slugOverride: slug fijo para dominio propio (VITE_STORE_HOST_SLUG); base '' en ese caso

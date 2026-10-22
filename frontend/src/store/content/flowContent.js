@@ -59,12 +59,11 @@ const RENACER = {
     // Sin src el hero queda como antes (imagen o composición sobre sand).
     video: { src: '/video/hero-renacer.mp4', poster: '/video/hero-renacer-poster.webp' },
   },
-  // Bloques editoriales en orden. `accent` = palabra que va en color stone.
+  // Bloques editoriales en orden. `accent` = palabra que va en color stone (comillas incluidas, si las lleva).
   storytelling: [
     {
       lines: ['FLOW nace para empoderar a las personas a través del movimiento y ayudarlas a conectar con su esencia y su “FLOW”.'],
-      accent: 'FLOW”.',
-      accentLast: true,
+      accent: '“FLOW”', // las dos comillas van dentro del resaltado (mismo color que la palabra)
     },
     {
       lines: [

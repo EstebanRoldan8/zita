@@ -41,7 +41,7 @@ export default function Home() {
       <Capsules collection={collection} path={path} />
       <PopularCategories categories={nav.shopCategories} products={all} />
       <ValuesStrip values={collection?.values || flowContent.values} />
-      <ArchiveBanner category={nav.archiveCategory} count={productsInArchive(all).length} />
+      <ArchiveBanner category={nav.archiveCategory} products={productsInArchive(all)} path={path} />
       <FirstTime path={path} />
       <FlowClub store={store} />
       <SloganBand />

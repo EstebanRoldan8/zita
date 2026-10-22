@@ -194,6 +194,7 @@ export const flowContent = {
     categoryMatch: ['flow archive', 'archive', 'archivo'],
     title: 'FLOW ARCHIVE',
     text: 'RENACER es capítulo nuevo. El stock viejo es archivo.',
+    cta: 'Ver archivo', // enlace a la categoría del archivo (portada)
   },
   // Orden de categorías; las demás van después en orden alfabético y Archive siempre al final
   // Sets primero (tipo propio: productos con is_bundle)

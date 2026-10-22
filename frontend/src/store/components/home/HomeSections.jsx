@@ -292,18 +292,27 @@ export function ValuesStrip({ values }) {
   );
 }
 
-export function ArchiveBanner({ category, count }) {
-  if (!category || !count) return null;
+// FLOW ARCHIVE: título, texto, enlace y el catálogo del archivo en carrusel. Sin productos no se muestra (como antes).
+export function ArchiveBanner({ category, products = [], path }) {
+  if (!category || products.length === 0) return null;
   const a = flowContent.archive;
+  const cta = a.cta || 'Ver archivo';
   return (
-    <section className="mx-auto max-w-7xl px-4 py-12 md:px-8">
-      <Link to={category.href} className="flex flex-col gap-4 border border-flow-stone p-8 transition-colors hover:bg-flow-sand md:flex-row md:items-center md:justify-between">
-        <span>
-          <span className="flow-collection-name block text-3xl">{a.title}</span>
-          <span className="mt-2 block text-sm text-flow-muted">{a.text}</span>
-        </span>
-        <span className="flow-label self-start border-b border-flow-black pb-1 md:self-center">Ver archivo</span>
-      </Link>
+    <section className="mx-auto max-w-7xl px-4 py-12 md:px-8" aria-labelledby="flow-archive">
+      <div className="border border-flow-stone p-6 md:p-8">
+        <div className="flex flex-col gap-4 md:flex-row md:items-end md:justify-between">
+          <div>
+            <h2 id="flow-archive" className="flow-collection-name text-3xl">{a.title}</h2>
+            <p className="mt-2 text-sm text-flow-muted">{a.text}</p>
+          </div>
+          <Link to={category.href} className="flow-label self-start border-b border-flow-black pb-1 md:self-end">{cta}</Link>
+        </div>
+        <div className="mt-8">
+          <ProductCarousel label={a.title}>
+            {products.map((p) => <ProductCard key={p.id} product={p} to={path(`/producto/${p.id}`)} sizes={CAROUSEL_SIZES} />)}
+          </ProductCarousel>
+        </div>
+      </div>
     </section>
   );
 }

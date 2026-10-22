@@ -9,9 +9,13 @@ import { canLoadHeroVideo } from '../../lib/heroVideo';
 //   dibuja en un canvas diminuto a partir del MISMO <video> (no hay segunda descarga ni segundo decodificador).
 // - Se pausa si la pestaña no está visible o el hero sale de pantalla. Si falla o el navegador bloquea el
 //   autoplay, queda la portada sin errores.
+// - Loop sin corte seco: ~0,5 s antes del final el video se desvanece sobre la portada (casi el fotograma
+//   inicial) y al reiniciar entra con fundido. Se decide por currentTime en cada cuadro: si el video está
+//   pausado o la pestaña oculta, simplemente espera.
 const WIDE_QUERY = '(min-width: 1024px), (orientation: landscape)';
 const BLUR_W = 18;
 const BLUR_H = 32;
+const LOOP_FADE_S = 0.5; // segundos antes del final en que empieza el fundido de salida
 
 export default function HeroVideo({ video }) {
   const wrapRef = useRef(null);
@@ -21,6 +25,7 @@ export default function HeroVideo({ video }) {
   // La portada ya se pintó (o no hay): recién ahí se puede pedir el video
   const [posterDone, setPosterDone] = useState(!video.poster);
   const [ready, setReady] = useState(false);
+  const [dip, setDip] = useState(false); // fundido del loop (final → inicio)
   const [wide, setWide] = useState(() => typeof window !== 'undefined' && !!window.matchMedia?.(WIDE_QUERY).matches);
 
   // Hero ancho o alto (cambia al girar o redimensionar)
@@ -60,6 +65,25 @@ export default function HeroVideo({ video }) {
     return () => { io?.disconnect(); document.removeEventListener('visibilitychange', sync); };
   }, [load]);
 
+  // Fundido del loop: sale cerca del final, entra cuando el video vuelve a empezar
+  useEffect(() => {
+    const v = videoRef.current;
+    if (!ready || !v) return undefined;
+    let raf = 0;
+    let dipping = false;
+    const tick = () => {
+      const d = v.duration;
+      const t = v.currentTime;
+      if (Number.isFinite(d) && d > LOOP_FADE_S * 4) {
+        if (!dipping && d - t <= LOOP_FADE_S) { dipping = true; setDip(true); }
+        else if (dipping && t < LOOP_FADE_S) { dipping = false; setDip(false); }
+      }
+      raf = requestAnimationFrame(tick);
+    };
+    raf = requestAnimationFrame(tick);
+    return () => { cancelAnimationFrame(raf); setDip(false); };
+  }, [ready]);
+
   // Copia difuminada de los lados (solo en hero ancho y con el video listo): un canvas de 18x32 px escalado
   useEffect(() => {
     const v = videoRef.current;
@@ -80,7 +104,8 @@ export default function HeroVideo({ video }) {
     return () => cancelAnimationFrame(raf);
   }, [ready, wide]);
 
-  const fade = 'transition-opacity duration-700 ease-out';
+  const fade = 'transition-opacity duration-500 ease-in-out';
+  const shown = ready && !dip ? 'opacity-100' : 'opacity-0';
   const blur = { filter: 'blur(28px) brightness(0.45) saturate(1.1)', transform: 'scale(1.15)' };
 
   return (
@@ -102,15 +127,15 @@ export default function HeroVideo({ video }) {
         <>
           {wide && (
             <canvas ref={canvasRef} width={BLUR_W} height={BLUR_H}
-              className={`absolute inset-0 h-full w-full object-cover ${fade} ${ready ? 'opacity-100' : 'opacity-0'}`} style={blur} />
+              className={`absolute inset-0 h-full w-full object-cover ${fade} ${shown}`} style={blur} />
           )}
           <video ref={videoRef} src={video.src} muted loop playsInline autoPlay preload="metadata"
             disablePictureInPicture disableRemotePlayback tabIndex={-1}
             onCanPlay={(e) => { e.currentTarget.play().then(() => setReady(true)).catch(() => {}); }}
             onError={() => setReady(false)}
             className={wide
-              ? `absolute inset-y-0 left-1/2 h-full w-auto max-w-none -translate-x-1/2 ${fade} ${ready ? 'opacity-100' : 'opacity-0'}`
-              : `absolute inset-0 h-full w-full object-cover ${fade} ${ready ? 'opacity-100' : 'opacity-0'}`}
+              ? `absolute inset-y-0 left-1/2 h-full w-auto max-w-none -translate-x-1/2 ${fade} ${shown}`
+              : `absolute inset-0 h-full w-full object-cover ${fade} ${shown}`}
             style={wide ? { aspectRatio: '9 / 16' } : undefined} />
         </>
       )}

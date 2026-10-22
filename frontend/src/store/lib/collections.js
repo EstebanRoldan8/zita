@@ -90,12 +90,21 @@ export function capsuleColors(collection, capsule) {
   return [...new Set([...arr(capsule.colors), ...fromDrops].map(normalize))];
 }
 
+// Otros nombres con los que puede venir un color de cápsula (se comparan normalizados: sin mayúsculas, tildes ni
+// guiones). Cada alias va justo después de su color, con la misma prioridad.
+const COLOR_ALIASES = {
+  negro: ['noir'], azul: ['deep blue'], 'vino tinto': ['merlot'], rojo: ['merlot'], beige: ['sand'],
+  lavanda: ['lila', 'lavender', 'lavander', 'dew'], verde: ['dew'],
+};
+
 // Colores de una cápsula en el orden en que se elige la foto principal de cada tarjeta: primero
-// capsule.photoPriority, luego el resto de los colores de la cápsula y sus drops.
+// capsule.photoPriority, luego el resto de los colores de la cápsula y sus drops, cada uno con sus alias.
+// La tarjeta usa el primero de la lista que el producto tenga CON foto.
 export function capsuleColorOrder(collection, capsule) {
   const all = capsuleColors(collection, capsule);
   const first = arr(capsule?.photoPriority).map(normalize).filter((k) => all.includes(k));
-  return [...new Set([...first, ...all])];
+  const withAliases = [...first, ...all].flatMap((k) => [k, ...arr(COLOR_ALIASES[k]).map(normalize)]);
+  return [...new Set(withAliases)];
 }
 
 export function productsInCapsule(products, collection, capsule) {

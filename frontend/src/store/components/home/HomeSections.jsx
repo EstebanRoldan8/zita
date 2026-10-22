@@ -40,7 +40,7 @@ export function Hero({ collection, path }) {
   const video = heroVideoOf(hero);
   const hasImage = !!hero.image || !!video;
   return (
-    <section className={`relative -mt-16 flex min-h-[calc(100svh-36px)] items-end md:-mt-20 md:items-center ${hasImage ? 'text-flow-white flow-on-dark' : 'bg-flow-sand text-flow-black'}`}
+    <section className={`relative -mt-16 flex min-h-[calc(100svh-36px)] items-end md:-mt-20 md:items-center ${video ? 'overflow-hidden' : ''} ${hasImage ? 'text-flow-white flow-on-dark' : 'bg-flow-sand text-flow-black'}`}
       style={hasImage ? undefined : { backgroundImage: PALM_SHADOW }}>
       {video ? (
         <>
@@ -56,6 +56,13 @@ export function Hero({ collection, path }) {
         </>
       )}
       <div className="relative mx-auto w-full max-w-7xl px-5 pb-16 pt-32 md:px-8 md:pb-0 md:pt-24">
+        <div className="relative isolate md:w-fit">
+        {/* Con video: velo oscuro difuminado SOLO detrás del texto (contraste mínimo en todo el video: título ≥ 3:1,
+            subtítulo y botones ≥ 4,5:1). Va encima del video y debajo del texto (isolate + -z-10). */}
+        {video && (
+          <span aria-hidden="true" className="pointer-events-none absolute -inset-x-16 -inset-y-20 -z-10"
+            style={{ background: 'rgba(28,28,28,0.52)', filter: 'blur(40px)' }} />
+        )}
         {collection.eyebrow && <p className="flow-label">{collection.eyebrow}</p>}
         <h1 className="flow-collection-name mt-5 text-[3.4rem] leading-[0.95] sm:text-7xl md:text-8xl lg:text-[8.5rem]">{hero.title}</h1>
         {hero.subtitle && <p className="mt-6 max-w-md text-base md:text-lg">{hero.subtitle}</p>}
@@ -64,6 +71,7 @@ export function Hero({ collection, path }) {
           {hero.cta2 && <Link to={path('/colores')} className={`flow-btn flow-btn-outline ${hasImage ? 'flow-btn-outline-light' : ''}`}>{hero.cta2}</Link>}
         </div>
         <p className="flow-script mt-10 text-3xl opacity-80">{flowContent.brand.slogan}</p>
+        </div>
       </div>
     </section>
   );

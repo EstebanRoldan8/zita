@@ -181,11 +181,25 @@ export const flowContent = {
   brand: {
     name: 'FLOW',
     slogan: 'Just go with the flow',
-    whatsapp: null, // sale de store_settings.whatsapp_number
-    instagram: null, // sale de store_settings.social.instagram si existe
+    // Línea oficial de WhatsApp: solo dígitos con indicativo (enlaces wa.me). Con número, los botones de
+    // WhatsApp (header, banda Flow Club, footer, botón flotante, Ayuda) aparecen solos; null = store_settings.whatsapp_number
+    whatsapp: '573174382899',
+    whatsappDisplay: '317 438 2899', // cómo se ve el número en textos legales, footer y PQR
+    instagram: 'https://www.instagram.com/flow.col/', // si store_settings.social.instagram existe, manda ese
+    instagramHandle: '@flow.col',
     email: 'flowactivewear.co@gmail.com', // correo de contacto: footer, Ayuda (Contacto) y datos de la organización (SEO)
     city: null,
   },
+  // Titular de la marca (Información del vendedor y textos legales). notificationAddress reemplaza
+  // [DIRECCIÓN DE NOTIFICACIONES] del Word: PENDIENTE de confirmar con el abogado.
+  seller: {
+    legalName: 'LIZETH NATALIA LOPEZ PEREZ',
+    nit: '1.144.052.790-7',
+    matricula: '1220888',
+    notificationAddress: 'Santiago de Cali; notificaciones al correo flowactivewear.co@gmail.com',
+  },
+  // Formulario de PQR (p. ej. Google Forms). Vacío = la sección PQR muestra solo WhatsApp y correo.
+  pqrFormUrl: '',
   // Título de la home para buscadores y previews (≤ 60 caracteres). El resto sale de lib/seo.js.
   seo: {
     homeTitle: 'FLOW | Ropa deportiva y lifestyle — Colección RENACER',
@@ -230,8 +244,6 @@ Ropa deportiva y de lifestyle diseñada para acompañarte antes, durante y despu
     { q: '¿Las prendas de RENACER se repiten?', a: 'Cada color es un drop. Cuando una talla o un color se agota, puede no volver a estar disponible.\nSi quieres enterarte primero de lo que viene, únete a Flow Club por WhatsApp.' },
     { q: '¿Cómo puedo cambiar una prenda?', a: 'Escríbenos por WhatsApp con tu número de pedido y te ayudamos. Las condiciones están en la sección de Cambios y devoluciones.' },
   ],
-  shipping: null, // TODO: texto de envíos (si es null se usa store_settings.policies.envios)
-  returns: null, // TODO: texto de cambios (si es null se usa store_settings.policies.cambios)
   // Guía de tallas (página /guia-de-tallas, footer, Ayuda y ficha de producto). Una tabla por tipo de prenda:
   // `types` son los tipos de prenda de la tienda a los que aplica (Licras, Shorts…); la ficha muestra el enlace
   // solo si el producto (o algún componente de un set) es de uno de esos tipos. Medidas en cm.
@@ -262,7 +274,9 @@ Ropa deportiva y de lifestyle diseñada para acompañarte antes, durante y despu
     ],
     note: 'Medidas en centímetros. Si estás entre dos tallas, escríbenos y te ayudamos a elegir.',
   },
-  legal: { terms: null, privacy: null, returns: null },
+  // Textos legales: content/flowLegal.js (generado desde los Word aprobados). Aquí solo la fecha que muestran
+  // las páginas cuyo Word no la trae escrita (Envíos y pagos, Preguntas frecuentes, Promociones).
+  legal: { effectiveDate: '23 de octubre de 2026' },
   // Pasos de "¿Primera vez en FLOW?" (flujo real de la tienda)
   firstTime: [
     'Elige tu color y talla',

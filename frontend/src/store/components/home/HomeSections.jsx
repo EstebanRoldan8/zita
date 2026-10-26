@@ -7,6 +7,7 @@ import {
   productsInCapsule, capsuleColorOrder, dropColorOrder, productsInDrop, coverForColors, firstImage, colorsOfProduct, productType,
 } from '../../lib/collections';
 import { formatCOP, waLink } from '../../lib/format';
+import { whatsappNumber, instagramUrl } from '../../lib/contact';
 import { sizeGuide } from '../../lib/policies';
 import { heroVideoOf } from '../../lib/heroVideo';
 import HeroVideo from './HeroVideo';
@@ -358,8 +359,8 @@ export function FirstTime({ path }) {
 export function FlowClub({ store }) {
   const club = flowContent.club;
   const insta = flowContent.instagram;
-  const wa = waLink(store?.whatsapp_number, club?.whatsappMessage);
-  const ig = insta?.url || store?.social?.instagram || flowContent.brand.instagram;
+  const wa = waLink(whatsappNumber(store), club?.whatsappMessage);
+  const ig = insta?.url || instagramUrl(store);
   const hasReels = (insta?.reels || []).length > 0;
   if (!club || (!wa && !ig && !hasReels)) return null;
   return (

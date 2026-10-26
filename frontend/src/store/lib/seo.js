@@ -4,7 +4,9 @@
 // Imports con extensión .js: este archivo también se carga en Node (funciones serverless).
 import { flowContent } from '../content/flowContent.js';
 import { getActiveCollection, isArchiveCategory, isGenderCategory, normalize, sectionForCategory, productType, typePath } from './collections.js';
-import { policyText, faqItems, sizeGuide, POLICIES } from './policies.js';
+import { sizeGuide, POLICIES, FORMS, FORMS_TITLE } from './policies.js';
+import { whatsappNumber, instagramUrl } from './contact.js';
+import { legalDescription } from './legal.js';
 import { parseSpecs } from './specs.js';
 
 export const SITE_NAME = flowContent.brand.name;
@@ -81,8 +83,7 @@ export function brandDescription() {
 }
 
 function socialLinks(store) {
-  const ig = store?.social?.instagram || flowContent.brand.instagram;
-  return [ig, store?.social?.tiktok].filter((u) => typeof u === 'string' && /^https?:\/\//i.test(u));
+  return [instagramUrl(store), store?.social?.tiktok].filter((u) => typeof u === 'string' && /^https?:\/\//i.test(u));
 }
 
 function breadcrumbLd(items) {
@@ -130,8 +131,12 @@ export function homeSeo(ctx, { store } = {}) {
         logo: absoluteUrl(ctx.origin, LOGO_IMAGE),
         sameAs: socialLinks(store),
         email: flowContent.brand.email,
-        contactPoint: flowContent.brand.email
-          ? { '@type': 'ContactPoint', contactType: 'customer service', email: flowContent.brand.email, availableLanguage: 'es' }
+        telephone: whatsappNumber(store) ? `+${whatsappNumber(store)}` : null,
+        contactPoint: flowContent.brand.email || whatsappNumber(store)
+          ? {
+            '@type': 'ContactPoint', contactType: 'customer service', email: flowContent.brand.email,
+            telephone: whatsappNumber(store) ? `+${whatsappNumber(store)}` : null, availableLanguage: 'es',
+          }
           : null,
       },
       {
@@ -341,24 +346,22 @@ export function productSeo(ctx, { product, store, colorParam } = {}) {
   });
 }
 
-// /ayuda: la descripción nombra solo los bloques que existen
+// /ayuda: preguntas frecuentes, políticas, guía de tallas y contacto
 export function helpSeo(ctx, { store } = {}) {
-  const hasContact = !!(store?.whatsapp_number || store?.social?.instagram || flowContent.brand.instagram
-    || flowContent.brand.email || flowContent.brand.city);
+  const hasContact = !!(whatsappNumber(store) || instagramUrl(store) || flowContent.brand.email || flowContent.brand.city);
   const parts = [
-    faqItems().length > 0 && 'preguntas frecuentes',
-    policyText('envios', store) && 'envíos',
-    policyText('cambios', store) && 'cambios y devoluciones',
+    'preguntas frecuentes',
+    'envíos y pagos',
+    'cambios y devoluciones',
     sizeGuide() && 'guía de tallas',
     hasContact && 'contacto',
   ].filter(Boolean);
-  const list = parts.length > 1 ? `${parts.slice(0, -1).join(', ')} y ${parts[parts.length - 1]}` : parts[0] || '';
+  const list = `${parts.slice(0, -1).join(', ')} y ${parts[parts.length - 1]}`;
   return finish({
     title: withSite('Ayuda'),
-    description: list ? truncate(`${list.charAt(0).toUpperCase()}${list.slice(1)} de ${SITE_NAME}.`) : `Ayuda de ${SITE_NAME}.`,
+    description: truncate(`${list.charAt(0).toUpperCase()}${list.slice(1)} de ${SITE_NAME}.`),
     canonical: storeUrl(ctx, '/ayuda'),
     h1: 'Ayuda',
-    noindex: parts.length === 0,
   });
 }
 
@@ -400,16 +403,50 @@ export function sizeGuideSeo(ctx) {
   });
 }
 
-// /envios, /cambios, /privacidad, /terminos (sin texto: noindex, la página avisa que no está publicada)
-export function policySeo(ctx, { kind, store } = {}) {
-  const title = POLICIES[kind]?.title || 'Información';
-  const text = policyText(kind, store);
+// /terminos, /privacidad, /cambios, /envios, /preguntas-frecuentes, /promociones (textos de content/flowLegal.js).
+// doc: el documento legal (la SPA y el prerender lo pasan; este archivo no lo importa para no cargarlo en toda la tienda)
+export function policySeo(ctx, { kind, doc, store } = {}) {
+  const policy = POLICIES[kind];
+  if (!policy) return notFoundSeo();
+  const canonical = storeUrl(ctx, `/${kind}`);
   return finish({
-    title: withSite(title),
-    description: truncate(text || `${title} de ${SITE_NAME}.`),
-    canonical: storeUrl(ctx, `/${kind}`),
-    h1: title,
-    noindex: !text,
+    title: withSite(policy.seoTitle || policy.title),
+    description: truncate(legalDescription(doc, store) || `${policy.title} de ${SITE_NAME}.`),
+    canonical,
+    h1: policy.title,
+    jsonLd: [breadcrumbLd([
+      { name: 'Inicio', url: storeUrl(ctx, '/') },
+      { name: policy.title, url: canonical },
+    ])],
+  });
+}
+
+// /formatos
+export function formsSeo(ctx) {
+  const canonical = storeUrl(ctx, '/formatos');
+  return finish({
+    title: withSite(`${FORMS_TITLE} de retracto y garantía`),
+    description: truncate(`${Object.values(FORMS).map((f) => f.title).join(' y ')} de ${SITE_NAME}, para imprimir o guardar en PDF.`),
+    canonical,
+    h1: FORMS_TITLE,
+  });
+}
+
+// /formatos/:kind
+export function formSeo(ctx, { kind, form } = {}) {
+  const meta = FORMS[kind];
+  if (!meta || !form) return notFoundSeo();
+  const canonical = storeUrl(ctx, `/formatos/${kind}`);
+  return finish({
+    title: withSite(meta.title),
+    description: truncate(`${form.heading} ${form.basis}. ${meta.title} de ${SITE_NAME} para imprimir o guardar en PDF.`),
+    canonical,
+    h1: meta.title,
+    jsonLd: [breadcrumbLd([
+      { name: 'Inicio', url: storeUrl(ctx, '/') },
+      { name: FORMS_TITLE, url: storeUrl(ctx, '/formatos') },
+      { name: meta.title, url: canonical },
+    ])],
   });
 }
 
@@ -432,6 +469,7 @@ export function routeOf(path) {
   if (a === 'coleccion') return b ? { kind: 'collection', slug: decodeURIComponent(b) } : { kind: 'listing' };
   if (a === 'colores') return b ? { kind: 'drop', slug: decodeURIComponent(b) } : { kind: 'colors' };
   if (a === 'producto' && b) return { kind: 'product', id: decodeURIComponent(b) };
+  if (a === 'formatos') return b ? { kind: 'form', form: decodeURIComponent(b) } : { kind: 'forms' };
   if (b) return { kind: a === 'pedido' ? 'private' : 'notFound', title: 'Pedido recibido' };
   if (a === 'ayuda') return { kind: 'help' };
   if (a === 'guia-de-tallas') return { kind: 'sizeGuide' };

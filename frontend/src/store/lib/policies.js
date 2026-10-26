@@ -1,18 +1,38 @@
-// Textos de ayuda/legales: primero flowContent, luego store_settings.policies. null si no hay nada
-// (la sección o el enlace se ocultan). Nunca se inventa texto.
+// Páginas legales y de ayuda. Los textos legales viven en content/flowLegal.js (generado desde los Word
+// aprobados) y solo los cargan esas páginas; aquí van rutas y títulos para menú, footer, SEO y sitemap.
 import { flowContent } from '../content/flowContent.js';
 
 const text = (v) => (typeof v === 'string' && v.trim() ? v.trim() : null);
 
+// kind = ruta (/terminos…) y clave en LEGAL_DOCS. title = título del Word; label = enlace corto;
+// seoTitle = título para buscadores cuando el del Word no cabe en 60 caracteres con " | FLOW".
 export const POLICIES = {
-  envios: { title: 'Envíos', get: (store) => text(flowContent.shipping) || text(store?.policies?.envios) },
-  cambios: { title: 'Cambios y devoluciones', get: (store) => text(flowContent.returns) || text(flowContent.legal?.returns) || text(store?.policies?.cambios) },
-  privacidad: { title: 'Privacidad y tratamiento de datos', get: (store) => text(flowContent.legal?.privacy) || text(store?.policies?.privacidad) },
-  terminos: { title: 'Términos y condiciones', get: () => text(flowContent.legal?.terms) },
+  terminos: { title: 'Términos y condiciones de compra por canales digitales', label: 'Términos y condiciones', seoTitle: 'Términos y condiciones de compra' },
+  privacidad: { title: 'Política de tratamiento de datos personales', label: 'Privacidad' },
+  cambios: { title: 'Cambios, retracto, garantía y reversión del pago', label: 'Cambios y devoluciones' },
+  envios: { title: 'Envíos y pagos', label: 'Envíos y pagos' },
+  'preguntas-frecuentes': { title: 'Preguntas frecuentes', label: 'Preguntas frecuentes' },
+  promociones: { title: 'Términos generales de promociones y sorteos', label: 'Promociones y sorteos', seoTitle: 'Términos de promociones y sorteos' },
 };
 
-export function policyText(kind, store) {
-  return POLICIES[kind]?.get(store) || null;
+// Formatos imprimibles (/formatos/:kind) — Anexos 2 y 3
+export const FORMS = {
+  retracto: { title: 'Formato de solicitud de retracto' },
+  garantia: { title: 'Formato de solicitud de garantía' },
+};
+export const FORMS_TITLE = 'Formatos';
+
+// Enlaces a las políticas para footer, menú y Ayuda (path relativo a la tienda)
+export function policyLinks() {
+  return [
+    { label: 'Términos y condiciones', href: '/terminos' },
+    { label: 'Privacidad', href: '/privacidad' },
+    { label: 'Cambios y devoluciones', href: '/cambios' },
+    { label: 'Envíos y pagos', href: '/envios' },
+    { label: 'Preguntas frecuentes', href: '/preguntas-frecuentes' },
+    { label: FORMS_TITLE, href: '/formatos' },
+    { label: 'PQR', href: '/terminos#pqr' },
+  ];
 }
 
 export function faqItems() {

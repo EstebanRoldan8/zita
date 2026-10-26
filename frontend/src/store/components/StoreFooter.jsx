@@ -3,9 +3,11 @@ import { ChevronDown } from 'lucide-react';
 import { useStore, useStorePath } from '../hooks/useStore';
 import { useStoreNav } from '../hooks/useStoreNav';
 import { flowContent } from '../content/flowContent';
-import { policyText, faqItems, sizeGuide } from '../lib/policies';
+import { sizeGuide, policyLinks } from '../lib/policies';
 import { waLink } from '../lib/format';
+import { whatsappNumber, instagramUrl } from '../lib/contact';
 import Logo from './Logo';
+import PqrBlock from './PqrBlock';
 
 // Enlace interno o externo; los nulos ya vienen filtrados
 function FooterLink({ link }) {
@@ -21,22 +23,18 @@ function FooterLink({ link }) {
 }
 
 // Footer: logo blanco grande, columnas (acordeones en móvil), pagos, legal. Flow Club vive en la banda de la portada.
-// Cada enlace se oculta si su destino es null.
+// Cada enlace se oculta si su destino es null. Las políticas legales y la sección PQR siempre están.
 export default function StoreFooter() {
   const { store } = useStore();
   const path = useStorePath();
   const nav = useStoreNav();
   const collection = nav.collection;
 
-  const wa = waLink(store?.whatsapp_number, 'Hola FLOW, tengo una pregunta.');
-  const clubWa = waLink(store?.whatsapp_number, flowContent.club?.whatsappMessage);
-  const ig = store?.social?.instagram || flowContent.brand.instagram;
+  const wa = waLink(whatsappNumber(store), 'Hola FLOW, tengo una pregunta.');
+  const clubWa = waLink(whatsappNumber(store), flowContent.club?.whatsappMessage);
+  const ig = instagramUrl(store);
   const tiktok = store?.social?.tiktok || null;
-  const { email, city } = flowContent.brand;
-  const envios = policyText('envios', store);
-  const cambios = policyText('cambios', store);
-  const privacidad = policyText('privacidad', store);
-  const terminos = policyText('terminos', store);
+  const { email, city, whatsappDisplay } = flowContent.brand;
   const hasContact = !!(wa || ig || email || city);
   const payments = typeof store?.payment_methods === 'string' && store.payment_methods.trim() ? store.payment_methods.trim() : null;
 
@@ -53,11 +51,10 @@ export default function StoreFooter() {
     {
       title: 'Ayuda',
       links: [
-        envios && { label: 'Envíos', href: path('/envios') },
-        cambios && { label: 'Cambios y devoluciones', href: path('/cambios') },
-        hasContact && { label: 'Contacto', href: path('/ayuda') },
-        faqItems().length > 0 && { label: 'Preguntas frecuentes', href: path('/ayuda') },
+        // Términos, Privacidad, Cambios y devoluciones, Envíos y pagos, Preguntas frecuentes, Formatos, PQR
+        ...policyLinks().map((l) => ({ label: l.label, href: path(l.href) })),
         sizeGuide() && { label: sizeGuide().title, href: path('/guia-de-tallas') },
+        hasContact && { label: 'Contacto', href: path('/ayuda') },
       ],
     },
     {
@@ -71,7 +68,7 @@ export default function StoreFooter() {
     {
       title: 'Contacto',
       links: [
-        wa && { label: 'WhatsApp', href: wa, external: true },
+        wa && { label: whatsappDisplay ? `WhatsApp ${whatsappDisplay}` : 'WhatsApp', href: wa, external: true },
         ig && { label: 'Instagram', href: ig, external: true },
         tiktok && { label: 'TikTok', href: tiktok, external: true },
         email && { label: email, href: `mailto:${email}`, mailto: true },
@@ -81,10 +78,11 @@ export default function StoreFooter() {
   ].map((c) => ({ ...c, links: c.links.filter(Boolean) })).filter((c) => c.links.length > 0);
 
   const legal = [
-    terminos && { label: 'Términos', href: path('/terminos') },
-    privacidad && { label: 'Privacidad', href: path('/privacidad') },
-    cambios && { label: 'Cambios', href: path('/cambios') },
-  ].filter(Boolean);
+    { label: 'Términos', href: path('/terminos') },
+    { label: 'Privacidad', href: path('/privacidad') },
+    { label: 'Cambios', href: path('/cambios') },
+    { label: 'Promociones', href: path('/promociones') },
+  ];
 
   return (
     <footer className="bg-flow-black text-flow-white flow-on-dark">
@@ -118,17 +116,17 @@ export default function StoreFooter() {
           </div>
         </div>
 
+        <PqrBlock onDark className="mt-10 border-t border-[color:var(--flow-stone)] pt-8" />
+
         {payments && (
           <p className="mt-8 text-xs text-flow-sand"><span className="flow-label text-flow-stone">Medios de pago</span> · {payments}</p>
         )}
 
         <div className="mt-8 flex flex-col gap-4 text-xs text-flow-stone md:flex-row md:items-center md:justify-between">
           <p>© {new Date().getFullYear()} {flowContent.brand.name}</p>
-          {legal.length > 0 && (
-            <ul className="flex flex-wrap gap-x-6 gap-y-1">
-              {legal.map((l) => <li key={l.label}><Link to={l.href} className="inline-flex min-h-9 items-center hover:underline">{l.label}</Link></li>)}
-            </ul>
-          )}
+          <ul className="flex flex-wrap gap-x-6 gap-y-1">
+            {legal.map((l) => <li key={l.label}><Link to={l.href} className="inline-flex min-h-9 items-center hover:underline">{l.label}</Link></li>)}
+          </ul>
           <p className="opacity-70">Tienda hecha con ZITA</p>
         </div>
       </div>

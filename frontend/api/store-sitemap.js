@@ -2,13 +2,13 @@
 // que usa la SPA (src/store/lib/seo.js), así coinciden con los canonical de cada página.
 import { config, sitemapStore, canonicalOrigin, storeApi, send, CACHE } from './_lib/store.js';
 import {
-  storeUrl, listingSeo, helpSeo, aboutSeo, policySeo, sizeGuideSeo,
+  storeUrl, listingSeo, helpSeo, aboutSeo, sizeGuideSeo,
 } from '../src/store/lib/seo.js';
 import {
   getActiveCollection, productsInCollection, productsInDrop, productsInSection, productTypes,
 } from '../src/store/lib/collections.js';
 import { flowContent } from '../src/store/content/flowContent.js';
-import { POLICIES } from '../src/store/lib/policies.js';
+import { POLICIES, FORMS } from '../src/store/lib/policies.js';
 
 const xml = (s) => String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
   .replace(/"/g, '&quot;').replace(/'/g, '&apos;');
@@ -48,7 +48,10 @@ export async function sitemapUrls(req, cfg = config()) {
     !help.noindex && help.canonical,
     !about.noindex && about.canonical,
     !sizeGuideSeo(ctx).noindex && sizeGuideSeo(ctx).canonical,
-    ...Object.keys(POLICIES).map((kind) => policySeo(ctx, { kind, store })).filter((s) => !s.noindex).map((s) => s.canonical),
+    // Políticas legales y formatos (siempre publicados: content/flowLegal.js)
+    ...Object.keys(POLICIES).map((kind) => storeUrl(ctx, `/${kind}`)),
+    storeUrl(ctx, '/formatos'),
+    ...Object.keys(FORMS).map((kind) => storeUrl(ctx, `/formatos/${kind}`)),
     ...products.map((p) => storeUrl(ctx, `/producto/${encodeURIComponent(p.id)}`)),
   ];
   // Sin lastmod: la API pública no expone la fecha de los productos

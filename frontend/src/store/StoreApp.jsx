@@ -25,6 +25,8 @@ const Help = lazy(() => import('./pages/Help'));
 const SizeGuide = lazy(() => import('./pages/SizeGuide'));
 const SobreFlow = lazy(() => import('./pages/SobreFlow'));
 const Policy = lazy(() => import('./pages/Policy'));
+const FormsIndex = lazy(() => import('./pages/LegalForms').then((m) => ({ default: m.FormsIndex })));
+const FormPage = lazy(() => import('./pages/LegalForms').then((m) => ({ default: m.FormPage })));
 
 // Mientras llega el código de la página: reserva el alto de la pantalla para que el footer no se asome y
 // luego salte cuando se pinta el contenido (era casi todo el CLS de la portada).
@@ -85,6 +87,10 @@ export default function StoreApp({ slugOverride }) {
             <Route path="envios" element={<Suspense fallback={<PageFallback />}><Policy kind="envios" /></Suspense>} />
             <Route path="cambios" element={<Suspense fallback={<PageFallback />}><Policy kind="cambios" /></Suspense>} />
             <Route path="privacidad" element={<Suspense fallback={<PageFallback />}><Policy kind="privacidad" /></Suspense>} />
+            <Route path="preguntas-frecuentes" element={<Suspense fallback={<PageFallback />}><Policy kind="preguntas-frecuentes" /></Suspense>} />
+            <Route path="promociones" element={<Suspense fallback={<PageFallback />}><Policy kind="promociones" /></Suspense>} />
+            <Route path="formatos" element={<Suspense fallback={<PageFallback />}><FormsIndex /></Suspense>} />
+            <Route path="formatos/:formKind" element={<Suspense fallback={<PageFallback />}><FormPage /></Suspense>} />
             <Route path="*" element={<PageNotFound homePath={base || '/'} />} />
           </Route>
         </Routes>

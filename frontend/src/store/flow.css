@@ -322,3 +322,72 @@
 @media (max-width: 767.98px) {
   body[data-flow-sticky-cta] .flow-store .flow-wa-fab { bottom: calc(84px + env(safe-area-inset-bottom)); }
 }
+
+/* Páginas legales (Policy.jsx): texto largo legible en móvil y escritorio */
+.flow-store .flow-legal { font-size: 15px; line-height: 1.7; overflow-wrap: break-word; }
+.flow-store .flow-legal p { margin: 0 0 1em; }
+.flow-store .flow-legal-section > ul { margin: 0 0 1.25em; padding-left: 1.25em; list-style: disc; }
+.flow-store .flow-legal-section > ul > li { margin: 0 0 0.5em; padding-left: 0.25em; }
+.flow-store .flow-legal strong { font-weight: 600; }
+.flow-store .flow-legal-section { padding-top: 1.5rem; scroll-margin-top: calc(var(--flow-header-h, 64px) + 16px); }
+.flow-store .flow-legal-h2 { font-family: var(--flow-serif); font-weight: 500; font-size: 1.375rem; line-height: 1.3; margin: 0 0 0.75em; }
+.flow-store .flow-legal-h3 { font-weight: 600; font-size: 1rem; margin: 1.5em 0 0.5em; }
+.flow-store .flow-legal-table { overflow-x: auto; -webkit-overflow-scrolling: touch; }
+.flow-store .flow-legal-table th { hyphens: auto; -webkit-hyphens: auto; }
+.flow-store .flow-legal-table td { overflow-wrap: anywhere; }
+.flow-store .flow-legal-sign { margin-top: 2.5rem; max-width: 20rem; padding-top: 0.5rem; border-top: 1px solid var(--flow-black); }
+.flow-store .flow-legal-sign p { margin: 0; }
+.flow-store .flow-legal-toc a { overflow-wrap: anywhere; }
+@media (min-width: 768px) {
+  .flow-store .flow-legal { font-size: 16px; }
+  .flow-store .flow-legal-h2 { font-size: 1.625rem; }
+}
+
+/* Formatos imprimibles (LegalForms.jsx) */
+.flow-store .flow-form-table th, .flow-store .flow-form-table td {
+  border: 1px solid var(--flow-stone); padding: 10px 12px; vertical-align: top; text-align: left;
+}
+.flow-store .flow-form-table thead th { background: var(--flow-sand); font-weight: 600; }
+.flow-store .flow-form-table tbody th { width: 40%; font-weight: 500; }
+.flow-store .flow-form-input {
+  display: block; min-height: 32px; border: 0; border-bottom: 1px solid var(--flow-stone);
+  background: transparent; font: inherit; color: inherit; padding: 4px 0; border-radius: 0;
+}
+.flow-store label .flow-form-input { display: inline-block; }
+.flow-store .flow-form-area { resize: vertical; min-height: 72px; }
+.flow-store .flow-form-input:focus { outline: none; border-bottom-color: var(--flow-black); }
+.flow-store .flow-form-check { width: 18px; height: 18px; accent-color: var(--flow-black); flex: none; }
+.flow-store .flow-form-blank { display: block; min-height: 32px; }
+.flow-store .flow-print-only { display: none; }
+@media (max-width: 639.98px) {
+  .flow-store .flow-form-table, .flow-store .flow-form-table tbody, .flow-store .flow-form-table tr,
+  .flow-store .flow-form-table th, .flow-store .flow-form-table td { display: block; width: 100%; }
+  .flow-store .flow-form-table thead { display: none; }
+  .flow-store .flow-form-table tbody th { width: 100%; border-bottom: 0; background: var(--flow-sand); }
+  .flow-store .flow-form-table tr + tr th { border-top: 0; }
+  .flow-store .flow-form-table td { border-top: 0; }
+}
+
+/* Impresión: solo el contenido (sin barra, header, footer, botones ni WhatsApp) */
+@media print {
+  @page { margin: 16mm 14mm; }
+  .flow-store { background: #fff !important; color: #000 !important; }
+  .flow-store [data-flow-announce], .flow-store .flow-header, .flow-store > footer,
+  .flow-store .flow-wa-fab, .flow-store .flow-noprint, .flow-store .flow-legal-toc { display: none !important; }
+  .flow-store .flow-print-only { display: block; }
+  .flow-store main { padding: 0 !important; }
+  .flow-store .flow-form-sheet { font-size: 11pt; }
+  .flow-store .flow-form-table { display: table !important; }
+  .flow-store .flow-form-table thead { display: table-header-group !important; }
+  .flow-store .flow-form-table tbody { display: table-row-group !important; }
+  .flow-store .flow-form-table tr { display: table-row !important; break-inside: avoid; }
+  .flow-store .flow-form-table th, .flow-store .flow-form-table td { display: table-cell !important; width: auto; border: 1px solid #555 !important; padding: 6px 8px; }
+  .flow-store .flow-form-table tbody th { width: 40% !important; background: #fff !important; }
+  .flow-store .flow-form-table thead th { background: #eee !important; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+  .flow-store .flow-form-input { border-bottom: 0; min-height: 22px; }
+  .flow-store label .flow-form-input { border-bottom: 1px solid #555; }
+  .flow-store .flow-form-area { resize: none; min-height: 60px; }
+  .flow-store .flow-legal-section { break-inside: auto; }
+  .flow-store .flow-legal-h2 { break-after: avoid; }
+  .flow-store a { color: inherit; text-decoration: none; }
+}

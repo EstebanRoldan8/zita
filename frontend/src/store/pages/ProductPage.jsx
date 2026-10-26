@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { Link, useParams, useSearchParams } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
-import { Minus, Plus, X } from 'lucide-react';
+import { ChevronRight, Minus, Plus, X } from 'lucide-react';
 import { useStore, useStorePath } from '../hooks/useStore';
 import { useCart } from '../hooks/cartContext';
 import { useSeo, useSeoContext } from '../hooks/useSeo';
@@ -9,7 +9,7 @@ import { productSeo, notFoundSeo } from '../lib/seo';
 import { storeApi } from '../lib/storeApi';
 import { formatCOP, attrValue, optionKey, COLOR_KEYS, SIZE_KEYS } from '../lib/format';
 import { COPY } from '../lib/copy';
-import { policyText, sizeGuide, sizeGuideTablesFor } from '../lib/policies';
+import { POLICIES, sizeGuide, sizeGuideTablesFor } from '../lib/policies';
 import { normalize, getActiveCollection, productsInCollection, colorHex, isLightColor, productType, typePath, garmentTypesOf } from '../lib/collections';
 import { useCatalog } from '../hooks/useCatalog';
 import ProductCard, { CAROUSEL_SIZES } from '../components/ProductCard';
@@ -199,8 +199,6 @@ export default function ProductPage() {
     setOpen(true);
   };
 
-  const envios = policyText('envios', store);
-  const cambios = policyText('cambios', store);
   // Guía de tallas: solo las tablas del tipo de prenda del producto (o de los componentes de un set)
   const guideTables = sizeGuideTablesFor(garmentTypesOf(p));
   const guide = guideTables.length ? sizeGuide() : null;
@@ -350,22 +348,14 @@ export default function ProductPage() {
             </div>
           )}
 
-          {(envios || cambios) && (
-            <div className="mt-10 border-t border-flow-stone">
-              {envios && (
-                <details className="border-b border-flow-stone py-2">
-                  <summary className="flow-label flex min-h-11 cursor-pointer list-none items-center">Envíos</summary>
-                  <p className="pb-3 whitespace-pre-line text-sm leading-relaxed text-flow-muted">{envios}</p>
-                </details>
-              )}
-              {cambios && (
-                <details className="border-b border-flow-stone py-2">
-                  <summary className="flow-label flex min-h-11 cursor-pointer list-none items-center">Cambios y devoluciones</summary>
-                  <p className="pb-3 whitespace-pre-line text-sm leading-relaxed text-flow-muted">{cambios}</p>
-                </details>
-              )}
-            </div>
-          )}
+          {/* Envíos y cambios: enlaces a las políticas publicadas (el texto vigente vive en una sola página) */}
+          <div className="mt-10 border-t border-flow-stone">
+            {['envios', 'cambios'].map((k) => (
+              <Link key={k} to={path(`/${k}`)} className="flow-label flex min-h-14 items-center justify-between gap-4 border-b border-flow-stone py-2">
+                {POLICIES[k].label} <ChevronRight size={16} strokeWidth={1.5} aria-hidden="true" />
+              </Link>
+            ))}
+          </div>
         </div>
       </div>
 

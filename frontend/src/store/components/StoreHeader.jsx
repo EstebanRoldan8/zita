@@ -6,6 +6,8 @@ import { useCart } from '../hooks/cartContext';
 import { useStoreNav } from '../hooks/useStoreNav';
 import { flowContent } from '../content/flowContent';
 import { waLink } from '../lib/format';
+import { whatsappNumber } from '../lib/contact';
+import { policyLinks } from '../lib/policies';
 import { heroIsDark } from '../lib/heroVideo';
 import Logo from './Logo';
 import ColorDot from './ColorDot';
@@ -70,7 +72,7 @@ export default function StoreHeader() {
   // Hero sin foto ni video = fondo sand claro → texto oscuro; con foto o video (overlay oscuro) → texto claro
   const heroHasImage = heroIsDark(nav.collection?.hero);
   const lightText = transparent && heroHasImage;
-  const whatsapp = waLink(store?.whatsapp_number, 'Hola FLOW, tengo una pregunta.');
+  const whatsapp = waLink(whatsappNumber(store), 'Hola FLOW, tengo una pregunta.');
   const megaItem = nav.items.find((i) => i.id === mega);
 
   const iconBtn = 'relative flex h-11 w-11 items-center justify-center';
@@ -227,6 +229,16 @@ export default function StoreHeader() {
               <Link key={i.id} to={i.href} onClick={closeAll} className="flow-label block border-b border-[color:var(--flow-sand)] py-4">{i.label}</Link>
             ))}
             <Link to={path('/ayuda')} onClick={closeAll} className="flow-label block border-b border-[color:var(--flow-sand)] py-4">Ayuda</Link>
+            <details className="border-b border-[color:var(--flow-sand)]">
+              <summary className="flow-label flex cursor-pointer list-none items-center justify-between py-4">
+                Políticas <ChevronDown size={16} strokeWidth={1.5} aria-hidden="true" />
+              </summary>
+              <ul className="space-y-1 pb-4">
+                {policyLinks().map((l) => (
+                  <li key={l.href}><Link to={path(l.href)} onClick={closeAll} className="block py-2 text-sm">{l.label}</Link></li>
+                ))}
+              </ul>
+            </details>
           </nav>
           {whatsapp && (
             <div className="border-t border-flow-stone px-5 py-5">

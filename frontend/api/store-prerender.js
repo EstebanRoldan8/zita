@@ -8,7 +8,7 @@ import {
 import { esc, escLines, headTags, compose, loadBaseHtml } from './_lib/html.js';
 import {
   routeOf, homeSeo, listingSeo, collectionSeo, sectionSeo, colorsSeo, dropSeo, productSeo, helpSeo, aboutSeo, sizeGuideSeo,
-  aboutText, policySeo, privateSeo, notFoundSeo, brandDescription, productColor, productImages,
+  aboutText, policySeo, formsSeo, formSeo, privateSeo, notFoundSeo, brandDescription, productColor, productImages,
   productSoldOut, productDescription,
 } from '../src/store/lib/seo.js';
 import {
@@ -16,7 +16,10 @@ import {
   productsInSection, sectionForCategory, productType, typePath,
   sortByHierarchy, filterProducts, firstImage,
 } from '../src/store/lib/collections.js';
-import { policyText, faqItems, sizeGuide } from '../src/store/lib/policies.js';
+import { faqItems, sizeGuide, policyLinks, FORMS, FORMS_TITLE } from '../src/store/lib/policies.js';
+import { legalTokens, legalEffective, formOptions } from '../src/store/lib/legal.js';
+import { whatsappNumber, instagramUrl } from '../src/store/lib/contact.js';
+import { LEGAL_DOCS, LEGAL_FORMS } from '../src/store/content/flowLegal.js';
 import { parseSpecs } from '../src/store/lib/specs.js';
 import { formatCOP, waLink } from '../src/store/lib/format.js';
 import { COPY } from '../src/store/lib/copy.js';
@@ -117,19 +120,15 @@ function sizeGuideContent() {
 
 function helpContent(base, store) {
   const faq = faqItems();
-  const envios = policyText('envios', store);
-  const cambios = policyText('cambios', store);
   const guide = sizeGuide();
-  const wa = waLink(store?.whatsapp_number, 'Hola FLOW, necesito ayuda con mi pedido.');
-  const ig = store?.social?.instagram || flowContent.brand.instagram;
+  const wa = waLink(whatsappNumber(store), 'Hola FLOW, necesito ayuda con mi pedido.');
+  const ig = instagramUrl(store);
   const { email, city } = flowContent.brand;
+  const links = [...policyLinks(), guide && { label: guide.title, href: '/guia-de-tallas' }].filter(Boolean);
   return `<main><h1>Ayuda</h1>`
-    + (faq.length ? `<section><h2>Preguntas frecuentes</h2>${faq.map((f) => `<h3>${esc(f.q)}</h3><p>${escLines(f.a)}</p>`).join('')}</section>` : '')
-    + ((envios || cambios || guide) ? `<section><h2>Pedidos</h2>`
-      + (envios ? `<h3>Envíos</h3><p>${escLines(envios)}</p>` : '')
-      + (cambios ? `<h3>Cambios y devoluciones</h3><p>${escLines(cambios)}</p>` : '')
-      + (guide ? `<h3><a href="${esc(link(base, '/guia-de-tallas'))}">${esc(guide.title)}</a></h3>` : '')
-      + `</section>` : '')
+    + (faq.length ? `<section><h2>Preguntas frecuentes</h2>${faq.map((f) => `<h3>${esc(f.q)}</h3><p>${escLines(f.a)}</p>`).join('')}`
+      + `<p><a href="${esc(link(base, '/preguntas-frecuentes'))}">Ver todas las preguntas frecuentes</a></p></section>` : '')
+    + `<section><h2>Pedidos y políticas</h2><ul>${links.map((l) => `<li><a href="${esc(link(base, l.href))}">${esc(l.label)}</a></li>`).join('')}</ul></section>`
     + ((wa || ig || email || city) ? `<section><h2>Contacto</h2><ul>`
       + (city ? `<li>${esc(city)}</li>` : '')
       + (email ? `<li><a href="mailto:${esc(email)}">${esc(email)}</a></li>` : '')
@@ -146,6 +145,59 @@ function aboutContent() {
     + paragraphs(aboutText())
     + (story.length ? `<section>${story.map((l) => `<p>${esc(l)}</p>`).join('')}</section>` : '')
     + `</main>`;
+}
+
+// Texto legal con marcas → HTML (mismas piezas que components/LegalText)
+function legalInline(base, store, text) {
+  const render = (tokens) => tokens.map((t) => {
+    if (t.type === 'bold') return `<strong>${render(t.children)}</strong>`;
+    if (t.type === 'link') return `<a href="${esc(link(base, t.href))}">${esc(t.text)}</a>`;
+    if (t.type === 'a') return `<a href="${esc(t.href)}"${t.external ? ' rel="noopener noreferrer"' : ''}>${esc(t.text)}</a>`;
+    return esc(t.text);
+  }).join('');
+  return render(legalTokens(text, store));
+}
+
+function legalBlocks(base, store, blocks) {
+  const inline = (t) => legalInline(base, store, t);
+  return (blocks || []).map((b) => {
+    if (b.t === 'p') return `<p>${inline(b.text)}</p>`;
+    if (b.t === 'h3') return `<h3>${esc(b.text)}</h3>`;
+    if (b.t === 'ul') return `<ul>${b.items.map((i) => `<li>${inline(i)}</li>`).join('')}</ul>`;
+    if (b.t === 'table') {
+      return `<table><thead><tr>${b.head.map((h) => `<th scope="col">${esc(h)}</th>`).join('')}</tr></thead>`
+        + `<tbody>${b.rows.map((r) => `<tr>${r.map((c, j) => (j === 0 ? `<th scope="row">${esc(c)}</th>` : `<td>${inline(c)}</td>`)).join('')}</tr>`).join('')}</tbody></table>`;
+    }
+    if (b.t === 'sign') return `<p>${b.lines.map(esc).join('<br>')}</p>`;
+    return '';
+  }).join('');
+}
+
+// /terminos, /privacidad, /cambios, /envios, /preguntas-frecuentes, /promociones
+function policyContent(base, store, doc) {
+  const effective = legalEffective(doc);
+  return `<main><article><h1>${esc(doc.title)}</h1>`
+    + (effective ? `<p>${legalInline(base, store, effective)}</p>` : '')
+    + (doc.sections.length > 1 ? `<nav aria-label="Índice"><ol>${doc.sections.map((s) => `<li><a href="#${esc(s.id)}">${esc(s.title)}</a></li>`).join('')}</ol></nav>` : '')
+    + legalBlocks(base, store, doc.intro)
+    + doc.sections.map((s) => `<section id="${esc(s.id)}"><h2>${esc(s.title)}</h2>${legalBlocks(base, store, s.blocks)}</section>`).join('')
+    + legalBlocks(base, store, doc.outro)
+    + `</article></main>`;
+}
+
+// /formatos y /formatos/:kind (sin las partes de uso interno, igual que la SPA)
+function formsContent(base) {
+  return `<main><h1>${esc(FORMS_TITLE)}</h1><ul>${Object.entries(FORMS)
+    .map(([k, f]) => `<li><a href="${esc(link(base, `/formatos/${k}`))}">${esc(f.title)}</a></li>`).join('')}</ul></main>`;
+}
+
+function formContent(form) {
+  const value = (f) => (formOptions(f.value) || []).map((o) => `☐ ${esc(o.label)}`).join(' ');
+  return `<main><h1>${esc(form.title)}</h1><p><strong>${esc(form.heading)}</strong></p><p>${esc(form.basis)}</p>`
+    + `<table><thead><tr>${form.fieldsHead.map((h) => `<th scope="col">${esc(h)}</th>`).join('')}</tr></thead><tbody>`
+    + form.fields.map((f) => `<tr><th scope="row">${esc(f.label)}</th><td>${value(f)}</td></tr>`).join('')
+    + `</tbody></table>${form.statement.map((p) => `<p>${esc(p)}</p>`).join('')}`
+    + `<p>${form.signature.map(esc).join('<br>')}</p></main>`;
 }
 
 const simple = (h1, html = '') => `<main><h1>${esc(h1)}</h1>${html}</main>`;
@@ -221,9 +273,14 @@ async function renderPage(target, ctx, params, cfg) {
       return seo.notFound ? notFoundPage(base) : { status: 200, seo, content: aboutContent() };
     }
     case 'policy': {
-      const seo = policySeo(ctx, { kind: route.policy, store });
-      const text = policyText(route.policy, store);
-      return { status: 200, seo, content: simple(seo.h1, text ? `<p>${escLines(text)}</p>` : '<p>Esta información aún no está publicada.</p>') };
+      const doc = LEGAL_DOCS[route.policy];
+      if (!doc) return notFoundPage(base);
+      return { status: 200, seo: policySeo(ctx, { kind: route.policy, doc, store }), content: policyContent(base, store, doc) };
+    }
+    case 'forms': return { status: 200, seo: formsSeo(ctx), content: formsContent(base) };
+    case 'form': {
+      const form = FORMS[route.form] ? LEGAL_FORMS[route.form] : null;
+      return form ? { status: 200, seo: formSeo(ctx, { kind: route.form, form }), content: formContent(form) } : notFoundPage(base);
     }
     case 'private': return { status: 200, seo: privateSeo(route.title), content: '' };
     default: return notFoundPage(base);

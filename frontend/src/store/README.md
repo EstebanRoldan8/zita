@@ -32,6 +32,10 @@ Las rutas viven fuera de `AuthProvider`, `ProtectedRoute`, `Layout`, `Sidebar` y
 
 **Dominio propio:** si `VITE_STORE_HOST` y `VITE_STORE_HOST_SLUG` están definidos y `window.location.hostname`
 coincide con `VITE_STORE_HOST`, la raíz `/` sirve la tienda de ese slug (rutas sin `/tienda/:slug`).
+Ese dominio es además el **canónico**: `/tienda/<slug>` en el dominio de ZITA sigue funcionando, pero su canonical y
+og:url apuntan al dominio propio sin prefijo (`useSeoContext` en la SPA, `seoContext` en `api/_lib/store.js`).
+En `vercel.json`, las reglas de bots de las políticas en la raíz y la redirección `/tienda/flow/...` → `/...` llevan
+condición de host (`www.flowactivewear.co`) para no tocar las rutas `/terminos` y `/privacidad` de ZITA.
 `vercel.json` ya reescribe cualquier ruta profunda a `index.html`.
 
 ## Estructura

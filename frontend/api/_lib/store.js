@@ -41,6 +41,21 @@ export function canonicalOrigin(req, cfg = config()) {
   return cfg.siteUrl || requestOrigin(req);
 }
 
+// Origen del dominio propio de la tienda (VITE_STORE_HOST); http solo en localhost (pruebas)
+export function storeHostOrigin(cfg = config()) {
+  if (!cfg.storeHost) return null;
+  return `${/^(localhost|127\.)/.test(cfg.storeHost) ? 'http' : 'https'}://${cfg.storeHost}`;
+}
+
+// Contexto SEO { origin, base } de una página de la tienda. Si la tienda tiene dominio propio y esta es
+// esa tienda, su URL canónica es la del dominio propio SIN prefijo /tienda/:slug, también cuando la
+// página se pide desde otro host (p. ej. el dominio de ZITA): así no hay contenido duplicado.
+export function seoContext(req, target, cfg = config()) {
+  const own = storeHostOrigin(cfg);
+  if (own && SLUG_RE.test(cfg.slug) && target.slug === cfg.slug) return { origin: cfg.siteUrl || own, base: '' };
+  return { origin: canonicalOrigin(req, cfg), base: target.base };
+}
+
 // ¿Este host es el dominio canónico? El sitemap y el robots solo listan URLs del propio host.
 export function servesCanonical(req, cfg = config()) {
   if (!cfg.siteUrl) return true;

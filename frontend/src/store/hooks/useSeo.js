@@ -2,9 +2,16 @@ import { useEffect } from 'react';
 import { useStore } from './useStore';
 import { SITE_NAME, LOCALE, THEME_COLOR, DEFAULT_IMAGE, DEFAULT_IMAGE_SIZE, absoluteUrl } from '../lib/seo';
 
-// { origin, base } para construir URLs absolutas con lib/seo.js
+// { origin, base } para construir URLs absolutas con lib/seo.js. Si la tienda tiene dominio propio
+// (VITE_STORE_HOST + VITE_STORE_HOST_SLUG), su canonical es ese dominio sin prefijo /tienda/:slug, también
+// cuando se visita desde otro host (zita-alpha.vercel.app/tienda/flow): así no hay contenido duplicado.
 export function useSeoContext() {
-  const { base } = useStore();
+  const { base, slug } = useStore();
+  const host = import.meta.env.VITE_STORE_HOST;
+  const hostSlug = String(import.meta.env.VITE_STORE_HOST_SLUG || '').toLowerCase();
+  if (typeof window !== 'undefined' && host && hostSlug && slug === hostSlug) {
+    return { origin: `${window.location.protocol}//${String(host).trim()}`, base: '' };
+  }
   return { origin: typeof window !== 'undefined' ? window.location.origin : '', base: base || '' };
 }
 

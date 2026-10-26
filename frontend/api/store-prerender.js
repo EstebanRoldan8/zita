@@ -3,7 +3,7 @@
 // equivalente al que ve una persona (React lo reemplaza al montar). Los textos y datos salen de
 // la API pública y de los mismos helpers de la SPA. Si la API falla: HTML base con <head> de marca.
 import {
-  config, queryOf, resolveStorePath, canonicalOrigin, requestOrigin, storeApi, send, CACHE,
+  config, queryOf, resolveStorePath, seoContext, requestOrigin, storeApi, send, CACHE,
 } from './_lib/store.js';
 import { esc, escLines, headTags, compose, loadBaseHtml } from './_lib/html.js';
 import {
@@ -307,7 +307,9 @@ export default async function handler(req, res) {
   if (!target) return send(res, 200, HTML, baseHtml, CACHE.page);
 
   const params = originalParams(query);
-  const ctx = { origin: canonicalOrigin(req, cfg), base: target.base };
+  // Canonical y og:url: en el dominio propio (sin prefijo) aunque la página se pida desde otro host;
+  // los enlaces internos del HTML siguen usando target.base (funcionan en el host de la petición)
+  const ctx = seoContext(req, target, cfg);
   const url = `${requestOrigin(req)}${rawPath.startsWith('/') ? rawPath : `/${rawPath}`}`;
   try {
     const page = await renderPage(target, ctx, params, cfg);

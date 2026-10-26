@@ -2,6 +2,14 @@
   "functions": {
     "api/store-prerender.js": { "includeFiles": "dist/index.html" }
   },
+  "redirects": [
+    {
+      "source": "/tienda/flow/:path*",
+      "has": [{ "type": "host", "value": "www.flowactivewear.co" }],
+      "destination": "/:path*",
+      "permanent": true
+    }
+  ],
   "rewrites": [
     { "source": "/sitemap.xml", "destination": "/api/store-sitemap" },
     { "source": "/robots.txt", "destination": "/api/store-robots" },
@@ -13,6 +21,14 @@
     {
       "source": "/:section(producto|coleccion|colores|ayuda|sobre-flow|envios|cambios)/:rest*",
       "has": [{ "type": "header", "key": "user-agent", "value": ".*(Googlebot|Google-InspectionTool|Storebot-Google|bingbot|BingPreview|DuckDuckBot|YandexBot|Baiduspider|facebookexternalhit|Facebot|meta-externalagent|Twitterbot|WhatsApp|TelegramBot|LinkedInBot|Slackbot|Discordbot|Pinterest|Applebot|Embedly|embedly).*" }],
+      "destination": "/api/store-prerender?path=/:section/:rest*"
+    },
+    {
+      "source": "/:section(nosotros|terminos|privacidad|preguntas-frecuentes|promociones|formatos|guia-de-tallas)/:rest*",
+      "has": [
+        { "type": "host", "value": "www.flowactivewear.co" },
+        { "type": "header", "key": "user-agent", "value": ".*(Googlebot|Google-InspectionTool|Storebot-Google|bingbot|BingPreview|DuckDuckBot|YandexBot|Baiduspider|facebookexternalhit|Facebot|meta-externalagent|Twitterbot|WhatsApp|TelegramBot|LinkedInBot|Slackbot|Discordbot|Pinterest|Applebot|Embedly|embedly).*" }
+      ],
       "destination": "/api/store-prerender?path=/:section/:rest*"
     },
     { "source": "/(.*)", "destination": "/" }

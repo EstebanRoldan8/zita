@@ -10,6 +10,7 @@ const { decrypt } = require('../utils/encrypt');
 const { sendMessage } = require('../config/whatsapp');
 const { calculateShipping } = require('../config/shipping');
 const { TERMS_VERSION } = require('../config/checkoutLegal');
+const { discardOrder, flagForReview } = require('../utils/orderCleanup');
 const { loadBundles, deriveBundle, bundleSnapshot, applyMoves, variantLabel: bundleVariantLabel } = require('../utils/bundles');
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
@@ -590,17 +591,22 @@ async function createOrder(req, res) {
     if (iErr) throw iErr;
 
     // 7) Stock: un adjust_stock por movimiento (un set: uno por componente). Si uno falla se revierten
-    //    los ya aplicados y se borra el pedido.
+    //    los ya aplicados y se borra el pedido. Si un revert falla, el pedido no se borra: se cancela y
+    //    se marca para revisar el inventario (ver utils/orderCleanup.js).
+    let revertFailed = false;
     try {
       await applyMoves(
         lines.flatMap((l) => l.moves.map((m) => ({ ...m, lineId: l.lineId }))),
         { businessId, type: 'venta', refType: 'order', refId: orderId, revertReason: 'Reversión por error en pedido web' },
         undefined,
-        (done, revErr) => logger.error(`store.createOrder revert failed order=${orderId}: ${revErr.message}`),
+        (done, revErr) => {
+          revertFailed = true;
+          logger.error(`store.createOrder revert failed order=${orderId}: ${revErr.message}`);
+        },
       );
     } catch (stockErr) {
-      await supabaseAdmin.from('order_items').delete().eq('order_id', orderId);
-      await supabaseAdmin.from('orders').delete().eq('id', orderId).eq('business_id', businessId);
+      if (revertFailed) await flagForReview(supabaseAdmin, logger, { orderId, businessId });
+      else await discardOrder(supabaseAdmin, logger, { orderId, businessId });
       orderId = null;
       if (stockErr.message?.includes('STOCK_INSUFICIENTE_O_NO_ENCONTRADO')) {
         const failed = stockErr.failedMove;
@@ -627,10 +633,7 @@ async function createOrder(req, res) {
   } catch (err) {
     logger.error(`store.createOrder business=${businessId}: ${err.message}`);
     // Si el pedido alcanzó a crearse pero algo falló antes de descontar stock, se borra
-    if (orderId) {
-      await supabaseAdmin.from('order_items').delete().eq('order_id', orderId);
-      await supabaseAdmin.from('orders').delete().eq('id', orderId).eq('business_id', businessId);
-    }
+    if (orderId) await discardOrder(supabaseAdmin, logger, { orderId, businessId });
     return serverError(res);
   }
 }

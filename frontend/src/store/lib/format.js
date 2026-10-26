@@ -32,21 +32,21 @@ export function normalizePhone(value) {
 }
 
 // Ciudad normalizada igual que el servidor (backend/src/config/shipping.js): sin tildes ni signos,
-// minúsculas, espacios simples; "Santiago de Cali" y "Cali, Valle" son "cali".
-const CITY_ALIASES = {
-  'santiago de cali': 'cali', 'cali valle': 'cali', 'cali valle del cauca': 'cali', 'cali colombia': 'cali',
-  'santiago de cali valle': 'cali', 'santiago de cali valle del cauca': 'cali',
-};
+// minúsculas, espacios simples; "Cali", "Cali Valle" y "Santiago de Cali Valle del Cauca" son "cali".
 export function normalizeCity(value) {
   const base = removeAccents(value).toLowerCase().replace(/[^a-z0-9\s]/g, ' ').replace(/\s+/g, ' ').trim();
-  return CITY_ALIASES[base] || base;
+  return /^(santiago de )?cali( |$)/.test(base) ? 'cali' : base;
 }
 
 const hasLocalCost = (v) => v !== undefined && v !== null && v !== '' && Number.isFinite(Number(v)) && Number(v) >= 0;
 const localCityOf = (store) => normalizeCity(store.shipping_local_city || 'cali');
 
 // ¿La ciudad es la ciudad local de la tienda? (para el plazo de entrega y la tarifa local)
-export const isLocalCity = (store, city) => normalizeCity(city) === localCityOf(store);
+export function isLocalCity(store, city) {
+  const c = normalizeCity(city);
+  const l = localCityOf(store);
+  return c !== '' && l !== '' && (c === l || c.startsWith(`${l} `));
+}
 
 // Envío mostrado en pantalla con las reglas de la tienda; el servidor lo recalcula al crear el pedido.
 // Sin shipping_local_cost la tienda cobra la tarifa plana en todo.

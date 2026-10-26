@@ -69,8 +69,13 @@ const validateStoreOrder = [
     .custom((v) => v === true).withMessage('Debes aceptar los Términos y condiciones y la Política de cambios para continuar.'),
   body('consents.data_auth')
     .custom((v) => v === true).withMessage('Debes autorizar el tratamiento de tus datos personales para continuar.'),
-  body('consents.marketing_whatsapp').optional({ values: 'null' }).isBoolean({ strict: true }).withMessage('Preferencia de WhatsApp inválida.'),
-  body('consents.marketing_email').optional({ values: 'null' }).isBoolean({ strict: true }).withMessage('Preferencia de correo inválida.'),
+  // Marketing: opcional, pero cada canal exige el dato de contacto correspondiente en el mismo pedido
+  body('consents.marketing_whatsapp').optional({ values: 'null' }).isBoolean({ strict: true }).withMessage('Preferencia de WhatsApp inválida.')
+    .bail()
+    .custom((v, { req }) => v !== true || !!req.body.customer?.phone).withMessage('Para recibir novedades por WhatsApp necesitamos tu teléfono.'),
+  body('consents.marketing_email').optional({ values: 'null' }).isBoolean({ strict: true }).withMessage('Preferencia de correo inválida.')
+    .bail()
+    .custom((v, { req }) => v !== true || !!req.body.customer?.email).withMessage('Para recibir novedades por correo escribe tu correo en el pedido.'),
   body('idempotency_key')
     .customSanitizer((v) => String(v ?? '').trim())
     .matches(/^[A-Za-z0-9_-]{8,100}$/).withMessage('Falta la clave de idempotencia del pedido.'),

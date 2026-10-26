@@ -41,7 +41,7 @@ const SERVER_FIELD = {
   'customer.name': 'name', 'customer.phone': 'phone', 'customer.email': 'email',
   'shipping.address': 'address', 'shipping.city': 'city', 'shipping.notes': 'notes',
   payment_method: 'payment_method',
-  'consents.terms': 'terms', 'consents.data_auth': 'dataAuth',
+  'consents.terms': 'terms', 'consents.data_auth': 'dataAuth', 'consents.marketing_email': 'marketingEmail',
 };
 
 function Field({ id, label, error, hint, children }) {

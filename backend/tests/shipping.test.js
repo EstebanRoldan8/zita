@@ -88,3 +88,84 @@ test('marketing opcional: sin marcar o marcado pasa; basura → 400', async () =
   const bad = baseBody(); bad.consents.marketing_email = 'si';
   assert.equal((await post(bad)).status, 400);
 });
+
+// ── Revisión: reconocimiento de Cali con complementos ──
+test('Cali con complementos es zona local; Calima y Caliente no', () => {
+  for (const c of ['Cali Valle', 'cali valle del cauca', 'Santiago de Cali Valle del Cauca Colombia', 'Santiago de Cali, Valle', 'CALÍ']) {
+    assert.deepEqual(ship(100000, c), { zone: 'cali', cost: 15000 }, c);
+  }
+  for (const c of ['Calima', 'Caliente', 'Calidonia', 'Bogotá Cali', 'Jamundí']) {
+    assert.deepEqual(ship(100000, c), { zone: 'nacional', cost: 18000 }, c);
+  }
+  assert.equal(normalizeCity('Santiago de Cali Valle del Cauca Colombia'), 'cali');
+});
+test('ciudad local mal configurada (se normaliza a vacío) se ignora: todo es tarifa plana', () => {
+  const bad = { ...FLOW, shipping_local_city: '!!' };
+  assert.deepEqual(ship(100000, '##', bad), { zone: 'nacional', cost: 18000 });
+  assert.deepEqual(ship(100000, 'Cali', bad), { zone: 'nacional', cost: 18000 });
+});
+test('ciudad del cliente que se normaliza a vacío cae en nacional, nunca en local', () => {
+  assert.deepEqual(ship(100000, '##'), { zone: 'nacional', cost: 18000 });
+  assert.deepEqual(ship(100000, '   '), { zone: 'nacional', cost: 18000 });
+  assert.deepEqual(ship(100000, undefined), { zone: 'nacional', cost: 18000 });
+});
+
+// ── Revisión: marketing exige el dato de contacto ──
+test('marketing_email: true sin correo → 400; con correo pasa', async () => {
+  const b = baseBody(); b.consents.marketing_email = true;
+  const r = await post(b);
+  assert.equal(r.status, 400); assert.equal(r.json.field, 'consents.marketing_email');
+  b.customer.email = 'persona@correo.com';
+  assert.equal((await post(b)).status, 200);
+});
+test('marketing_whatsapp: true sin teléfono → 400; con teléfono pasa', async () => {
+  const b = baseBody(); b.consents.marketing_whatsapp = true;
+  assert.equal((await post(b)).status, 200);
+  delete b.customer.phone;
+  assert.equal((await post(b)).status, 400);
+});
+
+// ── Revisión: limpieza de pedidos fallidos ──
+const { discardOrder, flagForReview } = require('../src/utils/orderCleanup');
+
+// Cliente falso: registra cada operación y responde con el error configurado por tabla/operación
+function fakeDb(errors = {}) {
+  const calls = [];
+  const from = (table) => ({
+    delete() { calls.push({ table, op: 'delete' }); return chain(errors[`${table}.delete`]); },
+    update(values) { calls.push({ table, op: 'update', values }); return chain(errors[`${table}.update`]); },
+  });
+  const chain = (error) => {
+    const o = { eq: () => o, then: (resolve) => resolve({ error: error ? { message: error } : null }) };
+    return o;
+  };
+  return { db: { from }, calls };
+}
+const fakeLog = () => { const lines = []; return { lines, error: (m) => lines.push(m), warn: (m) => lines.push(m) }; };
+
+test('discardOrder: borra ítems y pedido, devuelve true y no registra nada', async () => {
+  const { db, calls } = fakeDb(); const log = fakeLog();
+  assert.equal(await discardOrder(db, log, { orderId: 'o1', businessId: 'b1' }), true);
+  assert.deepEqual(calls.map((c) => `${c.table}.${c.op}`), ['order_items.delete', 'orders.delete']);
+  assert.equal(log.lines.length, 0);
+});
+test('discardOrder: si un borrado falla, devuelve false y registra solo id y mensaje', async () => {
+  const { db } = fakeDb({ 'orders.delete': 'conexión perdida' }); const log = fakeLog();
+  assert.equal(await discardOrder(db, log, { orderId: 'o1', businessId: 'b1' }), false);
+  assert.equal(log.lines.length, 1);
+  assert.match(log.lines[0], /order=o1/); assert.match(log.lines[0], /conexión perdida/);
+  assert.doesNotMatch(log.lines[0], /b1/);
+});
+test('flagForReview: no borra; cancela, libera la idempotency_key y marca [REVISAR STOCK]', async () => {
+  const { db, calls } = fakeDb(); const log = fakeLog();
+  assert.equal(await flagForReview(db, log, { orderId: 'o1', businessId: 'b1' }), true);
+  assert.equal(calls.some((c) => c.op === 'delete'), false);
+  const u = calls.find((c) => c.op === 'update').values;
+  assert.equal(u.status, 'cancelado'); assert.equal(u.idempotency_key, null); assert.match(u.notes, /REVISAR STOCK/);
+  assert.match(log.lines[0], /order=o1/);
+});
+test('flagForReview: si la marca falla, lo registra y devuelve false', async () => {
+  const { db } = fakeDb({ 'orders.update': 'sin permisos' }); const log = fakeLog();
+  assert.equal(await flagForReview(db, log, { orderId: 'o1', businessId: 'b1' }), false);
+  assert.match(log.lines[0], /sin permisos/);
+});

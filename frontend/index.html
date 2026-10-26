@@ -12,7 +12,17 @@
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
     <meta name="apple-mobile-web-app-title" content="ZITA" />
     <link rel="apple-touch-icon" href="/icons/icon-192x192.png" />
-    <link href="https://fonts.googleapis.com/css2?family=Syne:wght@400;500;600;700;800&family=DM+Sans:wght@400;500;600;700&display=swap" rel="stylesheet" />
+    <!-- Syne y DM Sans son del panel: en la tienda (/tienda... o dominio propio) no se piden a Google Fonts. -->
+    <script>
+      (function () {
+        var h = location.hostname.toLowerCase(), sh = '%VITE_STORE_HOST%'.toLowerCase();
+        if (/^\/tienda(\/|$)/.test(location.pathname) || h === sh) return;
+        var l = document.createElement('link');
+        l.rel = 'stylesheet';
+        l.href = 'https://fonts.googleapis.com/css2?family=Syne:wght@400;500;600;700;800&family=DM+Sans:wght@400;500;600;700&display=swap';
+        document.head.appendChild(l);
+      })();
+    </script>
   </head>
   <body>
     <div id="root"></div>

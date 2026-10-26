@@ -23,13 +23,14 @@ export const storeApi = {
   getCategories: (slug) => storeHttp.get(`/api/store/${enc(slug)}/categories`).then(unwrap),
 
   // items: [{ product_id, variant_id, quantity }] — solo identificadores y cantidades
-  createOrder: (slug, { items, customer, shipping, payment_method, idempotency_key, website }) =>
+  createOrder: (slug, { items, customer, shipping, payment_method, idempotency_key, website, consents }) =>
     storeHttp.post(`/api/store/${enc(slug)}/orders`, {
       items: items.map((i) => ({ product_id: i.product_id, variant_id: i.variant_id || null, quantity: i.quantity })),
       customer,
       shipping,
       payment_method,
       idempotency_key,
+      consents,
       website,
     }),
 

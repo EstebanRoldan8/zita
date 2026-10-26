@@ -23,8 +23,8 @@ const validateRegister = [
 // Mismo patrón que validateRegister. Los precios y totales NO se validan aquí:
 // el servidor los calcula desde la base y cualquier precio del body se ignora.
 const { normalizeColombianPhone } = require('../utils/phone');
+const { enabledPaymentMethods } = require('../config/paymentMethods');
 
-const STORE_PAYMENT_METHODS = ['efectivo', 'transferencia', 'nequi', 'daviplata', 'tarjeta', 'wompi', 'otro'];
 // Quita caracteres de control y < > para que ningún texto llegue con marcado
 const cleanText = (v) => String(v ?? '').replace(/[\u0000-\u001F\u007F<>]/g, ' ').replace(/\s+/g, ' ').trim();
 
@@ -62,7 +62,9 @@ const validateStoreOrder = [
     .isLength({ max: 300 }).withMessage('Las notas no pueden superar 300 caracteres.'),
   body('payment_method')
     .customSanitizer((v) => cleanText(v).toLowerCase())
-    .isIn(STORE_PAYMENT_METHODS).withMessage(`Método de pago inválido. Usa: ${STORE_PAYMENT_METHODS.join(', ')}.`),
+    // Solo los métodos habilitados para ESTE negocio (store_settings, resuelto por storeContext desde el slug)
+    .custom((v, { req }) => enabledPaymentMethods(req.storeBusiness?.settings).includes(v))
+    .withMessage('Ese método de pago no está disponible en esta tienda.'),
   // Casillas del checkout (Anexo 1.2): términos y autorización de datos son obligatorias (true estricto);
   // las de marketing son opcionales. La fecha y la versión las pone el servidor, no el cliente.
   body('consents.terms')
@@ -89,4 +91,4 @@ const validateStoreOrder = [
   },
 ];
 
-module.exports = { validateRegister, validateStoreOrder, STORE_PAYMENT_METHODS };
+module.exports = { validateRegister, validateStoreOrder };

@@ -4,6 +4,7 @@ import { sizeGuideSeo } from '../lib/seo';
 import { sizeGuide } from '../lib/policies';
 import SizeGuideTable from '../components/SizeGuideTable';
 import { PageNotFound } from '../components/States';
+import BackLink from '../components/BackLink';
 
 // /guia-de-tallas: las tablas de flowContent.sizeGuide (una por tipo de prenda) y su nota
 export default function SizeGuide() {
@@ -13,7 +14,8 @@ export default function SizeGuide() {
   if (!guide) return <PageNotFound homePath={path('/')} />;
 
   return (
-    <div className="mx-auto max-w-3xl px-4 py-12 md:px-8 md:py-16">
+    <div className="mx-auto max-w-3xl px-4 py-8 md:px-8 md:py-12">
+      <BackLink />
       <h1 className="flow-display text-3xl md:text-4xl">{guide.title}</h1>
       {guide.intro && <p className="mt-4 text-sm text-flow-muted">{guide.intro}</p>}
       <div className="mt-10 space-y-12">

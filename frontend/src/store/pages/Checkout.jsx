@@ -1,4 +1,5 @@
 import { useRef, useState } from 'react';
+import { ChevronDown } from 'lucide-react';
 import { Link, Navigate, useNavigate } from 'react-router-dom';
 import { useQueryClient } from '@tanstack/react-query';
 import { useStore, useStorePath } from '../hooks/useStore';
@@ -119,6 +120,9 @@ export default function Checkout() {
 
   const shipping = shippingFor(store, subtotal, form.city);
   const local = isLocalCity(store, form.city);
+  // Con tarifa local configurada el envío depende de la ciudad: sin ciudad escrita no se muestra un valor
+  const hasLocalRate = store.shipping_local_cost !== null && store.shipping_local_cost !== undefined && store.shipping_local_cost !== '';
+  const shippingPending = hasLocalRate && form.city.trim().length < 2 && shipping !== 0;
   const blockingLines = lines.filter((l) => ['gone', 'soldout', 'qty', 'error'].includes(issues[l.key]?.type));
 
   const submit = async (e) => {
@@ -355,13 +359,18 @@ export default function Checkout() {
               </ul>
               <hr className="flow-rule my-4" />
               <div className="flex justify-between text-sm"><span>Subtotal</span><span>{formatCOP(subtotal)}</span></div>
-              <div className="mt-2 flex justify-between text-sm"><span>Envío</span><span>{shipping === 0 ? 'Gratis' : formatCOP(shipping)}</span></div>
+              <div className="mt-2 flex justify-between gap-3 text-sm">
+                <span>Envío</span>
+                <span className="text-right">{shippingPending ? 'Se calcula con tu ciudad' : shipping === 0 ? 'Gratis' : formatCOP(shipping)}</span>
+              </div>
               {Number(store.free_shipping_from) > 0 && (
                 <p className="mt-1 text-xs text-flow-muted">Gratis desde {formatCOP(store.free_shipping_from)}.</p>
               )}
               <hr className="flow-rule my-4" />
-              <div className="flex justify-between"><span className="flow-label">Total</span><span>{formatCOP(subtotal + shipping)}</span></div>
-              <p className="mt-2 text-xs text-flow-muted">El total final lo calcula la tienda al recibir tu pedido.</p>
+              <div className="flex justify-between"><span className="flow-label">Total</span><span>{formatCOP(shippingPending ? subtotal : subtotal + shipping)}</span></div>
+              <p className="mt-2 text-xs text-flow-muted">
+                {shippingPending ? 'Más el envío, que se calcula con tu ciudad. ' : ''}El total final lo calcula la tienda al recibir tu pedido.
+              </p>
 
               {notices}
 
@@ -418,9 +427,14 @@ export default function Checkout() {
 
             <section aria-labelledby="r-consents" className="grid gap-4">
               <h2 id="r-consents" className="flow-label">Antes de confirmar</h2>
-              <div className="border border-[color:var(--flow-sand)] p-4 text-xs leading-relaxed text-flow-muted" data-testid="privacy-notice">
-                <p>{PRIVACY_NOTICE}</p>
-              </div>
+              {/* Aviso de privacidad (Anexo 1.1): plegado; el texto completo va dentro, sin cambios */}
+              <details className="group border-y border-[color:var(--flow-sand)]" data-testid="privacy-notice">
+                <summary className="flex min-h-12 cursor-pointer list-none items-center justify-between gap-3 text-sm [&::-webkit-details-marker]:hidden">
+                  <span>Usamos tus datos para gestionar tu pedido. <span className="underline underline-offset-2">Ver aviso de privacidad</span></span>
+                  <ChevronDown size={16} strokeWidth={1.5} className="flex-shrink-0 transition-transform group-open:rotate-180" aria-hidden="true" />
+                </summary>
+                <p className="pb-4 text-xs leading-relaxed text-flow-muted">{PRIVACY_NOTICE}</p>
+              </details>
 
               <div>
                 <label className="flex items-start gap-3 text-sm">
@@ -428,9 +442,9 @@ export default function Checkout() {
                     aria-invalid={!!fieldError('terms')} aria-describedby={fieldError('terms') ? 'f-terms-error' : undefined} />
                   <span>
                     He leído y acepto los{' '}
-                    <Link to={path('/terminos')} className="underline" target="_blank">Términos y condiciones de compra</Link>
+                    <Link to={path('/terminos')} className="underline" target="_blank" rel="noopener">Términos y condiciones de compra</Link>
                     {' '}y la{' '}
-                    <Link to={path('/cambios')} className="underline" target="_blank">Política de cambios, retracto, garantía y reversión del pago</Link>.
+                    <Link to={path('/cambios')} className="underline" target="_blank" rel="noopener">Política de cambios, retracto, garantía y reversión del pago</Link>.
                   </span>
                 </label>
                 {consentError('terms', 'f-terms')}
@@ -442,9 +456,9 @@ export default function Checkout() {
                     aria-invalid={!!fieldError('dataAuth')} aria-describedby={fieldError('dataAuth') ? 'f-data-auth-error' : undefined} />
                   <span>
                     Autorizo el tratamiento de mis datos personales para gestionar mi pedido, conforme al{' '}
-                    <Link to={path('/privacidad')} className="underline" target="_blank">Aviso de privacidad</Link>
+                    <Link to={path('/privacidad')} className="underline" target="_blank" rel="noopener">Aviso de privacidad</Link>
                     {' '}y la{' '}
-                    <Link to={path('/privacidad')} className="underline" target="_blank">Política de tratamiento de datos</Link>.
+                    <Link to={path('/privacidad')} className="underline" target="_blank" rel="noopener">Política de tratamiento de datos</Link>.
                   </span>
                 </label>
                 {consentError('dataAuth', 'f-data-auth')}

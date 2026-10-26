@@ -14,6 +14,7 @@ import { ColorPhotosEdit, ColorPhotosCreate } from '../../components/products/Co
 import BundleModal from '../../components/products/BundleModal';
 import { getColorOptions } from '../../lib/optionKey';
 import MovementsModal from '../../components/inventory/MovementsModal';
+import StoreImage from '../../store/components/StoreImage';
 import InventorySummary from '../../components/inventory/InventorySummary';
 
 registerLocale('es', es);
@@ -1032,7 +1033,7 @@ function CatalogoTab({ products, clients, showInactive, onShowInactiveChange, so
         </div>
       </div>
 
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+      <div className="grid grid-cols-1 min-[480px]:grid-cols-2 lg:grid-cols-3 2xl:grid-cols-4 gap-4">
         {displayedProducts.map((p) => {
           // products.stock ya es la suma de variantes activas (lo mantiene adjust_stock)
           const displayStock = p.stock ?? 0;
@@ -1042,9 +1043,11 @@ function CatalogoTab({ products, clients, showInactive, onShowInactiveChange, so
             <div key={p.id} className={`group bg-[#131929] border border-violet-500/15 hover:border-violet-500/35 rounded-xl shadow-lg shadow-black/30 overflow-hidden transition-all duration-200 flex flex-col justify-between min-h-[130px] ${inactive ? 'opacity-50' : ''}`}>
               {/* Image */}
               {isTienda && (
-                <div className="w-full h-32 bg-slate-800 flex items-center justify-center overflow-hidden border-b border-slate-800 relative">
+                <div className="w-full aspect-[4/5] bg-slate-800 flex items-center justify-center overflow-hidden border-b border-slate-800 relative">
                   {p.image_url ? (
-                    <img src={p.image_url} alt={p.name} className="w-full h-full object-cover" />
+                    <StoreImage src={p.image_url} alt={p.name} widths={[400, 800]} baseWidth={400}
+                      sizes="(min-width: 1536px) 22vw, (min-width: 1024px) 28vw, 50vw"
+                      className="w-full h-full object-cover object-[center_20%]" />
                   ) : (
                     <ImageIcon size={40} className="text-slate-700" />
                   )}
@@ -1663,7 +1666,7 @@ export default function Products() {
       </div>
 
       {/* Tabs + Botón */}
-      <div className="flex items-center justify-between mb-6 gap-4">
+      <div className="flex flex-wrap items-center justify-between mb-6 gap-4">
         <div className="flex gap-1 bg-[#131929] border border-slate-800 rounded-xl p-1 w-fit">
           {tabs.map((t) => (
             <button key={t.id} onClick={() => setTab(t.id)}

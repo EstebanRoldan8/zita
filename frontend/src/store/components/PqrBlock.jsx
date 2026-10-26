@@ -31,7 +31,7 @@ export default function PqrBlock({ onDark = false, heading = true, className = '
           </a>
         )}
         {email && (
-          <a href={`mailto:${email}`} className={`${outline} [overflow-wrap:anywhere]`}>
+          <a href={`mailto:${email}`} className={`${outline} flow-btn-email`}>
             <Mail size={16} strokeWidth={1.5} aria-hidden="true" /> {email}
           </a>
         )}

@@ -9,6 +9,7 @@ import { legalEffective } from '../lib/legal';
 import { policySeo } from '../lib/seo';
 import { LegalBlocks, LegalInline } from '../components/LegalText';
 import PqrBlock from '../components/PqrBlock';
+import BackLink from '../components/BackLink';
 import { PageNotFound } from '../components/States';
 
 // Enlaces a los formatos imprimibles (sección "Cómo hacer tus solicitudes" de Cambios)
@@ -79,7 +80,8 @@ export default function Policy({ kind }) {
   const others = Object.entries(POLICIES).filter(([k]) => k !== kind);
 
   return (
-    <article className="mx-auto max-w-6xl px-4 py-12 md:px-8 md:py-16">
+    <article className="mx-auto max-w-6xl px-4 py-8 md:px-8 md:py-12">
+      <BackLink />
       <header className="max-w-3xl">
         <h1 className="flow-display text-3xl [overflow-wrap:anywhere] md:text-4xl">{doc.title}</h1>
         {effective && <p className="mt-4 text-sm text-flow-muted"><LegalInline text={effective} /></p>}

@@ -10,6 +10,7 @@ import { flowContent } from '../content/flowContent';
 import { whatsappDisplay } from '../lib/contact';
 import Logo from '../components/Logo';
 import { PageNotFound } from '../components/States';
+import BackLink from '../components/BackLink';
 
 // Campos que piden texto largo
 const LONG = /productos que devuelvo|descripción|dirección/i;
@@ -50,7 +51,8 @@ export function FormPage() {
   const wa = whatsappDisplay(store);
 
   return (
-    <div className="mx-auto max-w-3xl px-4 py-12 md:px-8 md:py-16">
+    <div className="mx-auto max-w-3xl px-4 py-8 md:px-8 md:py-12">
+      <BackLink />
       <div className="flow-noprint mb-8">
         <Link to={path('/formatos')} className="flow-label text-flow-muted hover:underline">{FORMS_TITLE}</Link>
         <h1 className="flow-display mt-2 text-3xl md:text-4xl">{form.title}</h1>
@@ -95,7 +97,8 @@ export function FormsIndex() {
   const path = useStorePath();
   useSeo(formsSeo(useSeoContext()));
   return (
-    <div className="mx-auto max-w-3xl px-4 py-12 md:px-8 md:py-16">
+    <div className="mx-auto max-w-3xl px-4 py-8 md:px-8 md:py-12">
+      <BackLink />
       <h1 className="flow-display text-3xl md:text-4xl">{FORMS_TITLE}</h1>
       <p className="mt-4 text-sm leading-relaxed text-flow-muted">
         Formatos para ejercer el derecho de retracto o solicitar la garantía. Las condiciones están en{' '}

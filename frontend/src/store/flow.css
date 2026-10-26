@@ -158,6 +158,15 @@
   transition: background-color var(--flow-fast) var(--flow-ease), color var(--flow-fast) var(--flow-ease), opacity var(--flow-fast);
   cursor: pointer;
 }
+/* Botón con un correo: sin mayúsculas ni espaciado de letras para que quepa en una línea (320 px) */
+.flow-store .flow-btn.flow-btn-email {
+  text-transform: none;
+  letter-spacing: 0;
+  font-size: 0.8125rem;
+  font-weight: 500;
+  padding-inline: 1rem;
+  overflow-wrap: anywhere;
+}
 .flow-store .flow-btn-primary { background: var(--flow-black); color: var(--flow-white); }
 .flow-store .flow-btn-primary:hover:not(:disabled) { background: #333; }
 .flow-store .flow-btn-outline { background: transparent; color: var(--flow-black); }

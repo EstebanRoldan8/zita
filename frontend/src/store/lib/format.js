@@ -31,11 +31,30 @@ export function normalizePhone(value) {
   return /^3\d{9}$/.test(d) ? d : null;
 }
 
-// Envío estimado con las reglas de la tienda (el servidor lo recalcula al crear el pedido)
-export function shippingFor(store, subtotal) {
+// Ciudad normalizada igual que el servidor (backend/src/config/shipping.js): sin tildes ni signos,
+// minúsculas, espacios simples; "Santiago de Cali" y "Cali, Valle" son "cali".
+const CITY_ALIASES = {
+  'santiago de cali': 'cali', 'cali valle': 'cali', 'cali valle del cauca': 'cali', 'cali colombia': 'cali',
+  'santiago de cali valle': 'cali', 'santiago de cali valle del cauca': 'cali',
+};
+export function normalizeCity(value) {
+  const base = removeAccents(value).toLowerCase().replace(/[^a-z0-9\s]/g, ' ').replace(/\s+/g, ' ').trim();
+  return CITY_ALIASES[base] || base;
+}
+
+const hasLocalCost = (v) => v !== undefined && v !== null && v !== '' && Number.isFinite(Number(v)) && Number(v) >= 0;
+const localCityOf = (store) => normalizeCity(store.shipping_local_city || 'cali');
+
+// ¿La ciudad es la ciudad local de la tienda? (para el plazo de entrega y la tarifa local)
+export const isLocalCity = (store, city) => normalizeCity(city) === localCityOf(store);
+
+// Envío mostrado en pantalla con las reglas de la tienda; el servidor lo recalcula al crear el pedido.
+// Sin shipping_local_cost la tienda cobra la tarifa plana en todo.
+export function shippingFor(store, subtotal, city = '') {
   const flat = Number(store.shipping_flat_cost) || 0;
   const freeFrom = Number(store.free_shipping_from) || 0;
-  return freeFrom > 0 && subtotal >= freeFrom ? 0 : flat;
+  if (freeFrom > 0 && subtotal >= freeFrom) return 0;
+  return hasLocalCost(store.shipping_local_cost) && isLocalCity(store, city) ? Number(store.shipping_local_cost) : flat;
 }
 
 export const isEmail =(v) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(String(v || '').trim());

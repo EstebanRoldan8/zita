@@ -20,8 +20,11 @@ export const COPY = {
   lowStock: 'Quedan pocas unidades',
   soldOut: 'Agotado',
   paymentNote: 'Te contactamos por WhatsApp para coordinar el pago.',
+  deliveryLocal: '1 a 2 días hábiles',
+  deliveryNational: '3 a 5 días hábiles desde el despacho',
   thanks: 'Gracias. Tu pedido está recibido',
-  confirmWhatsapp: 'Confirmar por WhatsApp',
+  confirmWhatsapp: 'Escribir por WhatsApp',
+  confirmPayment: 'Te enviamos los datos de pago por WhatsApp; tienes 24 horas para pagar.',
   storeUnavailable: 'Esta tienda no está disponible',
 };
 
@@ -33,3 +36,6 @@ export const POLICY_FALLBACK = {
 };
 
 export const POLICY_TITLES = { envios: 'Envíos', cambios: 'Cambios y devoluciones', privacidad: 'Privacidad y tratamiento de datos' };
+
+// Aviso de privacidad del formulario de compra: Anexo 1.1 de las políticas aprobadas (texto literal, no reescribir)
+export const PRIVACY_NOTICE = 'LIZETH NATALIA LOPEZ PEREZ, identificada con cédula y NIT 1.144.052.790-7, con domicilio en Cali, propietaria de la marca FLOW, es responsable del tratamiento de tus datos personales. Los usaremos para gestionar tu pedido (pago, facturación, envío y entrega), comunicarnos contigo sobre él, atender tus solicitudes de cambios, retracto, garantía y PQR, y cumplir obligaciones legales. Solo si lo autorizas por separado, te enviaremos publicidad por los canales que elijas. Tus datos se comparten con transportadoras y con proveedores tecnológicos, algunos ubicados fuera de Colombia. Tienes derecho a conocer, actualizar, rectificar y suprimir tus datos, revocar la autorización y presentar quejas ante la SIC. Puedes ejercerlos en flowactivewear.co@gmail.com. Consulta nuestra Política de tratamiento de datos en www.flowactivewear.co/privacidad.';

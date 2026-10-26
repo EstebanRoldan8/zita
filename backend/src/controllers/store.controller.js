@@ -8,6 +8,8 @@ const { findColorAttribute, normalizeOptionKey, normalizeAttributeName } = requi
 const { normalizeColombianPhone, maskPhone } = require('../utils/phone');
 const { decrypt } = require('../utils/encrypt');
 const { sendMessage } = require('../config/whatsapp');
+const { calculateShipping } = require('../config/shipping');
+const { TERMS_VERSION } = require('../config/checkoutLegal');
 const { loadBundles, deriveBundle, bundleSnapshot, applyMoves, variantLabel: bundleVariantLabel } = require('../utils/bundles');
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
@@ -41,6 +43,10 @@ function publicSettings(settings = {}) {
     hero_subtitle: str(settings.hero_subtitle, 400),
     currency: str(settings.currency, 3) || 'COP',
     shipping_flat_cost: toNumber(settings.shipping_flat_cost, 0),
+    // Tarifa de la ciudad local (null = el negocio cobra shipping_flat_cost en todo)
+    shipping_local_cost: settings.shipping_local_cost === undefined || settings.shipping_local_cost === null || settings.shipping_local_cost === ''
+      ? null : toNumber(settings.shipping_local_cost, 0),
+    shipping_local_city: str(settings.shipping_local_city, 80),
     free_shipping_from: toNumber(settings.free_shipping_from, 0),
     payment_methods: str(settings.payment_methods, 300),
     policies: {
@@ -380,7 +386,7 @@ function honeypot(req, res, next) {
 // ── POST /api/store/:slug/orders ─────────────────────────────────────────────
 async function createOrder(req, res) {
   const businessId = req.storeBusinessId;
-  const { items, customer, shipping, payment_method, idempotency_key } = req.body;
+  const { items, customer, shipping, payment_method, idempotency_key, consents } = req.body;
   let orderId = null;
   try {
     // 1) Idempotencia: mismo negocio + misma clave → el pedido ya creado
@@ -526,10 +532,16 @@ async function createOrder(req, res) {
     // 4) Totales
     const subtotal = round2(lines.reduce((sum, l) => sum + l.row.total_price, 0));
     const settings = publicSettings(req.storeBusiness.settings);
-    const shippingCost = settings.free_shipping_from > 0 && subtotal >= settings.free_shipping_from ? 0 : settings.shipping_flat_cost;
+    // Envío por ciudad y subtotal de productos, con las tarifas del negocio (nunca del cliente)
+    const { zone: shippingZone, cost: shippingCost } = calculateShipping({
+      subtotal, city: shipping.city, settings: req.storeBusiness.settings,
+    });
     const total = round2(subtotal + shippingCost);
 
     // 5) Pedido
+    const acceptedAt = new Date().toISOString();
+    const marketingWhatsapp = consents.marketing_whatsapp === true;
+    const marketingEmail = consents.marketing_email === true;
     const { data: order, error: oErr } = await supabaseAdmin
       .from('orders')
       .insert({
@@ -547,6 +559,14 @@ async function createOrder(req, res) {
         payment_method,
         total_amount: total,
         shipping_cost: shippingCost,
+        shipping_zone: shippingZone,
+        // Aceptaciones (Anexo 1.2): hora del servidor; las dos primeras ya las exigió el validador
+        terms_accepted_at: acceptedAt,
+        terms_version: TERMS_VERSION,
+        data_auth_at: acceptedAt,
+        marketing_whatsapp: marketingWhatsapp,
+        marketing_email: marketingEmail,
+        marketing_consent_at: marketingWhatsapp || marketingEmail ? acceptedAt : null,
         source: 'web',
         idempotency_key,
       })

@@ -7,6 +7,7 @@ import { storeApi } from '../lib/storeApi';
 import { formatCOP, STATUS_LABELS } from '../lib/format';
 import { asArray, asObject, asString } from '../lib/safe';
 import { COPY } from '../lib/copy';
+import { flowContent } from '../content/flowContent';
 import { ErrorState } from '../components/States';
 
 // Confirmación. Llega con el pedido en location.state; si se recarga, consulta el estado público.
@@ -50,15 +51,18 @@ export default function Confirmation() {
     ? asArray(fresh.lines).filter(Boolean).map((l) => ({ text: `${asString(l.name, 'Producto')}${[l.color, l.size].filter(Boolean).length ? ` (${[l.color, l.size].filter(Boolean).join(' / ')})` : ''}`, quantity: l.quantity }))
     : asArray(source.items).filter(Boolean).map((i) => ({ text: asString(i.description, 'Producto'), quantity: i.quantity }));
 
-  // Al recargar no tenemos whatsapp_url: se arma un enlace simple con el código
-  const whatsappUrl = fresh?.whatsapp_url
-    || (store.whatsapp_number ? `https://wa.me/${store.whatsapp_number}?text=${encodeURIComponent(`Hola, quiero confirmar mi pedido ${code}.`)}` : null);
+  // Número: el de la tienda (store_settings) y, si está vacío, el oficial de FLOW. El mensaje lleva el
+  // número de pedido; se arma aquí para que sea igual al recargar la página.
+  const waNumber = String(store.whatsapp_number || flowContent.brand.whatsapp || '').replace(/[^0-9]/g, '');
+  const whatsappUrl = waNumber
+    ? `https://wa.me/${waNumber}?text=${encodeURIComponent(`Hola FLOW, hice el pedido ${code} y quiero recibir los datos de pago.`)}`
+    : null;
 
   return (
     <div className="mx-auto max-w-2xl px-4 py-16 text-center md:py-24">
       <p className="flow-label text-flow-muted">Pedido {code}</p>
       <h1 className="flow-serif mt-4 text-3xl md:text-4xl">{COPY.thanks}</h1>
-      <p className="mt-4 text-sm text-flow-muted">Estado: {statusLabel}. Te escribimos por WhatsApp para coordinar el pago y el envío.</p>
+      <p className="mt-4 text-sm text-flow-muted">Estado: {statusLabel}. {COPY.confirmPayment}</p>
 
       <div className="mt-10 border border-flow-stone p-6 text-left">
         <ul className="space-y-2 text-sm">

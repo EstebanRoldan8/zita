@@ -57,6 +57,9 @@ export function shippingFor(store, subtotal, city = '') {
   return hasLocalCost(store.shipping_local_cost) && isLocalCity(store, city) ? Number(store.shipping_local_cost) : flat;
 }
 
+// ¿La tienda cobra una tarifa distinta según la ciudad? Entonces, sin ciudad, el envío no se puede mostrar
+export const hasLocalRate = (store) => hasLocalCost(store?.shipping_local_cost);
+
 export const isEmail =(v) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(String(v || '').trim());
 
 // Clave de idempotencia: una por intento de compra

@@ -9,6 +9,7 @@ const { normalizeColombianPhone, maskPhone } = require('../utils/phone');
 const { decrypt } = require('../utils/encrypt');
 const { sendMessage } = require('../config/whatsapp');
 const { calculateShipping } = require('../config/shipping');
+const { enabledPaymentMethods } = require('../config/paymentMethods');
 const { TERMS_VERSION } = require('../config/checkoutLegal');
 const { discardOrder, flagForReview } = require('../utils/orderCleanup');
 const { loadBundles, deriveBundle, bundleSnapshot, applyMoves, variantLabel: bundleVariantLabel } = require('../utils/bundles');
@@ -50,6 +51,8 @@ function publicSettings(settings = {}) {
     shipping_local_city: str(settings.shipping_local_city, 80),
     free_shipping_from: toNumber(settings.free_shipping_from, 0),
     payment_methods: str(settings.payment_methods, 300),
+    // Métodos que ofrece el checkout (lista blanca por negocio; por defecto solo transferencia)
+    checkout_payment_methods: enabledPaymentMethods(settings),
     policies: {
       envios: str(policies.envios, 4000),
       cambios: str(policies.cambios, 4000),
@@ -646,7 +649,7 @@ async function getOrderStatus(req, res) {
     if (!UUID_RE.test(id) || !phone) return notFound(res, 'Pedido no encontrado.');
     const { data: order, error } = await supabaseAdmin
       .from('orders')
-      .select('id, status, total_amount, shipping_cost')
+      .select('id, status, total_amount, shipping_cost, payment_method')
       .eq('id', id)
       .eq('business_id', req.storeBusinessId)
       .eq('source', 'web')
@@ -660,6 +663,7 @@ async function getOrderStatus(req, res) {
         code: orderCode(order.id),
         status: order.status,
         total: toNumber(order.total_amount),
+        payment_method: str(order.payment_method, 30) || null,
         items: items.map((i) => ({ description: i.description, quantity: i.quantity, unit_price: toNumber(i.unit_price) })),
       },
     });

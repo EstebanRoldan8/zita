@@ -8,21 +8,9 @@ import { useBagValidation } from '../hooks/useBagValidation';
 import { useSeo } from '../hooks/useSeo';
 import { privateSeo } from '../lib/seo';
 import { storeApi } from '../lib/storeApi';
-import { formatCOP, normalizePhone, isEmail, newIdempotencyKey, shippingFor, isLocalCity } from '../lib/format';
+import { formatCOP, normalizePhone, isEmail, newIdempotencyKey, shippingFor, isLocalCity, hasLocalRate } from '../lib/format';
 import { COPY, PRIVACY_NOTICE } from '../lib/copy';
-
-// Métodos ofrecidos según el texto payment_methods de la tienda. "Contraentrega" envía 'efectivo'
-// (es el valor que acepta la API). Nunca hay formulario de tarjeta.
-const METHOD_OPTIONS = [
-  { value: 'transferencia', label: 'Transferencia', match: /transfer/i },
-  { value: 'nequi', label: 'Nequi', match: /nequi/i },
-  { value: 'efectivo', label: 'Efectivo / contraentrega', match: /efectivo|contra\s*entrega/i },
-];
-
-function methodsFor(text) {
-  const matched = METHOD_OPTIONS.filter((m) => m.match.test(String(text || '')));
-  return matched.length > 0 ? matched : METHOD_OPTIONS;
-}
+import { methodsFor, PAYMENT_OPTIONS } from '../lib/paymentMethods';
 
 // Orden visual de los campos (para llevar el scroll al primer error) y su id en el DOM
 const FIELD_ORDER = ['name', 'phone', 'email', 'city', 'address', 'notes', 'payment_method'];
@@ -75,7 +63,7 @@ export default function Checkout() {
   const { loading: validating, issues, blocking } = useBagValidation(slug, lines, true);
   useSeo(privateSeo(COPY.checkout));
 
-  const methods = methodsFor(store.payment_methods);
+  const methods = methodsFor(store);
   const [form, setForm] = useState({
     name: '', phone: '', email: '', city: '', address: '', notes: '',
     payment_method: methods[0].value, terms: false, dataAuth: false, marketingWhatsapp: false, marketingEmail: false, website: '',
@@ -121,8 +109,7 @@ export default function Checkout() {
   const shipping = shippingFor(store, subtotal, form.city);
   const local = isLocalCity(store, form.city);
   // Con tarifa local configurada el envío depende de la ciudad: sin ciudad escrita no se muestra un valor
-  const hasLocalRate = store.shipping_local_cost !== null && store.shipping_local_cost !== undefined && store.shipping_local_cost !== '';
-  const shippingPending = hasLocalRate && form.city.trim().length < 2 && shipping !== 0;
+  const shippingPending = hasLocalRate(store) && form.city.trim().length < 2 && shipping !== 0;
   const blockingLines = lines.filter((l) => ['gone', 'soldout', 'qty', 'error'].includes(issues[l.key]?.type));
 
   const submit = async (e) => {
@@ -184,7 +171,7 @@ export default function Checkout() {
       clear();
       navigate(`${path(`/pedido/${data.order.id}`)}?phone=${phone}`, {
         replace: true,
-        state: { order: data.order, whatsapp_url: data.whatsapp_url, lines: snapshot },
+        state: { order: data.order, whatsapp_url: data.whatsapp_url, lines: snapshot, payment_method: form.payment_method },
       });
     } catch (err) {
       setSubmitting(false);
@@ -275,7 +262,7 @@ export default function Checkout() {
 
   const backToForm = () => { setStep('form'); setNotice(null); window.scrollTo({ top: 0 }); };
   const consentError = (k, id) => fieldError(k) && <p id={`${id}-error`} className="mt-1 text-xs font-medium text-flow-merlot" role="alert">{fieldError(k)}</p>;
-  const methodLabel = methods.find((m) => m.value === form.payment_method)?.label || form.payment_method;
+  const methodLabel = (methods.find((m) => m.value === form.payment_method) || methods[0]).label;
 
   return (
     <div className="mx-auto max-w-5xl px-4 py-12 md:px-8">
@@ -333,17 +320,19 @@ export default function Checkout() {
 
               <fieldset id="f-payment" tabIndex={-1}>
                 <legend className="flow-label mb-3">Método de pago</legend>
-                <div className="grid gap-2">
-                  {methods.map((m) => (
-                    <label key={m.value} className="flow-option justify-start">
-                      <input type="radio" name="payment_method" value={m.value} checked={form.payment_method === m.value} onChange={set('payment_method')} />
-                      {m.label}
-                    </label>
-                  ))}
-                </div>
+                {methods.length > 1 && (
+                  <div className="grid gap-2">
+                    {methods.map((m) => (
+                      <label key={m.value} className="flow-option justify-start">
+                        <input type="radio" name="payment_method" value={m.value} checked={form.payment_method === m.value} onChange={set('payment_method')} />
+                        {m.label}
+                      </label>
+                    ))}
+                  </div>
+                )}
                 {fieldError('payment_method')
                   ? <p className="mt-2 text-xs font-medium text-flow-merlot" role="alert">{fieldError('payment_method')}</p>
-                  : <p className="mt-3 text-xs text-flow-muted">{COPY.paymentNote}</p>}
+                  : <p className={`${methods.length > 1 ? 'mt-3 ' : ''}text-sm text-flow-muted`}>{(PAYMENT_OPTIONS[form.payment_method] || methods[0]).text}</p>}
               </fieldset>
             </div>
 

@@ -4,7 +4,7 @@ import { useCart } from '../hooks/cartContext';
 import { useBagValidation } from '../hooks/useBagValidation';
 import { useSeo } from '../hooks/useSeo';
 import { privateSeo } from '../lib/seo';
-import { formatCOP, shippingFor } from '../lib/format';
+import { formatCOP, shippingFor, hasLocalRate } from '../lib/format';
 import { COPY } from '../lib/copy';
 import BagLines from '../components/BagLines';
 
@@ -18,6 +18,8 @@ export default function BagPage() {
 
   const soldOutNotice = location.state?.soldOut;
   const shipping = shippingFor(store, subtotal);
+  // Con tarifa por ciudad, en la bolsa aún no hay ciudad: no se muestra una tarifa que puede no ser la de la persona
+  const shippingPending = hasLocalRate(store) && shipping !== 0;
   const freeFrom = Number(store.free_shipping_from) || 0;
 
   return (
@@ -41,14 +43,17 @@ export default function BagPage() {
           <aside className="h-fit border border-flow-stone p-6">
             <div className="flex justify-between text-sm"><span>Subtotal</span><span>{formatCOP(subtotal)}</span></div>
             <div className="mt-2 flex justify-between text-sm">
-              <span>Envío</span><span>{shipping === 0 ? 'Gratis' : formatCOP(shipping)}</span>
+              <span>Envío</span>
+              <span className="text-right">{shippingPending ? 'Se calcula con tu ciudad' : shipping === 0 ? 'Gratis' : formatCOP(shipping)}</span>
             </div>
             {freeFrom > 0 && subtotal < freeFrom && (
               <p className="mt-2 text-xs text-flow-muted">Te faltan {formatCOP(freeFrom - subtotal)} para envío gratis.</p>
             )}
             <hr className="flow-rule my-4" />
-            <div className="flex justify-between"><span className="flow-label">Total estimado</span><span>{formatCOP(subtotal + shipping)}</span></div>
-            <p className="mt-2 text-xs text-flow-muted">El total final lo confirmamos al recibir tu pedido.</p>
+            <div className="flex justify-between"><span className="flow-label">Total estimado</span><span>{formatCOP(shippingPending ? subtotal : subtotal + shipping)}</span></div>
+            <p className="mt-2 text-xs text-flow-muted">
+              {shippingPending ? 'Más el envío, que se calcula con tu ciudad. ' : ''}El total final lo confirmamos al recibir tu pedido.
+            </p>
             <Link to={path('/checkout')} aria-disabled={blocking || loading}
               className={`flow-btn flow-btn-primary mt-6 w-full ${blocking || loading ? 'pointer-events-none opacity-40' : ''}`}>
               {loading ? 'Revisando tu bolsa...' : COPY.checkout}

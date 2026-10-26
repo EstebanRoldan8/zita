@@ -8,6 +8,7 @@ import { formatCOP, STATUS_LABELS } from '../lib/format';
 import { asArray, asObject, asString } from '../lib/safe';
 import { COPY } from '../lib/copy';
 import { flowContent } from '../content/flowContent';
+import { paymentLabel, paymentShort } from '../lib/paymentMethods';
 import { ErrorState } from '../components/States';
 
 // Confirmación. Llega con el pedido en location.state; si se recarga, consulta el estado público.
@@ -53,9 +54,10 @@ export default function Confirmation() {
 
   // Número: el de la tienda (store_settings) y, si está vacío, el oficial de FLOW. El mensaje lleva el
   // número de pedido; se arma aquí para que sea igual al recargar la página.
+  const method = fresh ? fresh.payment_method : source.payment_method;
   const waNumber = String(store.whatsapp_number || flowContent.brand.whatsapp || '').replace(/[^0-9]/g, '');
   const whatsappUrl = waNumber
-    ? `https://wa.me/${waNumber}?text=${encodeURIComponent(`Hola FLOW, hice el pedido ${code} y quiero recibir los datos de pago.`)}`
+    ? `https://wa.me/${waNumber}?text=${encodeURIComponent(`Hola FLOW, hice el pedido ${code}${paymentShort(method) ? ` (pago por ${paymentShort(method)})` : ''} y quiero recibir los datos de pago.`)}`
     : null;
 
   return (
@@ -77,6 +79,9 @@ export default function Confirmation() {
           </div>
         )}
         <div className="flex justify-between"><span className="flow-label">Total</span><span>{formatCOP(total)}</span></div>
+        {paymentLabel(method) && (
+          <div className="mt-2 flex justify-between text-sm"><span>Método de pago</span><span>{paymentLabel(method)}</span></div>
+        )}
       </div>
 
       {whatsappUrl && (

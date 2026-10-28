@@ -3,7 +3,8 @@ import { StrictMode } from 'react'
 import { createRoot } from 'react-dom/client'
 import './index.css'
 import App from './App.jsx'
-import { isStoreContext } from './lib/isStoreContext'
+import { isStoreContext, isStoreHost } from './lib/isStoreContext'
+import { applyFlowIdentity, dropZitaServiceWorker } from './store/lib/identity'
 
 // Privacidad: la tienda pública (/tienda... o dominio propio) no inicializa Sentry. La política
 // aprobada dice que solo usa almacenamiento técnico y no carga terceros hasta que la persona decide;
@@ -28,6 +29,11 @@ if (!isStoreContext) {
     });
   });
 }
+
+// Identidad de FLOW (favicon, apple-touch-icon, manifest, theme-color) en la tienda; en su host propio además
+// no queda el service worker de ZITA (index.html tampoco lo registra ahí). ZITA no pasa por aquí.
+if (isStoreContext) applyFlowIdentity();
+if (isStoreHost) dropZitaServiceWorker();
 
 createRoot(document.getElementById('root')).render(
   <StrictMode>

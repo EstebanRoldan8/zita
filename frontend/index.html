@@ -23,6 +23,13 @@
         document.head.appendChild(l);
       })();
     </script>
+    <!-- Registro del service worker (PWA) del panel, igual que el de vite-plugin-pwa, pero no en el host propio de la tienda. -->
+    <script>
+      (function () {
+        if (location.hostname.toLowerCase() === '%VITE_STORE_HOST%'.toLowerCase()) return;
+        if ('serviceWorker' in navigator) { window.addEventListener('load', function () { navigator.serviceWorker.register('/sw.js', { scope: '/' }); }); }
+      })();
+    </script>
   </head>
   <body>
     <div id="root"></div>

@@ -129,6 +129,6 @@ mismo que ve una persona (título, descripción, precio, fotos, disponibilidad).
 - [ ] **Contenido pendiente en `flowContent.js`:** `shipping`, `returns`, `sizeGuide`, `legal`, `brand.instagram`, `brand.email`, `brand.city`. Mientras sean null, sus secciones y enlaces no se muestran.
 - [ ] **WhatsApp:** número en `store_settings` (sin él no aparecen el botón flotante ni los enlaces de WhatsApp).
 - [ ] **Necesita backend:** fecha de creación del producto ("Nuevo" por fecha), orden por popularidad/ventas, orden por precio en el servidor.
-- [ ] **Home en dominio propio para bots:** con `VITE_STORE_HOST`, la ruta `/` la sirve `index.html` (archivo estático, gana a cualquier rewrite), así que los bots reciben el `<head>` de ZITA en la raíz. Las demás rutas sí pasan por el prerender. Arreglo posible: Routing Middleware de Vercel.
+- [x] **Home en dominio propio para bots:** `frontend/middleware.js` (Routing Middleware) reescribe `/` al prerender solo para bots en `www.flowactivewear.co`. Ver `docs/dominio-flow.md`.
 - [ ] **Imagen de previews:** `public/og-flow.jpg` es el logo sobre sand; reemplazar por una foto de campaña de 1200 × 630.
-- [ ] **Favicon** de Flow para el dominio propio.
+- [x] **Favicon** de Flow: `public/flow/` y `store/lib/identity.js` (SPA) + `api/_lib/html.js` (prerender).

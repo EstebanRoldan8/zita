@@ -8,12 +8,14 @@
     "build": "vite build",
     "lint": "eslint .",
     "preview": "vite preview",
-    "test:domain": "node --test tests/domain.test.js"
+    "test:domain": "node --test tests/domain.test.js",
+    "test:middleware": "node --test tests/middleware.test.js"
   },
   "dependencies": {
     "@sentry/react": "^10.56.0",
     "@supabase/supabase-js": "^2.105.1",
     "@tanstack/react-query": "^5.100.6",
+    "@vercel/functions": "^3.10.4",
     "axios": "^1.15.2",
     "date-fns": "^4.2.1",
     "lucide-react": "^1.14.0",

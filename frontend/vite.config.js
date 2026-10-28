@@ -9,6 +9,9 @@ export default defineConfig({
     tailwindcss(),
     VitePWA({
       registerType: 'autoUpdate',
+      // El registro del service worker va inline en index.html (mismo código que registerSW.js) para no
+      // registrarlo en el host propio de la tienda. El resultado para ZITA es el mismo.
+      injectRegister: false,
       includeAssets: ['logo.png', 'icons/icon-192x192.png', 'icons/icon-512x512.png'],
       manifest: {
         name: 'ZITA — Gestión Inteligente',
@@ -50,6 +53,8 @@ export default defineConfig({
       },
       workbox: {
         globPatterns: ['**/*.{js,css,woff,woff2,png,svg,ico}'],
+        // Íconos de FLOW (public/flow): no forman parte de la PWA de ZITA, su precaché queda como estaba
+        globIgnores: ['flow/**'],
         navigateFallback: null,
         navigateFallbackDenylist: [/^\/api/, /^\/auth/],
         runtimeCaching: [

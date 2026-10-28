@@ -4,6 +4,7 @@ import { readFile } from 'node:fs/promises';
 import { fileURLToPath } from 'node:url';
 import path from 'node:path';
 import { SITE_NAME, LOCALE, THEME_COLOR, DEFAULT_IMAGE, DEFAULT_IMAGE_SIZE, absoluteUrl } from '../../src/store/lib/seo.js';
+import { FLOW_ICON_LINKS, FLOW_MANIFEST, FLOW_APP_TITLE } from '../../src/store/lib/brandHead.js';
 import { requestOrigin, TIMEOUT_MS } from './store.js';
 
 export function esc(value) {
@@ -31,6 +32,10 @@ export function headTags(seo, { origin, url }) {
     meta('name', 'description', seo.description),
     meta('name', 'robots', seo.noindex ? 'noindex,nofollow' : 'index,follow'),
     meta('name', 'theme-color', THEME_COLOR),
+    meta('name', 'apple-mobile-web-app-title', FLOW_APP_TITLE),
+    // Íconos de FLOW (Google toma el favicon del HTML; si no, saldría el de ZITA)
+    ...FLOW_ICON_LINKS.map((l) => `<link ${Object.entries(l).map(([k, v]) => `${k}="${esc(v)}"`).join(' ')}>`),
+    `<link rel="manifest" href="${esc(FLOW_MANIFEST)}">`,
     seo.canonical ? `<link rel="canonical" href="${esc(seo.canonical)}">` : '',
     meta('property', 'og:title', seo.title),
     meta('property', 'og:description', seo.description),
@@ -56,7 +61,8 @@ export function headTags(seo, { origin, url }) {
 // Quita del index.html base lo que el prerender reemplaza (título y metas de ZITA)
 const STRIP = [
   /<title>[\s\S]*?<\/title>\s*/gi,
-  /<meta\s+name=["'](?:description|robots|theme-color|twitter:[^"']*)["'][^>]*>\s*/gi,
+  /<meta\s+name=["'](?:description|robots|theme-color|apple-mobile-web-app-title|twitter:[^"']*)["'][^>]*>\s*/gi,
+  /<link\s+rel=["'](?:icon|shortcut icon|apple-touch-icon|manifest)["'][^>]*>\s*/gi,
   /<meta\s+property=["'](?:og:[^"']*|product:[^"']*)["'][^>]*>\s*/gi,
   /<link\s+rel=["']canonical["'][^>]*>\s*/gi,
   /<script\s+type=["']application\/ld\+json["'][\s\S]*?<\/script>\s*/gi,

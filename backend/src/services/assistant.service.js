@@ -11,11 +11,6 @@ const { deleteCitaIncome } = require('./scheduler.service');
 const { logSystemAlert } = require('../utils/systemAlerts');
 const { callClaudeWithRetry } = require('../utils/anthropicRetry');
 const { isTiendaBusiness } = require('../utils/businessType');
-const { storeAssistant, GENERIC_TOOLS_HIDDEN_FOR_STORE, claimsWrite } = require('./assistantStore');
-
-// Modelo del asistente de tienda (barbería y demás negocios siguen en Haiku)
-const STORE_MODEL = process.env.ASSISTANT_STORE_MODEL || 'claude-opus-5-5';
-const STORE_EFFORT = process.env.ASSISTANT_STORE_EFFORT || 'medium';
 
 const client = new Anthropic({
   apiKey: process.env.ANTHROPIC_API_KEY,
@@ -4865,29 +4860,6 @@ async function executeTool(toolName, toolInput, businessId) {
   }
 }
 
-// Herramientas y prompt según el tipo de negocio. Un negocio que NO es tienda recibe exactamente lo de siempre.
-function toolsFor(business, store = null) {
-  if (!isTiendaBusiness(business)) return tools;
-  const s = store || storeAssistant();
-  return [...tools.filter((t) => !GENERIC_TOOLS_HIDDEN_FOR_STORE.has(t.name)), ...s.tools];
-}
-
-function systemPromptFor(business, store = null) {
-  if (!isTiendaBusiness(business)) return SYSTEM_PROMPT;
-  const s = store || storeAssistant();
-  // Mismas reglas de fondo que barbería (IDs, éxito confirmado, privacidad, delimitadores), con el modelo de tienda
-  const block = (tag) => (SYSTEM_PROMPT.match(new RegExp(`<${tag}>[\\s\\S]*?<\\/${tag}>`)) || [''])[0];
-  return `<identity>
-Eres el asistente inteligente de ZITA para una TIENDA de ropa: inventario por variantes (color y talla), sets, pedidos, ventas y caja.
-Personalidad: cercano, eficiente, directo. Hablas español colombiano informal: "dale", "listo", "de una", "clave".
-Responde CORTO y CONCRETO, con números reales. Una acción = una confirmación clara. Sigue estas reglas AL PIE DE LA LETRA.
-</identity>
-${block('critical_rules')}
-${s.prompt}
-${block('privacy')}
-${block('seguridad_delimitadores')}`;
-}
-
 // El historial llega del cliente: solo texto de usuario/asistente (nada de bloques de herramientas inyectados)
 function sanitizeHistory(history) {
   return (Array.isArray(history) ? history : [])
@@ -4895,22 +4867,29 @@ function sanitizeHistory(history) {
     .map((m) => ({ role: m.role, content: m.content.slice(0, 4000) }));
 }
 
-// Ejecuta una herramienta: en una tienda, las de tienda van a assistantStore y las genéricas ocultas se rechazan
-async function runTool(name, input, businessId, storeCtx) {
-  if (storeCtx) {
-    const store = storeCtx.store || storeAssistant();
-    if (store.handles(name)) {
-      const result = await store.execute(name, input, storeCtx);
-      if (name === 'confirmar_accion' && Array.isArray(storeCtx.writes)) storeCtx.writes.push(result);
-      return result;
-    }
-    if (GENERIC_TOOLS_HIDDEN_FOR_STORE.has(name)) return { success: false, error: 'Esa herramienta no aplica a una tienda.' };
+// Tienda: agente propio (servidor determinista + modelo pequeño solo para entender la intención).
+// Modelo configurable; por defecto el mismo Haiku que barbería.
+const STORE_MODEL = process.env.ASSISTANT_STORE_MODEL || 'claude-haiku-4-5-20251001';
+let storeAgent = null;
+function getStoreAgent() {
+  if (!storeAgent) {
+    const { createStoreAgent } = require('./storeAgent');
+    storeAgent = createStoreAgent({
+      // Parámetros específicos solo si el modelo los admite (esfuerzo, respaldo ante rechazos)
+      callModel: (params, caps) => {
+        const p = { ...params };
+        if (caps.effort) p.output_config = { effort: 'low' };
+        if (caps.fallbacks) {
+          return callClaudeWithRetry({ messages: { create: (x) => client.beta.messages.create(x) } }, { ...p, betas: ['server-side-fallback-2026-07-01'], fallbacks: 'default' });
+        }
+        return callClaudeWithRetry(client, p);
+      },
+    });
   }
-  return executeTool(name, input, businessId);
+  return storeAgent;
 }
 
 async function processMessage(businessId, userMessage, conversationHistory = [], session = {}) {
-  const requestStartedAt = new Date();
   logger.info('[processMessage] businessId recibido:', businessId);
   logger.info('[processMessage] userMessageLength:', userMessage?.length || 0);
   logger.info('[processMessage] historyLength:', conversationHistory.length);
@@ -4966,6 +4945,20 @@ async function processMessage(businessId, userMessage, conversationHistory = [],
     avisoLimite = (mensajesRestantes <= 5 && mensajesRestantes > 0)
       ? `\n\n_(${mensajesRestantes} mensaje${mensajesRestantes !== 1 ? 's' : ''} disponible${mensajesRestantes !== 1 ? 's' : ''} hoy en tu plan)_`
       : '';
+  }
+
+  // Tienda: su propio flujo. Barbería y los demás negocios siguen exactamente igual.
+  if (isTiendaBusiness(biz)) {
+    const history = sanitizeHistory(conversationHistory).slice(-6);
+    const r = await getStoreAgent().handle({
+      businessId, business: biz, userMessage, history, authorization: session.authorization, model: STORE_MODEL,
+    });
+    return {
+      response: r.response + (avisoLimite || ''),
+      history: [...history, { role: 'user', content: String(userMessage || '') }, { role: 'assistant', content: r.response }].slice(-12),
+      actionsExecuted: [r.path],
+      usage: r.usage,
+    };
   }
 
   const today = new Date();
@@ -5049,41 +5042,8 @@ ${stockAlerta}
     setCachedContext(businessId, businessContext);
   }
 
-  const isStore = isTiendaBusiness(biz);
-  const activeTools = toolsFor(biz);
-  // Contexto de la sesión para las herramientas de tienda: el negocio y el token salen de la sesión, nunca del mensaje
-  const storeCtx = isStore
-    ? {
-      businessId, business: { ...biz, id: businessId }, authorization: session.authorization, requestStartedAt,
-      // Id de ESTE mensaje: una propuesta creada aquí no la vio el usuario (no depende de relojes)
-      requestId: require('crypto').randomUUID(), userMessage: String(userMessage || ''), writes: [],
-    }
-    : null;
-  // Tienda: el SERVIDOR ejecuta el "sí" (confirmar_accion), el "no" (cancelar_accion) y el "devuélvelo"
-  // (preparar_deshacer) antes de llamar al modelo, y le pasa el resultado leído de la base: el modelo solo lo
-  // redacta, no decide si confirma (y no puede afirmar un cambio que no ocurrió).
-  let serverResult = null;
-  if (isStore) {
-    try {
-      await storeAssistant().discardUnanswered(storeCtx);
-      const tool = await storeAssistant().forcedToolFor(storeCtx);
-      if (tool) serverResult = { herramienta: tool, resultado: await runTool(tool, {}, businessId, storeCtx) };
-    } catch (err) {
-      logger.error('[assistant] pre-ejecución de tienda: ' + err.message);
-    }
-  }
-  if (isStore) {
-    // Tienda: su propio contexto vivo (ventas netas, pedidos sin pagar, agotados por variante, sets, propuestas)
-    try {
-      businessContext = `<tienda_hoy>\n${await storeAssistant().storeContext({ ...biz, id: businessId })}\n</tienda_hoy>`;
-    } catch (err) {
-      logger.error('[assistant] storeContext: ' + err.message);
-      businessContext = `<tienda_hoy>\nNegocio: ${biz.name} (tienda). No pude leer el resumen: usa las herramientas antes de dar cifras.\n</tienda_hoy>`;
-    }
-  }
-
   // Bloque estático (reglas, nunca cambia) — cacheable de forma estable
-  const staticSystemPrompt = systemPromptFor(biz);
+  const staticSystemPrompt = SYSTEM_PROMPT;
 
   // Bloque dinámico (datos por-negocio + fecha) — cambia en cada request
   const dynamicSystemPrompt = `${businessContext}
@@ -5107,28 +5067,13 @@ Cuando diga "mañana" usar: ${mananaISO}
   }
 
   // Delimitar claramente el input del usuario para mitigar prompt injection
-  const userMessageContent = `<mensaje_usuario>\n${processedMessage}\n</mensaje_usuario>`
-    + (serverResult ? `\n<resultado_servidor herramienta="${serverResult.herramienta}">\n${JSON.stringify(serverResult.resultado)}\n</resultado_servidor>` : '');
-
-  // Tienda: Opus (configurable) con esfuerzo explícito y respaldo del servidor ante rechazos. En este modelo no
-  // existe tool_choice forzado (400): siempre 'auto'. max_tokens incluye el razonamiento. Barbería: igual que antes.
-  const callModel = (params) => (isStore
-    ? callClaudeWithRetry({ messages: { create: (p) => client.beta.messages.create(p) } }, {
-      ...params,
-      model: STORE_MODEL,
-      max_tokens: Math.max(params.max_tokens || 0, 8000),
-      tool_choice: { type: 'auto' },
-      output_config: { effort: STORE_EFFORT },
-      betas: ['server-side-fallback-2026-07-01'],
-      fallbacks: 'default',
-    })
-    : callClaudeWithRetry(client, params));
+  const userMessageContent = `<mensaje_usuario>\n${processedMessage}\n</mensaje_usuario>`;
   const messages = [
     ...limitedConversationHistory,
     { role: 'user', content: userMessageContent }
   ];
 
-  let response = await callModel({
+  let response = await callClaudeWithRetry(client, {
     model: 'claude-haiku-4-5-20251001',
     max_tokens: 1500,
     system: [
@@ -5142,7 +5087,7 @@ Cuando diga "mañana" usar: ${mananaISO}
         text: dynamicSystemPrompt
       }
     ],
-    tools: activeTools,
+    tools: tools,
     tool_choice: { type: 'auto' },
     messages: messages
   });
@@ -5183,7 +5128,7 @@ Cuando diga "mañana" usar: ${mananaISO}
       if (block.type === 'tool_use') {
         let result;
         try {
-          result = await runTool(block.name, block.input, businessId, storeCtx);
+          result = await executeTool(block.name, block.input, businessId);
         } catch (toolError) {
           logger.error(`Tool execution error [${block.name}]:`, toolError.message);
           result = { is_error: true, content: 'Error ejecutando la acción, intenta de nuevo' };
@@ -5199,7 +5144,7 @@ Cuando diga "mañana" usar: ${mananaISO}
 
     apiMessages.push({ role: 'user', content: toolResults });
 
-    response = await callModel({
+    response = await callClaudeWithRetry(client, {
       model: 'claude-haiku-4-5-20251001',
       max_tokens: 1500,
       system: [
@@ -5213,7 +5158,7 @@ Cuando diga "mañana" usar: ${mananaISO}
           text: dynamicSystemPrompt
         }
       ],
-      tools: activeTools,
+      tools: tools,
       messages: apiMessages
     });
 
@@ -5239,7 +5184,7 @@ Cuando diga "mañana" usar: ${mananaISO}
             ? 'La acción anterior NO se completó (revisa el resultado de la tool: contiene error o success:false). Explica breve y claramente al usuario, en español colombiano informal, qué falló y qué necesita corregir para intentarlo de nuevo. NO confirmes éxito ni digas que quedó listo.'
             : 'Confirma brevemente al usuario lo que acabas de hacer en español colombiano informal.'
         });
-        response = await callModel({
+        response = await callClaudeWithRetry(client, {
           model: 'claude-haiku-4-5-20251001',
           max_tokens: 200,
           system: [
@@ -5253,7 +5198,7 @@ Cuando diga "mañana" usar: ${mananaISO}
               text: dynamicSystemPrompt
             }
           ],
-          tools: activeTools,
+          tools: tools,
           messages: apiMessages
         });
       }
@@ -5289,39 +5234,12 @@ Cuando diga "mañana" usar: ${mananaISO}
   }
 
   // Limpiar tags internos espurios (ej: </final_message>, </fin>, etc) que el modelo puede generar ocasionalmente
-  let cleanText = finalText.replace(/<\/?[a-z_]+>/gi, '').trim();
-  if (storeCtx && !cleanText && response.stop_reason === 'refusal') {
-    cleanText = 'No pude procesar ese mensaje. ¿Me lo dices de otra forma?';
-  }
-
-  // Tienda: nunca dejar pasar un "listo" sin una escritura confirmada y leída de la base en ESTE turno
-  if (storeCtx) {
-    const applied = storeCtx.writes.filter((w) => w && w.success);
-    const failed = storeCtx.writes.filter((w) => w && w.success === false);
-    // Lo propuesto en este mensaje se muestra SIEMPRE tal cual (es lo que un "sí" va a ejecutar)
-    let proposed = [];
-    try {
-      proposed = await storeAssistant().proposedIn(storeCtx);
-    } catch (err) {
-      logger.error('[assistant] proposedIn: ' + err.message);
-    }
-    if (proposed.length) {
-      cleanText += `\n\n📝 Para confirmar:\n${proposed.map((x, i) => `${i + 1}. ${x}`).join('\n')}\n¿Confirmas? (sí / no)`;
-    }
-    if (applied.length) {
-      cleanText += `\n\n_Resultado leído de la base: ${applied.map((w) => w.resultado).join(' · ')}_`;
-    } else if (!proposed.length && claimsWrite(cleanText)) {
-      logger.warn('[assistant] respuesta de tienda afirmaba un cambio sin escritura confirmada; se reemplaza');
-      cleanText = failed.length
-        ? `⚠️ No se hizo el cambio: ${failed[0].error}`
-        : '⚠️ No hice ningún cambio todavía. Dime de nuevo qué quieres ajustar y te muestro el resumen para confirmarlo.';
-    }
-  }
+  const cleanText = finalText.replace(/<\/?[a-z_]+>/gi, '').trim();
 
   const cleanHistory = [
     ...limitedConversationHistory,
     { role: 'user', content: userMessage },
-    { role: 'assistant', content: cleanText }
+    { role: 'assistant', content: finalText }
   ];
 
   return {
@@ -5331,7 +5249,7 @@ Cuando diga "mañana" usar: ${mananaISO}
   };
 }
 
-module.exports = { processMessage, toolsFor, systemPromptFor, sanitizeHistory, runTool, SYSTEM_PROMPT };
+module.exports = { processMessage, sanitizeHistory, SYSTEM_PROMPT, tools, STORE_MODEL };
 
 
 

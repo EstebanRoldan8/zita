@@ -13,7 +13,8 @@
     "test:gender": "node --test tests/gender.test.js",
     "test:orders": "node --test tests/orders-manual.test.js",
     "test:uploads": "node --test tests/upload-errors.test.js",
-    "test:assistant-store": "node --test tests/assistant-store.test.js"
+    "test:assistant-store": "node --test tests/assistant-store.test.js",
+    "test:store-agent": "node --test tests/store-agent.test.js"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.92.0",

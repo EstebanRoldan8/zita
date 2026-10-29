@@ -428,35 +428,16 @@ test('deshacer un ajuste del total cuando el producto ya tiene variantes activas
   assert.match(r.error, /ahora tiene variantes activas/);
 });
 
-// ── Integración con el asistente: tienda vs. no tienda ──
+// ── Integración con el asistente: barbería sin cambios ──
 const supaPath = require.resolve('../src/config/supabase');
 require.cache[supaPath] = { id: supaPath, filename: supaPath, loaded: true, exports: { supabaseAdmin: fake, createUserClient: () => fake } };
 const assistant = require('../src/services/assistant.service');
 
-test('negocio NO tienda: mismas herramientas y mismo prompt de siempre', () => {
-  for (const type of ['Barbería', 'barberia', 'Salón', undefined]) {
-    const t = assistant.toolsFor({ business_type: type });
-    assert.ok(t.some((x) => x.name === 'ajustar_stock') && t.some((x) => x.name === 'crear_cita') && t.some((x) => x.name === 'resumen_dia'));
-    assert.ok(!t.some((x) => x.name === 'preparar_ajuste_stock'));
-    assert.equal(assistant.systemPromptFor({ business_type: type }), assistant.SYSTEM_PROMPT);
-  }
-});
-
-test('negocio tienda: herramientas propias, sin las que escriben el total, y su prompt con las reglas de fondo', () => {
-  const t = assistant.toolsFor({ business_type: 'Tienda' }, store);
-  for (const hidden of ['ajustar_stock', 'actualizar_producto', 'vender_producto', 'registrar_venta', 'crear_cita', 'resumen_dia']) assert.ok(!t.some((x) => x.name === hidden), hidden);
-  for (const s of ['resumen_tienda', 'preparar_crear_variante', 'preparar_estado_pedido', 'productos_mas_vendidos', 'clientes_frecuentes', 'catalogo_drops', 'confirmar_accion']) assert.ok(t.some((x) => x.name === s), s);
-  assert.equal(new Set(t.map((x) => x.name)).size, t.length, 'sin nombres repetidos');
-  const prompt = assistant.systemPromptFor({ business_type: 'tienda' }, store);
-  for (const re of [/VARIANTES/, /24 h/, /NUNCA inventes cifras/, /<critical_rules>/, /<privacy>/, /<seguridad_delimitadores>/, /lista numerada/, /resumen_tienda/]) assert.match(prompt, re);
-});
-
-test('tienda: una herramienta genérica oculta se rechaza aunque el modelo la invente', async () => {
-  reset();
-  const r = await assistant.runTool('ajustar_stock', { product_id: 'jb', cantidad: 3 }, BIZ, { ...turn('suma 3'), store });
-  assert.equal(r.success, false);
-  assert.equal(db.products.find((p) => p.id === 'jb').stock, 1);
-  assert.ok(GENERIC_TOOLS_HIDDEN_FOR_STORE.has('vender_producto'));
+test('barbería: sus herramientas y su prompt de siempre (la tienda va por su propio agente)', () => {
+  assert.ok(assistant.tools.some((x) => x.name === 'ajustar_stock') && assistant.tools.some((x) => x.name === 'crear_cita'));
+  assert.ok(!assistant.tools.some((x) => x.name === 'interpretar' || x.name === 'preparar_ajuste_stock'));
+  assert.match(assistant.SYSTEM_PROMPT, /negocios de citas/);
+  assert.equal(assistant.STORE_MODEL, 'claude-haiku-4-5-20251001', 'tienda en Haiku por defecto');
 });
 
 test('historial del cliente: solo texto de usuario/asistente', () => {

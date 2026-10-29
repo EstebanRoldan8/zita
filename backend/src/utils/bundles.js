@@ -15,6 +15,9 @@ const defaultAdjust = (params) => require('./orderStock').callAdjustStock(params
 // Namespace FIJO de los ids derivados (no cambiarlo: cambiaría los ids de las bolsas ya guardadas)
 const BUNDLE_NAMESPACE = '3f4e2a5c-9b1d-4c7e-8a6f-2d5b7c9e1a04';
 const MAX_QTY_PER_LINE = 10;
+// Colores que NINGÚN set ofrece (aunque los componentes los tengan; los productos sueltos sí los conservan).
+// Se comparan normalizados (sin tildes ni mayúsculas): "Verde Oliva" = "verde oliva".
+const SET_EXCLUDED_COLORS = ['verde oliva'];
 
 // ── Normalización e ids ──────────────────────────────────────────────────────
 const removeAccents = (s) => String(s ?? '').normalize('NFD').replace(/[̀-ͯ]/g, '');
@@ -52,6 +55,12 @@ const derivedVariantId = (bundleId, key) => uuidv5(`${String(bundleId).toLowerCa
 
 const variantLabel = (attributes) => Object.values(attributes || {}).map((v) => String(v).trim()).filter(Boolean).join(' / ');
 
+// ¿La variante tiene un color que los sets no ofrecen?
+function isSetExcludedColor(attributes) {
+  const color = findColorAttribute(attributes);
+  return !!color && SET_EXCLUDED_COLORS.some((c) => normValue(c) === normValue(color.value));
+}
+
 // ── Derivación (función pura) ────────────────────────────────────────────────
 // bundle: { id }, components: [{ quantity, product: { id, name, is_active, has_variants, stock, cost_price, option_images } }]
 // variantsByProduct: { productId: [variantes activas { id, attributes, stock, image_url }] }
@@ -60,7 +69,10 @@ const variantLabel = (attributes) => Object.values(attributes || {}).map((v) => 
 //    componente tiene variantes; entonces simpleStock trae el stock del set)
 //  - lost: combinaciones que existen en algún componente pero no en todos ({ attributes, missing: [nombres] })
 //  - error: texto si la composición no es válida (no se puede vender)
-function deriveBundle(bundle, components, variantsByProduct = {}) {
+function deriveBundle(bundle, components, allVariantsByProduct = {}) {
+  // Los colores excluidos de los sets no se derivan (ni como combinación ni como "perdida")
+  const variantsByProduct = Object.fromEntries(Object.entries(allVariantsByProduct || {})
+    .map(([id, list]) => [id, (list || []).filter((v) => !isSetExcludedColor(v.attributes))]));
   const comps = (components || []).filter((c) => c && c.product);
   const result = { variants: [], simpleStock: 0, lost: [], error: null, hasVariants: false };
   if (comps.length < 2) {
@@ -68,8 +80,8 @@ function deriveBundle(bundle, components, variantsByProduct = {}) {
     return result;
   }
   const inactive = comps.filter((c) => c.product.is_active === false);
-  const withVariants = comps.filter((c) => (variantsByProduct[c.product.id] || []).length > 0);
-  const simple = comps.filter((c) => (variantsByProduct[c.product.id] || []).length === 0);
+  const withVariants = comps.filter((c) => (allVariantsByProduct?.[c.product.id] || []).length > 0);
+  const simple = comps.filter((c) => (allVariantsByProduct?.[c.product.id] || []).length === 0);
 
   // Tope que ponen los componentes sin variantes (stock del producto / cantidad)
   const simpleCap = simple.length
@@ -85,7 +97,7 @@ function deriveBundle(bundle, components, variantsByProduct = {}) {
   // Todos los componentes con variantes deben usar los mismos atributos (p. ej. talla + color)
   const attrSets = withVariants.map((c) => {
     const names = new Set();
-    for (const v of variantsByProduct[c.product.id]) for (const k of Object.keys(normAttributes(v.attributes))) names.add(k);
+    for (const v of allVariantsByProduct[c.product.id]) for (const k of Object.keys(normAttributes(v.attributes))) names.add(k);
     return [...names].sort().join(',');
   });
   if (new Set(attrSets).size > 1) {
@@ -251,6 +263,6 @@ async function applyMoves(moves, { businessId, type = 'venta', refType = 'order'
 }
 
 module.exports = {
-  BUNDLE_NAMESPACE, MAX_QTY_PER_LINE, uuidv5, normValue, normAttributes, comboKey, derivedVariantId, variantLabel,
+  BUNDLE_NAMESPACE, MAX_QTY_PER_LINE, SET_EXCLUDED_COLORS, isSetExcludedColor, uuidv5, normValue, normAttributes, comboKey, derivedVariantId, variantLabel,
   deriveBundle, simpleComponents, bundleSnapshot, snapshotMoves, snapshotCost, loadBundles, applyMoves,
 };

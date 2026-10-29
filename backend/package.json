@@ -15,7 +15,8 @@
     "test:uploads": "node --test tests/upload-errors.test.js",
     "test:assistant-store": "node --test tests/assistant-store.test.js",
     "test:store-agent": "node --test tests/store-agent.test.js",
-    "test:inventory": "node --test tests/inventory-history.test.js"
+    "test:inventory": "node --test tests/inventory-history.test.js",
+    "test:sets": "node --test tests/set-colors.test.js"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.92.0",

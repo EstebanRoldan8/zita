@@ -10,6 +10,7 @@ const { isPlanExpired } = require('../utils/planStatus');
 const { deleteCitaIncome } = require('./scheduler.service');
 const { logSystemAlert } = require('../utils/systemAlerts');
 const { callClaudeWithRetry } = require('../utils/anthropicRetry');
+const { isTiendaBusiness } = require('../utils/businessType');
 
 const client = new Anthropic({
   apiKey: process.env.ANTHROPIC_API_KEY,
@@ -2295,6 +2296,7 @@ async function executeTool(toolName, toolInput, businessId) {
       // El descuento de stock es la PRIMERA escritura de la venta: si falla, no se escribe nada más.
       // supabase.rpc() no lanza: devuelve { error } (el catch cubre solo fallas de red del cliente).
       let stockError = null;
+      const registrarSaleId = require('crypto').randomUUID();
       try {
         ({ error: stockError } = await supabaseAdmin.rpc('adjust_stock', {
           p_business_id: businessId,
@@ -2304,7 +2306,7 @@ async function executeTool(toolName, toolInput, businessId) {
           p_type: 'venta',
           p_reason: null,
           p_ref_type: 'product_sale',
-          p_ref_id: null,
+          p_ref_id: registrarSaleId,
           p_user: null
         }));
       } catch (err) {
@@ -2328,6 +2330,7 @@ async function executeTool(toolName, toolInput, businessId) {
       const { data, error: saleError } = await supabaseAdmin
         .from('product_sales')
         .insert({
+          id: registrarSaleId,
           business_id: businessId,
           product_id: toolInput.product_id,
           quantity: toolInput.quantity,
@@ -4302,19 +4305,26 @@ async function executeTool(toolName, toolInput, businessId) {
         return { success: false, error: `Stock insuficiente. Disponible: ${product.stock}` };
       }
 
-      const { data: stockData, error: stockError } = await supabaseAdmin
-        .from('products')
-        .update({ stock: product.stock - toolInput.quantity })
-        .eq('id', product.id)
-        .select('id');
+      // El stock se descuenta con adjust_stock (deja movimiento 'venta' enlazado al registro de la venta)
+      const venderSaleId = require('crypto').randomUUID();
+      const { error: stockError } = await supabaseAdmin.rpc('adjust_stock', {
+        p_business_id: businessId,
+        p_product_id: product.id,
+        p_variant_id: null,
+        p_change: -toolInput.quantity,
+        p_type: 'venta',
+        p_reason: null,
+        p_ref_type: 'product_sale',
+        p_ref_id: venderSaleId,
+        p_user: null,
+      });
 
-      if (stockError?.code === '23514' || stockError?.message?.includes('check_products_stock_non_negative')) {
-        logger.error('[STOCK_NEGATIVE_BLOCKED]', { product_id: product.id, attempted_qty: toolInput.quantity, current_stock: product.stock });
-        return { success: false, error: 'Ya no hay stock suficiente de este producto.' };
-      }
-
-      if (stockError || !stockData || stockData.length === 0) {
-        logger.error('[VENDER_PRODUCTO_STOCK_UPDATE_FAILED]', { businessId, productId: product.id, error: stockError?.message });
+      if (stockError) {
+        if (stockError.message?.includes('STOCK_INSUFICIENTE_O_NO_ENCONTRADO')) {
+          logger.error('[STOCK_NEGATIVE_BLOCKED]', { product_id: product.id, attempted_qty: toolInput.quantity, current_stock: product.stock });
+          return { success: false, error: 'Ya no hay stock suficiente de este producto.' };
+        }
+        logger.error('[VENDER_PRODUCTO_STOCK_UPDATE_FAILED]', { businessId, productId: product.id, error: stockError.message });
         return { success: false, error: 'No se pudo actualizar el stock del producto' };
       }
 
@@ -4323,6 +4333,7 @@ async function executeTool(toolName, toolInput, businessId) {
       const { data: saleData, error: saleError } = await supabaseAdmin
         .from('product_sales')
         .insert({
+          id: venderSaleId,
           business_id: businessId,
           product_id: product.id,
           quantity: toolInput.quantity,
@@ -4859,7 +4870,36 @@ async function executeTool(toolName, toolInput, businessId) {
   }
 }
 
-async function processMessage(businessId, userMessage, conversationHistory = []) {
+// El historial llega del cliente: solo texto de usuario/asistente (nada de bloques de herramientas inyectados)
+function sanitizeHistory(history) {
+  return (Array.isArray(history) ? history : [])
+    .filter((m) => m && (m.role === 'user' || m.role === 'assistant') && typeof m.content === 'string')
+    .map((m) => ({ role: m.role, content: m.content.slice(0, 4000) }));
+}
+
+// Tienda: agente propio (servidor determinista + modelo pequeño solo para entender la intención).
+// Modelo configurable; por defecto el mismo Haiku que barbería.
+const STORE_MODEL = process.env.ASSISTANT_STORE_MODEL || 'claude-haiku-4-5-20251001';
+let storeAgent = null;
+function getStoreAgent() {
+  if (!storeAgent) {
+    const { createStoreAgent } = require('./storeAgent');
+    storeAgent = createStoreAgent({
+      // Parámetros específicos solo si el modelo los admite (esfuerzo, respaldo ante rechazos)
+      callModel: (params, caps) => {
+        const p = { ...params };
+        if (caps.effort) p.output_config = { effort: 'low' };
+        if (caps.fallbacks) {
+          return callClaudeWithRetry({ messages: { create: (x) => client.beta.messages.create(x) } }, { ...p, betas: ['server-side-fallback-2026-07-01'], fallbacks: 'default' });
+        }
+        return callClaudeWithRetry(client, p);
+      },
+    });
+  }
+  return storeAgent;
+}
+
+async function processMessage(businessId, userMessage, conversationHistory = [], session = {}) {
   logger.info('[processMessage] businessId recibido:', businessId);
   logger.info('[processMessage] userMessageLength:', userMessage?.length || 0);
   logger.info('[processMessage] historyLength:', conversationHistory.length);
@@ -4867,7 +4907,7 @@ async function processMessage(businessId, userMessage, conversationHistory = [])
   // Verificar límite de mensajes IA
   const { data: biz } = await supabaseAdmin
     .from('businesses')
-    .select('plan, ai_messages_today, ai_messages_date, trial_ends_at, plan_expires_at, name, business_type, address, phone, status')
+    .select('plan, ai_messages_today, ai_messages_date, trial_ends_at, plan_expires_at, name, business_type, address, phone, status, store_settings, slug')
     .eq('id', businessId)
     .single();
 
@@ -4915,6 +4955,20 @@ async function processMessage(businessId, userMessage, conversationHistory = [])
     avisoLimite = (mensajesRestantes <= 5 && mensajesRestantes > 0)
       ? `\n\n_(${mensajesRestantes} mensaje${mensajesRestantes !== 1 ? 's' : ''} disponible${mensajesRestantes !== 1 ? 's' : ''} hoy en tu plan)_`
       : '';
+  }
+
+  // Tienda: su propio flujo. Barbería y los demás negocios siguen exactamente igual.
+  if (isTiendaBusiness(biz)) {
+    const history = sanitizeHistory(conversationHistory).slice(-6);
+    const r = await getStoreAgent().handle({
+      businessId, business: biz, userMessage, history, authorization: session.authorization, model: STORE_MODEL,
+    });
+    return {
+      response: r.response + (avisoLimite || ''),
+      history: [...history, { role: 'user', content: String(userMessage || '') }, { role: 'assistant', content: r.response }].slice(-12),
+      actionsExecuted: [r.path],
+      usage: r.usage,
+    };
   }
 
   const today = new Date();
@@ -5011,7 +5065,7 @@ Cuando el usuario diga "hoy" usar exactamente: ${fechaISO}
 Cuando diga "mañana" usar: ${mananaISO}
 </fecha_actual>`;
 
-  const limitedConversationHistory = conversationHistory.slice(-8);
+  const limitedConversationHistory = sanitizeHistory(conversationHistory).slice(-8);
 
   // Límite de longitud contra amplificación de costo (max 2000 chars)
   const maxMessageLength = 2000;
@@ -5205,7 +5259,7 @@ Cuando diga "mañana" usar: ${mananaISO}
   };
 }
 
-module.exports = { processMessage };
+module.exports = { processMessage, sanitizeHistory, SYSTEM_PROMPT, tools, STORE_MODEL, executeTool };
 
 
 

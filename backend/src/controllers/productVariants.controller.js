@@ -1,9 +1,37 @@
 const { createUserClient, supabaseAdmin } = require('../config/supabase');
 const logger = require('../utils/logger');
 const { generarSku } = require('../utils/sku');
+feat/variantes-editar
 const {
   sanitizeAttributes, findDuplicate, duplicateMessage, parseMinStock, deleteDecision,
 } = require('../utils/variantRules');
+
+const { ownStockLossMessage } = require('../utils/inventoryHistory');
+const { findColorAttribute } = require('../utils/optionKey');
+const { planColorRename } = require('../utils/variantImages');
+const { comboKey } = require('../utils/bundles');
+
+const MAX_PHOTOS_PER_COLOR = 8;
+const CONTROL_CHARS = /[\u0000-\u001f\u007f]/g;
+
+// Atributos de una variante que llegan del panel: objeto plano, hasta 6 atributos, nombre 1–30 y valor 1–40
+// caracteres (texto o número), sin caracteres de control ni espacios repetidos.
+function parseVariantAttributes(raw) {
+  if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return { error: 'Los atributos deben ser un objeto válido.' };
+  const entries = Object.entries(raw);
+  if (entries.length === 0 || entries.length > 6) return { error: 'Una variante lleva entre 1 y 6 atributos.' };
+  const out = {};
+  for (const [k, v] of entries) {
+    if (typeof v !== 'string' && typeof v !== 'number') return { error: `El valor de «${String(k).slice(0, 30)}» debe ser texto.` };
+    const key = String(k).replace(CONTROL_CHARS, ' ').replace(/\s+/g, ' ').trim();
+    const value = String(v).replace(CONTROL_CHARS, ' ').replace(/\s+/g, ' ').trim();
+    if (!key || key.length > 30) return { error: 'El nombre de cada atributo debe tener entre 1 y 30 caracteres.' };
+    if (!value || value.length > 40) return { error: `El valor de «${key}» debe tener entre 1 y 40 caracteres.` };
+    out[key] = value;
+  }
+  return { attributes: out };
+}
+main
 
 // Misma fórmula que adjust_stock: products.stock = suma de variantes activas.
 // Se usa cuando cambia el conjunto de variantes activas sin mover unidades (activar/desactivar).
@@ -262,7 +290,21 @@ async function update(req, res) {
     if (getErr) throw getErr;
     if (!variant) return res.status(404).json({ success: false, error: 'Variante no encontrada.' });
 
+    // Activar una variante en un producto con stock propio (sin otras variantes activas) recalcularía el total con
+    // las variantes y borraría esas unidades: se bloquea (no se adivina a qué color/talla pertenecían).
+    if (is_active === true && variant.is_active === false) {
+      const [{ data: prod }, { count: others }] = await Promise.all([
+        supabaseAdmin.from('products').select('stock').eq('id', productId).eq('business_id', req.businessId).maybeSingle(),
+        supabaseAdmin.from('product_variants').select('id', { count: 'exact', head: true })
+          .eq('product_id', productId).eq('business_id', req.businessId).eq('is_active', true).neq('id', variantId),
+      ]);
+      const label = Object.values(variant.attributes || {}).filter(Boolean).join(' / ');
+      const block = ownStockLossMessage({ productStock: prod?.stock, otherActiveVariants: others || 0, variantLabel: label });
+      if (block) return res.status(409).json({ success: false, error: block, code: 'OWN_STOCK_WOULD_BE_LOST' });
+    }
+
     const updates = {};
+feat/variantes-editar
 
     if (attributes !== undefined) {
       const attrs = sanitizeAttributes(attributes);
@@ -273,6 +315,37 @@ async function update(req, res) {
       const dup = findDuplicate(attrs.attributes, siblings, variantId);
       if (dup) return res.status(409).json({ success: false, error: duplicateMessage(dup), code: 'VARIANT_DUPLICATE' });
       updates.attributes = attrs.attributes;
+
+    // Cambio de atributos (p. ej. el color): validado, sin duplicar otra variante del producto, y con plan para
+    // las fotos del color viejo (se mueven al nuevo, o se avisa si otra variante aún usa el color viejo)
+    let photoPlan = null;
+    if (attributes !== undefined) {
+      const parsed = parseVariantAttributes(attributes);
+      if (parsed.error) return res.status(400).json({ success: false, error: parsed.error });
+      const { data: siblings, error: sibErr } = await supabaseAdmin
+        .from('product_variants')
+        .select('id, attributes, is_active')
+        .eq('product_id', productId)
+        .eq('business_id', req.businessId)
+        .neq('id', variantId);
+      if (sibErr) throw sibErr;
+      const newCombo = comboKey(parsed.attributes);
+      if ((siblings || []).some((x) => comboKey(x.attributes) === newCombo)) {
+        return res.status(409).json({ success: false, code: 'VARIANT_EXISTS', error: `Ya existe otra variante ${Object.values(parsed.attributes).join(' / ')} en este producto (activa o inactiva).` });
+      }
+      const oldColor = findColorAttribute(variant.attributes);
+      const newColor = findColorAttribute(parsed.attributes);
+      if (oldColor && newColor) {
+        const { data: prod, error: pErr } = await supabaseAdmin
+          .from('products').select('option_images').eq('id', productId).eq('business_id', req.businessId).single();
+        if (pErr) throw pErr;
+        photoPlan = planColorRename({
+          oldValue: oldColor.value, newValue: newColor.value, others: siblings || [],
+          optionImages: prod.option_images || {}, maxPhotos: MAX_PHOTOS_PER_COLOR,
+        });
+      }
+      updates.attributes = parsed.attributes;
+main
     }
 
     let stockChange = 0;
@@ -319,13 +392,37 @@ async function update(req, res) {
         .update(updates)
         .eq('id', variantId)
         .eq('business_id', req.businessId);
+ feat/variantes-editar
       if (error?.code === '23505' && newSku) {
+
+      if (error?.code === '23505' && newSku && error.message?.includes('sku')) {
+ main
         return res.status(400).json({ success: false, error: `El SKU "${newSku}" ya está en uso por otra variante.` });
       }
       if (error) throw error;
     }
 
+ feat/variantes-editar
     // adjust_stock no lanza: devuelve { error } y hay que revisarlo
+
+    // Fotos del color: se mueven al nuevo nombre. Si no se pueden guardar, la variante vuelve a su color (todo o nada)
+    if (photoPlan?.action === 'move') {
+      const { error: imgErr } = await supabaseAdmin
+        .from('products')
+        .update({ option_images: photoPlan.optionImages })
+        .eq('id', productId)
+        .eq('business_id', req.businessId);
+      if (imgErr) {
+        logger.error(`productVariants.update option_images product=${productId}: ${imgErr.message}`);
+        const { error: revErr } = await sb.from('product_variants').update({ attributes: variant.attributes })
+          .eq('id', variantId).eq('business_id', req.businessId);
+        if (revErr) logger.error('productVariants.update revert attributes: ' + revErr.message);
+        return res.status(500).json({ success: false, error: 'No se pudieron mover las fotos del color; la variante conserva su color anterior. Intenta de nuevo.' });
+      }
+    }
+
+    // El stock se mueve solo vía adjust_stock: actualiza la variante, recalcula el padre y deja historial
+ main
     if (stockChange !== 0) {
       const { error: rpcError } = await supabaseAdmin.rpc('adjust_stock', {
         p_business_id: req.businessId,
@@ -351,10 +448,18 @@ async function update(req, res) {
       .from('product_variants').select('*').eq('id', variantId).eq('business_id', req.businessId).single();
     if (error) throw error;
 
+ feat/variantes-editar
     // Desactivar o cambiar el color/talla de una variante cambia lo que venden los sets que usan el producto
     const touchesSets = (updates.is_active === false && variant.is_active) || (updates.attributes && variant.is_active);
     const sets = touchesSets ? await setsUsing(productId, req.businessId) : [];
     return res.json({ success: true, data, ...(sets.length ? { affected_sets: sets, warning: setsWarning(sets) } : {}) });
+
+    // photos: qué pasó con las fotos del color ('move' | 'keep' | 'full' | 'none') y el mensaje para el panel
+    const photos = photoPlan && photoPlan.action !== 'none'
+      ? { action: photoPlan.action, from: photoPlan.oldKey, to: photoPlan.newKey, moved: photoPlan.moved, message: photoPlan.message }
+      : null;
+    return res.json({ success: true, data, ...(photos ? { photos } : {}) });
+ main
   } catch (err) {
     logger.error('productVariants.update: ' + err.message);
     return res.status(500).json({ success: false, error: 'Error al actualizar la variante.' });
@@ -465,6 +570,7 @@ async function uploadImage(req, res) {
 }
 
 module.exports = {
+  parseVariantAttributes,
   getAll,
   create,
   update,

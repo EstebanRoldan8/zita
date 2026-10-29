@@ -17,7 +17,10 @@ async function message(req, res) {
     }
 
     const { processMessage } = require('../services/assistant.service');
-    const result = await processMessage(businessId, userMessage, history || []);
+    // businessId y token SIEMPRE de la sesión (JWT); un business_id en el body o en el mensaje se ignora
+    const result = await processMessage(businessId, userMessage, history || [], {
+      authorization: req.headers.authorization,
+    });
 
     if (result.success === false) {
       return res.json({ success: false, error: result.error, code: result.code });

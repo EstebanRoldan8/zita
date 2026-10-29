@@ -1,4 +1,6 @@
 const { parseGender } = require('../utils/gender');
+const crypto = require('crypto');
+const { parseFilters, applyFilters, describeSource } = require('../utils/inventoryHistory');
 const { createUserClient, supabaseAdmin } = require('../config/supabase');
 const logger = require('../utils/logger');
 const { getTimezone } = require('../utils/timezone');
@@ -497,7 +499,7 @@ async function sell(req, res) {
     }
 
     const { data: product, error: pErr } = await sb
-      .from('products').select('*').eq('id', id).single();
+      .from('products').select('*').eq('id', id).eq('business_id', req.businessId).single();
     if (pErr || !product) return res.status(404).json({ success: false, error: 'Producto no encontrado.' });
     if (!product.is_active) return res.status(400).json({ success: false, error: 'El producto no está activo.' });
     if (product.is_bundle) {
@@ -528,6 +530,8 @@ async function sell(req, res) {
 
     const totalAmount = Number(product.price) * qty;
     let newStock;
+    // El movimiento de inventario queda enlazado al registro de la venta (product_sales.id)
+    const saleId = crypto.randomUUID();
 
     try {
       const { data: rpcData, error: rpcError } = await supabaseAdmin.rpc('adjust_stock', {
@@ -538,8 +542,8 @@ async function sell(req, res) {
         p_type: 'venta',
         p_reason: null,
         p_ref_type: 'product_sale',
-        p_ref_id: null,
-        p_user: null,
+        p_ref_id: saleId,
+        p_user: req.user?.id || null,
       });
       if (rpcError) throw rpcError;
       newStock = rpcData;
@@ -560,6 +564,7 @@ async function sell(req, res) {
     const { error: saleErr } = await sb
       .from('product_sales')
       .insert({
+        id:             saleId,
         business_id:    req.businessId,
         product_id:     id,
         variant_id:     variant_id || null,
@@ -791,12 +796,13 @@ async function loadOptionContext(sb, productId, businessId) {
       .from('product_variants')
       .select('id, attributes, is_active')
       .eq('product_id', productId)
-      .eq('business_id', businessId)
-      .eq('is_active', true);
+      .eq('business_id', businessId);
     if (vErr) throw vErr;
     variants = data || [];
   }
-  return { product, options: getColorOptions(variants, product.option_images || {}) };
+  // Panel: un grupo por CADA color de variante (activas e inactivas) y las fotos huérfanas (color que ya ninguna
+  // variante usa) para poder verlas y quitarlas
+  return { product, options: getColorOptions(variants, product.option_images || {}, { includeInactive: true, includeOrphans: true }) };
 }
 
 // Ruta interna en Storage solo si la URL es de este negocio en el bucket product-images
@@ -843,12 +849,12 @@ async function uploadOptionImages(req, res) {
     if (!product) return res.status(404).json({ success: false, error: 'Producto no encontrado.' });
     if (!product.is_active) return res.status(400).json({ success: false, error: 'El producto no está activo.' });
     if (!product.has_variants && !product.is_bundle) return res.status(400).json({ success: false, error: 'Este producto no tiene variantes.' });
-    if (options.length === 0) {
-      return res.status(400).json({ success: false, error: 'Las variantes activas de este producto no tienen un atributo «color».' });
+    if (!options.some((o) => !o.orphan)) {
+      return res.status(400).json({ success: false, error: 'Las variantes de este producto no tienen un atributo «color».' });
     }
-    const option = options.find((o) => o.key === key);
+    const option = options.find((o) => o.key === key && !o.orphan);
     if (!option) {
-      return res.status(400).json({ success: false, error: `No hay variantes activas con el color ${String(req.body.option).trim()}.` });
+      return res.status(400).json({ success: false, error: `No hay variantes con el color ${String(req.body.option).trim().slice(0, 40)}.` });
     }
     const current = (product.option_images || {})[key] || [];
     if (current.length + files.length > MAX_PHOTOS_PER_OPTION) {
@@ -1113,5 +1119,40 @@ async function getMovements(req, res) {
   }
 }
 
-module.exports = { getAll, getLowStock, getSales, getInventorySummary, create, update, toggleProduct, deactivate, deleteProduct, sell, uploadImage, uploadImages, deleteImage, restock, getMovements,
+// GET /api/products/movements — historial de inventario del negocio (todos los productos), con filtros y paginación.
+// ?tipo=venta|ajuste|devolucion|deshacer &product_id &variant_id &desde &hasta (YYYY-MM-DD) &page &limit
+async function getHistory(req, res) {
+  try {
+    const f = parseFilters(req.query);
+    let q = supabaseAdmin
+      .from('inventory_movements')
+      .select('id, product_id, variant_id, type, quantity_change, stock_after, reason, reference_type, reference_id, created_by, created_at', { count: 'exact' })
+      .eq('business_id', req.businessId);
+    q = applyFilters(q, f).order('created_at', { ascending: false }).range(f.from, f.to);
+    const { data: movs, error, count } = await q;
+    if (error) throw error;
+    const rows = movs || [];
+    const ids = (k) => [...new Set(rows.map((m) => m[k]).filter(Boolean))];
+    const orderIds = [...new Set(rows.filter((m) => /^order/.test(m.reference_type || '') && m.reference_id).map((m) => m.reference_id))];
+    const [prods, vars, ords] = await Promise.all([
+      ids('product_id').length ? supabaseAdmin.from('products').select('id, name').eq('business_id', req.businessId).in('id', ids('product_id')) : { data: [] },
+      ids('variant_id').length ? supabaseAdmin.from('product_variants').select('id, attributes, sku').eq('business_id', req.businessId).in('id', ids('variant_id')) : { data: [] },
+      orderIds.length ? supabaseAdmin.from('orders').select('id, source, client_name').eq('business_id', req.businessId).in('id', orderIds) : { data: [] },
+    ]);
+    const byId = (list) => Object.fromEntries((list.data || []).map((x) => [x.id, x]));
+    const P = byId(prods); const V = byId(vars); const O = byId(ords);
+    const data = rows.map((m) => ({
+      ...m,
+      product_name: P[m.product_id]?.name || 'Producto eliminado',
+      variant: m.variant_id ? (V[m.variant_id] || null) : null,
+      ...describeSource(m, O),
+    }));
+    return res.json({ success: true, data, page: f.page, limit: f.limit, total: count || 0 });
+  } catch (err) {
+    logger.error('products.getHistory: ' + err.message);
+    return res.status(500).json({ success: false, error: 'Error al obtener el historial de inventario.' });
+  }
+}
+
+module.exports = { getAll, getLowStock, getSales, getInventorySummary, create, update, toggleProduct, deactivate, deleteProduct, sell, uploadImage, uploadImages, deleteImage, restock, getMovements, getHistory,
   getOptionImages, uploadOptionImages, deleteOptionImage, setOptionCover };

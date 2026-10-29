@@ -10,32 +10,41 @@
 // `background`; isLightColor() no lo reconoce como hex y le pone el borde sutil.
 const bicolor = (a, b) => `linear-gradient(90deg, ${a} 50%, ${b} 50%)`;
 
-// Nombre de color normalizado (minúsculas, sin tildes, trim) → hex (o gradiente si es bicolor).
-// Color desconocido => círculo stone con borde + tooltip con el nombre (nunca rompe).
+// ÚNICO mapa de colores de la tienda (bolitas de tarjetas, ficha, carrusel, "Producto ícono", filtros y drops).
+// Clave = nombre normalizado (minúsculas, sin tildes, guiones como espacio, trim) → hex real de la prenda en las fotos
+// (o gradiente si es bicolor). Los alias van en la misma tabla. Un color fuera del mapa se ve como NEUTRAL_COLOR.
+export const NEUTRAL_COLOR = '#B8B8B8';
 export const colorMap = {
   negro: '#1C1C1C',
-  azul: '#1F3A8A',
-  'azul noche': '#19212C',
+  'negro viejo': '#2B2B2B',
+  blanco: '#FFFFFF',
+  gris: '#A3A9AF',
+  'cool grey': '#A3A9AF',
+  azul: '#1E4C8A',
   'azul rey': '#1D3FA8',
-  'vino tinto': '#5C1923',
-  merlot: '#5C1923',
-  rojo: '#B3202A',
-  beige: '#D8C6A8',
+  'azul noche': '#19212C',
+  'azul claro': '#86A9D6',
+  'azul cielo': '#A9D4EC',
+  rojo: '#C62828',
+  'vino tinto': '#6E1A2B',
+  vino: '#6E1A2B',
+  merlot: '#6E1A2B',
+  beige: '#D6BE9F',
   arena: '#D9CFC3',
   nude: '#D2B8A3',
+  cafe: '#A67B5B',
+  verde: '#1F8A4C',
+  'verde oliva': '#5F7457',
+  'verde olivo': '#5F7457',
   'verde rocio': '#BFDB95',
   'verde limon': '#C8E04A',
-  gris: '#9A9CA0',
-  'cool grey': '#9A9CA0',
-  lavanda: '#AE9BB7',
-  lavander: '#AE9BB7',
-  blanco: '#FFFFFF',
-  verde: '#5E8C5A',
-  'verde oliva': '#6B6B3A',
-  'azul claro': '#8DB6DD',
-  cafe: '#6B4A36',
-  amarillo: '#E8C547',
-  'negro viejo': '#2B2B2B',
+  lavanda: '#C3AEE0',
+  lavander: '#C3AEE0',
+  lila: '#CDB4E3',
+  rosa: '#F5BFB2',
+  fucsia: '#DD4F78',
+  naranja: '#F59A3C',
+  amarillo: '#F3D54E',
 };
 colorMap['negro/azul'] = bicolor(colorMap.negro, colorMap.azul);
 colorMap['negro/gris'] = bicolor(colorMap.negro, colorMap.gris);
@@ -62,35 +71,27 @@ const RENACER = {
   // Bloques editoriales en orden. `accent` = palabra que va en color stone (comillas incluidas, si las lleva).
   storytelling: [
     {
-      lines: ['FLOW nace para empoderar a las personas a través del movimiento y ayudarlas a conectar con su esencia y su “FLOW”.'],
-      accent: '“FLOW”', // las dos comillas van dentro del resaltado (mismo color que la palabra)
-    },
-    {
       lines: [
-        'Si la marca nació como energía, rebeldía y movimiento consciente. RENACER es esa energía después del proceso.',
-        'Más madura. Más estructurada. Más firme.',
+        'RENACER representa el nuevo capítulo de FLOW. No volvemos desde cero, volvemos con más claridad, fuerza e intención.',
+        'Después de las pausas, los aprendizajes y el crecimiento, elegimos evolucionar sin perder nuestra esencia.',
       ],
     },
     {
-      lines: [
-        'RENACER representa el nuevo capítulo de FLOW.',
-        'No es un comienzo desde cero, sino un regreso consciente después de pausas, aprendizajes y crecimiento.',
-        'Esta colección nace desde la emoción, la honestidad y la decisión de hacerlo diferente.',
-      ],
+      italic: true,
+      lines: ['No se trata de ser alguien diferente, sino de volver más consciente, más fuerte y más fiel a quien eres.'],
     },
     {
-      lines: ['No se trata de cambiar quién eres. Se trata de volver más fuerte, más consciente y más alineado.'],
-      list: ['Volver después de una pausa', 'Superar una etapa', 'Subir el nivel', 'Elegirte con más claridad'],
-    },
-    {
-      quote: true,
-      lines: ['Hubo pausas, crecimiento, aprendizajes… y hoy volvemos con intención.'],
-      accent: 'intención',
-    },
-    {
-      lines: ['FLOW renace porque nosotras también estamos renaciendo. Y esta colección es el reflejo de ese proceso: movimiento, intención y evolución.'],
+      lines: ['FLOW renace porque nosotras también estamos renaciendo. Y esta colección es el reflejo de ese proceso.'],
     },
   ],
+  // Foto de campaña junto al texto de RENACER (WebP 800/1200 px en public/flow/campana/)
+  storyImage: {
+    src: '/flow/campana/renacer-800.webp',
+    srcSet: '/flow/campana/renacer-800.webp 800w, /flow/campana/renacer-1200.webp 1200w',
+    width: 800,
+    height: 1200,
+    alt: 'Modelo de FLOW con top y licra azul noche sosteniendo una pelota de pilates frente a un muro color terracota',
+  },
   values: ['Empoderamiento', 'Valentía', 'Calidad', 'Versatilidad', 'Simplicidad'],
   // Toda la colección sale completa el mismo día: las cápsulas son solo agrupaciones narrativas.
   capsules: [

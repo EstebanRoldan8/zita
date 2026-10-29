@@ -10,6 +10,7 @@ import { storeApi } from '../lib/storeApi';
 import { formatCOP, attrValue, optionKey, COLOR_KEYS, SIZE_KEYS } from '../lib/format';
 import { COPY } from '../lib/copy';
 import { POLICIES, sizeGuide, sizeGuideTablesFor } from '../lib/policies';
+import { NEUTRAL_COLOR } from '../content/flowContent';
 import { normalize, getActiveCollection, productsInCollection, colorHex, isLightColor, productType, typePath, garmentTypesOf } from '../lib/collections';
 import { useCatalog } from '../hooks/useCatalog';
 import ProductCard, { CAROUSEL_SIZES } from '../components/ProductCard';
@@ -237,7 +238,7 @@ export default function ProductPage() {
                       <input type="radio" name="flow-color" value={c.key} checked={colorKey === c.key}
                         onChange={() => setColorKey(c.key)} aria-label={`${c.name}${c.available ? '' : ' (agotado)'}`} />
                       <span className="flow-swatch-fill" aria-hidden="true"
-                        style={{ background: hex || 'var(--flow-stone)', borderColor: hex && !isLightColor(hex) ? 'transparent' : 'var(--flow-stone)' }} />
+                        style={{ background: hex || NEUTRAL_COLOR, borderColor: hex && !isLightColor(hex) ? 'transparent' : 'var(--flow-stone)' }} />
                     </label>
                   );
                 })}

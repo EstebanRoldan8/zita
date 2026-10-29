@@ -211,7 +211,9 @@ function StoryBlock({ block }) {
   return (
     <div ref={ref} className={`flow-reveal ${visible ? 'is-visible' : ''} ${block.quote ? 'py-6' : ''}`}>
       {block.lines.map((line, i) => (
-        <p key={i} className={block.quote
+        <p key={i} className={block.italic
+          ? 'flow-serif text-2xl italic leading-snug md:text-4xl'
+          : block.quote
           ? 'flow-serif text-3xl leading-snug md:text-5xl'
           : i === 0 ? 'flow-serif text-2xl leading-snug md:text-4xl' : 'mt-4 text-base leading-relaxed opacity-80 md:text-lg'}>
           <Accented text={line} accent={i === block.lines.length - 1 ? block.accent : null} />
@@ -229,11 +231,20 @@ function StoryBlock({ block }) {
 export function Storytelling({ collection }) {
   const blocks = (collection?.storytelling || []).filter((b) => b && Array.isArray(b.lines) && b.lines.length);
   if (blocks.length === 0) return null;
+  const img = collection.storyImage;
   return (
     <section className="bg-flow-black text-flow-white flow-on-dark" aria-label={`Historia de ${collection.name}`}>
-      <div className="mx-auto max-w-3xl space-y-16 px-6 py-20 md:space-y-24 md:py-32">
-        <p className="flow-collection-name text-flow-stone text-xl">{collection.name}</p>
-        {blocks.map((b, i) => <StoryBlock key={i} block={b} />)}
+      <div className={`mx-auto px-6 py-20 md:py-32 ${img ? 'max-w-6xl md:grid md:grid-cols-2 md:items-center md:gap-16' : 'max-w-3xl'}`}>
+        <div className="space-y-12 md:space-y-16">
+          <h2 className="flow-collection-name text-flow-stone text-xl">{collection.name}</h2>
+          {blocks.map((b, i) => <StoryBlock key={i} block={b} />)}
+        </div>
+        {img && (
+          <div className="mx-auto mt-14 w-full max-w-sm md:mt-0 md:max-w-none" style={{ aspectRatio: `${img.width} / ${img.height}` }}>
+            <img src={img.src} srcSet={img.srcSet} sizes="(min-width: 768px) 45vw, 90vw" width={img.width} height={img.height}
+              alt={img.alt} loading="lazy" decoding="async" className="h-full w-full object-cover" />
+          </div>
+        )}
       </div>
     </section>
   );

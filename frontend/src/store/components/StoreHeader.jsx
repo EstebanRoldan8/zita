@@ -161,7 +161,7 @@ export default function StoreHeader() {
                     {nav.drops.map((d) => (
                       <li key={d.slug}>
                         <Link to={d.href} onClick={closeAll} className="inline-flex items-center gap-3 hover:underline">
-                          <ColorDot name={d.colors[0]} hex={d.palette?.bg} size={12} label={false} /> {d.name}
+                          <ColorDot name={d.colors[0]} size={12} label={false} /> {d.name}
                         </Link>
                       </li>
                     ))}
@@ -214,7 +214,7 @@ export default function StoreHeader() {
                       {nav.drops.map((d) => (
                         <li key={d.slug}>
                           <Link to={d.href} onClick={closeAll} className="flex items-center gap-3 py-2 text-sm">
-                            <ColorDot name={d.colors[0]} hex={d.palette?.bg} size={12} label={false} /> {d.name}
+                            <ColorDot name={d.colors[0]} size={12} label={false} /> {d.name}
                           </Link>
                         </li>
                       ))}

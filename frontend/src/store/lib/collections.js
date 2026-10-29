@@ -342,7 +342,7 @@ export function sizesOf(products) {
 export function colorsIn(products) {
   const map = new Map();
   for (const p of arr(products)) {
-    for (const c of colorsOfProduct(p)) if (!map.has(c.key)) map.set(c.key, { key: c.key, name: c.name, hex: colorHex(c.key) });
+    for (const c of colorsOfProduct(p)) if (!map.has(c.key)) map.set(c.key, { key: c.key, name: c.name, hex: colorHex(c.name) || colorHex(c.key) });
   }
   return [...map.values()].sort((a, b) => a.name.localeCompare(b.name, 'es'));
 }

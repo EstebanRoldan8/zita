@@ -3,7 +3,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { flowContent } from '../src/store/content/flowContent.js';
-import { productsInSection, getSection, productTypes, productTypesOf, garmentOf, productGender } from '../src/store/lib/collections.js';
+import { productsInSection, getSection, productTypes, productTypesOf, garmentOf, productGender, productsInArchive, filterProducts } from '../src/store/lib/collections.js';
 
 const P = (id, name, category, gender, extra = {}) => ({ id, name, category, gender, ...extra });
 const catalog = [
@@ -62,4 +62,43 @@ test('productGender valida; sin gender la sección usa el criterio anterior por 
 
 test('las secciones del contenido declaran su género', () => {
   assert.deepEqual(flowContent.sections.map((s) => s.gender), ['mujer', 'hombre']);
+});
+
+// Las 4 Jolie de FLOW (Flow Archive, mujer), las camisetas de hombre del Archive y el resto del catálogo real
+const FLOW = [
+  ...['Jolie Ballena', 'Jolie Flow Club', 'Jolie Flow Active', 'Jolie Sol'].map((n, i) => P(`j${i}`, n, 'Flow Archive', 'mujer')),
+  ...['Camiseta Bandera Flow', 'Camiseta Circulo', 'Camiseta Cuadro', 'Camiseta Make Waves', 'Camiseta Find The Good', 'Camiseta Flow Club'].map((n, i) => P(`c${i}`, n, 'Flow Archive', 'hombre')),
+  ...['Crop top Cuadro', 'Crop Top Arte de fluir', 'Crop Top Pura Vida', 'Crop Top Flow Cursiva'].map((n, i) => P(`k${i}`, n, 'Flow Archive', 'mujer')),
+  P('a1', 'Licra Liva', 'Flow Archive', 'mujer'), P('a2', 'Short Liva', 'Flow Archive', 'mujer'),
+  P('t1', 'Top Aria', 'Tops', 'mujer'), P('o1', 'Oversize Renacer', 'Unisex', 'hombre'), P('p1', 'Pantaloneta Nila', 'Hombre', 'hombre'),
+];
+const unique = (list) => new Set(list.map((p) => p.id)).size === list.length;
+
+test('Jolie: Camisetas por el nombre y sigue en Flow Archive (la categoría no cambia)', () => {
+  for (const p of FLOW.filter((x) => x.name.startsWith('Jolie'))) {
+    assert.deepEqual(productTypesOf(p), ['Camisetas', 'Flow Archive'], p.name);
+    assert.equal(p.category, 'Flow Archive');
+  }
+});
+
+test('Mujer → Camisetas: las 4 Jolie; Hombre → Camisetas: solo las camisetas de hombre', () => {
+  const m = filterProducts(productsInSection(FLOW, mujer), { category: 'Camisetas' });
+  const h = filterProducts(productsInSection(FLOW, hombre), { category: 'Camisetas' });
+  assert.deepEqual(names(m).sort(), ['Jolie Ballena', 'Jolie Flow Active', 'Jolie Flow Club', 'Jolie Sol']);
+  assert.ok(names(h).every((n) => n.startsWith('Camiseta ')) && h.length === 6, names(h).join(', '));
+});
+
+test('Flow Archive conserva sus 16 productos y ninguna lista repite productos', () => {
+  const archive = productsInArchive(FLOW);
+  assert.equal(archive.length, 16);
+  assert.ok(unique(archive));
+  assert.ok(unique(filterProducts(FLOW, { category: 'Flow Archive' })));
+  assert.equal(filterProducts(FLOW, { category: 'Flow Archive' }).length, 16);
+  // "Ver todo": cada producto una vez; Camisetas cuenta 10 (6 de hombre + 4 Jolie), sin repetir
+  assert.ok(unique(filterProducts(FLOW, {})));
+  assert.equal(filterProducts(FLOW, {}).length, FLOW.length);
+  const camis = filterProducts(FLOW, { category: 'Camisetas' });
+  assert.equal(camis.length, 10);
+  assert.ok(unique(camis));
+  assert.equal(productTypes(FLOW, { archive: false }).find((t) => t.name === 'Camisetas').count, 10);
 });

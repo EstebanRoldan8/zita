@@ -191,12 +191,9 @@ export const flowContent = {
     email: 'flowactivewear.co@gmail.com', // correo de contacto: footer, Ayuda (Contacto) y datos de la organización (SEO)
     city: null,
   },
-  // Titular de la marca (Información del vendedor y textos legales). notificationAddress reemplaza
-  // [DIRECCIÓN DE NOTIFICACIONES] del Word: PENDIENTE de confirmar con el abogado.
+  // Vendedor en los textos legales: solo datos de la marca (sin datos personales de la titular).
+  // notificationAddress reemplaza [DIRECCIÓN DE NOTIFICACIONES] del Word: PENDIENTE de confirmar con el abogado.
   seller: {
-    legalName: 'LIZETH NATALIA LOPEZ PEREZ',
-    nit: '1.144.052.790-7',
-    matricula: '1220888',
     notificationAddress: 'Santiago de Cali; notificaciones al correo flowactivewear.co@gmail.com',
   },
   // Formulario de PQR (p. ej. Google Forms). Vacío = la sección PQR muestra solo WhatsApp y correo.
@@ -243,7 +240,7 @@ No se trata de cambiar quién eres. Se trata de volver más fuerte, más conscie
 Ropa deportiva y de lifestyle diseñada para acompañarte antes, durante y después de entrenar. Prendas simples, cómodas y versátiles para que te muevas a tu ritmo.`,
   faq: [
     { q: '¿Cómo hago mi pedido?', a: 'Eliges tus prendas, color y talla, las agregas a la bolsa y finalizas el pedido con tus datos de envío.\nDespués te escribimos por WhatsApp para confirmar el pedido y coordinar el pago.' },
-    { q: '¿Las prendas de RENACER se repiten?', a: 'Cada color es un drop. Cuando una talla o un color se agota, puede no volver a estar disponible.\nSi quieres enterarte primero de lo que viene, únete a Flow Club por WhatsApp.' },
+    { q: '¿Las prendas de RENACER se repiten?', a: 'Cada color es un drop. Cuando una talla o un color se agota, puede no volver a estar disponible.\nSi quieres enterarte primero de lo que viene, únete al canal de WhatsApp de Flow Club.' },
     { q: '¿Cómo puedo cambiar una prenda?', a: 'Escríbenos por WhatsApp con tu número de pedido y te ayudamos. Las condiciones están en la sección de Cambios y devoluciones.' },
   ],
   // Guía de tallas (página /guia-de-tallas, footer, Ayuda y ficha de producto). Una tabla por tipo de prenda:
@@ -314,6 +311,7 @@ Ropa deportiva y de lifestyle diseñada para acompañarte antes, durante y despu
   club: {
     title: 'Flow Club',
     text: 'Entérate primero de lo que viene',
-    whatsappMessage: 'Hola FLOW, quiero unirme al Flow Club y enterarme primero de lo que viene.',
+    // Canal de WhatsApp de Flow Club: fuente única (footer y banda de la portada). Se abre en pestaña nueva.
+    channelUrl: 'https://whatsapp.com/channel/0029VbDv4UrHwXb2hhqaES2m',
   },
 };

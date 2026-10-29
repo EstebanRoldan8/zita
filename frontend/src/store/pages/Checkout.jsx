@@ -10,6 +10,7 @@ import { privateSeo } from '../lib/seo';
 import { storeApi } from '../lib/storeApi';
 import { formatCOP, normalizePhone, isEmail, newIdempotencyKey, shippingFor, isLocalCity, hasLocalRate } from '../lib/format';
 import { COPY, PRIVACY_NOTICE } from '../lib/copy';
+import SetDiscountRow from '../components/SetDiscountRow';
 import { methodsFor, PAYMENT_OPTIONS } from '../lib/paymentMethods';
 
 // Orden visual de los campos (para llevar el scroll al primer error) y su id en el DOM
@@ -59,7 +60,7 @@ export default function Checkout() {
   const path = useStorePath();
   const navigate = useNavigate();
   const qc = useQueryClient();
-  const { lines, subtotal, clear, remove, setQuantity } = useCart();
+  const { lines, subtotal, discount, netSubtotal, clear, remove, setQuantity } = useCart();
   const { loading: validating, issues, blocking } = useBagValidation(slug, lines, true);
   useSeo(privateSeo(COPY.checkout));
 
@@ -106,7 +107,8 @@ export default function Checkout() {
   };
   const blur = (k) => () => setTouched((t) => ({ ...t, [k]: true }));
 
-  const shipping = shippingFor(store, subtotal, form.city);
+  // Envío gratis con el subtotal YA descontado (igual que el servidor)
+  const shipping = shippingFor(store, netSubtotal, form.city);
   const local = isLocalCity(store, form.city);
   // Con tarifa local configurada el envío depende de la ciudad: sin ciudad escrita no se muestra un valor
   const shippingPending = hasLocalRate(store) && form.city.trim().length < 2 && shipping !== 0;
@@ -348,6 +350,7 @@ export default function Checkout() {
               </ul>
               <hr className="flow-rule my-4" />
               <div className="flex justify-between text-sm"><span>Subtotal</span><span>{formatCOP(subtotal)}</span></div>
+              <SetDiscountRow amount={discount} />
               <div className="mt-2 flex justify-between gap-3 text-sm">
                 <span>Envío</span>
                 <span className="text-right">{shippingPending ? 'Se calcula con tu ciudad' : shipping === 0 ? 'Gratis' : formatCOP(shipping)}</span>
@@ -356,7 +359,7 @@ export default function Checkout() {
                 <p className="mt-1 text-xs text-flow-muted">Gratis desde {formatCOP(store.free_shipping_from)}.</p>
               )}
               <hr className="flow-rule my-4" />
-              <div className="flex justify-between"><span className="flow-label">Total</span><span>{formatCOP(shippingPending ? subtotal : subtotal + shipping)}</span></div>
+              <div className="flex justify-between"><span className="flow-label">Total</span><span>{formatCOP(shippingPending ? netSubtotal : netSubtotal + shipping)}</span></div>
               <p className="mt-2 text-xs text-flow-muted">
                 {shippingPending ? 'Más el envío, que se calcula con tu ciudad. ' : ''}El total final lo calcula la tienda al recibir tu pedido.
               </p>
@@ -388,12 +391,13 @@ export default function Checkout() {
                 ))}
               </ul>
               <div className="mt-4 flex justify-between text-sm"><span>Subtotal</span><span>{formatCOP(subtotal)}</span></div>
+              <SetDiscountRow amount={discount} />
               <div className="mt-2 flex justify-between gap-4 text-sm">
                 <span className="min-w-0 break-words">Envío a {form.city.trim()}</span>
                 <span className="flex-shrink-0">{shipping === 0 ? 'Gratis' : formatCOP(shipping)}</span>
               </div>
               <hr className="flow-rule my-4" />
-              <div className="flex justify-between"><span className="flow-label">Total a pagar</span><span>{formatCOP(subtotal + shipping)}</span></div>
+              <div className="flex justify-between"><span className="flow-label">Total a pagar</span><span>{formatCOP(netSubtotal + shipping)}</span></div>
               <p className="mt-3 text-sm">
                 <span className="font-medium">Plazo estimado de entrega:</span>{' '}
                 {local ? COPY.deliveryLocal : COPY.deliveryNational}.

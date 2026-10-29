@@ -67,6 +67,7 @@ const PAYMENT_METHODS = ['efectivo', 'transferencia', 'nequi', 'daviplata', 'tar
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 // status <> 'cancelado' excluiría filas con status NULL (pedidos viejos): se incluyen explícitamente
 const NOT_CANCELLED = 'status.is.null,status.neq.cancelado';
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 // undefined = no viene (no se toca); null o '' = se limpia; texto = se valida y recorta
 function parseOptionalText(value, max, label) {
@@ -822,6 +823,89 @@ async function updateShipping(req, res) {
   }
 }
 
+// Estados en los que el panel deja editar el descuento (no se toca un pedido cancelado o entregado)
+const DISCOUNT_LOCKED_STATUSES = ['cancelado', 'entregado'];
+
+// PATCH /:id/discount — descuento en pesos de un pedido ya creado. No toca el stock.
+// El servidor recalcula total = subtotal (de sus order_items) + envío − descuento; nunca usa un total del body.
+// Si el pedido está pagado (tienda), el ingreso en caja se actualiza al nuevo total neto.
+async function updateDiscount(req, res) {
+  try {
+    const sb = createUserClient(req.headers.authorization);
+    const { id } = req.params;
+    if (!UUID_RE.test(String(id))) return res.status(404).json({ success: false, error: 'Pedido no encontrado.' });
+
+    const { data: order, error: getError } = await sb
+      .from('orders')
+      .select('id, business_id, status, total_amount, discount_amount, shipping_cost, payment_status, client_name, client_id, order_items(quantity, unit_price)')
+      .eq('id', id)
+      .eq('business_id', req.businessId)
+      .maybeSingle();
+    if (getError || !order) return res.status(404).json({ success: false, error: 'Pedido no encontrado.' });
+    if (DISCOUNT_LOCKED_STATUSES.includes(order.status)) {
+      return res.status(400).json({ success: false, error: `No se puede cambiar el descuento de un pedido ${order.status}.` });
+    }
+
+    const subtotal = computeTotals(order.order_items || []).subtotal;
+    const shipping = Number(order.shipping_cost) || 0;
+    const disc = parseDiscount(req.body?.discount_amount, subtotal + shipping, 'el subtotal más el envío');
+    if (disc.error) return res.status(400).json({ success: false, error: disc.error });
+    const total = computeTotals(order.order_items || [], { shipping, discount: disc.discount }).total;
+    if (disc.discount === Number(order.discount_amount || 0) && total === Number(order.total_amount)) {
+      return res.json({ success: true, data: order });
+    }
+
+    const { data, error } = await sb
+      .from('orders')
+      .update({ discount_amount: disc.discount, total_amount: total, updated_at: new Date().toISOString() })
+      .eq('id', id)
+      .eq('business_id', req.businessId)
+      .not('status', 'in', `(${DISCOUNT_LOCKED_STATUSES.join(',')})`)
+      .select();
+    if (error) throw error;
+    if (!data || data.length === 0) {
+      return res.status(400).json({ success: false, error: 'El pedido cambió de estado y ya no admite cambios de descuento.' });
+    }
+
+    // Caja: un pedido pagado tiene su ingreso con el total neto; se ajusta a la nueva cifra (misma fecha)
+    if (isTiendaBusiness(req.business) && order.payment_status === 'pagado') {
+      try {
+        await syncPaidIncome(sb, { ...order, ...data[0] }, req.business?.country);
+      } catch (accErr) {
+        logger.error(`orders.updateDiscount accounting order=${id}: ${accErr.message}`);
+        const { error: revertErr } = await sb.from('orders')
+          .update({ discount_amount: order.discount_amount, total_amount: order.total_amount })
+          .eq('id', id).eq('business_id', req.businessId);
+        if (revertErr) logger.error('orders.updateDiscount revert: ' + revertErr.message);
+        return res.status(500).json({ success: false, error: 'No se pudo actualizar el ingreso en caja. El descuento no se guardó; intenta de nuevo.' });
+      }
+    }
+
+    // Registro de quién y cuándo (sin datos del cliente)
+    logger.info(`[orders] descuento order=${id} user=${req.user?.id || 'desconocido'} ${Number(order.discount_amount || 0)}→${disc.discount}`);
+    return res.json({ success: true, data: data[0] });
+  } catch (err) {
+    logger.error('orders.updateDiscount: ' + err.message);
+    return res.status(500).json({ success: false, error: 'Error al actualizar el descuento del pedido.' });
+  }
+}
+
+// Ingreso en caja de un pedido pagado = su total neto. Total 0 → sin ingreso (CHECK amount > 0).
+async function syncPaidIncome(sb, order, country) {
+  const amount = Number(order.total_amount) || 0;
+  const { data: rows, error } = await sb.from('income').select('id').eq('order_id', order.id).eq('business_id', order.business_id);
+  if (error) throw error;
+  if (!rows || rows.length === 0) {
+    if (amount > 0) await recordOrderAccounting(sb, order, country);
+    return;
+  }
+  const q = amount > 0
+    ? sb.from('income').update({ amount }).eq('order_id', order.id).eq('business_id', order.business_id)
+    : sb.from('income').delete().eq('order_id', order.id).eq('business_id', order.business_id);
+  const { error: upErr } = await q;
+  if (upErr) throw upErr;
+}
+
 module.exports = {
-  getAll, getById, create, updateStatus, deleteOrder, updatePayment, updateShipping,
+  getAll, getById, create, updateStatus, deleteOrder, updatePayment, updateShipping, updateDiscount,
 };

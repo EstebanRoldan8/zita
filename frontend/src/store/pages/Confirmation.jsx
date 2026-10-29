@@ -10,6 +10,7 @@ import { COPY } from '../lib/copy';
 import { flowContent } from '../content/flowContent';
 import { paymentLabel, paymentShort } from '../lib/paymentMethods';
 import { ErrorState } from '../components/States';
+import SetDiscountRow from '../components/SetDiscountRow';
 
 // Confirmación. Llega con el pedido en location.state; si se recarga, consulta el estado público.
 export default function Confirmation() {
@@ -47,6 +48,9 @@ export default function Confirmation() {
   const source = fresh ? asObject(fresh.order) : asObject(status.data);
   const code = asString(source.code, '');
   const total = source.total;
+  // Descuento por set que calculó el servidor (0 si no hubo)
+  const discount = Number(source.discount) || 0;
+  const discountLabel = asString(source.discount_label, '') || undefined;
   const statusLabel = STATUS_LABELS[source.status] || 'Recibido';
   const items = fresh
     ? asArray(fresh.lines).filter(Boolean).map((l) => ({ text: `${asString(l.name, 'Producto')}${[l.color, l.size].filter(Boolean).length ? ` (${[l.color, l.size].filter(Boolean).join(' / ')})` : ''}`, quantity: l.quantity }))
@@ -57,7 +61,7 @@ export default function Confirmation() {
   const method = fresh ? fresh.payment_method : source.payment_method;
   const waNumber = String(store.whatsapp_number || flowContent.brand.whatsapp || '').replace(/[^0-9]/g, '');
   const whatsappUrl = waNumber
-    ? `https://wa.me/${waNumber}?text=${encodeURIComponent(`Hola FLOW, hice el pedido ${code}${paymentShort(method) ? ` (pago por ${paymentShort(method)})` : ''} y quiero recibir los datos de pago.`)}`
+    ? `https://wa.me/${waNumber}?text=${encodeURIComponent(`Hola FLOW, hice el pedido ${code}${paymentShort(method) ? ` (pago por ${paymentShort(method)})` : ''} y quiero recibir los datos de pago.${discount > 0 ? ` ${discountLabel || 'Descuento por set'}: -${formatCOP(discount)}. Total: ${formatCOP(total)}.` : ''}`)}`
     : null;
 
   return (
@@ -73,6 +77,7 @@ export default function Confirmation() {
           ))}
         </ul>
         <hr className="flow-rule my-4" />
+        <SetDiscountRow amount={discount} label={discountLabel} className="mb-2" />
         {fresh && (
           <div className="mb-2 flex justify-between text-sm">
             <span>Envío</span><span>{Number(fresh.order.shipping_cost) === 0 ? 'Gratis' : formatCOP(fresh.order.shipping_cost)}</span>

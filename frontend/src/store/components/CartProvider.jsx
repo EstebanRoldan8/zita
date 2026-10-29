@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { CartContext } from '../hooks/cartContext';
 import { MAX_LINES, lineKey, readBag, writeBag } from '../lib/bagStorage';
+import { setDiscount } from '../lib/setPromo';
 
 // Bolsa por tienda en localStorage (lib/bagStorage.js descarta líneas dañadas al leer).
 // Cada línea guarda solo lo necesario para mostrarla; el precio es informativo
@@ -39,7 +40,9 @@ export default function CartProvider({ slug, children }) {
   const value = useMemo(() => {
     const count = lines.reduce((s, l) => s + l.quantity, 0);
     const subtotal = lines.reduce((s, l) => s + (Number(l.price) || 0) * l.quantity, 0);
-    return { lines, count, subtotal, add, setQuantity, update, remove, clear, open, setOpen, isFull: lines.length >= MAX_LINES };
+    // Descuento por set (estimado); netSubtotal = subtotal − descuento, base del envío gratis
+    const discount = setDiscount(lines).amount;
+    return { lines, count, subtotal, discount, netSubtotal: subtotal - discount, add, setQuantity, update, remove, clear, open, setOpen, isFull: lines.length >= MAX_LINES };
   }, [lines, add, setQuantity, update, remove, clear, open]);
 
   return <CartContext.Provider value={value}>{children}</CartContext.Provider>;

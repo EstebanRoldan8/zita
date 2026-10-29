@@ -12,6 +12,7 @@ import { useSearchParams } from 'react-router-dom';
 import RestockModal from '../../components/inventory/RestockModal';
 import { ColorPhotosEdit, ColorPhotosCreate } from '../../components/products/ColorPhotos';
 import BundleModal from '../../components/products/BundleModal';
+import VariantList from '../../components/products/VariantList';
 import { getColorOptions } from '../../lib/optionKey';
 import MovementsModal from '../../components/inventory/MovementsModal';
 import InventoryHistory from '../../components/inventory/InventoryHistory';
@@ -276,7 +277,7 @@ function ProductModal({ initial, onClose, onSave, isTienda }) {
   useEffect(() => {
     if (isEdit && hasVariants) {
       setLoadingVariants(true);
-      api.get(`/api/products/${initial.id}/variants`)
+      api.get(`/api/products/${initial.id}/variants?include_inactive=1`)
         .then(r => setVariants(r.data?.data || []))
         .catch(err => console.error('Error loading variants:', err))
         .finally(() => setLoadingVariants(false));
@@ -390,7 +391,7 @@ function ProductModal({ initial, onClose, onSave, isTienda }) {
         } else {
           setLoadingVariants(true);
           try {
-            const variantsRes = await api.get(`/api/products/${initial.id}/variants`);
+            const variantsRes = await api.get(`/api/products/${initial.id}/variants?include_inactive=1`);
             setVariants(variantsRes.data?.data || []);
           } catch (varErr) {
             console.error('Error reloading variants:', varErr);
@@ -857,7 +858,11 @@ function ProductModal({ initial, onClose, onSave, isTienda }) {
                 <p className="text-slate-500 text-sm text-center py-4">Cargando variantes...</p>
               ) : (
                 <>
-                  {variants.filter(v => v.is_active).length > 0 && (
+                  {isEdit ? (
+                    <VariantList productId={initial.id} variants={variants} setVariants={setVariants}
+                      onChanged={() => { qc.invalidateQueries({ queryKey: ['products'] }); qc.invalidateQueries({ queryKey: ['option-images', initial.id] }); }} />
+                  ) : (
+                  variants.filter(v => v.is_active).length > 0 && (
                     <div className={`mb-4 space-y-2 overflow-y-auto ${isEdit ? 'max-h-72' : 'max-h-40'}`}>
                       {variants.filter(v => v.is_active).map((v, idx) => {
                         const vStock = Number(v.stock) || 0;
@@ -928,6 +933,7 @@ function ProductModal({ initial, onClose, onSave, isTienda }) {
                         );
                       })}
                     </div>
+                  )
                   )}
 
                   <div className="p-3 bg-slate-800/30 border border-slate-700 rounded-lg space-y-2">

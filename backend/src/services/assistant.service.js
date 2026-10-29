@@ -10,6 +10,8 @@ const { isPlanExpired } = require('../utils/planStatus');
 const { deleteCitaIncome } = require('./scheduler.service');
 const { logSystemAlert } = require('../utils/systemAlerts');
 const { callClaudeWithRetry } = require('../utils/anthropicRetry');
+const { isTiendaBusiness } = require('../utils/businessType');
+const { storeAssistant, GENERIC_TOOLS_HIDDEN_FOR_STORE, claimsWrite } = require('./assistantStore');
 
 const client = new Anthropic({
   apiKey: process.env.ANTHROPIC_API_KEY,
@@ -4859,7 +4861,48 @@ async function executeTool(toolName, toolInput, businessId) {
   }
 }
 
-async function processMessage(businessId, userMessage, conversationHistory = []) {
+// Herramientas y prompt según el tipo de negocio. Un negocio que NO es tienda recibe exactamente lo de siempre.
+function toolsFor(business, store = null) {
+  if (!isTiendaBusiness(business)) return tools;
+  const s = store || storeAssistant();
+  return [...tools.filter((t) => !GENERIC_TOOLS_HIDDEN_FOR_STORE.has(t.name)), ...s.tools];
+}
+
+function systemPromptFor(business, store = null) {
+  if (!isTiendaBusiness(business)) return SYSTEM_PROMPT;
+  const s = store || storeAssistant();
+  const critical = (SYSTEM_PROMPT.match(/<critical_rules>[\s\S]*?<\/critical_rules>/) || [''])[0];
+  return `<identity>
+Eres el asistente inteligente de ZITA para una TIENDA de ropa (inventario por variantes, sets, pedidos, caja).
+Personalidad: amigable, eficiente, directo. Hablas español colombiano informal. Responde CORTO y CONCRETO.
+</identity>
+${critical}
+${s.prompt}`;
+}
+
+// El historial llega del cliente: solo texto de usuario/asistente (nada de bloques de herramientas inyectados)
+function sanitizeHistory(history) {
+  return (Array.isArray(history) ? history : [])
+    .filter((m) => m && (m.role === 'user' || m.role === 'assistant') && typeof m.content === 'string')
+    .map((m) => ({ role: m.role, content: m.content.slice(0, 4000) }));
+}
+
+// Ejecuta una herramienta: en una tienda, las de tienda van a assistantStore y las genéricas ocultas se rechazan
+async function runTool(name, input, businessId, storeCtx) {
+  if (storeCtx) {
+    const store = storeCtx.store || storeAssistant();
+    if (store.handles(name)) {
+      const result = await store.execute(name, input, storeCtx);
+      if (name === 'confirmar_accion' && Array.isArray(storeCtx.writes)) storeCtx.writes.push(result);
+      return result;
+    }
+    if (GENERIC_TOOLS_HIDDEN_FOR_STORE.has(name)) return { success: false, error: 'Esa herramienta no aplica a una tienda.' };
+  }
+  return executeTool(name, input, businessId);
+}
+
+async function processMessage(businessId, userMessage, conversationHistory = [], session = {}) {
+  const requestStartedAt = new Date();
   logger.info('[processMessage] businessId recibido:', businessId);
   logger.info('[processMessage] userMessageLength:', userMessage?.length || 0);
   logger.info('[processMessage] historyLength:', conversationHistory.length);
@@ -4867,7 +4910,7 @@ async function processMessage(businessId, userMessage, conversationHistory = [])
   // Verificar límite de mensajes IA
   const { data: biz } = await supabaseAdmin
     .from('businesses')
-    .select('plan, ai_messages_today, ai_messages_date, trial_ends_at, plan_expires_at, name, business_type, address, phone, status')
+    .select('plan, ai_messages_today, ai_messages_date, trial_ends_at, plan_expires_at, name, business_type, address, phone, status, store_settings')
     .eq('id', businessId)
     .single();
 
@@ -4998,8 +5041,34 @@ ${stockAlerta}
     setCachedContext(businessId, businessContext);
   }
 
+  const isStore = isTiendaBusiness(biz);
+  const activeTools = toolsFor(biz);
+  // Contexto de la sesión para las herramientas de tienda: el negocio y el token salen de la sesión, nunca del mensaje
+  const storeCtx = isStore
+    ? { businessId, business: { ...biz, id: businessId }, authorization: session.authorization, requestStartedAt, userMessage: String(userMessage || ''), writes: [] }
+    : null;
+  // Tienda: "sí"/"no" a una propuesta vista y "devuélvelo" obligan la herramienta en la primera llamada
+  let firstToolChoice = { type: 'auto' };
+  if (isStore) {
+    try {
+      const forced = await storeAssistant().forcedToolFor(storeCtx);
+      if (forced) firstToolChoice = { type: 'tool', name: forced };
+    } catch (err) {
+      logger.error('[assistant] forcedToolFor: ' + err.message);
+    }
+  }
+  if (isStore) {
+    // El "stock bajo" del contexto genérico usa el total del producto; en una tienda se informa por variante
+    businessContext = businessContext.replace(/⚠️Stock bajo:[^\n]*\n?/, '');
+    try {
+      businessContext += `\n<tienda_hoy>${await storeAssistant().storeContext(businessId)}</tienda_hoy>`;
+    } catch (err) {
+      logger.error('[assistant] storeContext: ' + err.message);
+    }
+  }
+
   // Bloque estático (reglas, nunca cambia) — cacheable de forma estable
-  const staticSystemPrompt = SYSTEM_PROMPT;
+  const staticSystemPrompt = systemPromptFor(biz);
 
   // Bloque dinámico (datos por-negocio + fecha) — cambia en cada request
   const dynamicSystemPrompt = `${businessContext}
@@ -5011,7 +5080,7 @@ Cuando el usuario diga "hoy" usar exactamente: ${fechaISO}
 Cuando diga "mañana" usar: ${mananaISO}
 </fecha_actual>`;
 
-  const limitedConversationHistory = conversationHistory.slice(-8);
+  const limitedConversationHistory = sanitizeHistory(conversationHistory).slice(-8);
 
   // Límite de longitud contra amplificación de costo (max 2000 chars)
   const maxMessageLength = 2000;
@@ -5043,8 +5112,8 @@ Cuando diga "mañana" usar: ${mananaISO}
         text: dynamicSystemPrompt
       }
     ],
-    tools: tools,
-    tool_choice: { type: 'auto' },
+    tools: activeTools,
+    tool_choice: firstToolChoice,
     messages: messages
   });
 
@@ -5084,7 +5153,7 @@ Cuando diga "mañana" usar: ${mananaISO}
       if (block.type === 'tool_use') {
         let result;
         try {
-          result = await executeTool(block.name, block.input, businessId);
+          result = await runTool(block.name, block.input, businessId, storeCtx);
         } catch (toolError) {
           logger.error(`Tool execution error [${block.name}]:`, toolError.message);
           result = { is_error: true, content: 'Error ejecutando la acción, intenta de nuevo' };
@@ -5114,7 +5183,7 @@ Cuando diga "mañana" usar: ${mananaISO}
           text: dynamicSystemPrompt
         }
       ],
-      tools: tools,
+      tools: activeTools,
       messages: apiMessages
     });
 
@@ -5154,7 +5223,7 @@ Cuando diga "mañana" usar: ${mananaISO}
               text: dynamicSystemPrompt
             }
           ],
-          tools: tools,
+          tools: activeTools,
           messages: apiMessages
         });
       }
@@ -5190,12 +5259,26 @@ Cuando diga "mañana" usar: ${mananaISO}
   }
 
   // Limpiar tags internos espurios (ej: </final_message>, </fin>, etc) que el modelo puede generar ocasionalmente
-  const cleanText = finalText.replace(/<\/?[a-z_]+>/gi, '').trim();
+  let cleanText = finalText.replace(/<\/?[a-z_]+>/gi, '').trim();
+
+  // Tienda: nunca dejar pasar un "listo" sin una escritura confirmada y leída de la base en ESTE turno
+  if (storeCtx) {
+    const applied = storeCtx.writes.filter((w) => w && w.success);
+    const failed = storeCtx.writes.filter((w) => w && w.success === false);
+    if (applied.length) {
+      cleanText += `\n\n_Resultado leído de la base: ${applied.map((w) => w.resultado).join(' · ')}_`;
+    } else if (claimsWrite(cleanText)) {
+      logger.warn('[assistant] respuesta de tienda afirmaba un cambio sin escritura confirmada; se reemplaza');
+      cleanText = failed.length
+        ? `⚠️ No se hizo el cambio: ${failed[0].error}`
+        : '⚠️ No hice ningún cambio todavía. Dime de nuevo qué quieres ajustar y te muestro el resumen para confirmarlo.';
+    }
+  }
 
   const cleanHistory = [
     ...limitedConversationHistory,
     { role: 'user', content: userMessage },
-    { role: 'assistant', content: finalText }
+    { role: 'assistant', content: cleanText }
   ];
 
   return {
@@ -5205,7 +5288,7 @@ Cuando diga "mañana" usar: ${mananaISO}
   };
 }
 
-module.exports = { processMessage };
+module.exports = { processMessage, toolsFor, systemPromptFor, sanitizeHistory, runTool, SYSTEM_PROMPT };
 
 
 

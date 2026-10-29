@@ -730,7 +730,8 @@ function ProductModal({ initial, onClose, onSave, isTienda }) {
             {isTienda && (
               <div>
                 <label className="block text-slate-400 text-sm mb-1.5">Género</label>
-                <select value={form.gender} onChange={(e) => setForm({ ...form, gender: e.target.value })} className={inputCls}>
+                <select value={form.gender} onChange={(e) => setForm({ ...form, gender: e.target.value })}
+                  className="w-full bg-[#131929] border border-slate-700 text-white rounded-lg px-4 py-2.5 text-sm focus:outline-none focus:border-violet-500 transition">
                   <option value="mujer">Mujer</option>
                   <option value="hombre">Hombre</option>
                   <option value="unisex">Unisex</option>

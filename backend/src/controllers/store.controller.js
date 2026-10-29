@@ -12,6 +12,7 @@ const { calculateShipping } = require('../config/shipping');
 const { enabledPaymentMethods } = require('../config/paymentMethods');
 const { TERMS_VERSION } = require('../config/checkoutLegal');
 const { discardOrder, flagForReview } = require('../utils/orderCleanup');
+const { SET_PROMO, promoGroup, setDiscount } = require('../utils/setPromo');
 const { loadBundles, deriveBundle, bundleSnapshot, applyMoves, variantLabel: bundleVariantLabel } = require('../utils/bundles');
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
@@ -300,12 +301,16 @@ const variantLabel = (attributes) => Object.values(attributes || {}).map((v) => 
 function publicOrder(order) {
   const total = toNumber(order.total_amount);
   const shipping = toNumber(order.shipping_cost);
+  const discount = toNumber(order.discount_amount);
   return {
     id: order.id,
     code: orderCode(order.id),
     total,
-    subtotal: round2(total - shipping),
+    subtotal: round2(total - shipping + discount),
     shipping_cost: shipping,
+    // En pedidos web el único descuento es el de set (lo calcula createOrder)
+    discount,
+    discount_label: discount > 0 ? SET_PROMO.label : null,
     status: order.status,
   };
 }
@@ -317,10 +322,17 @@ function whatsappUrl(settings, order, items, customerName, storeName) {
   const text = [
     `Hola, acabo de hacer el pedido ${orderCode(order.id)} en ${storeName}:`,
     ...lines,
+    ...discountLines(order),
     `Total: ${formatCOP(order.total_amount)}`,
     `A nombre de: ${customerName}`,
   ].join('\n');
   return `https://wa.me/${number}?text=${encodeURIComponent(text)}`;
+}
+
+// "Descuento por set (5 %): -$ 7.740" si el pedido tiene descuento
+function discountLines(order) {
+  const discount = toNumber(order.discount_amount);
+  return discount > 0 ? [`${SET_PROMO.label}: -${formatCOP(discount)}`] : [];
 }
 
 async function loadOrderItems(orderId, businessId) {
@@ -337,7 +349,7 @@ async function loadOrderItems(orderId, businessId) {
 async function respondExisting(req, res, orderId) {
   const { data: order, error } = await supabaseAdmin
     .from('orders')
-    .select('id, status, total_amount, shipping_cost, client_name')
+    .select('id, status, total_amount, shipping_cost, discount_amount, client_name')
     .eq('id', orderId)
     .eq('business_id', req.storeBusinessId)
     .single();
@@ -367,6 +379,7 @@ function notifyOwner(contact, order, items, customer, city) {
         '',
         ...items.map((i) => `• ${i.quantity} x ${i.description}`),
         '',
+        ...discountLines(order),
         `Total: ${formatCOP(order.total_amount)}`,
       ].join('\n');
       await sendMessage(contact.owner_whatsapp, text, token, contact.whatsapp_phone_number_id);
@@ -410,7 +423,7 @@ async function createOrder(req, res) {
     const productIds = [...new Set(items.map((i) => i.product_id))];
     const { data: products, error: pErr } = await supabaseAdmin
       .from('products')
-      .select('id, name, price, stock, has_variants, is_bundle')
+      .select('id, name, category, price, stock, has_variants, is_bundle')
       .eq('business_id', businessId)
       .eq('is_active', true)
       .in('id', productIds);
@@ -538,12 +551,18 @@ async function createOrder(req, res) {
 
     // 4) Totales
     const subtotal = round2(lines.reduce((sum, l) => sum + l.row.total_price, 0));
+    // Descuento por set (Top + Falda/Short/Licra) con precios y categorías de la base; nada del cliente
+    const promo = setDiscount(items.map((item) => {
+      const p = productById[item.product_id];
+      return { group: promoGroup(p), price: toNumber(p.price), quantity: item.quantity };
+    }));
+    const discount = promo.amount;
     const settings = publicSettings(req.storeBusiness.settings);
-    // Envío por ciudad y subtotal de productos, con las tarifas del negocio (nunca del cliente)
+    // Envío por ciudad y subtotal de productos YA con el descuento, con las tarifas del negocio (nunca del cliente)
     const { zone: shippingZone, cost: shippingCost } = calculateShipping({
-      subtotal, city: shipping.city, settings: req.storeBusiness.settings,
+      subtotal: round2(subtotal - discount), city: shipping.city, settings: req.storeBusiness.settings,
     });
-    const total = round2(subtotal + shippingCost);
+    const total = round2(subtotal - discount + shippingCost);
 
     // 5) Pedido
     const acceptedAt = new Date().toISOString();
@@ -565,6 +584,7 @@ async function createOrder(req, res) {
         payment_status: 'pendiente',
         payment_method,
         total_amount: total,
+        discount_amount: discount,
         shipping_cost: shippingCost,
         shipping_zone: shippingZone,
         // Aceptaciones (Anexo 1.2): hora del servidor; las dos primeras ya las exigió el validador
@@ -577,7 +597,7 @@ async function createOrder(req, res) {
         source: 'web',
         idempotency_key,
       })
-      .select('id, status, total_amount, shipping_cost')
+      .select('id, status, total_amount, shipping_cost, discount_amount')
       .single();
     if (oErr) {
       // Dos peticiones simultáneas con la misma clave: gana una, la otra devuelve ese pedido
@@ -652,7 +672,7 @@ async function getOrderStatus(req, res) {
     if (!UUID_RE.test(id) || !phone) return notFound(res, 'Pedido no encontrado.');
     const { data: order, error } = await supabaseAdmin
       .from('orders')
-      .select('id, status, total_amount, shipping_cost, payment_method')
+      .select('id, status, total_amount, shipping_cost, discount_amount, payment_method')
       .eq('id', id)
       .eq('business_id', req.storeBusinessId)
       .eq('source', 'web')
@@ -666,6 +686,8 @@ async function getOrderStatus(req, res) {
         code: orderCode(order.id),
         status: order.status,
         total: toNumber(order.total_amount),
+        discount: toNumber(order.discount_amount),
+        discount_label: toNumber(order.discount_amount) > 0 ? SET_PROMO.label : null,
         payment_method: str(order.payment_method, 30) || null,
         items: items.map((i) => ({ description: i.description, quantity: i.quantity, unit_price: toNumber(i.unit_price) })),
       },

@@ -10,7 +10,8 @@
     "preview": "vite preview",
     "test:domain": "node --test tests/domain.test.js",
     "test:middleware": "node --test tests/middleware.test.js",
-    "test:sections": "node --test tests/sections.test.js"
+    "test:sections": "node --test tests/sections.test.js",
+    "test:archive": "node --test tests/archive-order.test.js"
   },
   "dependencies": {
     "@sentry/react": "^10.56.0",

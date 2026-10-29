@@ -29,6 +29,8 @@ export function sanitizeLine(raw) {
     size: optText(raw.size),
     // Solo en sets: qué incluye ("Top Aria + Licra Aria"), para mostrarlo en la bolsa y el checkout
     includes: optText(raw.includes),
+    // Grupo del descuento por set ('top' | 'bottom'); solo para la vista previa, el servidor recalcula
+    group: raw.group === 'top' || raw.group === 'bottom' ? raw.group : null,
     max_qty: Number.isInteger(maxQty) && maxQty > 0 ? Math.min(maxQty, 10) : 10,
     quantity: Math.min(quantity, 10),
   };

@@ -351,12 +351,20 @@ function OrderDetailModal({ order: initialOrder, onClose, isTienda, onNotice }) 
   const [carrier, setCarrier] = useState(initialOrder.shipping_carrier || '');
   const [tracking, setTracking] = useState(initialOrder.tracking_code || '');
   const [shipLoading, setShipLoading] = useState(false);
+  const [discountInput, setDiscountInput] = useState(String(Number(initialOrder.discount_amount) || ''));
+  const [discountLoading, setDiscountLoading] = useState(false);
   const qc = useQueryClient();
 
   const isCancelled = order.status === 'cancelado';
   const units = unitsToReturn(order);
   const payment = paymentOf(order);
   const shippingDirty = carrier.trim() !== (order.shipping_carrier || '') || tracking.trim() !== (order.tracking_code || '');
+  // Descuento editable mientras el pedido no esté cancelado ni entregado (el servidor valida y recalcula el total)
+  const canEditDiscount = !['cancelado', 'entregado'].includes(order.status);
+  const orderGross = Number(order.total_amount) + Number(order.discount_amount || 0); // subtotal + envío
+  const discountText = discountInput.trim();
+  const discountValid = discountText === '' || (/^\d+$/.test(discountText) && Number(discountText) <= orderGross);
+  const discountDirty = Number(discountText || 0) !== Number(order.discount_amount || 0);
   const showShipping = isTienda && (order.delivery_type === 'envio' || newStatus === 'enviado' || order.status === 'enviado' || order.shipping_carrier || order.tracking_code);
 
   // Pago, cancelación y eliminación mueven la caja de tienda: refrescar caja y dashboard
@@ -451,6 +459,22 @@ function OrderDetailModal({ order: initialOrder, onClose, isTienda, onNotice }) 
       setError(err.response?.data?.error || 'Error al actualizar el pago.');
     } finally {
       setPayLoading(false);
+    }
+  };
+
+  const handleSaveDiscount = async () => {
+    if (!discountValid) return setError(`El descuento debe ser un número entero entre 0 y ${formatCOP(orderGross)}.`);
+    setDiscountLoading(true);
+    setError('');
+    try {
+      const res = await api.patch(`/api/orders/${order.id}/discount`, { discount_amount: Number(discountText || 0) });
+      setOrder((prev) => ({ ...prev, ...res.data?.data }));
+      qc.invalidateQueries({ queryKey: ['orders'] });
+      if (isTienda) invalidateMoney();
+    } catch (err) {
+      setError(err.response?.data?.error || 'Error al guardar el descuento.');
+    } finally {
+      setDiscountLoading(false);
     }
   };
 
@@ -564,6 +588,22 @@ function OrderDetailModal({ order: initialOrder, onClose, isTienda, onNotice }) 
             <p className="text-white text-sm">
               Total: <span className="font-bold">{formatCOP(order.total_amount)}</span>
             </p>
+            {canEditDiscount && (
+              <div className="pt-2 space-y-1.5">
+                <label htmlFor="order-discount" className="block text-slate-400 text-xs">Descuento ($)</label>
+                <div className="flex gap-2">
+                  <input id="order-discount" type="number" inputMode="numeric" min="0" step="1" placeholder="0" value={discountInput}
+                    onChange={(e) => setDiscountInput(e.target.value)} className={INPUT} />
+                  <button onClick={handleSaveDiscount} disabled={discountLoading || !discountDirty}
+                    className="flex-shrink-0 bg-slate-800 hover:bg-slate-700 disabled:opacity-50 text-slate-300 text-sm font-medium px-4 rounded-lg transition">
+                    {discountLoading ? 'Guardando...' : 'Guardar'}
+                  </button>
+                </div>
+                {discountDirty && discountValid && (
+                  <p className="text-slate-500 text-xs">Nuevo total: {formatCOP(orderGross - Number(discountInput || 0))}</p>
+                )}
+              </div>
+            )}
           </div>
 
           {/* Pago (solo tienda) */}

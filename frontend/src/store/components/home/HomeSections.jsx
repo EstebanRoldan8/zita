@@ -6,8 +6,8 @@ import { flowContent } from '../../content/flowContent';
 import {
   productsInCapsule, capsuleColorOrder, dropColorOrder, productsInDrop, coverForColors, firstImage, colorsOfProduct, productTypesOf,
 } from '../../lib/collections';
-import { formatCOP, waLink } from '../../lib/format';
-import { whatsappNumber, instagramUrl } from '../../lib/contact';
+import { formatCOP } from '../../lib/format';
+import { instagramUrl } from '../../lib/contact';
 import { sizeGuide } from '../../lib/policies';
 import { heroVideoOf } from '../../lib/heroVideo';
 import HeroVideo from './HeroVideo';
@@ -52,7 +52,7 @@ export function Hero({ collection, path }) {
         </>
       ) : hasImage && (
         <>
-          <img src={hero.image} alt="" className="absolute inset-0 h-full w-full object-cover" loading="eager" fetchpriority="high" />
+          <img src={hero.image} alt="" className="absolute inset-0 h-full w-full object-cover" loading="eager" fetchPriority="high" />
           <span className="absolute inset-0" style={{ background: 'linear-gradient(to top, rgba(28,28,28,0.70), rgba(28,28,28,0.15) 60%)' }} aria-hidden="true" />
         </>
       )}
@@ -233,18 +233,21 @@ export function Storytelling({ collection }) {
   if (blocks.length === 0) return null;
   const img = collection.storyImage;
   return (
-    <section className="bg-flow-black text-flow-white flow-on-dark" aria-label={`Historia de ${collection.name}`}>
-      <div className={`mx-auto px-6 py-20 md:py-32 ${img ? 'max-w-6xl md:grid md:grid-cols-2 md:items-center md:gap-16' : 'max-w-3xl'}`}>
+    <section className={`relative isolate overflow-hidden bg-flow-black text-flow-white flow-on-dark ${img ? 'flow-story-photo' : ''}`} aria-label={`Historia de ${collection.name}`}>
+      {/* Foto de campaña de fondo: absoluta (la altura la da el texto, sin CLS) y una capa oscura al 72 % que
+          deja ver la foto y garantiza contraste AA del texto blanco aun sobre las zonas claras */}
+      {img && (
+        <>
+          <img src={img.src} srcSet={img.srcSet} sizes="100vw" width={img.width} height={img.height}
+            alt={img.alt} loading="lazy" decoding="async" className="absolute inset-0 -z-10 h-full w-full object-cover object-center" />
+          <div className="absolute inset-0 -z-10 bg-[rgba(28,28,28,0.76)]" aria-hidden="true" />
+        </>
+      )}
+      <div className="mx-auto max-w-3xl px-6 py-20 md:py-32">
         <div className="space-y-12 md:space-y-16">
           <h2 className="flow-collection-name text-flow-stone text-xl">{collection.name}</h2>
           {blocks.map((b, i) => <StoryBlock key={i} block={b} />)}
         </div>
-        {img && (
-          <div className="mx-auto mt-14 w-full max-w-sm md:mt-0 md:max-w-none" style={{ aspectRatio: `${img.width} / ${img.height}` }}>
-            <img src={img.src} srcSet={img.srcSet} sizes="(min-width: 768px) 45vw, 90vw" width={img.width} height={img.height}
-              alt={img.alt} loading="lazy" decoding="async" className="h-full w-full object-cover" />
-          </div>
-        )}
       </div>
     </section>
   );
@@ -256,15 +259,18 @@ export function Capsules({ collection, path }) {
   return (
     <section className="mx-auto max-w-7xl px-4 py-16 md:px-8 md:py-24" aria-labelledby="flow-capsulas">
       <h2 id="flow-capsulas" className="flow-label mb-8 text-center">Cápsulas {collection.name}</h2>
-      <div className="grid gap-3 lg:grid-cols-3">
+      {/* En 3 columnas cada tarjeta usa las filas de la grilla (subgrid): subtítulo, título y descripción
+          arrancan a la misma altura aunque las descripciones tengan largos distintos, y "Ver cápsula" queda abajo */}
+      <div className="grid gap-x-3 gap-y-3 lg:grid-cols-3 lg:grid-rows-[1fr_auto_auto_auto_auto] lg:gap-y-0">
         {capsules.map((c) => (
           <Link key={c.slug} to={`${path(`/coleccion/${collection.slug}`)}?capsula=${c.slug}`}
-            className="flex min-h-[300px] min-w-0 flex-col justify-end break-words p-8 transition-opacity hover:opacity-95 lg:min-h-[380px]"
+            className="flex min-h-[300px] min-w-0 flex-col justify-end break-words p-8 transition-opacity hover:opacity-95 lg:row-span-5 lg:grid lg:min-h-[380px] lg:grid-rows-subgrid"
             style={{ background: `linear-gradient(to top, rgba(28,28,28,0.55), rgba(28,28,28,0) 70%), ${c.palette?.bg || "var(--flow-black)"}`, color: c.palette?.fg }}>
+            <span aria-hidden="true" className="hidden lg:block" />
             <span className="flow-label opacity-90">{c.tagline}</span>
             <span className="flow-collection-name mt-3 text-5xl lg:text-[2.6rem] xl:text-5xl">{c.name}</span>
-            {c.text?.[0] && <span className="mt-4 text-sm leading-relaxed opacity-90">{c.text[0]}</span>}
-            <span className="flow-label mt-6 inline-block self-start border-b border-current pb-1">Ver cápsula</span>
+            <span className="mt-4 text-sm leading-relaxed opacity-90">{c.text?.[0] || ''}</span>
+            <span className="flow-label mt-6 inline-block self-start justify-self-start border-b border-current pb-1 lg:self-end">Ver cápsula</span>
           </Link>
         ))}
       </div>
@@ -366,11 +372,11 @@ export function FirstTime({ path }) {
   );
 }
 
-// Banda Flow Club: título, frase, botones (WhatsApp si hay número, la cuenta de Instagram) y los reels.
+// Banda Flow Club: título, frase, botones (canal de WhatsApp de Flow Club, la cuenta de Instagram) y los reels.
 export function FlowClub({ store }) {
   const club = flowContent.club;
   const insta = flowContent.instagram;
-  const wa = waLink(whatsappNumber(store), club?.whatsappMessage);
+  const wa = club?.channelUrl || null;
   const ig = insta?.url || instagramUrl(store);
   const hasReels = (insta?.reels || []).length > 0;
   if (!club || (!wa && !ig && !hasReels)) return null;
@@ -386,7 +392,7 @@ export function FlowClub({ store }) {
             <div className="flex flex-col gap-3 sm:flex-row">
               {wa && (
                 <a href={wa} target="_blank" rel="noopener noreferrer" className="flow-btn flow-btn-light">
-                  <MessageCircle size={16} strokeWidth={1.5} aria-hidden="true" /> Unirme por WhatsApp
+                  <MessageCircle size={16} strokeWidth={1.5} aria-hidden="true" /> Unirme al canal de WhatsApp
                 </a>
               )}
               {ig && <a href={ig} target="_blank" rel="noopener noreferrer" className="flow-btn flow-btn-outline flow-btn-outline-light">{insta?.handle || 'Instagram'}</a>}

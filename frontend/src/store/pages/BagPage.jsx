@@ -6,18 +6,20 @@ import { useSeo } from '../hooks/useSeo';
 import { privateSeo } from '../lib/seo';
 import { formatCOP, shippingFor, hasLocalRate } from '../lib/format';
 import { COPY } from '../lib/copy';
+import SetDiscountRow from '../components/SetDiscountRow';
 import BagLines from '../components/BagLines';
 
 export default function BagPage() {
   const { slug, store } = useStore();
   const path = useStorePath();
   const location = useLocation();
-  const { lines, subtotal } = useCart();
+  const { lines, subtotal, discount, netSubtotal } = useCart();
   const { loading, issues, blocking } = useBagValidation(slug, lines, true);
   useSeo(privateSeo(COPY.bag));
 
   const soldOutNotice = location.state?.soldOut;
-  const shipping = shippingFor(store, subtotal);
+  // El envío gratis se evalúa con el subtotal YA descontado (igual que el servidor)
+  const shipping = shippingFor(store, netSubtotal);
   // Con tarifa por ciudad, en la bolsa aún no hay ciudad: no se muestra una tarifa que puede no ser la de la persona
   const shippingPending = hasLocalRate(store) && shipping !== 0;
   const freeFrom = Number(store.free_shipping_from) || 0;
@@ -42,15 +44,16 @@ export default function BagPage() {
           <BagLines issues={issues} />
           <aside className="h-fit border border-flow-stone p-6">
             <div className="flex justify-between text-sm"><span>Subtotal</span><span>{formatCOP(subtotal)}</span></div>
+            <SetDiscountRow amount={discount} />
             <div className="mt-2 flex justify-between text-sm">
               <span>Envío</span>
               <span className="text-right">{shippingPending ? 'Se calcula con tu ciudad' : shipping === 0 ? 'Gratis' : formatCOP(shipping)}</span>
             </div>
-            {freeFrom > 0 && subtotal < freeFrom && (
-              <p className="mt-2 text-xs text-flow-muted">Te faltan {formatCOP(freeFrom - subtotal)} para envío gratis.</p>
+            {freeFrom > 0 && netSubtotal < freeFrom && (
+              <p className="mt-2 text-xs text-flow-muted">Te faltan {formatCOP(freeFrom - netSubtotal)} para envío gratis.</p>
             )}
             <hr className="flow-rule my-4" />
-            <div className="flex justify-between"><span className="flow-label">Total estimado</span><span>{formatCOP(shippingPending ? subtotal : subtotal + shipping)}</span></div>
+            <div className="flex justify-between"><span className="flow-label">Total estimado</span><span>{formatCOP(shippingPending ? netSubtotal : netSubtotal + shipping)}</span></div>
             <p className="mt-2 text-xs text-flow-muted">
               {shippingPending ? 'Más el envío, que se calcula con tu ciudad. ' : ''}El total final lo confirmamos al recibir tu pedido.
             </p>

@@ -4,13 +4,14 @@
 // El texto va TAL CUAL: no se resume ni se reescribe. Si cambia el Word, se regenera este archivo.
 // Marcas que resuelve la UI (components/LegalText): **negrita**, {{whatsapp}} y {{notificaciones}}
 // (salen de flowContent.brand / flowContent.seller) y {{link:/ruta|texto}} (enlace interno sobre el mismo texto).
+// Sin datos personales de la titular: scripts/legal-sin-datos-titular.mjs (29 de octubre de 2026, REVISAR ABOGADO).
 // Solo lo carga el chunk de las páginas legales (y el prerender), no el resto de la tienda.
 // ============================================================================
 
 export const LEGAL_DOCS = {
   "terminos": {
     "title": "Términos y condiciones de compra por canales digitales",
-    "effective": "Fecha de vigencia: 23 de octubre de 2026",
+    "effective": "Fecha de vigencia: 23 de octubre de 2026 · Actualizado el 29 de octubre de 2026",
     "intro": [],
     "sections": [
       {
@@ -29,16 +30,8 @@ export const LEGAL_DOCS = {
             ],
             "rows": [
               [
-                "Titular",
-                "LIZETH NATALIA LOPEZ PEREZ, persona natural comerciante"
-              ],
-              [
-                "Cédula y NIT",
-                "1.144.052.790-7"
-              ],
-              [
-                "Matrícula mercantil",
-                "1220888 – Cámara de Comercio de Cali"
+                "Vendedor",
+                "FLOW"
               ],
               [
                 "Domicilio",
@@ -82,7 +75,7 @@ export const LEGAL_DOCS = {
         "blocks": [
           {
             "t": "p",
-            "text": "La tienda FLOW ACTIVE es operada por **LIZETH NATALIA LOPEZ PEREZ**, persona natural comerciante, identificada con cédula de ciudadanía y NIT 1.144.052.790-7, inscrita en el registro mercantil de la Cámara de Comercio de Cali con matrícula 1220888, con domicilio en Santiago de Cali y dirección de notificaciones en {{notificaciones}}. Puedes contactarnos en flowactivewear.co@gmail.com, por WhatsApp al {{whatsapp}} o por Instagram en @flow.col. En estos términos, \"FLOW\" o \"nosotros\" se refiere a la titular indicada."
+            "text": "La tienda en línea FLOW ACTIVE es operada por **FLOW**, con domicilio en Santiago de Cali, Colombia. Dirección de notificaciones: {{notificaciones}}. Puedes contactarnos en flowactivewear.co@gmail.com, por WhatsApp al {{whatsapp}} o por Instagram en @flow.col. En estos términos, \"FLOW\" o \"nosotros\" se refiere a quien opera la tienda."
           }
         ]
       },
@@ -179,7 +172,7 @@ export const LEGAL_DOCS = {
         "blocks": [
           {
             "t": "p",
-            "text": "Actualmente recibimos transferencia bancaria a la cuenta de ahorros Bancolombia o pago por llave. Los datos para pagar te los enviamos por WhatsApp desde nuestra línea oficial {{whatsapp}}. **La cuenta y la llave siempre están a nombre de LIZETH NATALIA LOPEZ PEREZ.** Nunca te pediremos pagar a una cuenta a nombre de otra persona ni te pediremos claves o códigos de tu banco. Si recibes instrucciones distintas, no pagues y repórtalo a nuestros canales oficiales."
+            "text": "Actualmente recibimos transferencia bancaria a la cuenta de ahorros Bancolombia o pago por llave. Los datos para pagar te los enviamos por WhatsApp desde nuestra línea oficial {{whatsapp}}. **Los datos de la cuenta y la llave solo te los enviamos desde nuestra línea oficial de WhatsApp.** Nunca te pediremos pagar a una cuenta que no te hayamos enviado por ese canal ni te pediremos claves o códigos de tu banco. Si recibes instrucciones distintas, no pagues y repórtalo a nuestros canales oficiales."
           },
           {
             "t": "p",
@@ -290,9 +283,8 @@ export const LEGAL_DOCS = {
           {
             "t": "sign",
             "lines": [
-              "LIZETH NATALIA LOPEZ PEREZ",
-              "Titular de la marca FLOW",
-              "C.C. y NIT 1.144.052.790-7"
+              "FLOW",
+              "flowactivewear.co@gmail.com"
             ]
           }
         ]
@@ -302,7 +294,7 @@ export const LEGAL_DOCS = {
   },
   "privacidad": {
     "title": "Política de tratamiento de datos personales",
-    "effective": "Fecha de entrada en vigencia: 23 de octubre de 2026.",
+    "effective": "Fecha de entrada en vigencia: 23 de octubre de 2026. Actualizado el 29 de octubre de 2026.",
     "intro": [
       {
         "t": "p",
@@ -323,11 +315,7 @@ export const LEGAL_DOCS = {
             "rows": [
               [
                 "Responsable",
-                "LIZETH NATALIA LOPEZ PEREZ, persona natural comerciante, propietaria de la marca FLOW"
-              ],
-              [
-                "Cédula y NIT",
-                "1.144.052.790-7"
+                "FLOW, tienda en línea FLOW ACTIVE"
               ],
               [
                 "Domicilio y dirección",
@@ -546,9 +534,8 @@ export const LEGAL_DOCS = {
           {
             "t": "sign",
             "lines": [
-              "LIZETH NATALIA LOPEZ PEREZ",
-              "Responsable del tratamiento",
-              "C.C. y NIT 1.144.052.790-7"
+              "FLOW",
+              "Responsable del tratamiento"
             ]
           }
         ]
@@ -755,8 +742,8 @@ export const LEGAL_DOCS = {
           {
             "t": "ul",
             "items": [
-              "Transferencia a cuenta de ahorros Bancolombia a nombre de **LIZETH NATALIA LOPEZ PEREZ**.",
-              "Llave a nombre de **LIZETH NATALIA LOPEZ PEREZ**."
+              "Transferencia a cuenta de ahorros Bancolombia. Los datos de la cuenta te los enviamos por WhatsApp desde nuestra línea oficial.",
+              "Llave. Te la enviamos por WhatsApp desde nuestra línea oficial."
             ]
           },
           {
@@ -843,7 +830,7 @@ export const LEGAL_DOCS = {
         "blocks": [
           {
             "t": "p",
-            "text": "Por transferencia a Bancolombia (ahorros) o llave, siempre a nombre de **LIZETH NATALIA LOPEZ PEREZ**. Te enviamos los datos por WhatsApp y tienes 24 horas para pagar."
+            "text": "Por transferencia a Bancolombia (ahorros) o llave. Te enviamos los datos por WhatsApp desde nuestra línea oficial y tienes 24 horas para pagar."
           }
         ]
       },
@@ -947,6 +934,23 @@ export const LEGAL_DOCS = {
           {
             "t": "p",
             "text": "Cada promoción, descuento o código indicará en su publicación: vigencia (fecha y hora de inicio y fin), productos incluidos, condiciones y restricciones, y número de unidades disponibles cuando sea limitado (art. 33 de la Ley 1480 de 2011). Salvo que se indique lo contrario, las promociones no son acumulables entre sí. El precio con descuento debe verse en el resumen del pedido antes de confirmarlo. Los productos comprados en promoción conservan los derechos de retracto y garantía."
+          },
+          // ── PENDIENTE DE REVISIÓN DEL ABOGADO (añadido el 29 de octubre de 2026, no viene de los Word) ──
+          // Regla: backend/src/utils/setPromo.js (el servidor calcula el descuento en cada pedido web).
+          {
+            "t": "h3",
+            "text": "Descuento por set en la tienda en línea"
+          },
+          {
+            "t": "ul",
+            "items": [
+              "Por cada **Top** que compres junto con una **Falda, Short o Licra** (de cualquier modelo y color) obtienes un **5 % de descuento** sobre el precio de esas dos prendas.",
+              "El número de parejas es el menor entre las unidades de tops y las de faldas, shorts o licras del mismo pedido. Por ejemplo, 2 tops y 1 short forman 1 pareja; 2 tops y 2 licras forman 2 parejas.",
+              "Las prendas se emparejan de mayor a menor precio, para que el descuento sea el más alto posible.",
+              "No aplica a los productos que ya se venden como **Set**, que tienen su propio precio, ni a camisetas, crop tops, oversize o pantalonetas.",
+              "El descuento se calcula automáticamente al recibir el pedido y se ve en el resumen antes de confirmarlo como «Descuento por set (5 %)». El envío gratis se evalúa con el valor de los productos ya descontado.",
+              "Aplica solo a compras hechas en la tienda en línea, mientras esté publicado en ella; no es acumulable con otras promociones salvo que se indique lo contrario."
+            ]
           }
         ]
       },
@@ -987,9 +991,8 @@ export const LEGAL_DOCS = {
           {
             "t": "sign",
             "lines": [
-              "LIZETH NATALIA LOPEZ PEREZ",
-              "Titular de la marca FLOW",
-              "C.C. y NIT 1.144.052.790-7"
+              "FLOW",
+              "flowactivewear.co@gmail.com"
             ]
           }
         ]

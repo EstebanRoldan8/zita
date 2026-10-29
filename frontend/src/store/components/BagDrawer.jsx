@@ -6,13 +6,14 @@ import { useStore, useStorePath } from '../hooks/useStore';
 import { useBagValidation } from '../hooks/useBagValidation';
 import { formatCOP } from '../lib/format';
 import { COPY } from '../lib/copy';
+import SetDiscountRow from './SetDiscountRow';
 import BagLines from './BagLines';
 
 // Bolsa como panel lateral. Se revalida contra la API cada vez que se abre.
 export default function BagDrawer() {
   const { slug } = useStore();
   const path = useStorePath();
-  const { lines, subtotal, open, setOpen } = useCart();
+  const { lines, subtotal, discount, open, setOpen } = useCart();
   const { loading, issues, blocking } = useBagValidation(slug, lines, open);
   const closeRef = useRef(null);
 
@@ -60,6 +61,7 @@ export default function BagDrawer() {
               <span className="flow-label">Subtotal</span>
               <span>{formatCOP(subtotal)}</span>
             </div>
+            <SetDiscountRow amount={discount} className="mt-1" />
             <p className="mt-1 text-xs text-flow-muted">El envío y el total final se calculan al confirmar el pedido.</p>
             <div className="mt-4 grid gap-2">
               <Link to={path('/checkout')} onClick={() => setOpen(false)} aria-disabled={blocking || loading}

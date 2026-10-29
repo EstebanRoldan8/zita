@@ -11,7 +11,6 @@ const { deleteCitaIncome } = require('./scheduler.service');
 const { logSystemAlert } = require('../utils/systemAlerts');
 const { callClaudeWithRetry } = require('../utils/anthropicRetry');
 const { isTiendaBusiness } = require('../utils/businessType');
-const { storeAssistant, GENERIC_TOOLS_HIDDEN_FOR_STORE, claimsWrite } = require('./assistantStore');
 
 const client = new Anthropic({
   apiKey: process.env.ANTHROPIC_API_KEY,
@@ -4861,25 +4860,6 @@ async function executeTool(toolName, toolInput, businessId) {
   }
 }
 
-// Herramientas y prompt según el tipo de negocio. Un negocio que NO es tienda recibe exactamente lo de siempre.
-function toolsFor(business, store = null) {
-  if (!isTiendaBusiness(business)) return tools;
-  const s = store || storeAssistant();
-  return [...tools.filter((t) => !GENERIC_TOOLS_HIDDEN_FOR_STORE.has(t.name)), ...s.tools];
-}
-
-function systemPromptFor(business, store = null) {
-  if (!isTiendaBusiness(business)) return SYSTEM_PROMPT;
-  const s = store || storeAssistant();
-  const critical = (SYSTEM_PROMPT.match(/<critical_rules>[\s\S]*?<\/critical_rules>/) || [''])[0];
-  return `<identity>
-Eres el asistente inteligente de ZITA para una TIENDA de ropa (inventario por variantes, sets, pedidos, caja).
-Personalidad: amigable, eficiente, directo. Hablas español colombiano informal. Responde CORTO y CONCRETO.
-</identity>
-${critical}
-${s.prompt}`;
-}
-
 // El historial llega del cliente: solo texto de usuario/asistente (nada de bloques de herramientas inyectados)
 function sanitizeHistory(history) {
   return (Array.isArray(history) ? history : [])
@@ -4887,22 +4867,29 @@ function sanitizeHistory(history) {
     .map((m) => ({ role: m.role, content: m.content.slice(0, 4000) }));
 }
 
-// Ejecuta una herramienta: en una tienda, las de tienda van a assistantStore y las genéricas ocultas se rechazan
-async function runTool(name, input, businessId, storeCtx) {
-  if (storeCtx) {
-    const store = storeCtx.store || storeAssistant();
-    if (store.handles(name)) {
-      const result = await store.execute(name, input, storeCtx);
-      if (name === 'confirmar_accion' && Array.isArray(storeCtx.writes)) storeCtx.writes.push(result);
-      return result;
-    }
-    if (GENERIC_TOOLS_HIDDEN_FOR_STORE.has(name)) return { success: false, error: 'Esa herramienta no aplica a una tienda.' };
+// Tienda: agente propio (servidor determinista + modelo pequeño solo para entender la intención).
+// Modelo configurable; por defecto el mismo Haiku que barbería.
+const STORE_MODEL = process.env.ASSISTANT_STORE_MODEL || 'claude-haiku-4-5-20251001';
+let storeAgent = null;
+function getStoreAgent() {
+  if (!storeAgent) {
+    const { createStoreAgent } = require('./storeAgent');
+    storeAgent = createStoreAgent({
+      // Parámetros específicos solo si el modelo los admite (esfuerzo, respaldo ante rechazos)
+      callModel: (params, caps) => {
+        const p = { ...params };
+        if (caps.effort) p.output_config = { effort: 'low' };
+        if (caps.fallbacks) {
+          return callClaudeWithRetry({ messages: { create: (x) => client.beta.messages.create(x) } }, { ...p, betas: ['server-side-fallback-2026-07-01'], fallbacks: 'default' });
+        }
+        return callClaudeWithRetry(client, p);
+      },
+    });
   }
-  return executeTool(name, input, businessId);
+  return storeAgent;
 }
 
 async function processMessage(businessId, userMessage, conversationHistory = [], session = {}) {
-  const requestStartedAt = new Date();
   logger.info('[processMessage] businessId recibido:', businessId);
   logger.info('[processMessage] userMessageLength:', userMessage?.length || 0);
   logger.info('[processMessage] historyLength:', conversationHistory.length);
@@ -4910,7 +4897,7 @@ async function processMessage(businessId, userMessage, conversationHistory = [],
   // Verificar límite de mensajes IA
   const { data: biz } = await supabaseAdmin
     .from('businesses')
-    .select('plan, ai_messages_today, ai_messages_date, trial_ends_at, plan_expires_at, name, business_type, address, phone, status, store_settings')
+    .select('plan, ai_messages_today, ai_messages_date, trial_ends_at, plan_expires_at, name, business_type, address, phone, status, store_settings, slug')
     .eq('id', businessId)
     .single();
 
@@ -4958,6 +4945,20 @@ async function processMessage(businessId, userMessage, conversationHistory = [],
     avisoLimite = (mensajesRestantes <= 5 && mensajesRestantes > 0)
       ? `\n\n_(${mensajesRestantes} mensaje${mensajesRestantes !== 1 ? 's' : ''} disponible${mensajesRestantes !== 1 ? 's' : ''} hoy en tu plan)_`
       : '';
+  }
+
+  // Tienda: su propio flujo. Barbería y los demás negocios siguen exactamente igual.
+  if (isTiendaBusiness(biz)) {
+    const history = sanitizeHistory(conversationHistory).slice(-6);
+    const r = await getStoreAgent().handle({
+      businessId, business: biz, userMessage, history, authorization: session.authorization, model: STORE_MODEL,
+    });
+    return {
+      response: r.response + (avisoLimite || ''),
+      history: [...history, { role: 'user', content: String(userMessage || '') }, { role: 'assistant', content: r.response }].slice(-12),
+      actionsExecuted: [r.path],
+      usage: r.usage,
+    };
   }
 
   const today = new Date();
@@ -5041,34 +5042,8 @@ ${stockAlerta}
     setCachedContext(businessId, businessContext);
   }
 
-  const isStore = isTiendaBusiness(biz);
-  const activeTools = toolsFor(biz);
-  // Contexto de la sesión para las herramientas de tienda: el negocio y el token salen de la sesión, nunca del mensaje
-  const storeCtx = isStore
-    ? { businessId, business: { ...biz, id: businessId }, authorization: session.authorization, requestStartedAt, userMessage: String(userMessage || ''), writes: [] }
-    : null;
-  // Tienda: "sí"/"no" a una propuesta vista y "devuélvelo" obligan la herramienta en la primera llamada
-  let firstToolChoice = { type: 'auto' };
-  if (isStore) {
-    try {
-      const forced = await storeAssistant().forcedToolFor(storeCtx);
-      if (forced) firstToolChoice = { type: 'tool', name: forced };
-    } catch (err) {
-      logger.error('[assistant] forcedToolFor: ' + err.message);
-    }
-  }
-  if (isStore) {
-    // El "stock bajo" del contexto genérico usa el total del producto; en una tienda se informa por variante
-    businessContext = businessContext.replace(/⚠️Stock bajo:[^\n]*\n?/, '');
-    try {
-      businessContext += `\n<tienda_hoy>${await storeAssistant().storeContext(businessId)}</tienda_hoy>`;
-    } catch (err) {
-      logger.error('[assistant] storeContext: ' + err.message);
-    }
-  }
-
   // Bloque estático (reglas, nunca cambia) — cacheable de forma estable
-  const staticSystemPrompt = systemPromptFor(biz);
+  const staticSystemPrompt = SYSTEM_PROMPT;
 
   // Bloque dinámico (datos por-negocio + fecha) — cambia en cada request
   const dynamicSystemPrompt = `${businessContext}
@@ -5112,8 +5087,8 @@ Cuando diga "mañana" usar: ${mananaISO}
         text: dynamicSystemPrompt
       }
     ],
-    tools: activeTools,
-    tool_choice: firstToolChoice,
+    tools: tools,
+    tool_choice: { type: 'auto' },
     messages: messages
   });
 
@@ -5153,7 +5128,7 @@ Cuando diga "mañana" usar: ${mananaISO}
       if (block.type === 'tool_use') {
         let result;
         try {
-          result = await runTool(block.name, block.input, businessId, storeCtx);
+          result = await executeTool(block.name, block.input, businessId);
         } catch (toolError) {
           logger.error(`Tool execution error [${block.name}]:`, toolError.message);
           result = { is_error: true, content: 'Error ejecutando la acción, intenta de nuevo' };
@@ -5183,7 +5158,7 @@ Cuando diga "mañana" usar: ${mananaISO}
           text: dynamicSystemPrompt
         }
       ],
-      tools: activeTools,
+      tools: tools,
       messages: apiMessages
     });
 
@@ -5223,7 +5198,7 @@ Cuando diga "mañana" usar: ${mananaISO}
               text: dynamicSystemPrompt
             }
           ],
-          tools: activeTools,
+          tools: tools,
           messages: apiMessages
         });
       }
@@ -5259,26 +5234,12 @@ Cuando diga "mañana" usar: ${mananaISO}
   }
 
   // Limpiar tags internos espurios (ej: </final_message>, </fin>, etc) que el modelo puede generar ocasionalmente
-  let cleanText = finalText.replace(/<\/?[a-z_]+>/gi, '').trim();
-
-  // Tienda: nunca dejar pasar un "listo" sin una escritura confirmada y leída de la base en ESTE turno
-  if (storeCtx) {
-    const applied = storeCtx.writes.filter((w) => w && w.success);
-    const failed = storeCtx.writes.filter((w) => w && w.success === false);
-    if (applied.length) {
-      cleanText += `\n\n_Resultado leído de la base: ${applied.map((w) => w.resultado).join(' · ')}_`;
-    } else if (claimsWrite(cleanText)) {
-      logger.warn('[assistant] respuesta de tienda afirmaba un cambio sin escritura confirmada; se reemplaza');
-      cleanText = failed.length
-        ? `⚠️ No se hizo el cambio: ${failed[0].error}`
-        : '⚠️ No hice ningún cambio todavía. Dime de nuevo qué quieres ajustar y te muestro el resumen para confirmarlo.';
-    }
-  }
+  const cleanText = finalText.replace(/<\/?[a-z_]+>/gi, '').trim();
 
   const cleanHistory = [
     ...limitedConversationHistory,
     { role: 'user', content: userMessage },
-    { role: 'assistant', content: cleanText }
+    { role: 'assistant', content: finalText }
   ];
 
   return {
@@ -5288,7 +5249,7 @@ Cuando diga "mañana" usar: ${mananaISO}
   };
 }
 
-module.exports = { processMessage, toolsFor, systemPromptFor, sanitizeHistory, runTool, SYSTEM_PROMPT };
+module.exports = { processMessage, sanitizeHistory, SYSTEM_PROMPT, tools, STORE_MODEL };
 
 
 

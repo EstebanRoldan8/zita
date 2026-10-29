@@ -203,7 +203,7 @@ export default function TiendaDashboard() {
                     <button key={o.id} onClick={() => navigate('/dashboard/pedidos')}
                       className="w-full text-left flex items-center justify-between gap-3 p-3 bg-slate-800/30 hover:bg-slate-800/60 border border-slate-800 rounded-lg transition">
                       <div className="min-w-0">
-                        <p className="text-white text-sm font-medium truncate">{o.client_name || '—'}</p>
+                        <p className="text-white text-sm font-medium truncate">{o.client_name || 'Cliente sin datos'}</p>
                         <div className="flex flex-wrap gap-1.5 mt-1">
                           <span className={`text-xs border px-2 py-0.5 rounded-full ${st.color}`}>{st.label}</span>
                           {o.status !== 'cancelado' && (

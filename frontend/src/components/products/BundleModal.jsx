@@ -18,6 +18,7 @@ export default function BundleModal({ initial, products, onClose, onSave }) {
     name: initial?.name || '',
     price: initial?.price ?? '',
     category: initial?.category || 'Sets',
+    gender: initial?.gender || 'mujer',
     description: initial?.description || '',
   });
   const [components, setComponents] = useState(
@@ -126,6 +127,12 @@ export default function BundleModal({ initial, products, onClose, onSave }) {
               <input type="number" min="1" value={form.price} onChange={(e) => setForm({ ...form, price: e.target.value })} className={inputCls} /></label>
             <label className="block"><span className="text-slate-400 text-xs">Categoría</span>
               <input value={form.category} onChange={(e) => setForm({ ...form, category: e.target.value })} className={inputCls} /></label>
+            <label className="block"><span className="text-slate-400 text-xs">Género</span>
+              <select value={form.gender} onChange={(e) => setForm({ ...form, gender: e.target.value })} className={inputCls}>
+                <option value="mujer">Mujer</option>
+                <option value="hombre">Hombre</option>
+                <option value="unisex">Unisex</option>
+              </select></label>
             <label className="block sm:col-span-2"><span className="text-slate-400 text-xs">Descripción</span>
               <textarea value={form.description} onChange={(e) => setForm({ ...form, description: e.target.value })} rows={2} className={inputCls} /></label>
           </div>

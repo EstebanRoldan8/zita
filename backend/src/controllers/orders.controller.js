@@ -1,5 +1,6 @@
 const { createUserClient } = require('../config/supabase');
 const logger = require('../utils/logger');
+const { parseCustomer, parseDiscount, computeTotals } = require('../utils/orderTotals');
 const { restoreOrderStock, undoRestoredItems } = require('../utils/orderStock');
 const { recordOrderAccounting, removeOrderAccounting } = require('../utils/orderAccounting');
 const {
@@ -166,12 +167,26 @@ async function create(req, res) {
     const { supabaseAdmin } = require('../config/supabase');
     const { PLANS } = require('../config/plans');
     const {
-      client_id, client_name, client_phone, delivery_type, delivery_address, notes, items,
+      client_id, delivery_type, delivery_address, notes, items,
       payment_status, payment_method, customer_email, shipping_carrier, tracking_code,
     } = req.body;
 
-    if (!client_name || !client_phone || !delivery_type || !Array.isArray(items) || items.length === 0) {
+    if (!delivery_type || !Array.isArray(items) || items.length === 0) {
       return res.status(400).json({ success: false, error: 'Datos incompletos.' });
+    }
+
+    // Nombre y teléfono son opcionales (venta en persona sin cliente)
+    const cust = parseCustomer(req.body);
+    if (cust.error) return res.status(400).json({ success: false, error: cust.error });
+    const { client_name, client_phone } = cust.customer;
+
+    // client_id del body solo vale si es un cliente de ESTE negocio (el negocio sale del JWT)
+    let linkedClientId = null;
+    if (client_id) {
+      const { data: linked } = await supabaseAdmin
+        .from('clients').select('id').eq('id', String(client_id)).eq('business_id', req.businessId).maybeSingle();
+      if (!linked) return res.status(400).json({ success: false, error: 'Cliente no encontrado.' });
+      linkedClientId = linked.id;
     }
 
     // Campos opcionales de pago y envío: solo se incluyen en el insert si vienen,
@@ -261,13 +276,17 @@ async function create(req, res) {
     });
 
     const validStatuses = ['recibido', 'en_proceso', 'listo', 'enviado', 'entregado', 'cancelado'];
-    const totalAmount = items.reduce((sum, item) => sum + (item.quantity * item.unit_price), 0);
+    // El total lo calcula el servidor: subtotal + envío (los manuales no llevan) − descuento. Nunca el del cliente.
+    const subtotalAmount = computeTotals(items).subtotal;
+    const disc = parseDiscount(req.body.discount_amount, subtotalAmount);
+    if (disc.error) return res.status(400).json({ success: false, error: disc.error });
+    const totalAmount = computeTotals(items, { discount: disc.discount }).total;
 
     const { data: orderData, error: orderError } = await sb
       .from('orders')
       .insert([{
         business_id: req.businessId,
-        client_id: client_id || null,
+        client_id: linkedClientId,
         client_name,
         client_phone,
         delivery_type,
@@ -275,6 +294,7 @@ async function create(req, res) {
         notes: notes || null,
         status: 'recibido',
         total_amount: totalAmount,
+        discount_amount: disc.discount,
         source: 'manual',
         ...extraFields,
       }])

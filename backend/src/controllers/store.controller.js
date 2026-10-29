@@ -64,7 +64,7 @@ function publicSettings(settings = {}) {
 }
 
 // ── Helpers de catálogo ──────────────────────────────────────────────────────
-const PRODUCT_COLUMNS = 'id, name, description, category, price, image_url, images, option_images, stock, min_stock, has_variants, is_bundle, created_at';
+const PRODUCT_COLUMNS = 'id, name, description, category, gender, price, image_url, images, option_images, stock, min_stock, has_variants, is_bundle, created_at';
 const VARIANT_COLUMNS = 'id, product_id, attributes, stock, image_url, is_active';
 
 async function loadActiveVariants(businessId, productIds) {
@@ -139,6 +139,7 @@ function productCard(product, variants) {
     name: product.name,
     description: product.description || '',
     category: product.category || null,
+    gender: product.gender || 'mujer',
     price: toNumber(product.price),
     images: uniqueUrls([product.image_url, ...(Array.isArray(product.images) ? product.images : [])]),
     colors: product.has_variants ? colorSwatches(product, variants) : [],

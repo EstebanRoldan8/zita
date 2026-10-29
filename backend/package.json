@@ -9,7 +9,9 @@
     "test:api": "node tests/api.test.js",
     "test:assistant": "node tests/assistant.test.js",
     "test:shipping": "node --test tests/shipping.test.js",
-    "test:payments": "node --test tests/payment-methods.test.js"
+    "test:payments": "node --test tests/payment-methods.test.js",
+    "test:gender": "node --test tests/gender.test.js",
+    "test:orders": "node --test tests/orders-manual.test.js"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.92.0",

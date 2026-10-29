@@ -1,13 +1,14 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import { X, Plus, Trash2, Package, AlertTriangle, Image as ImageIcon } from 'lucide-react';
 import api from '../../lib/api';
 import { getColorOptions } from '../../lib/optionKey';
 import { ColorPhotosEdit, ColorPhotosCreate } from './ColorPhotos';
+import { ProductPhotosEdit, ProductPhotosCreate } from './ProductPhotos';
+import { uploadProductPhotos } from '../../lib/productPhotos';
 
 const formatCOP = (v) => new Intl.NumberFormat('es-CO', { style: 'currency', currency: 'COP', maximumFractionDigits: 0 }).format(Number(v) || 0);
 const label = (attributes) => Object.values(attributes || {}).filter(Boolean).join(' / ');
-const MAX_GALLERY = 8;
 
 // Crear / editar un set (solo negocios tienda). El set no tiene stock propio: sus variantes y su
 // disponibilidad se calculan de sus productos. La vista previa avisa qué combinaciones se pierden.
@@ -28,9 +29,8 @@ export default function BundleModal({ initial, products, onClose, onSave }) {
   const [previewState, setPreviewState] = useState({ key: '', data: null, error: '' });
   const [error, setError] = useState('');
   const [saving, setSaving] = useState(false);
-  const [gallery, setGallery] = useState([]);
+  const [photos, setPhotos] = useState({ main: null, gallery: [] });
   const [pendingColorFiles, setPendingColorFiles] = useState({});
-  const galleryInput = useRef(null);
 
   // Solo productos normales y activos pueden ser parte de un set
   const options = useMemo(() => (products || []).filter((p) => !p.is_bundle && p.is_active !== false && p.id !== initial?.id), [products, initial?.id]);
@@ -79,12 +79,7 @@ export default function BundleModal({ initial, products, onClose, onSave }) {
       const r = isEdit ? await api.put(`/api/products/bundles/${initial.id}`, body) : await api.post('/api/products/bundles', body);
       const id = r.data.data.id;
       const warnings = [];
-      if (gallery.length) {
-        const fd = new FormData();
-        gallery.forEach((f) => fd.append('images', f));
-        try { await api.post(`/api/products/${id}/images`, fd, { headers: { 'Content-Type': 'multipart/form-data' } }); }
-        catch { warnings.push('las fotos de la galería'); }
-      }
+      if (!isEdit) warnings.push(...await uploadProductPhotos(id, photos));
       if (!isEdit) {
         for (const c of colors) {
           const files = pendingColorFiles[c.key] || [];
@@ -193,14 +188,12 @@ export default function BundleModal({ initial, products, onClose, onSave }) {
             </div>
           )}
 
-          {/* Fotos: galería y por color */}
-          <div className="space-y-2">
+          {/* Fotos: principal, galería y por color (mismo manejo que un producto normal) */}
+          <div className="space-y-3">
             <p className="text-white text-sm font-medium flex items-center gap-1"><ImageIcon size={14} /> Fotos del set</p>
-            <input ref={galleryInput} type="file" accept="image/jpeg,image/png,image/webp" multiple className="hidden"
-              onChange={(e) => setGallery([...gallery, ...Array.from(e.target.files || [])].slice(0, MAX_GALLERY))} />
-            <button type="button" onClick={() => galleryInput.current?.click()} className="text-xs text-violet-400 hover:text-violet-300">
-              + Agregar fotos a la galería {gallery.length > 0 && `(${gallery.length} seleccionadas)`}
-            </button>
+            {isEdit
+              ? <ProductPhotosEdit productId={initial.id} initialMain={initial.image_url} initialImages={initial.images} />
+              : <ProductPhotosCreate value={photos} onChange={setPhotos} />}
             {isEdit
               ? <ColorPhotosEdit productId={initial.id} />
               : <ColorPhotosCreate colors={colors} pending={pendingColorFiles} onChange={setPendingColorFiles} />}

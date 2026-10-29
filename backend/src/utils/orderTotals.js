@@ -23,13 +23,13 @@ function parseCustomer(body = {}) {
   return { customer: out };
 }
 
-// Descuento en pesos: entero >= 0 y <= subtotal. Ausente o vacío = 0.
-function parseDiscount(value, subtotal) {
+// Descuento en pesos: entero >= 0 y <= tope (por defecto el subtotal). Ausente o vacío = 0.
+function parseDiscount(value, subtotal, maxLabel = 'el subtotal del pedido') {
   if (value === undefined || value === null || value === '') return { discount: 0 };
   const n = typeof value === 'number' ? value : (typeof value === 'string' && /^\s*\d+\s*$/.test(value) ? Number(value) : NaN);
   if (!Number.isFinite(n) || !Number.isInteger(n)) return { error: 'El descuento debe ser un número entero de pesos.' };
   if (n < 0) return { error: 'El descuento no puede ser negativo.' };
-  if (n > subtotal) return { error: 'El descuento no puede ser mayor que el subtotal del pedido.' };
+  if (n > subtotal) return { error: `El descuento no puede ser mayor que ${maxLabel}.` };
   return { discount: n };
 }
 

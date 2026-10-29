@@ -117,10 +117,10 @@ export default function HeroVideo({ video }) {
           <>
             <img src={video.poster} alt="" className="absolute inset-0 h-full w-full object-cover" style={blur} decoding="async" />
             <img src={video.poster} alt="" className="absolute inset-y-0 left-1/2 h-full w-auto max-w-none -translate-x-1/2"
-              style={{ aspectRatio: '9 / 16' }} fetchpriority="high" decoding="async" onLoad={() => setPosterDone(true)} onError={() => setPosterDone(true)} />
+              style={{ aspectRatio: '9 / 16' }} fetchPriority="high" decoding="async" onLoad={() => setPosterDone(true)} onError={() => setPosterDone(true)} />
           </>
         ) : (
-          <img src={video.poster} alt="" className="absolute inset-0 h-full w-full object-cover" fetchpriority="high" decoding="async"
+          <img src={video.poster} alt="" className="absolute inset-0 h-full w-full object-cover" fetchPriority="high" decoding="async"
             onLoad={() => setPosterDone(true)} onError={() => setPosterDone(true)} />
         )
       )}

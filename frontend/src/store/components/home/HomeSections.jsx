@@ -52,7 +52,7 @@ export function Hero({ collection, path }) {
         </>
       ) : hasImage && (
         <>
-          <img src={hero.image} alt="" className="absolute inset-0 h-full w-full object-cover" loading="eager" fetchpriority="high" />
+          <img src={hero.image} alt="" className="absolute inset-0 h-full w-full object-cover" loading="eager" fetchPriority="high" />
           <span className="absolute inset-0" style={{ background: 'linear-gradient(to top, rgba(28,28,28,0.70), rgba(28,28,28,0.15) 60%)' }} aria-hidden="true" />
         </>
       )}

@@ -103,13 +103,15 @@ const supaPath = require.resolve('../src/config/supabase');
 require.cache[supaPath] = { id: supaPath, filename: supaPath, loaded: true, exports: { supabaseAdmin: fake, createUserClient: () => fake } };
 const loggerPath = require.resolve('../src/utils/logger');
 require.cache[loggerPath] = { id: loggerPath, filename: loggerPath, loaded: true, exports: { info() {}, warn() {}, error() {} } };
-const { update, parseVariantAttributes } = require('../src/controllers/productVariants.controller');
+const { update } = require('../src/controllers/productVariants.controller');
+const { sanitizeAttributes } = require('../src/utils/variantRules');
 
 function reset() {
   failImages = false;
   const v = (id, color, talla, extra = {}) => ({ id, product_id: P, business_id: BIZ, attributes: { color, talla }, stock: 1, is_active: true, ...extra });
   db = {
     products: [{ id: P, business_id: BIZ, stock: 4, option_images: { negro: ['n1', 'n2'], azul: ['a1'] } }],
+    product_bundle_components: [],
     product_variants: [v('v1', 'Negro', 'S'), v('v2', 'Negro', 'M'), v('v3', 'Azul', 'S'), { ...v('vx', 'Negro', 'S'), product_id: 'otro', business_id: 'biz-2' }],
   };
 }
@@ -156,6 +158,7 @@ test('PATCH: no deja dos variantes iguales (sin importar mayúsculas/tildes)', a
   reset();
   const r = await patch('v1', { attributes: { color: 'NEGRÓ', talla: 'm' } });
   assert.equal(r.status, 409);
+  assert.equal(r.body.code, 'VARIANT_DUPLICATE');
   assert.equal(variant('v1').attributes.talla, 'S');
 });
 
@@ -164,7 +167,7 @@ test('PATCH: atributos inválidos → 400; se sanitizan espacios y caracteres de
   for (const bad of [[], 'x', {}, { color: { a: 1 } }, { color: 'x'.repeat(41) }, { ['k'.repeat(31)]: 'v' }]) {
     assert.equal((await patch('v1', { attributes: bad })).status, 400, JSON.stringify(bad));
   }
-  assert.deepEqual(parseVariantAttributes({ ' color ': ' Negro\n  active ', talla: 'S' }).attributes, { color: 'Negro active', talla: 'S' });
+  assert.deepEqual(sanitizeAttributes({ ' color ': ' Negro\n  active ', talla: 'S' }).attributes, { color: 'Negro active', talla: 'S' });
 });
 
 test('PATCH: variante de otro negocio → 404 y nada cambia', async () => {

@@ -8,9 +8,18 @@ const BTN = 'px-2.5 py-1.5 text-xs rounded border transition flex items-center g
 const errorOf = (err, fallback) => err.response?.data?.error || fallback;
 const labelOf = (v) => Object.values(v.attributes || {}).filter(Boolean).join(' / ') || 'Variante';
 
+// Color de una variante y comparación sin mayúsculas, tildes ni espacios extra ("Negro" = "negro";
+// "Negro active" es otro color). Mismo criterio que normalizeOptionKey del servidor.
+const colorKey = (val) => String(val ?? '').normalize('NFD').replace(/[̀-ͯ]/g, '').trim().toLowerCase()
+  .replace(/\s+/g, '-').replace(/[^a-z0-9-]/g, '').replace(/-+/g, '-').replace(/^-+|-+$/g, '');
+const colorOf = (attrs) => {
+  const hit = Object.entries(attrs || {}).find(([k, val]) => ['color', 'colour'].includes(colorKey(k)) && colorKey(val));
+  return hit ? String(hit[1]).trim() : null;
+};
+
 // Una variante ya guardada: ver, editar (color, talla, SKU, stock mínimo, foto), ajustar stock,
 // desactivar / activar y eliminar (solo si nunca se usó). Las acciones destructivas piden confirmación.
-function VariantRow({ productId, variant: v, onChange, onRemoved, onChanged }) {
+function VariantRow({ productId, variant: v, siblings = [], onChange, onRemoved, onChanged }) {
   const [mode, setMode] = useState('view'); // view | edit | confirm-off | confirm-delete
   const [draft, setDraft] = useState(null);
   const [busy, setBusy] = useState(false);
@@ -26,7 +35,9 @@ function VariantRow({ productId, variant: v, onChange, onRemoved, onChanged }) {
   const apply = (data, extra) => {
     onChange({ ...v, ...data, usage: v.usage });
     onChanged?.();
-    setMsg(extra?.warning ? { type: 'warn', text: extra.warning } : { type: '', text: '' });
+    // Avisos del servidor: sets afectados y qué pasó con las fotos del color (movidas o conservadas)
+    const text = [extra?.warning, extra?.photos?.message].filter(Boolean).join(' ');
+    setMsg(text ? { type: 'warn', text } : { type: '', text: '' });
   };
 
   const startEdit = () => {
@@ -36,6 +47,13 @@ function VariantRow({ productId, variant: v, onChange, onRemoved, onChanged }) {
   };
 
   const save = async () => {
+    // Cambiar el color cuando otras variantes siguen con el color viejo: sus fotos se quedan con él
+    const oldColor = colorOf(v.attributes);
+    const newColor = colorOf(draft.attrs);
+    if (oldColor && newColor && colorKey(oldColor) !== colorKey(newColor)) {
+      const sharing = siblings.filter((x) => x.id !== v.id && colorKey(colorOf(x.attributes)) === colorKey(oldColor)).length;
+      if (sharing > 0 && !window.confirm(`Hay ${sharing} variante${sharing !== 1 ? 's' : ''} más con «${oldColor}». Sus fotos se quedan con «${oldColor}» y «${newColor}» empezará sin fotos (podrás subirlas en «Fotos por color»).\n\n¿Guardar el cambio de color?`)) return;
+    }
     setBusy(true); setMsg({ type: '', text: '' });
     try {
       const body = { attributes: draft.attrs, min_stock: Number(draft.min_stock) };
@@ -197,7 +215,7 @@ export default function VariantList({ productId, variants, setVariants, onChange
     setVariants((prev) => prev.filter((x) => x.id !== id));
     setNotice(resp?.warning || '');
   };
-  const row = (v) => <VariantRow key={v.id} productId={productId} variant={v} onChange={replace} onRemoved={removed} onChanged={onChanged} />;
+  const row = (v) => <VariantRow key={v.id} productId={productId} variant={v} siblings={variants} onChange={replace} onRemoved={removed} onChanged={onChanged} />;
 
   return (
     <div className="space-y-2 mb-4" data-testid="variant-list">

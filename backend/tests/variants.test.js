@@ -60,7 +60,9 @@ function builder(table) {
       let out = rows.filter(match).map(clone);
       if (st.order) out.sort((a, b) => String(a[st.order]).localeCompare(String(b[st.order])));
       if (st.one) return { data: out[0] || null, error: out[0] ? null : null };
-      return { data: out, error: null };
+      // select(cols, { count: 'exact', head: true }) como en Supabase: solo el conteo
+      if (st.head) return { data: null, count: out.length, error: null };
+      return { data: out, count: st.count ? out.length : undefined, error: null };
     }
     if (st.op === 'update') { rows.filter(match).forEach((r) => Object.assign(r, st.payload)); return { data: null, error: null }; }
     if (st.op === 'delete') { const gone = rows.filter(match); db[table] = rows.filter((r) => !match(r)); return { data: gone.map(clone), error: null }; }
@@ -68,7 +70,7 @@ function builder(table) {
     return { data: null, error: null };
   };
   const b = {
-    select() { return b; },
+    select(_cols, opts = {}) { st.count = !!opts.count; st.head = !!opts.head; return b; },
     eq(k, v) { st.filters.push([k, 'eq', v]); return b; },
     neq(k, v) { st.filters.push([k, 'neq', v]); return b; },
     in(k, v) { st.filters.push([k, 'in', v]); return b; },

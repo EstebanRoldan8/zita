@@ -233,18 +233,21 @@ export function Storytelling({ collection }) {
   if (blocks.length === 0) return null;
   const img = collection.storyImage;
   return (
-    <section className="bg-flow-black text-flow-white flow-on-dark" aria-label={`Historia de ${collection.name}`}>
-      <div className={`mx-auto px-6 py-20 md:py-32 ${img ? 'max-w-6xl md:grid md:grid-cols-2 md:items-center md:gap-16' : 'max-w-3xl'}`}>
+    <section className={`relative isolate overflow-hidden bg-flow-black text-flow-white flow-on-dark ${img ? 'flow-story-photo' : ''}`} aria-label={`Historia de ${collection.name}`}>
+      {/* Foto de campaña de fondo: absoluta (la altura la da el texto, sin CLS) y una capa oscura al 72 % que
+          deja ver la foto y garantiza contraste AA del texto blanco aun sobre las zonas claras */}
+      {img && (
+        <>
+          <img src={img.src} srcSet={img.srcSet} sizes="100vw" width={img.width} height={img.height}
+            alt={img.alt} loading="lazy" decoding="async" className="absolute inset-0 -z-10 h-full w-full object-cover object-center" />
+          <div className="absolute inset-0 -z-10 bg-[rgba(28,28,28,0.76)]" aria-hidden="true" />
+        </>
+      )}
+      <div className="mx-auto max-w-3xl px-6 py-20 md:py-32">
         <div className="space-y-12 md:space-y-16">
           <h2 className="flow-collection-name text-flow-stone text-xl">{collection.name}</h2>
           {blocks.map((b, i) => <StoryBlock key={i} block={b} />)}
         </div>
-        {img && (
-          <div className="mx-auto mt-14 w-full max-w-sm md:mt-0 md:max-w-none" style={{ aspectRatio: `${img.width} / ${img.height}` }}>
-            <img src={img.src} srcSet={img.srcSet} sizes="(min-width: 768px) 45vw, 90vw" width={img.width} height={img.height}
-              alt={img.alt} loading="lazy" decoding="async" className="h-full w-full object-cover" />
-          </div>
-        )}
       </div>
     </section>
   );

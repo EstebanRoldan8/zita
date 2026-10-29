@@ -78,6 +78,8 @@
   outline-offset: 2px;
 }
 .flow-store .flow-on-dark :focus-visible { outline-color: var(--flow-white); }
+/* Historia con foto de fondo: el acento stone no llega a AA sobre la foto; ahí va en sand */
+.flow-store .flow-story-photo .text-flow-stone { color: var(--flow-sand); }
 
 /* ── Colores ── */
 .flow-store .bg-flow-black { background-color: var(--flow-black); }

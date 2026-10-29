@@ -30,7 +30,7 @@ export default function StoreFooter() {
   const collection = nav.collection;
 
   const wa = waLink(whatsappNumber(store), 'Hola FLOW, tengo una pregunta.');
-  const clubWa = waLink(whatsappNumber(store), flowContent.club?.whatsappMessage);
+  const clubChannel = flowContent.club?.channelUrl || null;
   const ig = instagramUrl(store);
   const tiktok = store?.social?.tiktok || null;
   const { email, city, whatsappDisplay } = flowContent.brand;
@@ -61,7 +61,7 @@ export default function StoreFooter() {
       links: [
         nav.items.some((i) => i.id === 'sobre') && { label: 'Sobre FLOW', href: path('/sobre-flow') },
         collection && { label: collection.name, href: path(`/coleccion/${collection.slug}`) },
-        clubWa && { label: flowContent.club.title, href: clubWa, external: true },
+        clubChannel && { label: flowContent.club.title, href: clubChannel, external: true },
       ],
     },
     {

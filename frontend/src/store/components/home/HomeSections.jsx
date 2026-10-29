@@ -6,8 +6,8 @@ import { flowContent } from '../../content/flowContent';
 import {
   productsInCapsule, capsuleColorOrder, dropColorOrder, productsInDrop, coverForColors, firstImage, colorsOfProduct, productTypesOf,
 } from '../../lib/collections';
-import { formatCOP, waLink } from '../../lib/format';
-import { whatsappNumber, instagramUrl } from '../../lib/contact';
+import { formatCOP } from '../../lib/format';
+import { instagramUrl } from '../../lib/contact';
 import { sizeGuide } from '../../lib/policies';
 import { heroVideoOf } from '../../lib/heroVideo';
 import HeroVideo from './HeroVideo';
@@ -372,11 +372,11 @@ export function FirstTime({ path }) {
   );
 }
 
-// Banda Flow Club: título, frase, botones (WhatsApp si hay número, la cuenta de Instagram) y los reels.
+// Banda Flow Club: título, frase, botones (canal de WhatsApp de Flow Club, la cuenta de Instagram) y los reels.
 export function FlowClub({ store }) {
   const club = flowContent.club;
   const insta = flowContent.instagram;
-  const wa = waLink(whatsappNumber(store), club?.whatsappMessage);
+  const wa = club?.channelUrl || null;
   const ig = insta?.url || instagramUrl(store);
   const hasReels = (insta?.reels || []).length > 0;
   if (!club || (!wa && !ig && !hasReels)) return null;
@@ -392,7 +392,7 @@ export function FlowClub({ store }) {
             <div className="flex flex-col gap-3 sm:flex-row">
               {wa && (
                 <a href={wa} target="_blank" rel="noopener noreferrer" className="flow-btn flow-btn-light">
-                  <MessageCircle size={16} strokeWidth={1.5} aria-hidden="true" /> Unirme por WhatsApp
+                  <MessageCircle size={16} strokeWidth={1.5} aria-hidden="true" /> Unirme al canal de WhatsApp
                 </a>
               )}
               {ig && <a href={ig} target="_blank" rel="noopener noreferrer" className="flow-btn flow-btn-outline flow-btn-outline-light">{insta?.handle || 'Instagram'}</a>}

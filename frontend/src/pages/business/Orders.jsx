@@ -53,6 +53,9 @@ const bundleLine = (snap) => [snap?.bundle_name, Object.values(snap?.attributes 
 
 const variantLabel = (attributes) => Object.entries(attributes || {}).map(([k, v]) => `${k}: ${v}`).join(' · ');
 
+// Pedidos sin cliente (venta en persona): nunca se muestra vacío
+const clientLabel = (order) => order?.client_name?.trim() || 'Cliente sin datos';
+
 const INPUT = 'w-full bg-[#131929] border border-slate-700 text-white rounded-lg px-4 py-2.5 text-sm focus:outline-none focus:border-violet-500 transition';
 const MODAL_OVERLAY = 'fixed inset-0 bg-black/60 flex items-end md:items-center justify-center z-50 md:px-4 md:py-4';
 const MODAL_PANEL = 'bg-[#131929] border border-slate-800 w-full h-[100dvh] md:h-auto md:max-h-[calc(100vh-2rem)] md:rounded-2xl shadow-xl flex flex-col';
@@ -64,6 +67,7 @@ function NewOrderModal({ onClose, onSuccess, clients, isTienda, products }) {
     delivery_type: 'retiro',
     delivery_address: '',
     notes: '',
+    discount_amount: '',
     items: [{ description: '', quantity: 1, unit_price: 0 }],
   });
   const [error, setError] = useState('');
@@ -133,12 +137,19 @@ function NewOrderModal({ onClose, onSuccess, clients, isTienda, products }) {
     setForm({ ...form, items: updated });
   };
 
-  const totalAmount = form.items.reduce((s, item) => s + (item.quantity * item.unit_price), 0);
+  const subtotalAmount = form.items.reduce((s, item) => s + (item.quantity * item.unit_price), 0);
+  const discountAmount = /^\d+$/.test(String(form.discount_amount).trim()) ? Number(form.discount_amount) : 0;
+  // Vista previa: el servidor recalcula el total con los precios reales
+  const totalAmount = subtotalAmount - discountAmount;
 
   const handleCreate = async () => {
     setError('');
-    if (!form.client_name?.trim() || !form.client_phone?.trim()) {
-      return setError('Nombre y teléfono son obligatorios.');
+    const discountText = String(form.discount_amount ?? '').trim();
+    if (discountText && !/^\d+$/.test(discountText)) {
+      return setError('El descuento debe ser un número entero de pesos (0 o más).');
+    }
+    if (discountAmount > subtotalAmount) {
+      return setError('El descuento no puede ser mayor que el subtotal.');
     }
     if (form.delivery_type === 'envio' && !form.delivery_address?.trim()) {
       return setError('Dirección de envío es obligatoria.');
@@ -153,8 +164,9 @@ function NewOrderModal({ onClose, onSuccess, clients, isTienda, products }) {
     setLoading(true);
     try {
       await api.post('/api/orders', {
-        client_name: form.client_name.trim(),
-        client_phone: form.client_phone.trim(),
+        client_name: form.client_name.trim() || null,
+        client_phone: form.client_phone.trim() || null,
+        discount_amount: discountAmount,
         delivery_type: form.delivery_type,
         delivery_address: form.delivery_type === 'envio' ? form.delivery_address.trim() : null,
         notes: form.notes?.trim() || null,
@@ -186,14 +198,14 @@ function NewOrderModal({ onClose, onSuccess, clients, isTienda, products }) {
 
           <div className="space-y-3">
             <div>
-              <label className="block text-slate-400 text-sm mb-1.5">Nombre cliente *</label>
+              <label className="block text-slate-400 text-sm mb-1.5">Nombre cliente (opcional)</label>
               <input type="text" value={form.client_name}
                 onChange={(e) => setForm({ ...form, client_name: e.target.value })}
                 className={INPUT} />
             </div>
 
             <div>
-              <label className="block text-slate-400 text-sm mb-1.5">Teléfono cliente *</label>
+              <label className="block text-slate-400 text-sm mb-1.5">Teléfono cliente (opcional)</label>
               <input type="tel" inputMode="tel" value={form.client_phone}
                 onChange={(e) => setForm({ ...form, client_phone: e.target.value })}
                 className={INPUT} />
@@ -294,9 +306,22 @@ function NewOrderModal({ onClose, onSuccess, clients, isTienda, products }) {
             </button>
           </div>
 
-          <p className="text-slate-300 text-sm">
-            Total: <span className="font-bold">{formatCOP(totalAmount)}</span>
-          </p>
+          <div>
+            <label className="block text-slate-400 text-sm mb-1.5">Descuento ($) (opcional)</label>
+            <input type="number" inputMode="numeric" min="0" step="1" placeholder="0" value={form.discount_amount}
+              onChange={(e) => setForm({ ...form, discount_amount: e.target.value })}
+              className={INPUT} />
+          </div>
+
+          <div className="text-slate-300 text-sm space-y-0.5">
+            {discountAmount > 0 && (
+              <>
+                <p>Subtotal: <span>{formatCOP(subtotalAmount)}</span></p>
+                <p>Descuento: <span className="text-emerald-400">-{formatCOP(discountAmount)}</span></p>
+              </>
+            )}
+            <p>Total: <span className="font-bold">{formatCOP(totalAmount)}</span></p>
+          </div>
         </div>
 
         <div className="flex gap-3 px-4 md:px-6 py-4 border-t border-slate-800 flex-shrink-0">
@@ -458,8 +483,8 @@ function OrderDetailModal({ order: initialOrder, onClose, isTienda, onNotice }) 
 
           <div>
             <p className="text-slate-500 text-xs">Cliente</p>
-            <p className="text-white font-medium">{order.client_name}</p>
-            <p className="text-slate-400 text-sm">{order.client_phone}</p>
+            <p className="text-white font-medium">{clientLabel(order)}</p>
+            {order.client_phone && <p className="text-slate-400 text-sm">{order.client_phone}</p>}
           </div>
 
           <div>
@@ -525,7 +550,17 @@ function OrderDetailModal({ order: initialOrder, onClose, isTienda, onNotice }) 
             </div>
           </div>
 
-          <div className="border-t border-slate-800 pt-3">
+          <div className="border-t border-slate-800 pt-3 space-y-0.5">
+            {Number(order.discount_amount) > 0 && (
+              <>
+                <p className="text-slate-400 text-sm">
+                  Subtotal: <span>{formatCOP(Number(order.total_amount) + Number(order.discount_amount) - Number(order.shipping_cost || 0))}</span>
+                </p>
+                <p className="text-slate-400 text-sm">
+                  Descuento: <span className="text-emerald-400">-{formatCOP(order.discount_amount)}</span>
+                </p>
+              </>
+            )}
             <p className="text-white text-sm">
               Total: <span className="font-bold">{formatCOP(order.total_amount)}</span>
             </p>
@@ -801,7 +836,7 @@ export default function Orders() {
                 <div className="flex items-center justify-between gap-4">
                   <div className="flex-1 min-w-0">
                     <div className="flex flex-wrap items-center gap-x-3 gap-y-1 mb-2">
-                      <p className="text-white font-semibold truncate">{order.client_name}</p>
+                      <p className="text-white font-semibold truncate">{clientLabel(order)}</p>
                       <span className={`text-xs border px-2 py-0.5 rounded-full flex-shrink-0 ${config.color}`}>
                         {config.label}
                       </span>
@@ -811,7 +846,7 @@ export default function Orders() {
                         </span>
                       )}
                     </div>
-                    <p className="text-slate-500 text-sm">{order.client_phone}</p>
+                    {order.client_phone && <p className="text-slate-500 text-sm">{order.client_phone}</p>}
                     <div className="flex items-center gap-4 mt-2 text-xs text-slate-400">
                       <span>{new Date(order.created_at).toLocaleDateString('es-CO')}</span>
                       <span className="capitalize">{order.delivery_type}</span>
@@ -825,6 +860,9 @@ export default function Orders() {
 
                   <div className="text-right flex-shrink-0">
                     <p className="text-violet-400 font-bold">{formatCOP(order.total_amount)}</p>
+                    {Number(order.discount_amount) > 0 && (
+                      <p className="text-emerald-400 text-xs">Desc. -{formatCOP(order.discount_amount)}</p>
+                    )}
                     <button
                       onClick={() => setSelectedOrder(order)}
                       className="mt-2 flex items-center gap-1.5 bg-violet-600/20 hover:bg-violet-600 border border-violet-500/30 hover:border-violet-500 text-violet-400 hover:text-white text-xs font-medium px-3 py-1.5 rounded-lg transition-all"

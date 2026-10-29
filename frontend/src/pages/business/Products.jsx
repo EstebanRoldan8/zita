@@ -14,6 +14,7 @@ import { ColorPhotosEdit, ColorPhotosCreate } from '../../components/products/Co
 import BundleModal from '../../components/products/BundleModal';
 import { getColorOptions } from '../../lib/optionKey';
 import MovementsModal from '../../components/inventory/MovementsModal';
+import InventoryHistory from '../../components/inventory/InventoryHistory';
 import StoreImage from '../../store/components/StoreImage';
 import InventorySummary from '../../components/inventory/InventorySummary';
 
@@ -1606,6 +1607,8 @@ function InventarioTab({ products, sales, sortBy, onSortChange, isTienda, openRe
         <RestockModal products={products} preset={restockPreset}
           onClose={() => { setRestockOpen(false); setRestockPreset(null); }} />
       )}
+      <InventoryHistory products={products} />
+
       {historyProduct && <MovementsModal product={historyProduct} onClose={() => setHistoryProduct(null)} />}
     </div>
   );

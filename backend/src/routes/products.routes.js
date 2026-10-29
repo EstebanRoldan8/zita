@@ -3,7 +3,7 @@ const multer = require('multer');
 const {
   getAll, getLowStock, getSales, getInventorySummary,
   create, update, toggleProduct, deleteProduct, sell, uploadImage, uploadImages, deleteImage,
-  restock, getMovements,
+  restock, getMovements, getHistory,
   getOptionImages, uploadOptionImages, deleteOptionImage, setOptionCover,
 } = require('../controllers/products.controller');
 const bundles = require('../controllers/bundles.controller');
@@ -44,6 +44,7 @@ router.use(verifyToken, businessContext);
 router.get('/low-stock', getLowStock);
 router.get('/inventory-summary', getInventorySummary);
 router.get('/sales',     getSales);
+router.get('/movements', getHistory);
 // Sets / combos (antes de las rutas con :id)
 router.post('/bundles/preview', bundles.preview);
 router.post('/bundles',          bundles.create);

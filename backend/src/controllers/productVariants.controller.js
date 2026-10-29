@@ -1,6 +1,7 @@
 const { createUserClient, supabaseAdmin } = require('../config/supabase');
 const logger = require('../utils/logger');
 const { generarSku } = require('../utils/sku');
+const { ownStockLossMessage } = require('../utils/inventoryHistory');
 
 // Misma fórmula que adjust_stock: products.stock = suma de variantes activas.
 // Se usa cuando cambia el conjunto de variantes activas sin mover unidades (activar/desactivar).
@@ -177,7 +178,7 @@ async function update(req, res) {
 
     const { data: variant, error: getErr } = await sb
       .from('product_variants')
-      .select('id, stock')
+      .select('id, stock, is_active, attributes')
       .eq('id', variantId)
       .eq('product_id', productId)
       .eq('business_id', req.businessId)
@@ -185,6 +186,19 @@ async function update(req, res) {
 
     if (getErr || !variant) {
       return res.status(404).json({ success: false, error: 'Variante no encontrada.' });
+    }
+
+    // Activar una variante en un producto con stock propio (sin otras variantes activas) recalcularía el total con
+    // las variantes y borraría esas unidades: se bloquea (no se adivina a qué color/talla pertenecían).
+    if (is_active === true && variant.is_active === false) {
+      const [{ data: prod }, { count: others }] = await Promise.all([
+        supabaseAdmin.from('products').select('stock').eq('id', productId).eq('business_id', req.businessId).maybeSingle(),
+        supabaseAdmin.from('product_variants').select('id', { count: 'exact', head: true })
+          .eq('product_id', productId).eq('business_id', req.businessId).eq('is_active', true).neq('id', variantId),
+      ]);
+      const label = Object.values(variant.attributes || {}).filter(Boolean).join(' / ');
+      const block = ownStockLossMessage({ productStock: prod?.stock, otherActiveVariants: others || 0, variantLabel: label });
+      if (block) return res.status(409).json({ success: false, error: block, code: 'OWN_STOCK_WOULD_BE_LOST' });
     }
 
     const updates = {};

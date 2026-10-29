@@ -256,15 +256,18 @@ export function Capsules({ collection, path }) {
   return (
     <section className="mx-auto max-w-7xl px-4 py-16 md:px-8 md:py-24" aria-labelledby="flow-capsulas">
       <h2 id="flow-capsulas" className="flow-label mb-8 text-center">Cápsulas {collection.name}</h2>
-      <div className="grid gap-3 lg:grid-cols-3">
+      {/* En 3 columnas cada tarjeta usa las filas de la grilla (subgrid): subtítulo, título y descripción
+          arrancan a la misma altura aunque las descripciones tengan largos distintos, y "Ver cápsula" queda abajo */}
+      <div className="grid gap-x-3 gap-y-3 lg:grid-cols-3 lg:grid-rows-[1fr_auto_auto_auto_auto] lg:gap-y-0">
         {capsules.map((c) => (
           <Link key={c.slug} to={`${path(`/coleccion/${collection.slug}`)}?capsula=${c.slug}`}
-            className="flex min-h-[300px] min-w-0 flex-col justify-end break-words p-8 transition-opacity hover:opacity-95 lg:min-h-[380px]"
+            className="flex min-h-[300px] min-w-0 flex-col justify-end break-words p-8 transition-opacity hover:opacity-95 lg:row-span-5 lg:grid lg:min-h-[380px] lg:grid-rows-subgrid"
             style={{ background: `linear-gradient(to top, rgba(28,28,28,0.55), rgba(28,28,28,0) 70%), ${c.palette?.bg || "var(--flow-black)"}`, color: c.palette?.fg }}>
+            <span aria-hidden="true" className="hidden lg:block" />
             <span className="flow-label opacity-90">{c.tagline}</span>
             <span className="flow-collection-name mt-3 text-5xl lg:text-[2.6rem] xl:text-5xl">{c.name}</span>
-            {c.text?.[0] && <span className="mt-4 text-sm leading-relaxed opacity-90">{c.text[0]}</span>}
-            <span className="flow-label mt-6 inline-block self-start border-b border-current pb-1">Ver cápsula</span>
+            <span className="mt-4 text-sm leading-relaxed opacity-90">{c.text?.[0] || ''}</span>
+            <span className="flow-label mt-6 inline-block self-start justify-self-start border-b border-current pb-1 lg:self-end">Ver cápsula</span>
           </Link>
         ))}
       </div>

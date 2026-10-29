@@ -17,10 +17,20 @@ export function normalize(value) {
     .trim();
 }
 
-// Hex del color o null si no está en el mapa
+// Hex del color o null si no se reconoce (ColorDot pinta entonces el gris neutro). Sin tildes ni mayúsculas:
+//  1) nombre exacto ("Verde oliva", "Azul claro", "Negro viejo");
+//  2) si no, el color conocido MÁS LARGO con el que empieza el nombre, por palabras completas: "Negro active",
+//     "Negro estampado" → negro; "Verde oliva claro" → verde oliva (no verde). "Negrita" no es negro.
+// El nombre completo se sigue mostrando tal cual en etiquetas, ficha, carrito y pedido: esto solo decide el hex.
 export function colorHex(name, map = colorMap) {
   const key = normalize(name);
-  return key && Object.prototype.hasOwnProperty.call(map, key) ? map[key] : null;
+  if (!key) return null;
+  if (Object.prototype.hasOwnProperty.call(map, key)) return map[key];
+  let best = null;
+  for (const known of Object.keys(map)) {
+    if (key.startsWith(`${known} `) && (!best || known.length > best.length)) best = known;
+  }
+  return best ? map[best] : null;
 }
 
 // Colores claros llevan borde stone (blanco, arena, beige, rocío...)

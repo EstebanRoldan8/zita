@@ -171,7 +171,7 @@ const RENACER = {
   // Jerarquía para destacar (coincidencia por "includes" normalizado sobre el nombre del producto).
   // Se usa SOLO para el bloque "Producto protagonista" y el orden sugerido en la colección.
   products: {
-    icon: 'aria',
+    icon: 'set aria', // el set (Top + Licra Aria), por nombre: nunca por ID
     disruptive: ['falda lira', 'falda vela'],
     expansion: ['oversize'],
     essential: ['jana', 'nila', 'pantaloneta'],

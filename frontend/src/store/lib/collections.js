@@ -275,6 +275,8 @@ export function categoryPath(category, content = flowContent) {
 const GARMENTS = {
   licra: 'Licras', pantaloneta: 'Pantalonetas', camiseta: 'Camisetas', buzo: 'Buzos', jogger: 'Joggers', sudadera: 'Sudaderas',
   chaqueta: 'Chaquetas', bermuda: 'Bermudas', short: 'Shorts', oversize: 'Oversize', esqueleto: 'Esqueletos',
+  // Las Jolie (Flow Archive) son camisetas: siguen en Archive y además salen en Camisetas (su género decide la sección)
+  jolie: 'Camisetas',
 };
 
 // Prendas que se reconocen en CUALQUIER parte del nombre ("Crop Top Pura Vida", "Mini crop top")

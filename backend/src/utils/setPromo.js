@@ -20,6 +20,8 @@ const ARCHIVE_MATCH = ['flow archive', 'archive', 'archivo'];
 const GARMENTS = {
   licra: 'Licras', pantaloneta: 'Pantalonetas', camiseta: 'Camisetas', buzo: 'Buzos', jogger: 'Joggers', sudadera: 'Sudaderas',
   chaqueta: 'Chaquetas', bermuda: 'Bermudas', short: 'Shorts', oversize: 'Oversize', esqueleto: 'Esqueletos',
+  // Las Jolie (Flow Archive) son camisetas: siguen en Archive y además salen en Camisetas (su género decide la sección)
+  jolie: 'Camisetas',
 };
 const GARMENT_PHRASES = { 'crop top': 'Crop top' };
 

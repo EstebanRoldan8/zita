@@ -2296,6 +2296,7 @@ async function executeTool(toolName, toolInput, businessId) {
       // El descuento de stock es la PRIMERA escritura de la venta: si falla, no se escribe nada más.
       // supabase.rpc() no lanza: devuelve { error } (el catch cubre solo fallas de red del cliente).
       let stockError = null;
+      const registrarSaleId = require('crypto').randomUUID();
       try {
         ({ error: stockError } = await supabaseAdmin.rpc('adjust_stock', {
           p_business_id: businessId,
@@ -2305,7 +2306,7 @@ async function executeTool(toolName, toolInput, businessId) {
           p_type: 'venta',
           p_reason: null,
           p_ref_type: 'product_sale',
-          p_ref_id: null,
+          p_ref_id: registrarSaleId,
           p_user: null
         }));
       } catch (err) {
@@ -2329,6 +2330,7 @@ async function executeTool(toolName, toolInput, businessId) {
       const { data, error: saleError } = await supabaseAdmin
         .from('product_sales')
         .insert({
+          id: registrarSaleId,
           business_id: businessId,
           product_id: toolInput.product_id,
           quantity: toolInput.quantity,
@@ -4303,19 +4305,26 @@ async function executeTool(toolName, toolInput, businessId) {
         return { success: false, error: `Stock insuficiente. Disponible: ${product.stock}` };
       }
 
-      const { data: stockData, error: stockError } = await supabaseAdmin
-        .from('products')
-        .update({ stock: product.stock - toolInput.quantity })
-        .eq('id', product.id)
-        .select('id');
+      // El stock se descuenta con adjust_stock (deja movimiento 'venta' enlazado al registro de la venta)
+      const venderSaleId = require('crypto').randomUUID();
+      const { error: stockError } = await supabaseAdmin.rpc('adjust_stock', {
+        p_business_id: businessId,
+        p_product_id: product.id,
+        p_variant_id: null,
+        p_change: -toolInput.quantity,
+        p_type: 'venta',
+        p_reason: null,
+        p_ref_type: 'product_sale',
+        p_ref_id: venderSaleId,
+        p_user: null,
+      });
 
-      if (stockError?.code === '23514' || stockError?.message?.includes('check_products_stock_non_negative')) {
-        logger.error('[STOCK_NEGATIVE_BLOCKED]', { product_id: product.id, attempted_qty: toolInput.quantity, current_stock: product.stock });
-        return { success: false, error: 'Ya no hay stock suficiente de este producto.' };
-      }
-
-      if (stockError || !stockData || stockData.length === 0) {
-        logger.error('[VENDER_PRODUCTO_STOCK_UPDATE_FAILED]', { businessId, productId: product.id, error: stockError?.message });
+      if (stockError) {
+        if (stockError.message?.includes('STOCK_INSUFICIENTE_O_NO_ENCONTRADO')) {
+          logger.error('[STOCK_NEGATIVE_BLOCKED]', { product_id: product.id, attempted_qty: toolInput.quantity, current_stock: product.stock });
+          return { success: false, error: 'Ya no hay stock suficiente de este producto.' };
+        }
+        logger.error('[VENDER_PRODUCTO_STOCK_UPDATE_FAILED]', { businessId, productId: product.id, error: stockError.message });
         return { success: false, error: 'No se pudo actualizar el stock del producto' };
       }
 
@@ -4324,6 +4333,7 @@ async function executeTool(toolName, toolInput, businessId) {
       const { data: saleData, error: saleError } = await supabaseAdmin
         .from('product_sales')
         .insert({
+          id: venderSaleId,
           business_id: businessId,
           product_id: product.id,
           quantity: toolInput.quantity,
@@ -5249,7 +5259,7 @@ Cuando diga "mañana" usar: ${mananaISO}
   };
 }
 
-module.exports = { processMessage, sanitizeHistory, SYSTEM_PROMPT, tools, STORE_MODEL };
+module.exports = { processMessage, sanitizeHistory, SYSTEM_PROMPT, tools, STORE_MODEL, executeTool };
 
 
 

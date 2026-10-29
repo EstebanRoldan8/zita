@@ -862,6 +862,41 @@ async function getProductsSold(req, res) {
     if (error) throw error;
 
     const agrupado = {};
+    // Ventas por pedido (tienda web y pedidos manuales, no cancelados): sus líneas, en hora de Colombia
+    const { data: orders, error: oErr } = await supabaseAdmin
+      .from('orders')
+      .select('id, source, created_at')
+      .eq('business_id', businessId)
+      .or('status.is.null,status.neq.cancelado')
+      .gte('created_at', inicio + 'T00:00:00-05:00')
+      .lte('created_at', fin + 'T23:59:59-05:00');
+    if (oErr) throw oErr;
+    const orderById = Object.fromEntries((orders || []).map((o) => [o.id, o]));
+    let orderItems = [];
+    if (orders?.length) {
+      const { data: items, error: iErr } = await supabaseAdmin
+        .from('order_items')
+        .select('order_id, description, quantity, total_price, products(name)')
+        .eq('business_id', businessId)
+        .in('order_id', orders.map((o) => o.id));
+      if (iErr) throw iErr;
+      orderItems = items || [];
+    }
+    for (const it of orderItems) {
+      const o = orderById[it.order_id];
+      const nombre = it.products?.name || it.description || 'Sin nombre';
+      if (!agrupado[nombre]) agrupado[nombre] = { nombre, unidades: 0, total: 0, ventas: [] };
+      agrupado[nombre].unidades += Number(it.quantity) || 0;
+      agrupado[nombre].total += Number(it.total_price) || 0;
+      agrupado[nombre].ventas.push({
+        fecha: new Date(o.created_at).toLocaleDateString('en-CA', { timeZone: 'America/Bogota' }),
+        cantidad: Number(it.quantity) || 0,
+        total: Number(it.total_price) || 0,
+        canal: o.source === 'web' ? 'tienda web' : 'pedido',
+        detalle: it.description || null,
+      });
+    }
+
     data?.forEach(s => {
       const nombre = s.products?.name || 'Sin nombre';
       if (!agrupado[nombre]) agrupado[nombre] = {

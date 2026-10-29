@@ -11,7 +11,10 @@ function isTransientError(error) {
 async function callClaudeWithRetry(client, params, maxRetries = 2) {
   for (let attempt = 0; attempt <= maxRetries; attempt++) {
     try {
-      return await client.messages.create(params);
+      const response = await client.messages.create(params);
+      // Solo el nombre del modelo (nunca el contenido del usuario): permite saber qué modelo corre en producción
+      logger.info(`[claude] modelo=${params?.model || 'desconocido'}`);
+      return response;
     } catch (error) {
       const isTransient = isTransientError(error);
       const attemptsLeft = maxRetries - attempt;

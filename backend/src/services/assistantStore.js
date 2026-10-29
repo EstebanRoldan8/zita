@@ -69,22 +69,47 @@ function claimsWrite(t0) {
   return done && change;
 }
 
-// Productos por nombre: exacto primero; luego todas las palabras (>= 3 letras) presentes
+// Singular simple para comparar nombres: "licras" → "licra", "tops" → "top", "pantalonetas" → "pantaloneta"
+const singular = (w) => (w.length > 4 && w.endsWith('es') && !/[aeiou]es$/.test(w) ? w.slice(0, -2) : w.length > 3 && w.endsWith('s') ? w.slice(0, -1) : w);
+const STOP = new Set(['de', 'del', 'la', 'las', 'el', 'los', 'un', 'una', 'unos', 'unas', 'talla', 'color', 'y', 'a', 'al', 'con', 'en', 'para', 'por']);
+const words = (s) => norm(s).replace(/[^a-z0-9 ]/g, ' ').split(' ').filter((w) => w && !STOP.has(w)).map(singular);
+
+// Productos por nombre (sin tildes, mayúsculas ni plurales): exacto primero; luego todas las palabras presentes;
+// si no, por categoría ("las licras" → todos los de la categoría Licras)
 function matchProducts(products, query) {
   const q = norm(query);
   if (!q) return [];
   const exact = products.filter((p) => norm(p.name) === q);
   if (exact.length) return exact;
-  const words = q.split(' ').filter((w) => w.length >= 3);
-  return products.filter((p) => {
-    const n = norm(p.name);
-    return n.includes(q) || (words.length > 0 && words.every((w) => n.includes(w)));
+  const qw = words(q).filter((w) => w.length >= 3);
+  if (!qw.length) return [];
+  const byName = products.filter((p) => {
+    const nw = words(p.name);
+    return qw.every((w) => nw.some((n) => n === w || n.startsWith(w) || w.startsWith(n)));
   });
+  if (byName.length) return byName;
+  return products.filter((p) => p.category && qw.every((w) => words(p.category).includes(w)));
 }
+
+// Sinónimos de color y talla (lo que la gente escribe → como se guarda)
+const COLOR_SYNONYMS = {
+  negra: 'negro', negras: 'negro', negros: 'negro', blanca: 'blanco', blancas: 'blanco', blancos: 'blanco',
+  roja: 'rojo', rojas: 'rojo', rojos: 'rojo', azules: 'azul', verdes: 'verde', grises: 'gris', rosada: 'rosa', rosado: 'rosa',
+  morado: 'lila', morada: 'lila', vinotinto: 'vino tinto', vino: 'vino tinto', 'vino tintos': 'vino tinto', cafes: 'cafe', marron: 'cafe',
+  'verde olivo': 'verde oliva', olivo: 'verde oliva', amarilla: 'amarillo', naranjas: 'naranja',
+};
+const TALLA_SYNONYMS = { small: 's', pequena: 's', pequeno: 's', chica: 's', medium: 'm', mediana: 'm', mediano: 'm', large: 'l', grande: 'l', 'extra grande': 'xl', 'extra large': 'xl', 'extra small': 'xs', unica: 'unica', 'talla unica': 'unica' };
+const canonColor = (c) => { const n = norm(c); return COLOR_SYNONYMS[n] || n; };
+const canonTalla = (t) => { const n = norm(t).replace(/^talla /, ''); return TALLA_SYNONYMS[n] || n; };
+
 function matchVariants(variants, color, talla) {
-  const c = norm(color);
-  const t = norm(talla);
-  return variants.filter((v) => (!c || norm(attr(v.attributes, 'color')) === c) && (!t || norm(attr(v.attributes, 'talla')) === t));
+  const c = color ? canonColor(color) : '';
+  const t = talla ? canonTalla(talla) : '';
+  return variants.filter((v) => {
+    const vc = canonColor(attr(v.attributes, 'color'));
+    const vt = canonTalla(attr(v.attributes, 'talla'));
+    return (!c || vc === c || (c === 'vino tinto' && vc === 'vino')) && (!t || vt === t);
+  });
 }
 
 // ── Herramientas ──────────────────────────────────────────────────────────────
@@ -288,9 +313,12 @@ function createStoreAssistant(deps) {
     const all = await loadVariants(businessId, [product.id], { includeInactive: true });
     const pool = includeInactive ? all : all.filter((v) => v.is_active);
     const asked = !!(text(color) || text(talla));
-    const opciones = pool.map((v) => ({ variante: variantLabel(v), stock: v.stock, ...(v.is_active ? {} : { inactiva: true }) }));
+    const opt = (v) => ({ variante: variantLabel(v), color: attr(v.attributes, 'color'), talla: attr(v.attributes, 'talla'), stock: v.stock, ...(v.is_active ? {} : { inactiva: true }) });
+    const opciones = pool.map(opt);
     if (!asked) {
       if (!pool.length) return { variant: null };
+      // Una sola variante: no hay nada que elegir (el resumen la muestra antes de confirmar)
+      if (pool.length === 1 && !includeInactive) return { variant: pool[0] };
       return { needs: 'variante', pregunta: `${product.name} tiene ${pool.length} variante${pool.length === 1 ? '' : 's'}: ¿cuál (color y talla)?`, opciones };
     }
     const hits = matchVariants(pool, color, talla);
@@ -298,16 +326,16 @@ function createStoreAssistant(deps) {
       return { variant: hits[0] };
     }
     if (hits.length > 1 || (hits.length === 1 && (!text(color) || !text(talla)))) {
-      return { needs: 'variante', pregunta: `${product.name}: ¿qué ${!text(color) ? 'color' : 'talla'}?`, opciones: hits.map((v) => ({ variante: variantLabel(v), stock: v.stock })) };
+      return { needs: 'variante', pregunta: `${product.name}: ¿qué ${!text(color) ? 'color' : 'talla'}?`, opciones: hits.map(opt) };
     }
     const wanted = [cap(text(color)), text(talla) && `talla ${text(talla).toUpperCase()}`].filter(Boolean).join(' ');
     const inactive = !includeInactive && matchVariants(all.filter((v) => !v.is_active), color, talla)[0];
     if (inactive) {
-      return { success: false, error: `${product.name} tiene la variante ${variantLabel(inactive)} pero está DESACTIVADA (stock ${inactive.stock}). Puedo activarla (preparar_estado) si quieres.`, variante_inactiva: variantLabel(inactive) };
+      return { success: false, error: `${product.name} tiene la variante ${variantLabel(inactive)} pero está DESACTIVADA (stock ${inactive.stock}). Si quieres, dime «activa ${variantLabel(inactive)} de ${product.name}».`, variante_inactiva: variantLabel(inactive) };
     }
     return {
       success: false,
-      error: `${product.name} no tiene la variante ${wanted}.${pool.length ? '' : ' No tiene variantes activas.'} Puedo crearla (preparar_crear_variante) si quieres.`,
+      error: `${product.name} no tiene la variante ${wanted}.${pool.length ? '' : ' No tiene variantes activas.'} Si quieres crearla, dime «crea la variante ${wanted} de ${product.name}».`,
       variantes_existentes: opciones,
     };
   }
@@ -323,7 +351,8 @@ function createStoreAssistant(deps) {
   async function pendingActions(businessId) {
     const { data, error } = await db.from('assistant_actions').select('*').eq('business_id', businessId).eq('status', 'pending').order('created_at', { ascending: true });
     if (error) throw error;
-    return (data || []).sort((x, y) => String(x.created_at).localeCompare(String(y.created_at)) || ((x.plan?.seq || 0) - (y.plan?.seq || 0)));
+    // Las preguntas de aclaración ('pregunta') y el foco de la conversación ('foco') no son acciones a ejecutar
+    return (data || []).filter((a) => a.kind !== 'pregunta' && a.kind !== 'foco').sort((x, y) => String(x.created_at).localeCompare(String(y.created_at)) || ((x.plan?.seq || 0) - (y.plan?.seq || 0)));
   }
 
   let seq = 0;
@@ -593,8 +622,13 @@ function createStoreAssistant(deps) {
 
   // ── Preparar (no escribe datos del negocio) ──
   async function prepararAjuste(input, ctx) {
-    const qty = Number(input.cantidad);
-    if (!Number.isInteger(qty) || qty === 0 || Math.abs(qty) > MAX_QTY) return { success: false, error: 'La cantidad debe ser un entero distinto de 0.' };
+    // stock_final: dejar la variante en un valor exacto ("pon agotado" = 0); el cambio se calcula con el stock leído
+    const absolute = input.stock_final !== undefined && input.stock_final !== null;
+    let qty = Number(input.cantidad);
+    if (absolute) {
+      const target = Number(input.stock_final);
+      if (!Number.isInteger(target) || target < 0 || target > MAX_QTY) return { success: false, error: 'El stock final debe ser un entero mayor o igual a 0.' };
+    } else if (!Number.isInteger(qty) || qty === 0 || Math.abs(qty) > MAX_QTY) return { success: false, error: 'La cantidad debe ser un entero distinto de 0.' };
     const r = await resolveProduct(ctx.businessId, input.producto);
     if (!r.product) return r;
     const p = r.product;
@@ -604,6 +638,10 @@ function createStoreAssistant(deps) {
     // "hoy" = stock de ESA variante (o del producto sin variantes) leído de la base ahora
     const before = await readStock(ctx.businessId, p.id, v.variant ? v.variant.id : null);
     if (before === null) return { success: false, error: 'No pude leer el stock actual.' };
+    if (absolute) {
+      qty = Number(input.stock_final) - before;
+      if (qty === 0) return { success: false, error: `${p.name}${v.variant ? `, ${variantLabel(v.variant)}` : ''} ya tiene ${before}.` };
+    }
     if (before + qty < 0) return { success: false, error: `No se puede restar ${Math.abs(qty)}: ${p.name}${v.variant ? `, ${variantLabel(v.variant)}` : ''} tiene ${before}.` };
     const who = `${p.name}${v.variant ? `, ${variantLabel(v.variant)}` : ''}`;
     const summary = `${qty > 0 ? 'Sumar' : 'Restar'} ${Math.abs(qty)} a ${who} (hoy ${before} → quedaría ${before + qty}). ¿Confirmas?`;
@@ -624,8 +662,8 @@ function createStoreAssistant(deps) {
     const dup = matchVariants(all, color, talla)[0];
     if (dup) {
       return dup.is_active
-        ? { success: false, error: `${p.name} ya tiene la variante ${variantLabel(dup)} (stock ${dup.stock}). Si llegaron unidades, la ajusto con preparar_ajuste_stock.` }
-        : { success: false, error: `${p.name} ya tiene la variante ${variantLabel(dup)} pero DESACTIVADA (stock ${dup.stock}). Puedo activarla (preparar_estado) en vez de crear otra.` };
+        ? { success: false, error: `${p.name} ya tiene la variante ${variantLabel(dup)} (stock ${dup.stock}). Si llegaron unidades, dime «llegaron N de ${variantLabel(dup)}».` }
+        : { success: false, error: `${p.name} ya tiene la variante ${variantLabel(dup)} pero DESACTIVADA (stock ${dup.stock}). En vez de crear otra, dime «activa ${variantLabel(dup)} de ${p.name}».` };
     }
     // Igual que el panel: con stock propio sin variantes, crear variantes borraría esas unidades al recalcular
     if (!all.some((x) => x.is_active) && Number(p.stock) > 0) {
@@ -674,11 +712,11 @@ function createStoreAssistant(deps) {
     const items = Array.isArray(input.items) ? input.items.slice(0, 20) : [];
     if (!items.length) return { success: false, error: 'El pedido necesita al menos un producto.' };
     const lines = [];
-    for (const it of items) {
+    for (const [itemIndex, it] of items.entries()) {
       const qty = Number(it.cantidad);
       if (!Number.isInteger(qty) || qty < 1 || qty > 100) return { success: false, error: 'Cada cantidad debe ser un entero entre 1 y 100.' };
       const r = await resolveProduct(ctx.businessId, it.producto);
-      if (!r.product) return r;
+      if (!r.product) return { ...r, item_index: itemIndex };
       const p = r.product;
       let variantId = null; let label = p.name; let available;
       if (p.is_bundle) {
@@ -687,12 +725,12 @@ function createStoreAssistant(deps) {
         if (d.error) return { success: false, error: `${p.name}: ${d.error}` };
         if (d.hasVariants) {
           const hits = matchVariants(d.variants, it.color, it.talla);
-          if (hits.length !== 1 || !it.color || !it.talla) return { needs: 'variante', pregunta: `${p.name}: ¿qué color y talla?`, opciones: d.variants.map((v) => ({ variante: variantLabel(v), disponibles: v.stock })) };
+          if (hits.length !== 1 || !it.color || !it.talla) return { needs: 'variante', item_index: itemIndex, pregunta: `${p.name}: ¿qué color y talla?`, opciones: d.variants.map((v) => ({ variante: variantLabel(v), color: attr(v.attributes, 'color'), talla: attr(v.attributes, 'talla'), stock: v.stock })) };
           variantId = hits[0].id; label = `${p.name} (${variantLabel(hits[0])})`; available = hits[0].stock;
         } else available = d.simpleStock;
       } else {
         const v = await resolveVariant(ctx.businessId, p, it.color, it.talla);
-        if (!v.variant && (v.needs || v.success === false)) return v;
+        if (!v.variant && (v.needs || v.success === false)) return { ...v, item_index: itemIndex };
         if (v.variant) { variantId = v.variant.id; label = `${p.name} (${variantLabel(v.variant)})`; available = v.variant.stock; } else available = p.stock;
       }
       if (qty > available) return { success: false, error: `Solo hay ${available} de ${label}.` };
@@ -978,6 +1016,8 @@ function createStoreAssistant(deps) {
     discardUnanswered,
     proposedIn,
     storeContext,
+    // Piezas para el agente de tienda (storeAgent): lecturas acotadas al negocio, registro de acciones y sus reglas
+    lib: { db, now, loadProducts, loadVariants, readStock, pendingActions, seen, live, finish, variantLabel, matchVariants, canonColor, canonTalla },
     handles: (name) => Object.prototype.hasOwnProperty.call(handlers, name),
     // El input nunca trae un business_id que valga: el negocio sale de ctx (sesión)
     execute: (name, input, ctx) => handlers[name](input && typeof input === 'object' ? input : {}, ctx),
@@ -1001,6 +1041,7 @@ function storeAssistant() {
 }
 
 module.exports = {
-  createStoreAssistant, storeAssistant, isAffirmative, isNegative, isUndoIntent, claimsWrite, matchProducts,
+  createStoreAssistant, storeAssistant, isAffirmative, isNegative, isUndoIntent, claimsWrite, matchProducts, matchVariants,
+  canonColor, canonTalla, norm, words, cop, orderCode, stripAsk,
   STORE_TOOLS, STORE_PROMPT, GENERIC_TOOLS_HIDDEN_FOR_STORE,
 };

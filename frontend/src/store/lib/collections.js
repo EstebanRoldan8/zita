@@ -75,7 +75,22 @@ export function productsInCollection(products, collection, content = flowContent
 }
 
 export function productsInArchive(products, content = flowContent) {
-  return arr(products).filter((p) => p && p.id && isArchiveCategory(p.category, content));
+  return interleaveByGender(arr(products).filter((p) => p && p.id && isArchiveCategory(p.category, content)));
+}
+
+// Hombre, mujer, hombre, mujer… respetando el orden recibido dentro de cada género (determinista: igual en
+// cada carga y en el prerender). Lo que sobra de un género va al final, y después unisex / sin género.
+export function interleaveByGender(products) {
+  const list = arr(products);
+  const men = list.filter((p) => productGender(p) === 'hombre');
+  const women = list.filter((p) => productGender(p) === 'mujer');
+  const rest = list.filter((p) => !['hombre', 'mujer'].includes(productGender(p)));
+  const out = [];
+  for (let i = 0; i < Math.max(men.length, women.length); i += 1) {
+    if (i < men.length) out.push(men[i]);
+    if (i < women.length) out.push(women[i]);
+  }
+  return [...out, ...rest];
 }
 
 // Colores que DEFINEN un drop (drop.defines con sus alias; si no tiene, sus colores). Solo estos deciden
@@ -380,6 +395,8 @@ export function filterProducts(products, { category, color, size, q, sort, colle
   const query = normalize(q);
   let list = arr(products).filter((p) => p && p.id);
   if (cat) list = list.filter((p) => productTypesOf(p).some((t) => normalize(t) === cat));
+  // Flow Archive con el orden por defecto: hombre y mujer intercalados
+  if (cat && isArchiveCategory(cat) && !query && (!sort || sort === 'nuevo')) list = interleaveByGender(list);
   if (col) list = list.filter((p) => colorsOfProduct(p).some((c) => c.key === col));
   if (sz) list = list.filter((p) => arr(p.sizes_available).some((s) => normalize(s) === sz));
   if (query) {

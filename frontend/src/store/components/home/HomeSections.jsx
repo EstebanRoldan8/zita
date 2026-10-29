@@ -4,7 +4,7 @@ import { Link } from 'react-router-dom';
 import { MessageCircle } from 'lucide-react';
 import { flowContent } from '../../content/flowContent';
 import {
-  productsInCapsule, capsuleColorOrder, dropColorOrder, productsInDrop, coverForColors, firstImage, colorsOfProduct, productType,
+  productsInCapsule, capsuleColorOrder, dropColorOrder, productsInDrop, coverForColors, firstImage, colorsOfProduct, productTypesOf,
 } from '../../lib/collections';
 import { formatCOP, waLink } from '../../lib/format';
 import { whatsappNumber, instagramUrl } from '../../lib/contact';
@@ -282,7 +282,7 @@ export function PopularCategories({ categories, products }) {
       <h2 id="flow-categorias" className="flow-serif mb-8 text-3xl md:text-4xl">Lo más popular</h2>
       <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
         {list.map((c, i) => {
-          const cover = firstImage(products.find((p) => productType(p) === c.name && firstImage(p)));
+          const cover = firstImage(products.find((p) => productTypesOf(p).includes(c.name) && firstImage(p)));
           const tone = CATEGORY_TONES[i % CATEGORY_TONES.length];
           const dark = tone !== '#D9CFC3' && tone !== '#A09486';
           return (

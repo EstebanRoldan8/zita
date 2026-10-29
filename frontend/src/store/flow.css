@@ -245,6 +245,22 @@
   pointer-events: none;
 }
 
+/* Bolita de color agotada: el color se ve entero (antes se atenuaba y el negro parecía gris) con una línea
+   diagonal clara y un fino contorno para que se lea también sobre colores claros */
+.flow-store .flow-dot-sold { position: relative; overflow: hidden; }
+.flow-store .flow-dot-sold::after {
+  content: '';
+  position: absolute;
+  left: -20%;
+  top: 50%;
+  width: 140%;
+  height: 1.5px;
+  background: #fff;
+  box-shadow: 0 0 0 0.5px rgba(28, 28, 28, 0.55);
+  transform: rotate(-45deg);
+  pointer-events: none;
+}
+
 /* Skeleton: bloques sand */
 .flow-store .flow-skeleton { background: var(--flow-sand); animation: flow-pulse 1.4s ease-in-out infinite; }
 @keyframes flow-pulse { 0%, 100% { opacity: 0.55; } 50% { opacity: 0.9; } }
@@ -341,8 +357,8 @@
 .flow-store .flow-swatch-round.is-selected { box-shadow: 0 0 0 1.5px var(--flow-black); }
 .flow-store .flow-swatch-round:has(input:focus-visible) { outline: 2px solid var(--flow-black); outline-offset: 2px; }
 .flow-store .flow-swatch-round.is-unavailable::after {
-  content: ''; position: absolute; left: 6px; right: 6px; top: 50%; height: 1px;
-  background: var(--flow-black); transform: rotate(-45deg); pointer-events: none;
+  content: ''; position: absolute; left: 6px; right: 6px; top: 50%; height: 1.5px;
+  background: #fff; box-shadow: 0 0 0 0.5px rgba(28, 28, 28, 0.55); transform: rotate(-45deg); pointer-events: none;
 }
 
 /* "Agregar a la bolsa" fijo abajo en móvil; en desktop vuelve a su lugar */

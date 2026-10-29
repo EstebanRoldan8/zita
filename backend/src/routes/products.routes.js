@@ -9,6 +9,7 @@ const {
 const bundles = require('../controllers/bundles.controller');
 const { verifyToken } = require('../middlewares/auth');
 const { businessContext } = require('../middlewares/businessContext');
+const { handleUploadErrors } = require('../middlewares/uploadErrors');
 
 const upload = multer({
   storage: multer.memoryStorage(),
@@ -34,20 +35,8 @@ const uploadMultiple = multer({
   },
 });
 
-// Fotos por color: misma configuración que la galería, pero los rechazos de multer
-// (más de 8 archivos, más de 2 MB, tipo inválido) responden 400 en vez de llegar al
-// manejador global como 500. Como multer usa memoria, ningún archivo llega a Storage.
-const MULTER_MESSAGES = {
-  LIMIT_FILE_SIZE: 'Cada imagen debe pesar máximo 2 MB.',
-  LIMIT_UNEXPECTED_FILE: 'Máximo 8 imágenes por petición, en el campo "images".',
-  LIMIT_FILE_COUNT: 'Máximo 8 imágenes por petición.',
-};
-const uploadOptionFiles = (req, res, next) => {
-  uploadMultiple.array('images', 8)(req, res, (err) => {
-    if (!err) return next();
-    return res.status(400).json({ success: false, error: MULTER_MESSAGES[err.code] || err.message || 'Archivos inválidos.' });
-  });
-};
+// Rechazos de multer (tipo, 2 MB, más de 8 archivos) → 400 en todos los endpoints de fotos (principal, galería y color)
+const uploadOptionFiles = handleUploadErrors(uploadMultiple.array('images', 8));
 
 router.use(verifyToken, businessContext);
 
@@ -68,8 +57,8 @@ router.delete('/:id',    deleteProduct);
 router.post('/:id/sell', sell);
 router.post('/:id/restock', restock);
 router.get('/:id/movements', getMovements);
-router.post('/:id/image', upload.single('image'), uploadImage);
-router.post('/:id/images', uploadMultiple.array('images', 8), uploadImages);
+router.post('/:id/image', handleUploadErrors(upload.single('image')), uploadImage);
+router.post('/:id/images', uploadOptionFiles, uploadImages);
 router.delete('/:id/images', deleteImage);
 router.get('/:id/option-images', getOptionImages);
 router.post('/:id/option-images', uploadOptionFiles, uploadOptionImages);

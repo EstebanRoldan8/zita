@@ -20,6 +20,7 @@ import SizeGuideTable from '../components/SizeGuideTable';
 import { parseSpecs } from '../lib/specs';
 import { asArray, asObject, asUrls } from '../lib/safe';
 import { assertProduct } from '../lib/bagRules';
+import { promoGroup } from '../lib/setPromo';
 import { ErrorState, PageNotFound } from '../components/States';
 
 const SIZE_ORDER = ['xxs', 'xs', 's', 'm', 'l', 'xl', 'xxl', 'xxxl'];
@@ -195,6 +196,7 @@ export default function ProductPage() {
       quantity: qty,
       max_qty: maxQty,
       includes,
+      group: promoGroup(p),
     });
     setAdded(true);
     setOpen(true);

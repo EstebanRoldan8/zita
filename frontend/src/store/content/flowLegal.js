@@ -947,6 +947,23 @@ export const LEGAL_DOCS = {
           {
             "t": "p",
             "text": "Cada promoción, descuento o código indicará en su publicación: vigencia (fecha y hora de inicio y fin), productos incluidos, condiciones y restricciones, y número de unidades disponibles cuando sea limitado (art. 33 de la Ley 1480 de 2011). Salvo que se indique lo contrario, las promociones no son acumulables entre sí. El precio con descuento debe verse en el resumen del pedido antes de confirmarlo. Los productos comprados en promoción conservan los derechos de retracto y garantía."
+          },
+          // ── PENDIENTE DE REVISIÓN DEL ABOGADO (añadido el 29 de octubre de 2026, no viene de los Word) ──
+          // Regla: backend/src/utils/setPromo.js (el servidor calcula el descuento en cada pedido web).
+          {
+            "t": "h3",
+            "text": "Descuento por set en la tienda en línea"
+          },
+          {
+            "t": "ul",
+            "items": [
+              "Por cada **Top** que compres junto con una **Falda, Short o Licra** (de cualquier modelo y color) obtienes un **5 % de descuento** sobre el precio de esas dos prendas.",
+              "El número de parejas es el menor entre las unidades de tops y las de faldas, shorts o licras del mismo pedido. Por ejemplo, 2 tops y 1 short forman 1 pareja; 2 tops y 2 licras forman 2 parejas.",
+              "Las prendas se emparejan de mayor a menor precio, para que el descuento sea el más alto posible.",
+              "No aplica a los productos que ya se venden como **Set**, que tienen su propio precio, ni a camisetas, crop tops, oversize o pantalonetas.",
+              "El descuento se calcula automáticamente al recibir el pedido y se ve en el resumen antes de confirmarlo como «Descuento por set (5 %)». El envío gratis se evalúa con el valor de los productos ya descontado.",
+              "Aplica solo a compras hechas en la tienda en línea, mientras esté publicado en ella; no es acumulable con otras promociones salvo que se indique lo contrario."
+            ]
           }
         ]
       },

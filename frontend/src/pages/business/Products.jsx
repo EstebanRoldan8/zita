@@ -216,15 +216,6 @@ function SellModal({ product, clients, onClose, onSuccess }) {
 }
 
 // ── Product Form Modal ──────────────────────────────────────────────────────
-// Atributo color de una variante ({ key, value }) y comparación sin mayúsculas, tildes ni espacios extra
-// ("Negro" = "negro"; "Negro active" es otro color). Mismo criterio que normalizeOptionKey del servidor.
-const normalizeColor = (v) => String(v ?? '').normalize('NFD').replace(/[̀-ͯ]/g, '').trim().toLowerCase()
-  .replace(/s+/g, '-').replace(/[^a-z0-9-]/g, '').replace(/-+/g, '-').replace(/^-+|-+$/g, '');
-function colorEntry(attributes) {
-  const hit = Object.entries(attributes || {}).find(([k, val]) => ['color', 'colour'].includes(normalizeColor(k)) && normalizeColor(val));
-  return hit ? { key: hit[0], value: String(hit[1]) } : null;
-}
-
 function ProductModal({ initial, onClose, onSave, isTienda }) {
   const [form, setForm] = useState({
     ...emptyForm,
@@ -242,7 +233,6 @@ function ProductModal({ initial, onClose, onSave, isTienda }) {
   const [newVariant, setNewVariant] = useState({ attributes: {}, stock: 0, sku: '' });
   const [variantAttrs, setVariantAttrs] = useState([{ key: '', value: '' }]);
   const [error, setError] = useState('');
-  const [variantNotice, setVariantNotice] = useState('');
   const [loading, setLoading] = useState(false);
   const [loadingVariants, setLoadingVariants] = useState(false);
   const [galleryImages, setGalleryImages] = useState(initial?.images || []);
@@ -445,34 +435,6 @@ function ProductModal({ initial, onClose, onSave, isTienda }) {
       setError('');
     } catch (err) {
       setError(err.response?.data?.error || 'Error al actualizar el SKU de la variante.');
-    }
-  };
-
-  // Color de una variante existente: se guarda al salir del campo. El servidor mueve las fotos del color viejo al
-  // nuevo, o las deja si otra variante aún usa el color viejo (y lo avisa); aquí se avisa antes de guardar.
-  const handleVariantColorBlur = async (v) => {
-    const color = colorEntry(v.attributes);
-    const draft = (v.colorDraft ?? color?.value ?? '').replace(/s+/g, ' ').trim();
-    const clearDraft = () => setVariants(prev => prev.map(x => x.id === v.id ? { ...x, colorDraft: undefined } : x));
-    if (!color || !draft || draft === color.value) return clearDraft();
-    const same = (val) => normalizeColor(val) === normalizeColor(color.value);
-    const sharing = variants.filter(x => x.id !== v.id && same(colorEntry(x.attributes)?.value)).length;
-    const warning = sharing > 0
-      ? `Hay ${sharing} variante${sharing !== 1 ? 's' : ''} más con «${color.value}». Sus fotos se quedan con «${color.value}» y «${draft}» empezará sin fotos (podrás subirlas en «Fotos por color»).
-
-¿Cambiar el color de esta variante a «${draft}»?`
-      : `¿Cambiar el color de esta variante de «${color.value}» a «${draft}»? Sus fotos de color pasarán a «${draft}».`;
-    if (!window.confirm(warning)) return clearDraft();
-    try {
-      const res = await api.patch(`/api/products/${initial.id}/variants/${v.id}`, { attributes: { ...v.attributes, [color.key]: draft } });
-      setVariants(prev => prev.map(x => x.id === v.id ? { ...x, ...res.data?.data, colorDraft: undefined } : x));
-      setVariantNotice(res.data?.photos?.message || '');
-      setError('');
-      qc.invalidateQueries({ queryKey: ['option-images', initial.id] });
-      qc.invalidateQueries({ queryKey: ['products'] });
-    } catch (err) {
-      clearDraft();
-      setError(err.response?.data?.error || 'Error al cambiar el color de la variante.');
     }
   };
 
@@ -906,15 +868,6 @@ function ProductModal({ initial, onClose, onSave, isTienda }) {
                               </button>
                             )}
                           </div>
-                          {isEdit && colorEntry(v.attributes) && (
-                            <div className="w-full flex items-center gap-2">
-                              <label htmlFor={`variant-color-${v.id}`} className="text-slate-500 text-xs flex-shrink-0">Color</label>
-                              <input id={`variant-color-${v.id}`} type="text" maxLength={40} value={v.colorDraft ?? colorEntry(v.attributes).value}
-                                onChange={(e) => setVariants(prev => prev.map(x => x.id === v.id ? { ...x, colorDraft: e.target.value } : x))}
-                                onBlur={() => handleVariantColorBlur(v)}
-                                className="flex-1 min-w-0 bg-[#131929] border border-slate-700 text-white rounded px-2 py-1 text-xs focus:outline-none focus:border-violet-500" />
-                            </div>
-                          )}
                           {isEdit && (
                             <div className="w-full flex items-center gap-2">
                               <label className="text-slate-500 text-xs flex-shrink-0">SKU</label>
@@ -983,9 +936,6 @@ function ProductModal({ initial, onClose, onSave, isTienda }) {
                 </>
               )}
 
-              {isEdit && variantNotice && (
-                <p role="status" className="mt-4 text-sky-300 text-xs bg-sky-500/10 border border-sky-500/20 px-3 py-2 rounded-lg">{variantNotice}</p>
-              )}
               {isEdit && <div className="mt-4"><ColorPhotosEdit productId={initial.id} /></div>}
               {!isEdit && (
                 <div className="mt-4">

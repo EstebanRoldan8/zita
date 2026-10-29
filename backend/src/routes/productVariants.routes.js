@@ -4,11 +4,12 @@ const {
   getAll,
   create,
   update,
-  deactivate,
+  remove,
   uploadImage,
 } = require('../controllers/productVariants.controller');
 const { verifyToken } = require('../middlewares/auth');
 const { businessContext } = require('../middlewares/businessContext');
+const { handleUploadErrors } = require('../middlewares/uploadErrors');
 
 const upload = multer({
   storage: multer.memoryStorage(),
@@ -27,7 +28,7 @@ router.use(verifyToken, businessContext);
 router.get('/:productId/variants', getAll);
 router.post('/:productId/variants', create);
 router.patch('/:productId/variants/:variantId', update);
-router.delete('/:productId/variants/:variantId', deactivate);
-router.post('/:productId/variants/:variantId/image', upload.single('image'), uploadImage);
+router.delete('/:productId/variants/:variantId', remove);
+router.post('/:productId/variants/:variantId/image', handleUploadErrors(upload.single('image')), uploadImage);
 
 module.exports = router;

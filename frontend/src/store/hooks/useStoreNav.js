@@ -37,7 +37,7 @@ export function useStoreNav() {
       const href = path(`/coleccion/${s.slug}`);
       const menu = productTypes(items, { archive: false })
         .map((t) => ({ name: t.name, count: t.count, href: `${href}?categoria=${encodeURIComponent(t.name)}` }));
-      return { ...s, count: items.length, href, menu, menuTitle: (s.categories || []).length > 1 ? 'Categorías' : 'Prendas' };
+      return { ...s, count: items.length, href, menu, menuTitle: menu.length > 1 ? 'Categorías' : 'Prendas' };
     }).filter((s) => s.count > 0);
     const mujer = sections.find((s) => s.slug === 'mujer');
     const hombre = sections.find((s) => s.slug === 'hombre');

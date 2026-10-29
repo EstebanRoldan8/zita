@@ -218,17 +218,18 @@ export const flowContent = {
   },
   // Orden de categorías; las demás van después en orden alfabético y Archive siempre al final
   // Sets primero (tipo propio: productos con is_bundle)
-  categoryOrder: ['Sets', 'Tops', 'Licras', 'Shorts', 'Faldas', 'Pantalonetas', 'Camisetas'],
-  // Secciones del menú: páginas /coleccion/<slug> con un grupo fijo de categorías (por nombre de
-  // categoría, nunca por nombre de producto). Una sección sin productos no aparece.
+  categoryOrder: ['Sets', 'Tops', 'Crop top', 'Licras', 'Shorts', 'Faldas', 'Pantalonetas', 'Camisetas'],
+  // Secciones del menú: páginas /coleccion/<slug>. Qué productos entran lo decide products.gender
+  // (`gender` de la sección + 'unisex', que sale en todas). `categories` solo sirve para el texto SEO y para
+  // enlaces viejos ?categoria=Hombre. Una sección sin productos no aparece.
   sections: [
-    { slug: 'mujer', label: 'Mujer', categories: ['Tops', 'Licras', 'Shorts', 'Faldas'] },
-    { slug: 'hombre', label: 'Hombre', categories: ['Hombre'] },
+    { slug: 'mujer', label: 'Mujer', gender: 'mujer', categories: ['Tops', 'Crop top', 'Licras', 'Shorts', 'Faldas'] },
+    { slug: 'hombre', label: 'Hombre', gender: 'hombre', categories: ['Hombre'] },
   ],
   // Categorías de la base que son GÉNERO, no tipo de prenda: nunca salen como categoría ni filtro.
   // Sus productos van en "Ver todo" bajo su tipo de prenda (collections.productType / garmentOf).
   genderCategories: ['Mujer', 'Hombre', 'Unisex'],
-  // Género compartido: sus productos aparecen en TODAS las secciones (Mujer y Hombre), con su tipo de prenda
+  // Categoría antigua de género compartido (solo respaldo si la API aún no manda products.gender)
   unisexCategories: ['Unisex'],
   values: ['Empoderamiento', 'Valentía', 'Calidad', 'Versatilidad', 'Simplicidad'],
   about: `FLOW nace para empoderar a las personas a través del movimiento y ayudarlas a conectar con su esencia y su "FLOW".

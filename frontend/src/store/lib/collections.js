@@ -209,15 +209,32 @@ export function getSection(slug, content = flowContent) {
 
 export const categoryInSection = (category, section) => inList(category, section?.categories);
 
-// Productos de la sección: sus categorías más las de género compartido (Unisex), que van en todas
-// Un set (is_bundle) entra si TODOS sus productos son de la sección o Unisex (bundle_categories de la API)
-// Flow Archive: entra si su prenda (por el nombre: "Licra Liva" → Licras) es una categoría de la sección.
+// Género del producto (products.gender): 'mujer' | 'hombre' | 'unisex'; null si la API no lo manda
+export const GENDERS = ['mujer', 'hombre', 'unisex'];
+export function productGender(product) {
+  const g = normalize(product?.gender);
+  return GENDERS.includes(g) ? g : null;
+}
+
+// Respaldo (API sin products.gender): el criterio anterior, por categoría
+function inSectionByCategory(p, section, content) {
+  const fits = (category) => inList(category, section.categories) || inList(category, content?.unisexCategories);
+  return p.is_bundle
+    ? arr(p.bundle_categories).length > 0 && arr(p.bundle_categories).every(fits)
+    : fits(p.category) || (isArchiveCategory(p.category, content) && inList(garmentOf(p)?.label, section.categories));
+}
+
+// Productos de la sección: Mujer = gender mujer + unisex; Hombre = gender hombre + unisex (sets incluidos,
+// con su propio género). La categoría no interviene: Flow Archive y los tipos de prenda no cambian el género.
 export function productsInSection(products, section, content = flowContent) {
   if (!section) return [];
-  const fits = (category) => inList(category, section.categories) || inList(category, content?.unisexCategories);
-  return arr(products).filter((p) => p && p.id && (p.is_bundle
-    ? arr(p.bundle_categories).length > 0 && arr(p.bundle_categories).every(fits)
-    : fits(p.category) || (isArchiveCategory(p.category, content) && inList(garmentOf(p)?.label, section.categories))));
+  const want = normalize(section.gender);
+  return arr(products).filter((p) => {
+    if (!p || !p.id) return false;
+    const g = productGender(p);
+    if (g && want) return g === want || g === 'unisex';
+    return inSectionByCategory(p, section, content);
+  });
 }
 
 // Mujer / Hombre / Unisex son GÉNERO (flowContent.genderCategories), nunca tipo de prenda ni filtro
@@ -245,9 +262,17 @@ const GARMENTS = {
   chaqueta: 'Chaquetas', bermuda: 'Bermudas', short: 'Shorts', oversize: 'Oversize', esqueleto: 'Esqueletos',
 };
 
+// Prendas que se reconocen en CUALQUIER parte del nombre ("Crop Top Pura Vida", "Mini crop top")
+const GARMENT_PHRASES = { 'crop top': 'Crop top' };
+
 export function garmentOf(product) {
-  const word = normalize(product?.name).split(' ')[0];
-  return word && Object.prototype.hasOwnProperty.call(GARMENTS, word) ? { key: word, label: GARMENTS[word] } : null;
+  const name = normalize(product?.name);
+  const word = name.split(' ')[0];
+  if (word && Object.prototype.hasOwnProperty.call(GARMENTS, word)) return { key: word, label: GARMENTS[word] };
+  for (const [phrase, label] of Object.entries(GARMENT_PHRASES)) {
+    if ((` ${name} `).includes(` ${phrase} `)) return { key: phrase, label };
+  }
+  return null;
 }
 
 // Tipos de prenda de un producto, para la guía de tallas: su tipo (productType) y el de su nombre (garmentOf,

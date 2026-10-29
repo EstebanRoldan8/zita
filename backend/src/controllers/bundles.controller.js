@@ -1,6 +1,7 @@
 // Sets / combos en el panel (/api/products/bundles). Un set es un producto con is_bundle = true y sus
 // componentes en product_bundle_components. Sin stock ni variantes propias: se derivan (utils/bundles).
 // business_id SIEMPRE del JWT (req.businessId); los componentes deben ser del mismo negocio.
+const { parseGender } = require('../utils/gender');
 const { createUserClient, supabaseAdmin } = require('../config/supabase');
 const logger = require('../utils/logger');
 const { generarSku } = require('../utils/sku');
@@ -84,6 +85,9 @@ function readFields(body, { partial = false } = {}) {
     out.price = price;
   }
   if (body.description !== undefined) out.description = String(body.description || '').trim() || null;
+  const g = parseGender(body.gender);
+  if (g.error) return { error: g.error };
+  if (!g.skip) out.gender = g.value;
   if (body.category !== undefined) out.category = String(body.category || '').trim() || null;
   if (body.min_stock !== undefined) {
     const m = Number(body.min_stock);
@@ -113,7 +117,7 @@ async function getOne(req, res) {
     if (onlyTienda(req, res)) return undefined;
     const sb = createUserClient(req.headers.authorization);
     const { data: set, error } = await sb.from('products')
-      .select('id, name, description, price, category, min_stock, sku, is_active, is_bundle, images, image_url, option_images')
+      .select('id, name, description, price, category, gender, min_stock, sku, is_active, is_bundle, images, image_url, option_images')
       .eq('id', req.params.id).eq('business_id', req.businessId).maybeSingle();
     if (error) throw error;
     if (!set || !set.is_bundle) return bad(res, 'Set no encontrado.', 404);

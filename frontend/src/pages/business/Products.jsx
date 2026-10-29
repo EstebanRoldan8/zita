@@ -33,7 +33,7 @@ const STOCK_STATUS = (stock, min_stock) => {
   return { label: 'OK', cls: 'text-emerald-400 bg-emerald-500/10 border-emerald-500/20' };
 };
 
-const emptyForm = { name: '', description: '', price: '', stock: '0', min_stock: '5', category: '', cost_price: '' };
+const emptyForm = { name: '', description: '', price: '', stock: '0', min_stock: '5', category: '', gender: 'mujer', cost_price: '' };
 
 // ── Sell Modal ──────────────────────────────────────────────────────────────
 function SellModal({ product, clients, onClose, onSuccess }) {
@@ -220,6 +220,7 @@ function ProductModal({ initial, onClose, onSave, isTienda }) {
     ...initial,
     description: initial?.description ?? '',
     category:    initial?.category    ?? '',
+    gender:      initial?.gender      || 'mujer',
     cost_price:  initial?.cost_price  ?? '',
     sku:         initial?.sku ?? '',
   });
@@ -487,6 +488,7 @@ function ProductModal({ initial, onClose, onSave, isTienda }) {
         stock: hasVariants ? 0 : Number(form.stock),
         min_stock: Number(form.min_stock),
         category: form.category?.trim() || null,
+        ...(isTienda ? { gender: form.gender } : {}),
         has_variants: hasVariants,
         cost_price: form.cost_price !== '' && form.cost_price !== null ? Number(form.cost_price) : null,
         sku: form.sku?.trim() || null,
@@ -725,6 +727,17 @@ function ProductModal({ initial, onClose, onSave, isTienda }) {
             {field('Nombre *', 'name')}
             {field('Descripción (opcional)', 'description')}
             {field('Categoría (opcional)', 'category')}
+            {isTienda && (
+              <div>
+                <label className="block text-slate-400 text-sm mb-1.5">Género</label>
+                <select value={form.gender} onChange={(e) => setForm({ ...form, gender: e.target.value })} className={inputCls}>
+                  <option value="mujer">Mujer</option>
+                  <option value="hombre">Hombre</option>
+                  <option value="unisex">Unisex</option>
+                </select>
+                <p className="text-slate-600 text-xs mt-1">Define en qué sección de la tienda aparece (Unisex sale en Mujer y en Hombre)</p>
+              </div>
+            )}
             <div>
               <label className="block text-slate-400 text-sm mb-1.5">SKU (opcional)</label>
               <input type="text" value={form.sku} onChange={(e) => setForm({ ...form, sku: e.target.value })}

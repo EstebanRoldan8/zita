@@ -1,3 +1,4 @@
+const { parseGender } = require('../utils/gender');
 const { createUserClient, supabaseAdmin } = require('../config/supabase');
 const logger = require('../utils/logger');
 const { getTimezone } = require('../utils/timezone');
@@ -177,9 +178,12 @@ async function getSales(req, res) {
 async function create(req, res) {
   try {
     const sb = createUserClient(req.headers.authorization);
-    const { name, description, price, stock, min_stock, category, has_variants, cost_price, sku } = req.body;
+    const { name, description, price, stock, min_stock, category, has_variants, cost_price, sku, gender } = req.body;
     if (!name?.trim()) return res.status(400).json({ success: false, error: 'El nombre del producto es obligatorio.' });
     if (price === undefined || Number(price) < 0) return res.status(400).json({ success: false, error: 'El precio debe ser mayor o igual a 0.' });
+
+    const g = parseGender(gender);
+    if (g.error) return res.status(400).json({ success: false, error: g.error });
 
     let finalSku = sku?.trim() || null;
     if (!finalSku) {
@@ -223,6 +227,7 @@ async function create(req, res) {
     if (description !== undefined) payload.description = description?.trim() || null;
     if (min_stock  !== undefined) payload.min_stock  = Number(min_stock);
     if (category   !== undefined) payload.category   = category?.trim() || null;
+    if (!g.skip) payload.gender = g.value;
     if (cost_price !== undefined) { const _cp = parseFloat(cost_price); payload.cost_price = (!isNaN(_cp) && _cp >= 0) ? _cp : null; }
     if (finalSku) payload.sku = finalSku;
 
@@ -271,7 +276,9 @@ async function update(req, res) {
   try {
     const sb = createUserClient(req.headers.authorization);
     const { id } = req.params;
-    const { name, description, price, stock, min_stock, category, has_variants, cost_price, sku } = req.body;
+    const { name, description, price, stock, min_stock, category, has_variants, cost_price, sku, gender } = req.body;
+    const g = parseGender(gender);
+    if (g.error) return res.status(400).json({ success: false, error: g.error });
 
     const { data: current, error: cErr } = await sb
       .from('products')
@@ -337,6 +344,7 @@ async function update(req, res) {
     if (price !== undefined) updates.price = Number(price);
     if (min_stock !== undefined) updates.min_stock = Number(min_stock);
     if (category !== undefined) updates.category = category?.trim() || null;
+    if (!g.skip) updates.gender = g.value;
     if (has_variants !== undefined) updates.has_variants = Boolean(has_variants);
     if (cost_price !== undefined) { const _cp = parseFloat(cost_price); updates.cost_price = (!isNaN(_cp) && _cp >= 0) ? _cp : null; }
 

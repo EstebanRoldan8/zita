@@ -796,12 +796,13 @@ async function loadOptionContext(sb, productId, businessId) {
       .from('product_variants')
       .select('id, attributes, is_active')
       .eq('product_id', productId)
-      .eq('business_id', businessId)
-      .eq('is_active', true);
+      .eq('business_id', businessId);
     if (vErr) throw vErr;
     variants = data || [];
   }
-  return { product, options: getColorOptions(variants, product.option_images || {}) };
+  // Panel: un grupo por CADA color de variante (activas e inactivas) y las fotos huérfanas (color que ya ninguna
+  // variante usa) para poder verlas y quitarlas
+  return { product, options: getColorOptions(variants, product.option_images || {}, { includeInactive: true, includeOrphans: true }) };
 }
 
 // Ruta interna en Storage solo si la URL es de este negocio en el bucket product-images
@@ -848,12 +849,12 @@ async function uploadOptionImages(req, res) {
     if (!product) return res.status(404).json({ success: false, error: 'Producto no encontrado.' });
     if (!product.is_active) return res.status(400).json({ success: false, error: 'El producto no está activo.' });
     if (!product.has_variants && !product.is_bundle) return res.status(400).json({ success: false, error: 'Este producto no tiene variantes.' });
-    if (options.length === 0) {
-      return res.status(400).json({ success: false, error: 'Las variantes activas de este producto no tienen un atributo «color».' });
+    if (!options.some((o) => !o.orphan)) {
+      return res.status(400).json({ success: false, error: 'Las variantes de este producto no tienen un atributo «color».' });
     }
-    const option = options.find((o) => o.key === key);
+    const option = options.find((o) => o.key === key && !o.orphan);
     if (!option) {
-      return res.status(400).json({ success: false, error: `No hay variantes activas con el color ${String(req.body.option).trim()}.` });
+      return res.status(400).json({ success: false, error: `No hay variantes con el color ${String(req.body.option).trim().slice(0, 40)}.` });
     }
     const current = (product.option_images || {})[key] || [];
     if (current.length + files.length > MAX_PHOTOS_PER_OPTION) {

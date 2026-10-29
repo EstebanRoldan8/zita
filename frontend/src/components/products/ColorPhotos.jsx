@@ -19,17 +19,27 @@ export function pickValidFiles(fileList, remaining) {
 }
 
 // Una fila por color: miniaturas con ✕ y ★ Principal, y "+ Agregar fotos"
-function ColorRow({ label, variantCount, photos, onAdd, onRemove, onCover, busy, error, note }) {
+// status: 'inactive' (todas sus variantes están desactivadas) | 'orphan' (fotos de un color que ya ninguna
+// variante usa: solo se pueden quitar) | undefined
+function ColorRow({ label, variantCount, photos, onAdd, onRemove, onCover, busy, error, note, status }) {
   const inputRef = useRef(null);
   const remaining = MAX_PHOTOS_PER_COLOR - photos.length;
+  const orphan = status === 'orphan';
   return (
-    <div className="p-3 bg-slate-800/30 border border-slate-700 rounded-lg space-y-2">
-      <div className="flex items-center justify-between gap-2">
-        <p className="text-white text-sm font-medium truncate">{label}</p>
+    <div className={`p-3 border rounded-lg space-y-2 ${orphan ? 'bg-amber-500/5 border-amber-500/30' : 'bg-slate-800/30 border-slate-700'}`}>
+      <div className="flex flex-wrap items-center justify-between gap-x-2 gap-y-1">
+        <p className="text-white text-sm font-medium break-words min-w-0">
+          {label}
+          {status === 'inactive' && <span className="ml-2 text-[11px] font-normal text-slate-400 bg-slate-700/60 px-1.5 py-0.5 rounded">variante inactiva</span>}
+          {orphan && <span className="ml-2 text-[11px] font-normal text-amber-300 bg-amber-500/10 px-1.5 py-0.5 rounded">sin variante</span>}
+        </p>
         <span className="text-slate-500 text-xs flex-shrink-0">
-          {photos.length}/{MAX_PHOTOS_PER_COLOR} fotos · {variantCount} variante{variantCount !== 1 ? 's' : ''}
+          {photos.length}/{MAX_PHOTOS_PER_COLOR} fotos{orphan ? '' : ` · ${variantCount} variante${variantCount !== 1 ? 's' : ''}`}
         </span>
       </div>
+      {orphan && (
+        <p className="text-amber-300/90 text-xs">Ninguna variante usa este color: la tienda no muestra estas fotos. Quítalas o vuelve a ponerle este color a una variante.</p>
+      )}
 
       {photos.length > 0 && (
         <div className="flex flex-wrap gap-2">
@@ -58,12 +68,16 @@ function ColorRow({ label, variantCount, photos, onAdd, onRemove, onCover, busy,
         </div>
       )}
 
-      <input ref={inputRef} type="file" multiple accept="image/jpeg,image/png,image/webp" className="hidden"
-        onChange={(e) => { onAdd(e.target.files, remaining); e.target.value = ''; }} />
-      <button type="button" onClick={() => inputRef.current?.click()} disabled={busy || remaining <= 0}
-        className="w-full bg-slate-800 hover:bg-slate-700 disabled:opacity-50 text-slate-300 text-sm font-medium py-2 rounded-lg transition">
-        {busy ? 'Guardando...' : remaining <= 0 ? 'Máximo de fotos alcanzado' : `+ Agregar fotos (quedan ${remaining})`}
-      </button>
+      {!orphan && (
+        <>
+          <input ref={inputRef} type="file" multiple accept="image/jpeg,image/png,image/webp" className="hidden"
+            onChange={(e) => { onAdd(e.target.files, remaining); e.target.value = ''; }} />
+          <button type="button" onClick={() => inputRef.current?.click()} disabled={busy || remaining <= 0}
+            className="w-full bg-slate-800 hover:bg-slate-700 disabled:opacity-50 text-slate-300 text-sm font-medium py-2 rounded-lg transition">
+            {busy ? 'Guardando...' : remaining <= 0 ? 'Máximo de fotos alcanzado' : `+ Agregar fotos (quedan ${remaining})`}
+          </button>
+        </>
+      )}
       {note && <p className="text-yellow-400 text-xs">{note}</p>}
       {error && <p className="text-red-400 text-xs bg-red-500/10 border border-red-500/20 px-2 py-1.5 rounded">{error}</p>}
     </div>
@@ -149,6 +163,7 @@ export function ColorPhotosEdit({ productId }) {
         data.options.map((option) => (
           <ColorRow key={option.key}
             label={option.label}
+            status={option.orphan ? 'orphan' : option.variant_count > 0 && option.active_count === 0 ? 'inactive' : undefined}
             variantCount={option.variant_count}
             photos={option.images.map((src) => ({ id: src, src }))}
             busy={busyKey === option.key}

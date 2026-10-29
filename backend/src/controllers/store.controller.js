@@ -3,7 +3,7 @@
 const crypto = require('crypto');
 const { supabaseAdmin } = require('../config/supabase');
 const logger = require('../utils/logger');
-const { getColorOptions, resolveImages, uniqueUrls } = require('../utils/variantImages');
+const { getColorOptions, colorOnlyImages, uniqueUrls } = require('../utils/variantImages');
 const { findColorAttribute, normalizeOptionKey, normalizeAttributeName } = require('../utils/optionKey');
 const { normalizeColombianPhone, maskPhone } = require('../utils/phone');
 const { decrypt } = require('../utils/encrypt');
@@ -101,7 +101,8 @@ function colorSwatches(product, variants) {
   return getColorOptions(variants, product.option_images || {}).map((o) => ({
     key: o.key,
     name: o.label,
-    image: resolveImages({ product, variants, selectedAttributes: { color: o.label } }).images[0] || null,
+    // Solo una foto de ESTE color (nunca la galería general ni la de otro color); null si no tiene
+    image: colorOnlyImages({ product, variants, selectedAttributes: { color: o.label } })[0] || null,
     available: variants.some((v) => {
       const attr = findColorAttribute(v.attributes);
       return attr && normalizeOptionKey(attr.value) === o.key && Number(v.stock) > 0;
@@ -236,9 +237,10 @@ async function getProduct(req, res) {
       : (product.has_variants ? ((await loadActiveVariants(req.storeBusinessId, [id]))[id] || []) : []);
     const card = productCard(product, variants);
 
+    // Por color, solo sus fotos; un color sin fotos propias va vacío y la ficha muestra la galería general
     const imagesByColor = {};
     for (const c of card.colors) {
-      imagesByColor[c.key] = resolveImages({ product, variants, selectedAttributes: { color: c.name } }).images;
+      imagesByColor[c.key] = colorOnlyImages({ product, variants, selectedAttributes: { color: c.name } });
     }
 
     return res.json({

@@ -15,6 +15,7 @@
     "test:uploads": "node --test tests/upload-errors.test.js",
     "test:assistant-store": "node --test tests/assistant-store.test.js",
     "test:store-agent": "node --test tests/store-agent.test.js",
+    "test:variant-photos": "node --test tests/variant-color-photos.test.js",
     "test:inventory": "node --test tests/inventory-history.test.js"
   },
   "dependencies": {

@@ -191,12 +191,9 @@ export const flowContent = {
     email: 'flowactivewear.co@gmail.com', // correo de contacto: footer, Ayuda (Contacto) y datos de la organización (SEO)
     city: null,
   },
-  // Titular de la marca (Información del vendedor y textos legales). notificationAddress reemplaza
-  // [DIRECCIÓN DE NOTIFICACIONES] del Word: PENDIENTE de confirmar con el abogado.
+  // Vendedor en los textos legales: solo datos de la marca (sin datos personales de la titular).
+  // notificationAddress reemplaza [DIRECCIÓN DE NOTIFICACIONES] del Word: PENDIENTE de confirmar con el abogado.
   seller: {
-    legalName: 'LIZETH NATALIA LOPEZ PEREZ',
-    nit: '1.144.052.790-7',
-    matricula: '1220888',
     notificationAddress: 'Santiago de Cali; notificaciones al correo flowactivewear.co@gmail.com',
   },
   // Formulario de PQR (p. ej. Google Forms). Vacío = la sección PQR muestra solo WhatsApp y correo.

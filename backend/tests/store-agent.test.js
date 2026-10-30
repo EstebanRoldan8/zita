@@ -207,12 +207,16 @@ test('foco: "llegaron 3 de esas" recibe el foco de la consulta anterior', async 
   assert.match(r.response, /Sumar 3 a Short Nila, Vino tinto talla M \(hoy 2 → quedaría 5\)/);
 });
 
-test('varias acciones y "todos": un solo "sí" ejecuta todas', async () => {
+test('varias acciones y "todos": cambio de precio masivo exige «confirmo» y un solo «confirmo» ejecuta todas', async () => {
   reset();
   replies.push(toolReply({ tipo: 'acciones', acciones: [{ accion: 'cambiar_precio', producto: 'licras', precio: 129900, todos: true }] }));
   const r = await say('sube el precio de las licras a 129900');
-  assert.match(r.response, /1\. Cambiar el precio de Licra Aria: \$119\.900 → \$129\.900[\s\S]*2\. Cambiar el precio de Licra Jana/);
-  const ok = await say('dale');
+  assert.match(r.response, /1\. 🔐 Cambiar el precio de Licra Aria: \$119\.900 → \$129\.900[\s\S]*2\. 🔐 Cambiar el precio de Licra Jana/);
+  assert.match(r.response, /escribe «confirmo»/);
+  const yes = await say('dale');
+  assert.match(yes.response, /🔐 .*confirmo/);
+  assert.deepEqual(db.products.filter((p) => p.category === 'Licras').map((p) => p.price), [119900, 119900], 'un «sí» no basta');
+  const ok = await say('confirmo');
   assert.match(ok.response, /1\. Licra Aria: \$119\.900 → \$129\.900[\s\S]*2\. Licra Jana/);
   assert.deepEqual(db.products.filter((p) => p.category === 'Licras').map((p) => p.price), [129900, 129900]);
 });

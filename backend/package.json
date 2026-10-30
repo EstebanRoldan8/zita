@@ -20,7 +20,8 @@
     "test:inventory": "node --test tests/inventory-history.test.js",
     "test:sets": "node --test tests/set-colors.test.js",
     "test:order-discount": "node --test tests/order-discount-edit.test.js",
-    "test:set-promo": "node --test tests/set-promo.test.js"
+    "test:set-promo": "node --test tests/set-promo.test.js",
+    "test:cash": "node --test tests/cash-categories.test.js"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.92.0",

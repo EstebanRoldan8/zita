@@ -4,8 +4,9 @@ const PDFDocument = require('pdfkit');
 const ExcelJS = require('exceljs');
 const { getTimezone, getOffsetForTz, getDateByCountry } = require('../utils/timezone');
 
-const INCOME_CATEGORIES = ['servicios', 'productos', 'otro'];
-const EXPENSE_CATEGORIES = ['nomina', 'materias_primas', 'servicios', 'arriendo', 'otro'];
+const {
+  INCOME_CATEGORIES, EXPENSE_CATEGORIES, isCostOfSales, splitExpenses, isValidExpenseCategory,
+} = require('../utils/cashCategories');
 
 function dateToString(date) {
   const dateCol = date.toLocaleDateString('en-CA', { timeZone: 'America/Bogota' });
@@ -138,7 +139,7 @@ async function getSummary(req, res) {
         .eq('business_id', req.businessId)
         .gte('date', start)
         .lte('date', end),
-      userClient.from('expenses').select('amount, category')
+      userClient.from('expenses').select('amount, category, order_id')
         .eq('business_id', req.businessId)
         .gte('date', start)
         .lte('date', end),
@@ -151,8 +152,8 @@ async function getSummary(req, res) {
     ]);
 
     const incomeTotal       = (periodIncome  || []).reduce((s, r) => s + Number(r.amount), 0);
-    const costoVentas       = (periodExpenses|| []).filter(r => r.category === 'costo_producto').reduce((s, r) => s + Number(r.amount), 0);
-    const egresosOperativos = (periodExpenses|| []).filter(r => r.category !== 'costo_producto').reduce((s, r) => s + Number(r.amount), 0);
+    // Costo de ventas: costo_producto y el costo de pedidos de tienda ('productos' con order_id); ver utils/cashCategories
+    const { costoVentas, egresosOperativos } = splitExpenses(periodExpenses);
     const expenseTotal      = costoVentas + egresosOperativos;
     const ganancia_neta     = incomeTotal - expenseTotal;
     const margen_porcentaje = incomeTotal > 0 ? Math.round((ganancia_neta / incomeTotal) * 100) : 0;
@@ -378,8 +379,13 @@ async function updateExpense(req, res) {
 
     if (amount !== undefined && (isNaN(amount) || Number(amount) <= 0))
       return res.status(400).json({ success: false, error: 'El monto debe ser un número positivo.' });
-    if (category !== undefined && !EXPENSE_CATEGORIES.includes(category))
-      return res.status(400).json({ success: false, error: 'Categoría inválida.' });
+    if (category !== undefined && !EXPENSE_CATEGORIES.includes(category)) {
+      // Un egreso automático (costo_producto, o 'productos' de un pedido) puede guardarse con su misma categoría
+      const { data: current } = await userClient.from('expenses').select('category')
+        .eq('id', id).eq('business_id', req.businessId).maybeSingle();
+      if (!isValidExpenseCategory(category, current))
+        return res.status(400).json({ success: false, error: 'Categoría inválida.' });
+    }
 
     const patch = {};
     if (amount      !== undefined) patch.amount      = parseFloat(amount);
@@ -439,12 +445,12 @@ async function exportPdf(req, res) {
 
     const [{ data: incomeData }, { data: allExpensesData }, { data: biz }] = await Promise.all([
       userClient.from('income').select('amount,category,description,date,clients(name)').eq('business_id', req.businessId).gte('date', start).lte('date', end).order('date'),
-      userClient.from('expenses').select('amount,category,description,date').eq('business_id', req.businessId).gte('date', start).lte('date', end).order('date'),
+      userClient.from('expenses').select('amount,category,description,date,order_id').eq('business_id', req.businessId).gte('date', start).lte('date', end).order('date'),
       userClient.from('businesses').select('name').eq('id', req.businessId).single(),
     ]);
 
-    const costExpenses = (allExpensesData || []).filter(r => r.category === 'costo_producto');
-    const opExpenses   = (allExpensesData || []).filter(r => r.category !== 'costo_producto');
+    const costExpenses = (allExpensesData || []).filter(isCostOfSales);
+    const opExpenses   = (allExpensesData || []).filter(r => !isCostOfSales(r));
 
     const allIncome = (incomeData || []).map(r => ({ date: r.date, desc: r.description || r.category, cat: r.category || 'otro', amount: Number(r.amount) })).sort((a,b) => a.date.localeCompare(b.date));
 
@@ -669,7 +675,7 @@ async function getExcel(req, res) {
 
     const [{ data: incomeData }, { data: allExpensesData }, { data: biz }] = await Promise.all([
       userClient.from('income').select('amount,category,description,date,clients(name)').eq('business_id', req.businessId).gte('date', start).lte('date', end).order('date'),
-      userClient.from('expenses').select('amount,category,description,date').eq('business_id', req.businessId).gte('date', start).lte('date', end).order('date'),
+      userClient.from('expenses').select('amount,category,description,date,order_id').eq('business_id', req.businessId).gte('date', start).lte('date', end).order('date'),
       userClient.from('businesses').select('name').eq('id', req.businessId).single(),
     ]);
 
@@ -677,9 +683,9 @@ async function getExcel(req, res) {
 
     const allIncome = (incomeData || []).map(r => ({ date: r.date, desc: r.description || r.category, client: r.clients?.name || '—', cat: r.category ? r.category.charAt(0).toUpperCase() + r.category.slice(1) : 'Otro', source: 'Manual', amount: Number(r.amount) })).sort((a, b) => a.date.localeCompare(b.date));
 
-    const costExpenses = (allExpensesData || []).filter(r => r.category === 'costo_producto')
+    const costExpenses = (allExpensesData || []).filter(isCostOfSales)
       .map(r => ({ date: r.date, desc: r.description || '—', amount: Number(r.amount) }));
-    const opExpenses = (allExpensesData || []).filter(r => r.category !== 'costo_producto')
+    const opExpenses = (allExpensesData || []).filter(r => !isCostOfSales(r))
       .map(r => ({ date: r.date, cat: CAT[r.category] || r.category, desc: r.description || '—', amount: Number(r.amount) }));
 
     const totalIngresos     = allIncome.reduce((s, r) => s + r.amount, 0);

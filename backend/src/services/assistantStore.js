@@ -16,6 +16,7 @@ const { loadBundles, deriveBundle } = require('../utils/bundles');
 const { calculateShipping } = require('../config/shipping');
 const { parseDiscount, computeTotals } = require('../utils/orderTotals');
 const { loadStoreCatalog } = require('../utils/storeCatalog');
+const { createCapabilities } = require('./storeCapabilities');
 
 const ACTION_TTL_MS = 30 * 60 * 1000;
 const UNDO_WINDOW_MS = 7 * 24 * 60 * 60 * 1000;
@@ -77,6 +78,9 @@ const words = (s) => norm(s).replace(/[^a-z0-9 ]/g, ' ').split(' ').filter((w) =
 // Productos por nombre (sin tildes, mayúsculas ni plurales): exacto primero; luego todas las palabras presentes;
 // si no, por categoría ("las licras" → todos los de la categoría Licras)
 function matchProducts(products, query) {
+  // "id:<uuid>": la opción que el usuario eligió en una pregunta (sirve aunque dos productos se llamen igual)
+  const byId = String(query ?? '').trim().match(/^id:([\w-]{1,64})$/);
+  if (byId) return products.filter((p) => String(p.id).toLowerCase() === byId[1].toLowerCase());
   const q = norm(query);
   if (!q) return [];
   const exact = products.filter((p) => norm(p.name) === q);
@@ -302,7 +306,7 @@ function createStoreAssistant(deps) {
     const matches = matchProducts(products, query);
     if (matches.length === 0) return { success: false, error: `No encontré un producto que se llame "${text(query)}".`, sugerencias: products.slice(0, 15).map((p) => p.name) };
     if (matches.length > 1) {
-      return { needs: 'producto', pregunta: `Hay ${matches.length} productos que coinciden con "${text(query)}". ¿Cuál?`, opciones: matches.slice(0, 15).map((p) => ({ producto: p.name, precio: Number(p.price), activo: p.is_active })) };
+      return { needs: 'producto', pregunta: `Hay ${matches.length} productos que coinciden con "${text(query)}". ¿Cuál?`, opciones: matches.slice(0, 15).map((p) => ({ id: p.id, producto: p.name, precio: Number(p.price), activo: p.is_active })) };
     }
     return { product: matches[0] };
   }
@@ -681,7 +685,8 @@ function createStoreAssistant(deps) {
     if (!r.product) return r;
     const p = r.product;
     if (Number(p.price) === price) return { success: false, error: `${p.name} ya cuesta ${cop(price)}.` };
-    return savePending(ctx, 'precio', `Cambiar el precio de ${p.name}: ${cop(p.price)} → ${cop(price)}. ¿Confirmas?`, { product_id: p.id, before: Number(p.price), after: price, label: p.name });
+    // input.masivo: parte de un cambio a varios productos a la vez → confirmación reforzada ("confirmo")
+    return savePending(ctx, 'precio', `${input.masivo ? '🔐 ' : ''}Cambiar el precio de ${p.name}: ${cop(p.price)} → ${cop(price)}. ¿Confirmas?`, { ...(input.masivo ? { risk: 'R' } : {}), product_id: p.id, before: Number(p.price), after: price, label: p.name });
   }
 
   async function prepararEstado(input, ctx) {
@@ -767,9 +772,9 @@ function createStoreAssistant(deps) {
     if (o.status === 'cancelado') return { success: false, error: `El pedido ${orderCode(o.id)} está cancelado y ya no cambia de estado.` };
     if (o.status === estado) return { success: false, error: `El pedido ${orderCode(o.id)} ya está ${estado}.` };
     const summary = estado === 'cancelado'
-      ? `Cancelar el pedido ${orderCode(o.id)} (${o.client_name || 'sin datos'}, ${cop(o.total_amount)}) y devolver su stock. No se puede deshacer. ¿Confirmas?`
+      ? `🔐 Cancelar el pedido ${orderCode(o.id)} (${o.client_name || 'sin datos'}, ${cop(o.total_amount)}): ${o.status} → cancelado, su stock vuelve al inventario. No se puede deshacer. ¿Confirmas?`
       : `Pasar el pedido ${orderCode(o.id)} de ${o.status} a ${estado}. ¿Confirmas?`;
-    return savePending(ctx, 'estado_pedido', summary, { order_id: o.id, before: o.status, after: estado, label: orderCode(o.id) });
+    return savePending(ctx, 'estado_pedido', summary, { ...(estado === 'cancelado' ? { risk: 'R' } : {}), order_id: o.id, before: o.status, after: estado, label: orderCode(o.id) });
   }
 
   // Inverso de una acción aplicada: { kind, summary, plan } o { error }
@@ -809,6 +814,7 @@ function createStoreAssistant(deps) {
       if (p.after === 'cancelado') return { error: `El pedido ${p.label} se canceló: una cancelación no se puede deshacer.` };
       return { summary: `Deshacer: pedido ${p.label} de ${p.after} a ${p.before}.`, plan: { kind: 'estado_pedido', order_id: p.order_id, before: p.after, after: p.before, label: p.label } };
     }
+    if (caps().has(a.kind)) return caps().inverse(a, ctx);
     return { error: 'Esa acción no se puede deshacer automáticamente.' };
   }
 
@@ -833,10 +839,25 @@ function createStoreAssistant(deps) {
   }
 
   // ── Ejecutar (solo desde confirmar_accion) ──
-  const call = async (fn, { params = {}, body = {} }, ctx) => {
-    const res = { code: 200, body: null, status(c) { this.code = c; return this; }, json(b) { this.body = b; return this; } };
-    await fn({ params, body, query: {}, headers: { authorization: ctx.authorization }, businessId: ctx.businessId, business: ctx.business }, res);
+  const call = async (fn, { params = {}, body = {}, query = {} }, ctx) => {
+    const res = { code: 200, body: null, status(c) { this.code = c; return this; }, json(b) { this.body = b; return this; }, set() { return this; }, setHeader() { return this; } };
+    await fn({
+      params, body, query, headers: { authorization: ctx.authorization }, businessId: ctx.businessId, business: ctx.business,
+      planInfo: { plan: ctx.business?.plan || 'estandar' }, user: ctx.user || null,
+    }, res);
     return res;
+  };
+
+  // Registro de capacidades (Caja, pedidos, productos, sets, clientes, equipo, configuración, reportes)
+  let capsInstance = null;
+  const caps = () => {
+    if (!capsInstance) {
+      capsInstance = createCapabilities({
+        db, now, ctl: controllers, call, cop, text, norm, dayISO, orderCode, savePending, resolveProduct, resolveVariant,
+        loadProducts, loadVariants, loadOrders, matchProducts, variantLabel, periodRange, prepararPrecio,
+      });
+    }
+    return capsInstance;
   };
 
   async function execute(action, ctx) {
@@ -898,6 +919,7 @@ function createStoreAssistant(deps) {
       const { data } = await db.from('orders').select('status').eq('business_id', ctx.businessId).eq('id', p.order_id).maybeSingle();
       return { ok: data?.status === p.after, result: { antes: p.before, estado_leido: data?.status }, message: `pedido ${p.label}: ${p.before} → ${data?.status}${p.after === 'cancelado' ? ' (stock devuelto)' : ''}`, error: 'el pedido no quedó como se esperaba.' };
     }
+    if (caps().has(kind)) return caps().execute(kind, isUndo ? { ...action, plan: p } : action, ctx);
     return { ok: false, error: 'tipo de acción desconocido.' };
   }
 
@@ -909,6 +931,9 @@ function createStoreAssistant(deps) {
     const expired = open.filter((a) => !live(a));
     for (const a of expired) await finish(a.id, ctx.businessId, { status: 'expired' });
     const batch = open.filter((a) => live(a) && seen(a, ctx)).slice(0, MAX_BATCH);
+    if (batch.some((a) => a.plan?.risk === 'R') && !/\bconfirmo\b/.test(norm(ctx.userMessage))) {
+      return { success: false, needs_confirmo: true, error: 'Es una acción delicada: para hacerla escribe exactamente «confirmo». Si no, dime «no».' };
+    }
     if (!batch.length) {
       const unseen = open.filter((a) => live(a) && !seen(a, ctx));
       if (unseen.length) return { success: false, error: 'Esas propuestas se acaban de preparar: muéstralas al usuario y espera su "sí".' };
@@ -1018,6 +1043,7 @@ function createStoreAssistant(deps) {
     storeContext,
     // Piezas para el agente de tienda (storeAgent): lecturas acotadas al negocio, registro de acciones y sus reglas
     lib: { db, now, loadProducts, loadVariants, readStock, pendingActions, seen, live, finish, variantLabel, matchVariants, canonColor, canonTalla },
+    caps,
     handles: (name) => Object.prototype.hasOwnProperty.call(handlers, name),
     // El input nunca trae un business_id que valga: el negocio sale de ctx (sesión)
     execute: (name, input, ctx) => handlers[name](input && typeof input === 'object' ? input : {}, ctx),
@@ -1034,6 +1060,12 @@ function storeAssistant() {
         orders: require('../controllers/orders.controller'),
         products: require('../controllers/products.controller'),
         variants: require('../controllers/productVariants.controller'),
+        cash: require('../controllers/cash.controller'),
+        settings: require('../controllers/settings.controller'),
+        clients: require('../controllers/clients.controller'),
+        employees: require('../controllers/employees.controller'),
+        bundles: require('../controllers/bundles.controller'),
+        businesses: require('../controllers/businesses.controller'),
       },
     });
   }

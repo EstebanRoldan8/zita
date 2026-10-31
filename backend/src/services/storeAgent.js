@@ -49,7 +49,7 @@ const clean = (s) => norm(s).replace(/[¡!¿?.,;:]+/g, ' ').replace(/\s+/g, ' ')
 const GREETING = /^(hola|holi|buenas|buenos dias|buenas tardes|buenas noches|hey|que mas|que hubo|quiubo|saludos)( \w+)?$/;
 // Verbos de cambio ("llegaron", "súmale", "pon", "vendí"…): si aparecen, el mensaje va al modelo como acción.
 // "¿cuánto he vendido?" NO es un cambio (vendido ≠ vendí).
-const WRITE_HINT = /\b(llegaron|llego|entraron|suma\w*|agrega\w*|anade\w*|quita\w*|resta\w*|descuenta\w*|vendi|vendimos|vendieron|registra\w*|sube\w*|baja\w*|cambia\w*|pon|ponle|ponlo|ponla|poner|activa\w*|desactiva\w*|crea\w*|cancela\w*|marca\w*|despacha\w*|hazme|haz)\b/;
+const WRITE_HINT = /\b(llegaron|llego|entraron|entro|suma\w*|agrega\w*|anade\w*|quita\w*|resta\w*|descuenta\w*|vendi|vendimos|vendieron|registra\w*|sube\w*|baja\w*|cambia\w*|pon|ponle|ponlo|ponla|poner|activa\w*|desactiva\w*|crea\w*|cancela\w*|marca\w*|despacha\w*|hazme|haz|gaste|gastamos|pague|pagamos|compre|compramos|anota\w*|apunta\w*|borra\w*|elimina\w*|edita\w*|corrige|corregir|renombra\w*|envia\w*|manda\w*|recuerda\w*|oculta\w*|muestra el modulo)\b/;
 function periodOf(m) {
   if (/\bayer\b/.test(m)) return 'ayer';
   if (/\bsemana\b/.test(m)) return 'semana';
@@ -76,10 +76,14 @@ function classify(message, state = {}) {
     if (opt) return { type: 'answer', index: opt };
   }
   if (GREETING.test(m)) return { type: 'greeting' };
-  if (isNegative(m)) return { type: 'no' };
+  // "cancela el pedido P-…", "anula el gasto de…" son pedidos de acción, no un "no" a lo pendiente
+  if (isNegative(m) && !/^(cancel|anul)\w* (el|la|los|las|ese|esa|un|una) (pedido|gasto|egreso|ingreso|movimiento|venta|p-)/.test(m)) return { type: 'no' };
   if (isAffirmative(m)) return { type: 'yes' };
   if (isUndoIntent(m)) return { type: 'undo' };
   if (!WRITE_HINT.test(m)) {
+    // Caja sin modelo: "¿cuánto hay en caja?" es el neto del período (no un saldo)
+    if (/(cuanto hay en (la )?caja|como va la caja|como esta la caja|caja de (hoy|ayer|la semana|este mes|el mes)|cuanta plata hay|saldo de (la )?caja)/.test(m)) return { type: 'query', consulta: 'caja_resumen', periodo: /\bayer\b/.test(m) ? 'ayer' : /\bsemana\b/.test(m) ? 'semana' : /\bmes\b/.test(m) ? 'mes' : 'hoy' };
+    if (/(como voy con la meta|como va la meta|cuanto me falta para la meta)/.test(m)) return { type: 'query', consulta: 'meta_progreso' };
     if (/(como vamos|como va (el dia|todo|hoy|la tienda)|como estamos|resumen|como nos (fue|va))/.test(m)) return { type: 'query', consulta: 'resumen_hoy' };
     if (/(poco stock|por agotar|casi agotad|bajo stock|stock bajo)/.test(m)) return { type: 'query', consulta: 'poco_stock' };
     if (/(agot(ad|o|aron|ó)|se acabo|se acabaron|sin stock|no hay stock|que falta)/.test(m)) return { type: 'query', consulta: 'agotados' };
@@ -153,8 +157,9 @@ REGLAS:
 7. Copia el producto, color y talla COMO LOS DIJO (sin inventar ni completar). Si falta algo, déjalo vacío: el sistema pregunta.
 8. "esa", "esas", "ese producto" = el FOCO que te da el sistema.
 9. tipo "consulta" si pregunta datos: resumen_hoy, agotados, poco_stock, stock (de un producto), sin_pagar, mas_vendidos, ventas (periodo), pedidos (codigo o cliente), sets, drops, envio (ciudad), clientes (frecuentes), producto_info (precio, costo, margen).
-10. tipo "no_puedo" si pide algo que el asistente no hace (borrar productos, fotos, pagos, otra cosa): respuesta corta diciendo que se hace en el panel.
+10. tipo "no_puedo" con "tema" si pide algo fuera de alcance (ver TEMAS abajo) o un dato que no está en tus consultas (tema "sin_consulta" + "donde").
 11. tipo "charla" para saludo o comentario sin datos; "no_entendi" si no se entiende.
+12. Abajo pueden venir más acciones y consultas del tema del mensaje (Caja, pedidos, productos, clientes…): úsalas igual.
 
 EJEMPLOS (mensaje → interpretar):
 - "¿cuántas licra aria negras hay?" → {"tipo":"consulta","consulta":{"tipo":"stock","producto":"licra aria","color":"negras"}}
@@ -165,25 +170,109 @@ EJEMPLOS (mensaje → interpretar):
 - "pon agotado el short nila vino tinto" → {"tipo":"acciones","acciones":[{"accion":"fijar_stock","producto":"short nila","color":"vino tinto","stock_final":0}]}
 - "sube el precio de las licras a 129900" → {"tipo":"acciones","acciones":[{"accion":"cambiar_precio","producto":"licras","precio":129900,"todos":true}]}
 - "hazme un pedido de 2 tops jana verdes con 10 mil de descuento" → {"tipo":"acciones","acciones":[{"accion":"pedido","items":[{"producto":"top jana","color":"verde","cantidad":2}],"descuento":10000}]}
-- "borra la falda vela" → {"tipo":"no_puedo","respuesta":"Borrar productos no lo hago yo: se hace en el panel, en Productos. Si quieres, la desactivo para que no se vea en la tienda."}`;
+- "súbeme fotos del top aria" → {"tipo":"no_puedo","tema":"fotos"}`;
 
-function validateIntent(x) {
+// ── Capacidades por tema: el modelo recibe SOLO las del tema del mensaje (menos tokens, menos confusión) ──
+// Las reglas eligen los temas; cada tema suma sus acciones/consultas al enum, sus campos al esquema y un bloque
+// corto de instrucciones (con caché). Sin tema, el modelo ve lo de siempre (stock, precios, pedidos).
+const DOMAIN_RULES = [
+  ['caja', /\b(caja|ingres\w*|egres\w*|gast\w*|pague|pagamos|compre|compramos|entro|entraron|salio|salieron|plata|efectivo|nequi|daviplata|bancolombia|arriendo|nomina|sueldo|bolsas?|empaques?|meta|utilidad|ganancia|gane|neto|saldo|movimiento)\b/],
+  ['pedidos', /\b(pedidos?|p-?[0-9a-f]{4,8}|pagad[oa]|pago|transportadora|guia|enviad[oa]|despach\w*|descuento|cancel\w*)\b/],
+  ['productos', /\b(productos?|crea\w*|costo|costos|categoria|genero|descripcion|variantes?|sku|minimo|elimin\w*|borr\w*|renombr\w*|nombre|historial|movimientos)\b|\bcambi\w* (la |el )?(talla|color)\b/],
+  ['sets', /\b(sets?|combos?)\b/],
+  ['clientes', /\b(client[ae]s?|whatsapp|recordatorio|volver a comprar|vuelto|volvieron|inactivos|no compran|correo|email|celular)\b/],
+  ['equipo', /\b(emplead\w*|vendedor\w*|equipo|comision)\b/],
+  ['config', /\b(perfil|direccion|telefono del negocio|nombre del negocio|modulos?|menu|notificacion\w*)\b/],
+  ['reportes', /\b(margen|rentab\w*|vend\w* (de|del)|se vendio|valor del inventario|vale|por categoria|inventario|reporte)\b/],
+];
+const TEMAS = ['fotos', 'whatsapp', 'plan', 'contrasena', 'tienda_config', 'exportar', 'usuarios', 'sin_consulta', 'otro'];
+const DONDE = ['caja', 'analiticas', 'pedidos', 'productos', 'clientes', 'inicio'];
+const int = { type: 'integer' };
+const strOrInt = { type: ['string', 'integer'] };
+const DOMAIN_FIELDS = {
+  caja: { monto: int, categoria: str, descripcion: str, fecha: { type: 'string', description: 'hoy, ayer o YYYY-MM-DD' }, metodo: str, tipo_mov: { type: 'string', enum: ['ingreso', 'egreso'] }, buscar: str, nuevo_monto: int, nueva_categoria: str, nueva_descripcion: str, nueva_fecha: str },
+  pedidos: { pago: { type: 'string', enum: ['pagado', 'pendiente', 'fallido', 'reembolsado'] }, metodo: str, transportadora: str, guia: str },
+  productos: { nombre: str, costo: int, categoria: str, genero: { type: 'string', enum: ['mujer', 'hombre', 'unisex'] }, descripcion: str, variantes: { type: 'array', items: { type: 'object', properties: { color: str, talla: str, cantidad: int } } }, campo: str, valor: strOrInt, nuevo_color: str, nueva_talla: str, sku: str, stock_minimo: int },
+  sets: { nombre: str, set: str, piezas: { type: 'array', items: { type: 'object', properties: { producto: str, cantidad: int } } } },
+  clientes: { email: str, campo: str, valor: strOrInt, nombre: str },
+  equipo: { empleado: str, nombre: str, email: str, comision: int, campo: str, valor: strOrInt, activo: { type: 'boolean' } },
+  config: { campo: str, valor: str, modulo: str, activo: { type: 'boolean' } },
+  reportes: {},
+};
+const QUERY_FIELDS = { texto: str, tipo_mov: { type: 'string', enum: ['ingreso', 'egreso'] }, categoria: str, dias: int, cliente: str, todos: { type: 'boolean' } };
+const DOMAIN_PROMPTS = {
+  caja: `CAJA = plata que entra o sale (no es stock). Montos en pesos enteros: "50mil"/"50 mil" = 50000, "2 millones" = 2000000; si dicen solo "200", pon 200 (el sistema pregunta).
+- registrar_egreso: "gasté/pagué/compré X en Y" → monto, descripcion (en qué, tal cual), categoria solo si la dicen, metodo si lo dicen (efectivo, nequi…), fecha si no es hoy.
+- registrar_ingreso: "entraron/recibí/me pagaron X" (plata) → igual. "entraron 5 top jana" es sumar_stock.
+- editar_movimiento / anular_movimiento: corregir o borrar un ingreso/egreso → tipo_mov, buscar (texto o "ultimo"), monto (el actual si lo dicen), nuevo_monto / nueva_categoria / nueva_descripcion / nueva_fecha.
+- meta_mensual: "pon la meta del mes en X" → monto.
+- Consultas: caja_resumen ("cuánto gané", "cómo va la caja", periodo), caja_movimientos ("cuánto gasté en bolsas este mes": tipo_mov, texto, categoria, periodo), meta_progreso.
+Ej: "gaste 50mil en bolsas" → {"tipo":"acciones","acciones":[{"accion":"registrar_egreso","monto":50000,"descripcion":"bolsas"}]}
+"entraron 200 en efectivo" → {"tipo":"acciones","acciones":[{"accion":"registrar_ingreso","monto":200,"metodo":"efectivo"}]}
+"cuanto gaste este mes en bolsas" → {"tipo":"consulta","consulta":{"tipo":"caja_movimientos","tipo_mov":"egreso","texto":"bolsas","periodo":"mes"}}
+"borra el gasto de 50 mil de bolsas" → {"tipo":"acciones","acciones":[{"accion":"anular_movimiento","tipo_mov":"egreso","monto":50000,"buscar":"bolsas"}]}`,
+  pedidos: `PEDIDOS (además de pedido y estado_pedido): pago_pedido (codigo, pago, metodo), envio_pedido (codigo, transportadora, guia), descuento_pedido (pedido YA creado: codigo, descuento), eliminar_pedido (borrar del todo; cancelar = estado_pedido cancelado).
+Ej: "el p-1a2b3c4d ya pago por nequi" → {"tipo":"acciones","acciones":[{"accion":"pago_pedido","codigo":"P-1A2B3C4D","pago":"pagado","metodo":"nequi"}]}`,
+  productos: `PRODUCTOS: crear_producto (nombre, precio, costo, categoria, genero, descripcion, variantes [{color,talla,cantidad}] o cantidad), editar_producto (producto + campo costo|nombre|categoria|genero|descripcion|stock_minimo|precio + valor; plural "las licras" → todos true), eliminar_producto (borrar del todo; ocultar = desactivar), editar_variante (producto, color, talla actuales + nuevo_color/nueva_talla/sku/stock_minimo), eliminar_variante. Consulta: historial_producto.
+Ej: "cambia el costo de la licra aria a 70000" → {"tipo":"acciones","acciones":[{"accion":"editar_producto","producto":"licra aria","campo":"costo","valor":70000}]}
+"crea un producto short prueba negro talla S 3 unidades a 80000" → {"tipo":"acciones","acciones":[{"accion":"crear_producto","nombre":"short prueba","precio":80000,"variantes":[{"color":"negro","talla":"S","cantidad":3}]}]}`,
+  sets: `SETS: crear_set (nombre, precio, piezas [{producto,cantidad}]), editar_set (set + precio/nombre/piezas).
+Ej: "arma el set playa con top aria y short nila a 130 mil" → {"tipo":"acciones","acciones":[{"accion":"crear_set","nombre":"set playa","precio":130000,"piezas":[{"producto":"top aria","cantidad":1},{"producto":"short nila","cantidad":1}]}]}`,
+  clientes: `CLIENTES: crear_cliente (nombre, telefono, email), editar_cliente (cliente + campo nombre|telefono|email|notas + valor), eliminar_cliente, recordar_cliente (enviar por WhatsApp el mensaje de volver a comprar). Consultas: cliente_info (cliente), clientes_inactivos (dias; "qué clientes no han vuelto").
+Ej: "agrega a ana gomez 3001234567 como cliente" → {"tipo":"acciones","acciones":[{"accion":"crear_cliente","nombre":"ana gomez","telefono":"3001234567"}]}`,
+  equipo: `EQUIPO: crear_empleado (nombre, telefono, email, comision %), editar_empleado (empleado + campo nombre|telefono|email|comision|activo + valor / activo), eliminar_empleado. Consulta: empleados.`,
+  config: `CONFIGURACIÓN: editar_perfil (campo nombre|dueno|telefono|direccion + valor), modulo (modulo + activo: mostrar/ocultar del menú), notificaciones (activo: avisos de WhatsApp al dueño).`,
+  reportes: `REPORTES (lectura): ventas_producto ("cuánto vendí del set aria": producto, periodo), margen_categoria (periodo), valor_inventario. periodo: hoy, ayer, semana, mes, mes_pasado, anio, todo.`,
+};
+const TEMAS_PROMPT = `TEMAS de no_puedo: fotos, whatsapp (tokens/conexión), plan (suscripción/pagos de ZITA), contrasena, tienda_config (tarifas de envío, métodos de pago o textos de la tienda en línea), exportar (PDF/Excel), usuarios (roles), sin_consulta (dato que no está en tus consultas; pon "donde": caja|analiticas|pedidos|productos|clientes|inicio).`;
+
+// Temas del mensaje (por reglas, sin modelo); como máximo 3 para que el contexto no crezca
+function domainsOf(message) {
+  const m = clean(message);
+  return DOMAIN_RULES.filter(([, re]) => re.test(m)).map(([d]) => d).slice(0, 3);
+}
+
+// Herramienta "interpretar" y bloque de instrucciones para estos temas (orden fijo: el mismo tema = misma caché)
+function interpretFor(domains, caps) {
+  const ds = [...new Set(domains)].sort();
+  const regs = (caps?.list || []).filter((c) => ds.includes(c.domain));
+  const acciones = [...ACCIONES, ...regs.filter((c) => c.type === 'action').map((c) => c.name)];
+  const consultas = [...CONSULTAS, ...regs.filter((c) => c.type === 'query').map((c) => c.name)];
+  const tool = JSON.parse(JSON.stringify(INTERPRET_TOOL));
+  const item = tool.input_schema.properties.acciones.items;
+  item.properties.accion.enum = acciones;
+  for (const d of ds) Object.assign(item.properties, DOMAIN_FIELDS[d] || {});
+  const q = tool.input_schema.properties.consulta;
+  q.properties.tipo.enum = consultas;
+  q.properties.periodo.enum = ['hoy', 'ayer', 'semana', 'mes', 'mes_pasado', 'anio', 'todo'];
+  if (ds.length) Object.assign(q.properties, QUERY_FIELDS);
+  tool.input_schema.properties.tema = { type: 'string', enum: TEMAS };
+  tool.input_schema.properties.donde = { type: 'string', enum: DONDE };
+  const block = [...ds.map((d) => DOMAIN_PROMPTS[d]).filter(Boolean), TEMAS_PROMPT].join('\n\n');
+  return { tool, block, acciones, consultas, domains: ds };
+}
+
+function validateIntent(x, allowed = { acciones: ACCIONES, consultas: CONSULTAS }) {
   if (!x || typeof x !== 'object') return 'no es un objeto';
   if (!TIPOS.includes(x.tipo)) return 'tipo inválido';
   const s = (v, max = 120) => v === undefined || v === null || (typeof v === 'string' && v.length <= max);
-  const n = (v) => v === undefined || v === null || (Number.isInteger(v) && v >= -100000 && v <= 100000000);
+  const n = (v) => v === undefined || v === null || (Number.isInteger(v) && v >= -100000 && v <= 100000000000);
+  const sn = (v, max = 300) => s(v, max) || n(v);
   if (x.tipo === 'acciones') {
     if (!Array.isArray(x.acciones) || !x.acciones.length || x.acciones.length > 10) return 'acciones vacías o demasiadas';
     for (const a of x.acciones) {
-      if (!a || !ACCIONES.includes(a.accion)) return 'acción inválida';
-      if (![a.producto, a.color, a.talla, a.codigo, a.cliente, a.telefono].every((v) => s(v))) return 'texto inválido';
-      if (![a.cantidad, a.stock_final, a.precio, a.descuento].every(n)) return 'número inválido';
+      if (!a || !allowed.acciones.includes(a.accion)) return 'acción inválida';
+      if (![a.producto, a.color, a.talla, a.codigo, a.cliente, a.telefono, a.nombre, a.categoria, a.metodo, a.buscar, a.campo, a.set, a.empleado, a.modulo, a.email, a.sku, a.transportadora, a.guia, a.nuevo_color, a.nueva_talla, a.nueva_categoria, a.fecha, a.nueva_fecha].every((v) => s(v))) return 'texto inválido';
+      if (![a.descripcion, a.nueva_descripcion].every((v) => s(v, 1000)) || !sn(a.valor, 1000)) return 'texto inválido';
+      if (![a.cantidad, a.stock_final, a.precio, a.descuento, a.monto, a.nuevo_monto, a.costo, a.comision, a.stock_minimo].every(n)) return 'número inválido';
+      for (const list of [a.variantes, a.piezas]) if (list !== undefined && (!Array.isArray(list) || list.length > 30)) return 'lista inválida';
       if (a.accion === 'pedido' && (!Array.isArray(a.items) || !a.items.length || a.items.length > 20 || !a.items.every((i) => i && s(i.producto) && i.producto && n(i.cantidad)))) return 'pedido sin ítems válidos';
-      if (a.accion !== 'pedido' && a.accion !== 'estado_pedido' && !a.producto) return 'falta el producto';
+      if (ACCIONES.includes(a.accion) && a.accion !== 'pedido' && a.accion !== 'estado_pedido' && !a.producto) return 'falta el producto';
     }
   }
-  if (x.tipo === 'consulta' && (!x.consulta || !CONSULTAS.includes(x.consulta.tipo))) return 'consulta inválida';
+  if (x.tipo === 'consulta' && (!x.consulta || !allowed.consultas.includes(x.consulta.tipo))) return 'consulta inválida';
   if ((x.tipo === 'charla' || x.tipo === 'no_puedo') && !s(x.respuesta, 600)) return 'respuesta inválida';
+  if (x.tema !== undefined && !TEMAS.includes(x.tema)) return 'tema inválido';
   return null;
 }
 
@@ -191,7 +280,7 @@ function validateIntent(x) {
 const plural = (n, a, b) => `${n} ${n === 1 ? a : b}`;
 function greetingText(biz, hour) {
   const h = hour >= 5 && hour < 12 ? 'Buenos días' : hour < 19 ? 'Buenas tardes' : 'Buenas noches';
-  return `${h} 👋 Soy el asistente de ${biz.name}. Pregúntame cómo van las ventas, qué se agotó o el stock de una prenda, o pídeme sumar stock, cambiar un precio o registrar un pedido.`;
+  return `${h} 👋 Soy el asistente de ${biz.name}. Pregúntame cómo van las ventas, cómo va la Caja o el stock de una prenda, o pídeme registrar un gasto o un ingreso, sumar stock, cambiar un precio o un costo, crear un producto o registrar un pedido.`;
 }
 
 function resumenText(r, hour) {
@@ -244,7 +333,13 @@ function proposalsText(proposed, errors = [], intro = '') {
   const parts = [];
   if (intro) parts.push(intro);
   if (errors.length) parts.push(errors.map((e) => `⚠️ ${e}`).join('\n'));
-  if (proposed.length) parts.push(`📝 Para confirmar:\n${proposed.map((x, i) => `${i + 1}. ${x}`).join('\n')}\n¿Confirmas? (sí / no)`);
+  if (proposed.length) {
+    // Algo delicado (🔐): un "sí" no basta, hay que escribir "confirmo"
+    const footer = proposed.some((x) => String(x).startsWith('🔐'))
+      ? '🔐 Es delicado: para hacerlo escribe «confirmo» (un «sí» no basta), o «no» para cancelar.'
+      : '¿Confirmas? (sí / no)';
+    parts.push(`📝 Para confirmar:\n${proposed.map((x, i) => `${i + 1}. ${x}`).join('\n')}\n${footer}`);
+  }
   return parts.join('\n\n');
 }
 
@@ -276,6 +371,12 @@ function createStoreAgent(deps = {}) {
   }
   async function setFocus(ctx, f) {
     if (!f?.producto) return;
+    // El foco va al modelo como texto: un "id:<uuid>" (opción elegida) se guarda con el nombre del producto
+    if (/^id:/i.test(String(f.producto))) {
+      const hit = matchProducts(await store.lib.loadProducts(ctx.businessId, { includeInactive: true }), f.producto)[0];
+      if (!hit) return;
+      f = { ...f, producto: hit.name };
+    }
     await db.from('assistant_actions').insert({ business_id: ctx.businessId, kind: 'foco', status: 'cancelled', summary: `foco: ${f.producto}`, plan: { producto: f.producto, color: f.color || null, talla: f.talla || null } });
   }
   const focusLabel = (f) => (f ? [f.producto, f.color, f.talla && `talla ${String(f.talla).toUpperCase()}`].filter(Boolean).join(', ') : null);
@@ -301,10 +402,15 @@ function createStoreAgent(deps = {}) {
 
   // Pregunta numerada a partir de un "needs" de la capa de datos
   function questionFrom(needs, queue, extra = {}) {
-    const opciones = (needs.opciones || []).slice(0, 12).map((o) => (o.producto
-      ? { label: o.producto, producto: o.producto, extra: o.precio ? cop(o.precio) : null }
-      : { label: o.variante, color: o.color, talla: o.talla, extra: o.stock !== undefined ? `stock ${o.stock}` : null }));
-    return { pregunta: needs.pregunta, campo: needs.needs, item_index: needs.item_index ?? null, opciones, queue, ...extra };
+    // Opciones con "value" (capacidades del registro: categoría, monto, movimiento, cliente…) → se guardan en needs.campo
+    const opciones = (needs.opciones || []).slice(0, 12).map((o) => (o.value !== undefined
+      ? { label: o.label, value: o.value, set: o.set || null, extra: o.extra || null }
+      : o.producto
+        // Con id: la opción elegida identifica ESE producto aunque haya otro con el mismo nombre
+        ? { label: o.producto, producto: o.id ? `id:${o.id}` : o.producto, extra: o.precio ? cop(o.precio) : null }
+        : { label: o.variante, color: o.color, talla: o.talla, extra: o.stock !== undefined ? `stock ${o.stock}` : null }));
+    const campo = needs.needs === 'campo' ? needs.campo : (needs.campo === 'producto' || needs.needs === 'producto' ? 'producto' : needs.needs);
+    return { pregunta: needs.pregunta, campo, item_index: needs.item_index ?? null, opciones, queue, ...extra };
   }
 
   // Intención → entradas de las herramientas de datos (todas validan y arman el resumen "hoy → quedaría")
@@ -324,18 +430,24 @@ function createStoreAgent(deps = {}) {
         pagado: a.pagado || undefined, metodo_pago: a.metodo_pago || undefined,
       }];
       case 'estado_pedido': return ['preparar_estado_pedido', { codigo: a.codigo, estado: a.estado }];
-      default: return [null, null];
+      // El resto: capacidades del registro (Caja, pedidos, productos, sets, clientes, equipo, configuración)
+      default: return store.caps().isAction(a.accion) ? [`cap:${a.accion}`, a] : [null, null];
     }
   }
 
-  // "las licras" (todos) → una acción por producto que coincide
+  // "las licras" (todos) → una acción por producto que coincide. Un cambio de precio o costo a VARIOS productos a la vez
+  // es masivo: cada propuesta lleva confirmación reforzada ("confirmo")
   async function expand(actions, ctx) {
     const out = [];
     for (const a of actions) {
-      if (a.todos && a.producto && ['cambiar_precio', 'activar', 'desactivar'].includes(a.accion)) {
+      if (a.todos && a.producto && ['cambiar_precio', 'activar', 'desactivar', 'editar_producto'].includes(a.accion)) {
         const products = (await store.lib.loadProducts(ctx.businessId, { includeInactive: true })).filter((p) => !p.is_bundle);
         const hits = matchProducts(products, a.producto);
-        if (hits.length > 1) { for (const p of hits) out.push({ ...a, producto: p.name, todos: false }); continue; }
+        if (hits.length > 1) {
+          const masivo = a.accion === 'cambiar_precio' || (a.accion === 'editar_producto' && ['precio', 'costo'].includes(norm(a.campo || '')));
+          for (const p of hits) out.push({ ...a, producto: p.name, todos: false, ...(masivo ? { masivo: true } : {}) });
+          continue;
+        }
       }
       out.push(a);
     }
@@ -348,7 +460,9 @@ function createStoreAgent(deps = {}) {
     for (const [i, a] of list.entries()) {
       const [tool, input] = toInput(a);
       if (!tool) { errors.push('No entendí una de las acciones.'); continue; }
-      const r = await store.execute(tool, input, ctx);
+      const r = tool.startsWith('cap:')
+        ? await store.caps().prepare(tool.slice(4), input, ctx)
+        : await store.execute(tool, a.masivo ? { ...input, masivo: true } : input, ctx);
       if (r.requiere_confirmacion) {
         await setFocus(ctx, { producto: a.producto || a.items?.[0]?.producto, color: a.color || a.items?.[0]?.color, talla: a.talla || a.items?.[0]?.talla });
         continue;
@@ -372,11 +486,16 @@ function createStoreAgent(deps = {}) {
     await finish(q.id, ctx.businessId, { status: 'cancelled', result: { respondida: index } });
     if (!opt) return { text: `Esa opción no existe: responde un número del 1 al ${q.plan.opciones.length}.` };
     const [first, ...rest] = q.plan.queue || [];
-    if (q.plan.consulta) return runQuery({ ...q.plan.consulta, producto: opt.producto || q.plan.consulta.producto, color: opt.color || q.plan.consulta.color, talla: opt.talla || q.plan.consulta.talla }, ctx);
+    if (q.plan.consulta) {
+      const c = { ...q.plan.consulta };
+      if (opt.value !== undefined && q.plan.campo) c[q.plan.campo] = opt.value;
+      else { c.producto = opt.producto || c.producto; c.color = opt.color || c.color; c.talla = opt.talla || c.talla; }
+      return runQuery(c, ctx);
+    }
     if (!first) return { text: 'Listo, pero ya no tengo nada pendiente con eso.' };
     const a = JSON.parse(JSON.stringify(first));
     const target = q.plan.item_index !== null && q.plan.item_index !== undefined && a.items ? a.items[q.plan.item_index] : a;
-    if (q.plan.campo === 'producto') { target.producto = opt.producto; delete a.todos; } else { target.color = opt.color; target.talla = opt.talla; }
+    if (opt.value !== undefined && q.plan.campo) { target[q.plan.campo] = opt.value; Object.assign(target, opt.set || {}); } else if (q.plan.campo === 'producto') { target.producto = opt.producto; delete a.todos; } else { target.color = opt.color; target.talla = opt.talla; }
     return runActions([a, ...rest], ctx);
   }
 
@@ -395,7 +514,7 @@ function createStoreAgent(deps = {}) {
         const hits = matchProducts(products, c.producto);
         if (!hits.length) return { text: `No encontré un producto que se llame "${c.producto}".` };
         if (hits.length > 1 && !c.todos) {
-          const q = { pregunta: `Hay ${hits.length} productos con "${c.producto}". ¿Cuál?`, campo: 'producto', opciones: hits.slice(0, 12).map((p) => ({ label: p.name, producto: p.name })), queue: [], consulta: { tipo: c.tipo || c.consulta, color: c.color, talla: c.talla } };
+          const q = { pregunta: `Hay ${hits.length} productos con "${c.producto}". ¿Cuál?`, campo: 'producto', opciones: hits.slice(0, 12).map((p) => ({ label: p.name, producto: `id:${p.id}` })), queue: [], consulta: { tipo: c.tipo || c.consulta, color: c.color, talla: c.talla } };
           await saveQuestion(ctx, q);
           return { text: questionText(q) };
         }
@@ -432,7 +551,17 @@ function createStoreAgent(deps = {}) {
         if (!r.clientes?.length) return { text: 'Todavía no hay clientes con varias compras.' };
         return { text: `⭐ Clientes frecuentes:\n${r.clientes.slice(0, 8).map((x, i) => `${i + 1}. ${x.cliente} — ${plural(x.pedidos, 'pedido', 'pedidos')}, ${cop(x.total)}`).join('\n')}` };
       }
-      default: return { text: 'No tengo esa consulta.' };
+      default: {
+        const tipo = c.tipo || c.consulta;
+        if (!store.caps().isQuery(tipo)) return { text: 'No tengo esa consulta.' };
+        const r = await store.caps().run(tipo, c, ctx);
+        if (r.question) {
+          const q = questionFrom(r.question, [], { consulta: { ...c, tipo } });
+          await saveQuestion(ctx, q);
+          return { text: questionText(q) };
+        }
+        return { text: r.text };
+      }
     }
   }
 
@@ -444,11 +573,19 @@ function createStoreAgent(deps = {}) {
     while (hist.length && hist[0].role !== 'user') hist.shift();
     const userContent = `${f ? `FOCO: ${focusLabel(f)}\n` : ''}<mensaje_usuario>\n${String(ctx.userMessage).slice(0, 1000)}\n</mensaje_usuario>`;
     const messages = [...hist, { role: 'user', content: userContent }];
+    // Solo las capacidades del tema del mensaje, más el del último mensaje del usuario que tuvo tema (para seguir
+    // la conversación: "agrega a Carlos como vendedor" → "sí" → "desactiva a carlos")
+    const prevDomains = hist.filter((m) => m.role === 'user').map((m) => domainsOf(m.content)).reverse().find((d) => d.length) || [];
+    const spec = interpretFor([...domainsOf(ctx.userMessage), ...prevDomains].slice(0, 3), store.caps());
+    usage.domains = spec.domains;
     const params = {
       model: ctx.model,
       max_tokens: caps.thinking ? 2000 : 400,
-      system: [{ type: 'text', text: INTERPRET_PROMPT, cache_control: { type: 'ephemeral' } }],
-      tools: [INTERPRET_TOOL],
+      system: [
+        { type: 'text', text: INTERPRET_PROMPT, cache_control: { type: 'ephemeral' } },
+        { type: 'text', text: spec.block, cache_control: { type: 'ephemeral' } },
+      ],
+      tools: [spec.tool],
       tool_choice: caps.forcedTool ? { type: 'tool', name: 'interpretar' } : { type: 'auto' },
       messages,
     };
@@ -461,7 +598,7 @@ function createStoreAgent(deps = {}) {
       usage.cache_read += u.cache_read_input_tokens || 0;
       usage.cache_write += u.cache_creation_input_tokens || 0;
       const call = (res.content || []).find((b) => b.type === 'tool_use' && b.name === 'interpretar');
-      const err = call ? validateIntent(call.input) : 'no llamó interpretar';
+      const err = call ? validateIntent(call.input, spec) : 'no llamó interpretar';
       if (!err) return call.input;
       // Reintento: append-only (se devuelve lo que dijo el modelo y se le explica el error)
       params.messages = [...params.messages, { role: 'assistant', content: res.content },
@@ -491,7 +628,7 @@ function createStoreAgent(deps = {}) {
       const r = await store.execute('confirmar_accion', {}, ctx);
       out = r.success
         ? { text: `✅ Hecho:\n${r.resultados.map((x) => `${x.n}. ${x.ok ? x.resultado : `${x.accion} → ${x.error}`}`).join('\n')}`, wrote: true }
-        : { text: `⚠️ ${r.error}` };
+        : { text: r.needs_confirmo ? `🔐 ${r.error}` : `⚠️ ${r.error}` };
     } else if (route.type === 'no') {
       const r = await store.execute('cancelar_accion', {}, ctx);
       out = { text: r.success ? `👌 ${r.resultado}` : 'No había nada pendiente. ¿Qué necesitas?' };
@@ -524,9 +661,11 @@ function createStoreAgent(deps = {}) {
       else if (intent.tipo === 'consulta') out = await runQuery(intent.consulta, ctx, hour);
       else if (intent.tipo === 'no_entendi') out = { text: 'No te entendí bien 🙈. ¿Me lo dices de otra forma?' };
       else {
+        // Fuera de alcance: el texto lo pone el servidor (dónde se hace en el panel); el modelo solo eligió el tema
+        const fixed = intent.tipo === 'no_puedo' ? store.caps().outOfScope(intent.tema, intent.donde) : null;
         const t = String(intent.respuesta || '').trim();
         // El modelo nunca afirma cambios: si su texto lo hace, se descarta
-        out = { text: t && !claimsWrite(t) ? t : 'Eso no lo puedo hacer desde aquí; se hace en el panel.' };
+        out = { text: fixed || (t && !claimsWrite(t) ? t : 'Eso no lo puedo hacer desde aquí; se hace en el panel.') };
       }
     }
     return { response: out.text, path, usage: { ...usage, cost_usd: costOf(model, usage) } };
@@ -535,4 +674,4 @@ function createStoreAgent(deps = {}) {
   return { handle, classify, validateIntent, modelCaps };
 }
 
-module.exports = { createStoreAgent, classify, validateIntent, modelCaps, costOf, matchOption, pickIndex, HAIKU, INTERPRET_PROMPT, INTERPRET_TOOL };
+module.exports = { createStoreAgent, classify, validateIntent, modelCaps, costOf, matchOption, pickIndex, domainsOf, interpretFor, HAIKU, INTERPRET_PROMPT, INTERPRET_TOOL };

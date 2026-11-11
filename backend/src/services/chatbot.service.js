@@ -513,6 +513,12 @@ Los nombres de clientes siempre se guardan con mayúscula en cada inicial.
 Ejemplo: "juan perez" → "Juan Perez", "maria garcía" → "Maria García"
 NUNCA envíes nombres a agendar_cita sin formatear primero.
 
+NOMBRE OBLIGATORIO PARA AGENDAR:
+Si NO sabes el nombre del cliente (cliente nuevo/desconocido), pídeselo ANTES de llamar agendar_cita:
+"¿A qué nombre te agendo? 😊" y luego envía client_name en agendar_cita.
+Esto tiene prioridad sobre "agendar inmediatamente": con servicio + fecha + hora pero sin nombre → pregunta SOLO el nombre.
+Si agendar_cita retorna error 'falta_nombre_cliente' → pide el nombre y reintenta.
+
 CREAR CLIENTE — SIN TELÉFONO:
 Para crear un cliente SOLO necesitas el nombre. El teléfono NO es un campo requerido.
 NUNCA digas que el sistema requiere teléfono, porque ES FALSO.
@@ -1021,7 +1027,7 @@ async function processChatbotMessage(businessId, clientPhone, messageText, histo
           service_name: { type: 'string' },
           fecha: { type: 'string', description: 'YYYY-MM-DD' },
           hora: { type: 'string', description: 'HH:mm' },
-          client_name: { type: 'string', description: 'Nombre del cliente (opcional)' },
+          client_name: { type: 'string', description: 'Nombre del cliente. OBLIGATORIO si el cliente aún no tiene nombre registrado (pídeselo antes de agendar).' },
           employee_name: { type: 'string', description: 'Nombre del empleado preferido por el cliente (opcional)' }
         },
         required: ['service_name', 'fecha', 'hora']
@@ -1502,6 +1508,25 @@ async function processChatbotMessage(businessId, clientPhone, messageText, histo
             .eq('business_id', businessId)
             .eq('phone', clientPhone)
             .maybeSingle();
+
+          // Guardia en servidor: no se agenda sin nombre real del cliente.
+          // El LLM puede ignorar el prompt; esto no.
+          const nombreActualCliente = clienteExistente?.name?.trim();
+          const sinNombreReal = !nombreActualCliente || nombreActualCliente === 'Cliente WhatsApp';
+          const nombreEnviado = (toolInput.client_name || '').trim();
+          if (sinNombreReal && !nombreEnviado) {
+            return {
+              success: false,
+              error: 'falta_nombre_cliente',
+              mensaje: 'Antes de agendar necesitas el nombre del cliente. Pídeselo ("¿A qué nombre te agendo?") y vuelve a llamar agendar_cita con client_name.'
+            };
+          }
+          if (nombreEnviado) {
+            // Mayúscula inicial en cada palabra (regla de nombres)
+            toolInput.client_name = nombreEnviado
+              .toLowerCase()
+              .replace(/(^|\s)(\p{L})/gu, (_, sp, ch) => sp + ch.toUpperCase());
+          }
 
           if (!clienteExistente && toolInput.client_name) {
             const { data: porNombre } = await supabaseAdmin

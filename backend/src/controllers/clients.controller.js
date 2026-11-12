@@ -67,11 +67,6 @@ async function getAll(req, res) {
       total_spent: appointmentsMap[c.id]?.spent || 0,
     }));
 
-    if (withStats.length > 0) {
-      logger.info(`clients.getAll: first client complete object: ${JSON.stringify(withStats[0])}`);
-      logger.info(`clients.getAll: first client total_visits = ${withStats[0].total_visits}`);
-    }
-
     return res.json({ success: true, data: withStats });
   } catch (err) {
     logger.error(`clients.getAll: ${err.message}`);

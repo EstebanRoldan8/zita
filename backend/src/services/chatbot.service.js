@@ -2233,7 +2233,8 @@ async function processChatbotMessage(businessId, clientPhone, messageText, histo
   }
 
   // Delimitar claramente el input del usuario para mitigar prompt injection
-  const userMessageContent = `<mensaje_usuario>\n${processedMessage}\n</mensaje_usuario>`;
+  // Sin las etiquetas del delimitador dentro del texto: el cliente no puede "cerrar" el bloque e inyectar instrucciones
+  const userMessageContent = `<mensaje_usuario>\n${String(processedMessage || '').replace(/<\/?mensaje_usuario>/gi, '')}\n</mensaje_usuario>`;
   // Remover campos extras (timestamp, etc) antes de enviar a Claude — solo role + content
   const messages = [
     ...cleanHistory.map(m => ({ role: m.role, content: m.content })),

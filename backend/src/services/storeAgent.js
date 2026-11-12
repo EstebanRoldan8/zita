@@ -571,7 +571,7 @@ function createStoreAgent(deps = {}) {
     const f = await focus(ctx.businessId);
     const hist = history.slice(-4).map((m) => ({ role: m.role, content: String(m.content).slice(0, 300) }));
     while (hist.length && hist[0].role !== 'user') hist.shift();
-    const userContent = `${f ? `FOCO: ${focusLabel(f)}\n` : ''}<mensaje_usuario>\n${String(ctx.userMessage).slice(0, 1000)}\n</mensaje_usuario>`;
+    const userContent = `${f ? `FOCO: ${focusLabel(f)}\n` : ''}<mensaje_usuario>\n${String(ctx.userMessage).replace(/<\/?mensaje_usuario>/gi, '').slice(0, 1000)}\n</mensaje_usuario>`;
     const messages = [...hist, { role: 'user', content: userContent }];
     // Solo las capacidades del tema del mensaje, más el del último mensaje del usuario que tuvo tema (para seguir
     // la conversación: "agrega a Carlos como vendedor" → "sí" → "desactiva a carlos")

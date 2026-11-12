@@ -12,9 +12,11 @@ const { logSystemAlert } = require('../utils/systemAlerts');
 const { callClaudeWithRetry } = require('../utils/anthropicRetry');
 const { isTiendaBusiness } = require('../utils/businessType');
 
+// maxRetries: 0 → los reintentos los hace callClaudeWithRetry (solo errores transitorios)
 const client = new Anthropic({
   apiKey: process.env.ANTHROPIC_API_KEY,
-  timeout: 60 * 1000
+  timeout: 60 * 1000,
+  maxRetries: 0
 });
 
 // Cache de contexto enriquecido por negocio (5 minutos)
@@ -5089,7 +5091,8 @@ Cuando diga "mañana" usar: ${mananaISO}
   }
 
   // Delimitar claramente el input del usuario para mitigar prompt injection
-  const userMessageContent = `<mensaje_usuario>\n${processedMessage}\n</mensaje_usuario>`;
+  // Sin las etiquetas del delimitador dentro del texto (no se puede "cerrar" el bloque)
+  const userMessageContent = `<mensaje_usuario>\n${String(processedMessage || '').replace(/<\/?mensaje_usuario>/gi, '')}\n</mensaje_usuario>`;
   const messages = [
     ...limitedConversationHistory,
     { role: 'user', content: userMessageContent }

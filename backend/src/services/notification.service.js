@@ -4,7 +4,8 @@
 //
 // TODO futuro: notifySuperadmin(type, payload), sendEmail(to, subject, body)
 
-const { sendMessage } = require('../config/whatsapp');
+const { notify } = require('./whatsappNotify');
+const { maskPhone } = require('../utils/phone');
 const { supabaseAdmin } = require('../config/supabase');
 const logger = require('../utils/logger');
 
@@ -54,7 +55,12 @@ async function checkTrialExpiringWarnings() {
           `Renueva tu plan para seguir atendiendo clientes sin interrupciones. \n` +
           `https://app.zita.co/dashboard/suscripcion`;
 
-        await sendMessage(negocio.phone, mensaje);
+        // Desde el número de ZITA al dueño: fuera de ventana → plantilla aviso_fin_prueba (si están activas)
+        const { result: envio } = await notify({ to: negocio.phone, text: mensaje, template: { key: 'aviso_fin_prueba', body: [negocio.name] }, lastInbound: null });
+        if (envio && envio.success === false) {
+          errors.push(`business ${negocio.id}: WhatsApp no aceptó el aviso`);
+          continue; // no se marca como enviado: se reintenta en la próxima corrida
+        }
 
         const { error: updateError } = await supabaseAdmin
           .from('businesses')
@@ -68,7 +74,7 @@ async function checkTrialExpiringWarnings() {
         }
 
         sent++;
-        logger.info('[TRIAL_WARNING_SENT]', { business_id: negocio.id, phone: negocio.phone });
+        logger.info('[TRIAL_WARNING_SENT]', { business_id: negocio.id, phone: maskPhone(negocio.phone) });
       } catch (error) {
         logger.error(`[TRIAL_WARNING_CHECK] Error notificando a negocio ${negocio.id}:`, error.message);
         errors.push(`business ${negocio.id}: ${error.message}`);
@@ -104,7 +110,7 @@ async function notifyPaymentDeclined(business, payment) {
   const mensaje = `Tu pago de $${formatearCOP(amount)} en ZITA no pudo procesarse. ${reason} \n` +
     `Intenta de nuevo desde tu panel de Suscripción: https://app.zita.co/dashboard/suscripcion`;
 
-  await sendMessage(business.phone, mensaje);
+  await notify({ to: business.phone, text: mensaje, template: { key: 'pago_rechazado', body: [`${formatearCOP(amount)}`, reason] }, lastInbound: null });
 }
 
 module.exports = { checkTrialExpiringWarnings, notifyPaymentDeclined };

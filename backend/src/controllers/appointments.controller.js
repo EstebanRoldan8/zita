@@ -1,7 +1,9 @@
 const { createUserClient, supabaseAdmin } = require('../config/supabase');
 const logger = require('../utils/logger');
 const { getTimezone, getOffsetForTz } = require('../utils/timezone');
-const { getAvailableEmployee, getNextAvailableSlots } = require('../utils/availability');
+const { getAvailableEmployee, getNextAvailableSlots, loadDay, freeEmployees, localParts } = require('../utils/availability');
+// 23505 = mismo inicio (índice único); 23P01 = solape (restricción de exclusión de la migración 064)
+const isConflict = (e) => !!e && (e.code === '23505' || e.code === '23P01');
 const { sendMessage } = require('../config/whatsapp');
 const { decrypt } = require('../utils/encrypt');
 
@@ -176,8 +178,10 @@ async function create(req, res) {
         return res.status(400).json({ success: false, error: 'Empleado no pertenece a este negocio.' });
       }
     } else {
-      const fecha = scheduledAtWithTZ.slice(0, 10);
-      const hora = scheduledAtWithTZ.slice(11, 16);
+      // Hora local de Colombia (no partir el ISO: si viene en UTC daría otra hora)
+      const { fecha, hora } = localParts(scheduledAtWithTZ);
+      const { data: srvDur } = await supabaseAdmin.from('services').select('duration_minutes').eq('id', service_id).eq('business_id', req.businessId).maybeSingle();
+      const durMin = srvDur?.duration_minutes || 30;
 
       const { data: todosEmpleados } = await supabaseAdmin
         .from('employees')
@@ -186,7 +190,7 @@ async function create(req, res) {
         .eq('is_active', true);
 
       if (!todosEmpleados?.length) {
-        const slots = await getNextAvailableSlots(req.businessId, fecha, hora, 3);
+        const slots = await getNextAvailableSlots(req.businessId, fecha, hora, 3, durMin);
         if (slots.length === 0) {
           return res.status(400).json({
             success: false,
@@ -200,28 +204,11 @@ async function create(req, res) {
         });
       }
 
-      const { data: citasDelDia } = await supabaseAdmin
-        .from('appointments')
-        .select('employee_id, scheduled_at, services(duration_minutes)')
-        .eq('business_id', req.businessId)
-        .in('status', ['confirmed', 'pending'])
-        .gte('scheduled_at', `${fecha}T00:00:00-05:00`)
-        .lte('scheduled_at', `${fecha}T23:59:59-05:00`);
-
-      const horaReservadaMs = new Date(`${fecha}T${hora}:00-05:00`).getTime();
-      const ocupados = new Set(
-        (citasDelDia || [])
-          .filter(c => {
-            const inicio = new Date(c.scheduled_at).getTime();
-            const duracion = (c.services?.duration_minutes || 30) * 60 * 1000;
-            const fin = inicio + duracion;
-            return horaReservadaMs >= inicio && horaReservadaMs < fin;
-          })
-          .map(c => c.employee_id)
-      );
-
+      // Solape real: considera la duración de la cita nueva y de las existentes (módulo único de disponibilidad)
+      const day = await loadDay(req.businessId, fecha);
+      const libres = new Set(freeEmployees(day, hora, durMin).map((e) => e.id));
       availableEmployees = todosEmpleados
-        .filter(e => !ocupados.has(e.id))
+        .filter(e => libres.has(e.id))
         .sort((a, b) => {
           const fechaA = a.last_appointment_at ? new Date(a.last_appointment_at) : new Date(0);
           const fechaB = b.last_appointment_at ? new Date(b.last_appointment_at) : new Date(0);
@@ -229,7 +216,7 @@ async function create(req, res) {
         });
 
       if (!availableEmployees.length) {
-        const slots = await getNextAvailableSlots(req.businessId, fecha, hora, 3);
+        const slots = await getNextAvailableSlots(req.businessId, fecha, hora, 3, durMin);
         if (slots.length === 0) {
           return res.status(400).json({
             success: false,
@@ -271,7 +258,7 @@ async function create(req, res) {
     insertData = data;
     insertError = error;
 
-    if (insertError?.code === '23505' && availableEmployees && availableEmployees.length > 1) {
+    if (isConflict(insertError) && availableEmployees && availableEmployees.length > 1) {
       logger.info('[DOUBLE_BOOKING_RETRY]', { business_id: req.businessId, employee_id: finalEmployeeId, scheduled_at: scheduledAtWithTZ, retrying: true });
 
       for (let i = 1; i < availableEmployees.length; i++) {
@@ -303,14 +290,14 @@ async function create(req, res) {
           break;
         }
 
-        if (retryError.code !== '23505') {
+        if (!isConflict(retryError)) {
           insertError = retryError;
           break;
         }
       }
     }
 
-    if (insertError?.code === '23505') {
+    if (isConflict(insertError)) {
       logger.warn('[DOUBLE_BOOKING_ALL_ATTEMPTS_FAILED]', { business_id: req.businessId, attempted_employees: attemptedEmployees, scheduled_at: scheduledAtWithTZ });
       return res.status(409).json({ success: false, error: 'Ese horario ya no está disponible, alguien más lo tomó justo ahora. Elige otro.' });
     }
@@ -614,8 +601,9 @@ async function updateAppointment(req, res) {
     const updates = {};
 
     if (time !== undefined) {
-      const dateStr = existing.scheduled_at.slice(0, 10);
-      updates.scheduled_at = `${dateStr}T${time}:00`;
+      // Fecha local de Colombia (el timestamptz llega en UTC) y offset explícito: sin él Postgres lo toma como UTC
+      const dateStr = localParts(existing.scheduled_at).fecha;
+      updates.scheduled_at = `${dateStr}T${time}:00-05:00`;
     }
 
     if (employee_id !== undefined) updates.employee_id = employee_id;
@@ -628,6 +616,9 @@ async function updateAppointment(req, res) {
       .select()
       .single();
 
+    if (isConflict(error)) {
+      return res.status(409).json({ success: false, error: 'Ese horario se cruza con otra cita del empleado. Elige otra hora u otro empleado.' });
+    }
     if (error) throw error;
     return res.json({ success: true, data });
   } catch (err) {

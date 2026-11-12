@@ -3,12 +3,57 @@ const { supabaseAdmin } = require('../config/supabase');
 const { decrypt } = require('../utils/encrypt');
 const Anthropic = require('@anthropic-ai/sdk');
 const logger = require('../utils/logger');
-const { getAvailableEmployee, getNextAvailableSlots, isAppointmentWithinBusinessHours } = require('../utils/availability');
+const {
+  getAvailableEmployee, loadDay, checkHours, freeEmployees, freeSlots, isEmployeeFree,
+  isValidDate, normalizeTime, toInstantMs, localParts, todayLocal, DEFAULT_DURATION,
+} = require('../utils/availability');
 const { isPlanExpired } = require('../utils/planStatus');
 const { deleteCitaIncome } = require('./scheduler.service');
 const { logSystemAlert } = require('../utils/systemAlerts');
 const { callClaudeWithRetry } = require('../utils/anthropicRetry');
 const Groq = require('groq-sdk');
+
+// Un solo cliente de Anthropic por proceso. maxRetries: 0 porque los reintentos los hace callClaudeWithRetry
+// (si no, el SDK reintenta 2 veces dentro de cada intento del wrapper: hasta 9 llamadas).
+let anthropicClientSingleton = null;
+function getAnthropicClient() {
+  if (!anthropicClientSingleton) {
+    anthropicClientSingleton = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY, timeout: 30 * 1000, maxRetries: 0 });
+  }
+  return anthropicClientSingleton;
+}
+// Solo para tests: inyecta un cliente falso
+function __setAnthropicClientForTests(c) { anthropicClientSingleton = c; }
+
+// Escapa comodines de ILIKE (% _ \) para que un texto del cliente no haga match con cualquier registro
+function escapeLike(s) {
+  return String(s || '').trim().slice(0, 100).replace(/[\\%_]/g, (c) => `\\${c}`);
+}
+
+const normName = (s) => String(s || '').toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '').replace(/\s+/g, ' ').trim();
+
+// Busca un servicio activo por nombre: primero coincidencia exacta (sin tildes ni mayúsculas), luego parcial.
+// Si la parcial da varios, devuelve ambiguo con las opciones en vez de elegir uno al azar.
+async function findService(businessId, name) {
+  const term = normName(name);
+  if (!term) return { servicio: null };
+  const { data } = await supabaseAdmin
+    .from('services')
+    .select('id, name, price, duration_minutes')
+    .eq('business_id', businessId)
+    .eq('active', true)
+    .ilike('name', `%${escapeLike(name)}%`)
+    .limit(10);
+  const list = data || [];
+  const exact = list.filter((s) => normName(s.name) === term);
+  if (exact.length >= 1) return { servicio: exact[0] };
+  if (list.length === 1) return { servicio: list[0] };
+  if (list.length > 1) return { servicio: null, ambiguo: true, opciones: list.map((s) => ({ name: s.name, price: s.price, duration_minutes: s.duration_minutes })) };
+  return { servicio: null };
+}
+
+// Códigos de Postgres que indican que el horario ya se tomó (único por inicio o exclusión por solape)
+const isBookingConflict = (error) => error && (error.code === '23505' || error.code === '23P01');
 
 // Cache de horarios por negocio (5 minutos)
 const businessHoursCache = new Map();
@@ -994,10 +1039,7 @@ async function processChatbotMessage(businessId, clientPhone, messageText, histo
     citasActivas = [];
   }
 
-  const anthropicClient = new Anthropic({
-    apiKey: process.env.ANTHROPIC_API_KEY,
-    timeout: 30 * 1000
-  });
+  const anthropicClient = getAnthropicClient();
   const { staticPrompt, dynamicPrompt } = getBusinessSystemPrompt(business, clientInfo, businessHours || [], services || [], citasActivas);
 
   const tools = [
@@ -1008,12 +1050,13 @@ async function processChatbotMessage(businessId, clientPhone, messageText, histo
     },
     {
       name: 'verificar_disponibilidad',
-      description: 'Verificar si hay disponibilidad en una fecha y hora',
+      description: 'Verificar si hay disponibilidad en una fecha (y opcionalmente una hora) para un servicio',
       input_schema: {
         type: 'object',
         properties: {
           fecha: { type: 'string', description: 'Fecha YYYY-MM-DD' },
-          hora: { type: 'string', description: 'Hora HH:mm' }
+          hora: { type: 'string', description: 'Hora HH:mm' },
+          service_name: { type: 'string', description: 'Servicio (para usar su duración)' }
         },
         required: ['fecha']
       }
@@ -1175,205 +1218,83 @@ async function processChatbotMessage(businessId, clientPhone, messageText, histo
         }
 
         case 'verificar_disponibilidad': {
-          const { data: horariosNegocio } = await supabaseAdmin
-            .from('business_hours')
-            .select('open_time, close_time, is_open, day_of_week')
-            .eq('business_id', businessId);
+          const fecha = String(toolInput.fecha || '').trim();
+          if (!isValidDate(fecha)) return { disponible: false, error: 'fecha_invalida', mensaje: 'Fecha inválida. Usa YYYY-MM-DD.' };
+          if (fecha < todayLocal()) return { disponible: false, mensaje: 'Esa fecha ya pasó.' };
 
-          const fechaDate = new Date(toolInput.fecha + 'T12:00:00-05:00');
-          const diaSemana = fechaDate.getDay();
-          const horarioDia = horariosNegocio?.find(h => h.day_of_week === diaSemana);
-
-          if (!horarioDia?.is_open) {
-            return {
-              disponible: false,
-              cerrado: true,
-              mensaje: 'El negocio está cerrado ese día'
-            };
+          // La duración del servicio decide si la cita cabe (un servicio de 60 min no cabe en un hueco de 30)
+          let durMin = DEFAULT_DURATION;
+          let servicioUsado = null;
+          if (toolInput.service_name) {
+            const found = await findService(businessId, toolInput.service_name);
+            if (found.servicio) { durMin = found.servicio.duration_minutes || DEFAULT_DURATION; servicioUsado = found.servicio.name; }
           }
 
-          // Verificar días cerrados especiales (festivos)
-          const { data: diaCerradoEsp } = await supabaseAdmin
-            .from('business_closed_days')
-            .select('reason')
-            .eq('business_id', businessId)
-            .eq('date', toolInput.fecha)
-            .maybeSingle();
-
-          if (diaCerradoEsp) {
-            return {
-              disponible: false,
-              cerrado: true,
-              festivo: true,
-              razon: diaCerradoEsp.reason,
-              mensaje: `Ese dia estamos cerrados: ${diaCerradoEsp.reason}`
-            };
+          const day = await loadDay(businessId, fecha);
+          if (day.cerrado) {
+            return { disponible: false, cerrado: true, festivo: true, razon: day.cerrado.reason, mensaje: `Ese dia estamos cerrados: ${day.cerrado.reason}` };
           }
+          if (!day.horario?.is_open) return { disponible: false, cerrado: true, mensaje: 'El negocio está cerrado ese día' };
+          if (!day.empleados.length) return { disponible: false, mensaje: 'No hay empleados disponibles' };
+          const horario = `${normalizeTime(day.horario.open_time)} a ${normalizeTime(day.horario.close_time)}`;
 
-          const { data: empleados } = await supabaseAdmin
-            .from('employees')
-            .select('id, name')
-            .eq('business_id', businessId)
-            .eq('is_active', true);
-
-          if (!empleados?.length) {
-            return { disponible: false, mensaje: 'No hay empleados disponibles' };
-          }
-
-          const { data: citasDia } = await supabaseAdmin
-            .from('appointments')
-            .select('employee_id, scheduled_at, services(duration_minutes)')
-            .eq('business_id', businessId)
-            .in('status', ['confirmed', 'pending'])
-            .gte('scheduled_at', toolInput.fecha + 'T00:00:00-05:00')
-            .lte('scheduled_at', toolInput.fecha + 'T23:59:59-05:00');
-
-          // Calcular slots ocupados por empleado
-          const [aperturaH, aperturaM] = horarioDia.open_time.split(':').map(Number);
-          const [cierreH, cierreM] = horarioDia.close_time.split(':').map(Number);
-          const aperturaMin = aperturaH * 60 + aperturaM;
-          const cierreMin = cierreH * 60 + cierreM;
-
-          // Generar todos los slots del día cada 30 min
-          const todosSlots = [];
-          for (let m = aperturaMin; m < cierreMin; m += 30) {
-            const h = Math.floor(m / 60).toString().padStart(2, '0');
-            const min = (m % 60).toString().padStart(2, '0');
-            todosSlots.push(`${h}:${min}`);
-          }
-
-          // Si el cliente especificó hora, verificar esa hora específica
           if (toolInput.hora) {
-            const [horaH, horaM] = toolInput.hora.split(':').map(Number);
-            const horaMin = horaH * 60 + horaM;
-
-            if (horaMin < aperturaMin || horaMin >= cierreMin) {
-              return {
-                disponible: false,
-                fuera_horario: true,
-                mensaje: `Fuera de horario. Atendemos de ${horarioDia.open_time} a ${horarioDia.close_time}.`
-              };
+            const hora = normalizeTime(toolInput.hora);
+            if (!hora) return { disponible: false, error: 'hora_invalida', mensaje: 'Hora inválida. Usa HH:mm (24 horas).' };
+            const fit = checkHours(day, hora, durMin);
+            if (!fit.valid) return { disponible: false, fuera_horario: true, mensaje: fit.reason };
+            if (toInstantMs(fecha, hora) <= Date.now()) {
+              return { disponible: false, mensaje: 'Esa hora ya pasó.', slots_alternativos: freeSlots(day, durMin, { limit: 3 }) };
             }
-
-            const horaReservadaMs = new Date(`${toolInput.fecha}T${toolInput.hora}:00-05:00`).getTime();
-            const ocupados = new Set(
-              citasDia?.filter(c => {
-                const inicio = new Date(c.scheduled_at).getTime();
-                const duracion = (c.services?.duration_minutes || 30) * 60 * 1000;
-                return horaReservadaMs >= inicio && horaReservadaMs < (inicio + duracion);
-              }).map(c => c.employee_id)
-            );
-
-            const hayDisponible = empleados.some(e => !ocupados.has(e.id));
-
-            if (hayDisponible) {
-              return { disponible: true, fecha: toolInput.fecha, hora: toolInput.hora };
-            } else {
-              // Buscar próximos slots disponibles
-              const slotsLibres = [];
-              for (const slot of todosSlots) {
-                if (slot <= toolInput.hora) continue;
-                const slotMs = new Date(`${toolInput.fecha}T${slot}:00-05:00`).getTime();
-                const ocupadosSlot = new Set(
-                  citasDia?.filter(c => {
-                    const inicio = new Date(c.scheduled_at).getTime();
-                    const duracion = (c.services?.duration_minutes || 30) * 60 * 1000;
-                    return slotMs >= inicio && slotMs < (inicio + duracion);
-                  }).map(c => c.employee_id)
-                );
-                if (empleados.some(e => !ocupadosSlot.has(e.id))) {
-                  slotsLibres.push(slot);
-                }
-                if (slotsLibres.length >= 3) break;
-              }
-              return {
-                disponible: false,
-                slots_alternativos: slotsLibres,
-                mensaje: `Ese horario está ocupado. Alternativas: ${slotsLibres.join(', ')}`
-              };
+            if (freeEmployees(day, hora, durMin).length) {
+              return { disponible: true, fecha, hora, duracion_min: durMin, servicio: servicioUsado };
             }
-          }
-
-          // Sin hora específica: analizar disponibilidad del día completo
-          const horasOcupadasPorTodos = [];
-          for (const slot of todosSlots) {
-            const slotMs = new Date(`${toolInput.fecha}T${slot}:00-05:00`).getTime();
-            const ocupadosSlot = new Set(
-              citasDia?.filter(c => {
-                const inicio = new Date(c.scheduled_at).getTime();
-                const duracion = (c.services?.duration_minutes || 30) * 60 * 1000;
-                return slotMs >= inicio && slotMs < (inicio + duracion);
-              }).map(c => c.employee_id)
-            );
-            const todosOcupados = empleados.every(e => ocupadosSlot.has(e.id));
-            if (todosOcupados) horasOcupadasPorTodos.push(slot);
-          }
-
-          if (horasOcupadasPorTodos.length === 0) {
+            const alternativas = freeSlots(day, durMin, { after: hora, limit: 3 });
             return {
-              disponible: true,
-              dia_libre: true,
-              horario: `${horarioDia.open_time} a ${horarioDia.close_time}`,
-              mensaje: `Todo el día está disponible de ${horarioDia.open_time} a ${horarioDia.close_time}`
+              disponible: false,
+              slots_alternativos: alternativas,
+              mensaje: alternativas.length ? `Ese horario está ocupado. Alternativas: ${alternativas.join(', ')}` : 'No quedan horarios libres ese día después de esa hora.'
             };
           }
 
-          const slotsLibresDia = todosSlots.filter(s => !horasOcupadasPorTodos.includes(s));
+          const libres = freeSlots(day, durMin);
           return {
-            disponible: slotsLibresDia.length > 0,
-            horario: `${horarioDia.open_time} a ${horarioDia.close_time}`,
-            horas_no_disponibles: horasOcupadasPorTodos,
-            horas_disponibles: slotsLibresDia,
-            mensaje: slotsLibresDia.length > 0
-              ? `Hay disponibilidad. No podemos a las: ${horasOcupadasPorTodos.join(', ')}`
-              : 'No hay disponibilidad ese día'
+            disponible: libres.length > 0,
+            horario,
+            duracion_min: durMin,
+            servicio: servicioUsado,
+            horas_disponibles: libres,
+            mensaje: libres.length > 0 ? `Hay ${libres.length} horarios libres` : 'No hay disponibilidad ese día'
           };
         }
 
         case 'agendar_cita': {
-          const { data: servicios } = await supabaseAdmin
-            .from('services')
-            .select('id, name, price, duration_minutes')
-            .eq('business_id', businessId)
-            .ilike('name', `%${toolInput.service_name}%`)
-            .eq('active', true)
-            .limit(1);
+          const fecha = String(toolInput.fecha || '').trim();
+          const hora = normalizeTime(toolInput.hora);
+          if (!isValidDate(fecha)) return { success: false, error: 'Fecha inválida. Usa YYYY-MM-DD.' };
+          if (!hora) return { success: false, error: 'Hora inválida. Usa HH:mm (24 horas).' };
+          toolInput.fecha = fecha;
+          toolInput.hora = hora;
 
-          const servicio = servicios?.[0];
+          const found = await findService(businessId, toolInput.service_name);
+          if (found.ambiguo) return { success: false, error: 'servicio_ambiguo', opciones: found.opciones };
+          const servicio = found.servicio;
           if (!servicio) return { success: false, error: 'Servicio no encontrado' };
+          const durMin = servicio.duration_minutes || DEFAULT_DURATION;
 
-          const horarioValido = await isAppointmentWithinBusinessHours(
-            businessId,
-            toolInput.fecha,
-            toolInput.hora,
-            { durationMinutes: servicio.duration_minutes }
-          );
-
+          const day = await loadDay(businessId, fecha);
+          const horarioValido = checkHours(day, hora, durMin);
           if (!horarioValido.valid) {
             return { success: false, error: horarioValido.reason };
           }
 
-          const appointmentMinutes = (() => {
-            const [h, m] = toolInput.hora.split(':').map(Number);
-            return h * 60 + m;
-          })();
-
-          // Validar que la hora no haya pasado si es hoy
-          const hoyCol = new Date().toLocaleDateString('en-CA', { timeZone: 'America/Bogota' });
-          if (toolInput.fecha === hoyCol) {
-            const ahoraCol = new Date().toLocaleString('en-CA', {
-              timeZone: 'America/Bogota',
-              hour12: false
-            });
-            const horaActual = ahoraCol.split(', ')[1]?.slice(0,5) || '00:00';
-            const [haH, haM] = horaActual.split(':').map(Number);
-            const minutosAhora = haH * 60 + haM;
-            if (appointmentMinutes <= minutosAhora) {
-              return {
-                success: false,
-                error: `Esa hora ya pasó hoy. Puedes agendar desde las ${horaActual} en adelante.`
-              };
-            }
+          // La hora no puede haber pasado
+          if (toInstantMs(fecha, hora) <= Date.now()) {
+            const horaActual = localParts(new Date()).hora;
+            return {
+              success: false,
+              error: `Esa hora ya pasó. Puedes agendar desde las ${horaActual} en adelante.`
+            };
           }
 
           // Si el cliente pidió un empleado específico, intentar asignarlo
@@ -1384,120 +1305,44 @@ async function processChatbotMessage(businessId, clientPhone, messageText, histo
               .select('id, name')
               .eq('business_id', businessId)
               .eq('is_active', true)
-              .ilike('name', `%${toolInput.employee_name}%`);
+              .ilike('name', `%${escapeLike(toolInput.employee_name)}%`);
 
             // Si hay 2+ matches, retorna error de ambigüedad
             if (empMatches && empMatches.length > 1) {
               return {
                 success: false,
                 error: 'empleado_ambiguo',
-                opciones: empMatches.map(e => ({ id: e.id, name: e.name }))
+                opciones: empMatches.map(e => ({ name: e.name }))
               };
             }
 
             const empPref = empMatches && empMatches.length === 1 ? empMatches[0] : null;
-
             if (empPref) {
-              // Verificar si está disponible en ese horario
-              const horaReservadaMs = new Date(`${toolInput.fecha}T${toolInput.hora}:00-05:00`).getTime();
-              const { data: citasEmp } = await supabaseAdmin
-                .from('appointments')
-                .select('scheduled_at, services(duration_minutes)')
-                .eq('business_id', businessId)
-                .eq('employee_id', empPref.id)
-                .in('status', ['confirmed', 'pending'])
-                .gte('scheduled_at', `${toolInput.fecha}T00:00:00-05:00`)
-                .lte('scheduled_at', `${toolInput.fecha}T23:59:59-05:00`);
-
-              const ocupado = citasEmp?.some(c => {
-                const inicio = new Date(c.scheduled_at).getTime();
-                const duracion = (c.services?.duration_minutes || 30) * 60 * 1000;
-                return horaReservadaMs >= inicio && horaReservadaMs < (inicio + duracion);
-              });
-
-              if (!ocupado) {
+              if (isEmployeeFree(day, empPref.id, hora, durMin)) {
                 empleadoDisponible = empPref;
               } else {
+                const alternativasEmp = freeSlots({ ...day, empleados: [empPref] }, durMin, { after: hora, limit: 3 });
                 return {
                   success: false,
-                  error: `${empPref.name} no está disponible a esa hora. ¿Quieres con otro empleado disponible?`
+                  error: `${empPref.name} no está disponible a esa hora. ¿Quieres con otro empleado disponible?`,
+                  slots_alternativos_con_empleado: alternativasEmp
                 };
               }
             }
           }
 
           if (!empleadoDisponible) {
-            empleadoDisponible = await getAvailableEmployee(businessId, toolInput.fecha, toolInput.hora);
+            empleadoDisponible = await getAvailableEmployee(businessId, fecha, hora, durMin, { day });
           }
           if (!empleadoDisponible) {
-            // Nadie disponible: busca slots alternativos ese mismo día y rechaza
-            const { data: horariosNegocio } = await supabaseAdmin
-              .from('business_hours')
-              .select('open_time, close_time, is_open, day_of_week')
-              .eq('business_id', businessId);
-
-            const fechaDate = new Date(toolInput.fecha + 'T12:00:00-05:00');
-            const diaSemana = fechaDate.getDay();
-            const horarioDia = horariosNegocio?.find(h => h.day_of_week === diaSemana);
-
-            if (!horarioDia?.is_open) {
-              return { success: false, error: 'Ese día estamos cerrados.' };
-            }
-
-            // Obtener citas ese día
-            const { data: citasDia } = await supabaseAdmin
-              .from('appointments')
-              .select('employee_id, scheduled_at, services(duration_minutes)')
-              .eq('business_id', businessId)
-              .in('status', ['confirmed', 'pending'])
-              .gte('scheduled_at', toolInput.fecha + 'T00:00:00-05:00')
-              .lte('scheduled_at', toolInput.fecha + 'T23:59:59-05:00');
-
-            // Generar slots libres (lógica de verificar_disponibilidad)
-            const [aperturaH2, aperturaM2] = horarioDia.open_time.split(':').map(Number);
-            const [cierreH2, cierreM2] = horarioDia.close_time.split(':').map(Number);
-            const aperturaMin2 = aperturaH2 * 60 + aperturaM2;
-            const cierreMin2 = cierreH2 * 60 + cierreM2;
-
-            const todosSlots = [];
-            for (let m = aperturaMin2; m < cierreMin2; m += 30) {
-              const h = Math.floor(m / 60).toString().padStart(2, '0');
-              const min = (m % 60).toString().padStart(2, '0');
-              todosSlots.push(`${h}:${min}`);
-            }
-
-            // Obtener empleados
-            const { data: empleados } = await supabaseAdmin
-              .from('employees')
-              .select('id, name')
-              .eq('business_id', businessId)
-              .eq('is_active', true);
-
-            // Buscar slots libres (después de la hora solicitada)
-            const slotsLibres = [];
-
-            for (const slot of todosSlots) {
-              if (slot <= toolInput.hora) continue;
-              const slotMs = new Date(`${toolInput.fecha}T${slot}:00-05:00`).getTime();
-              const ocupadosSlot = new Set(
-                citasDia?.filter(c => {
-                  const inicio = new Date(c.scheduled_at).getTime();
-                  const duracion = (c.services?.duration_minutes || 30) * 60 * 1000;
-                  return slotMs >= inicio && slotMs < (inicio + duracion);
-                }).map(c => c.employee_id)
-              );
-              if (empleados.some(e => !ocupadosSlot.has(e.id))) {
-                slotsLibres.push(slot);
-              }
-              if (slotsLibres.length >= 3) break;
-            }
-
+            // Nadie disponible: ofrece las siguientes horas libres ese mismo día (para la duración de este servicio)
+            const slotsLibres = freeSlots(day, durMin, { after: hora, limit: 3 });
             return {
               success: false,
               error: 'sin_disponibilidad',
-              slots_alternativos: slotsLibres.length > 0 ? slotsLibres : [],
+              slots_alternativos: slotsLibres,
               mensaje: slotsLibres.length > 0
-                ? `No hay disponibilidad a las ${toolInput.hora}. Alternativas: ${slotsLibres.join(', ')}`
+                ? `No hay disponibilidad a las ${hora}. Alternativas: ${slotsLibres.join(', ')}`
                 : 'No hay disponibilidad ese día.'
             };
           }
@@ -1616,7 +1461,7 @@ async function processChatbotMessage(businessId, clientPhone, messageText, histo
             .single();
 
           if (error) {
-            if (error.code === '23505') {
+            if (isBookingConflict(error)) {
               logger.warn('[DOUBLE_BOOKING_ATTEMPT]', { business_id: businessId, employee_id: empleadoDisponible.id, scheduled_at });
               return { success: false, error: 'Ese horario ya no está disponible, alguien más lo tomó justo ahora. Elige otro.' };
             }
@@ -2344,47 +2189,39 @@ async function processChatbotMessage(businessId, clientPhone, messageText, histo
             }
 
             for (const p of pendientes) {
-              if (!p.servicio || !p.fecha || !p.hora) {
-                resultados.push({ nombre: p.nombre, success: false, error: 'Faltan datos' });
+              const pHora = normalizeTime(p.hora);
+              if (!p.servicio || !isValidDate(p.fecha) || !pHora) {
+                resultados.push({ nombre: p.nombre, success: false, error: 'Faltan datos o la fecha/hora no es válida' });
                 continue;
               }
+              p.hora = pHora;
 
-              // Buscar servicio
-              const { data: servicios } = await supabaseAdmin
-                .from('services')
-                .select('id, name, price, duration_minutes')
-                .eq('business_id', businessId)
-                .ilike('name', `%${p.servicio}%`)
-                .eq('active', true)
-                .limit(1);
-
-              const servicio = servicios?.[0];
+              const foundGrp = await findService(businessId, p.servicio);
+              const servicio = foundGrp.servicio;
               if (!servicio) {
-                resultados.push({ nombre: p.nombre, success: false, error: 'Servicio no encontrado' });
+                resultados.push({ nombre: p.nombre, success: false, error: foundGrp.ambiguo ? `Servicio ambiguo: ${foundGrp.opciones.map(o => o.name).join(', ')}` : 'Servicio no encontrado' });
                 continue;
               }
+              const durGrp = servicio.duration_minutes || DEFAULT_DURATION;
 
-              // Validar horario de atención del negocio (cierre, días cerrados) — misma
-              // validación que usa agendar_cita individual
-              const horarioValidoGrp = await isAppointmentWithinBusinessHours(
-                businessId,
-                p.fecha,
-                p.hora,
-                { durationMinutes: servicio.duration_minutes }
-              );
-
+              // Mismas validaciones que agendar_cita: horario/festivo con la duración, hora no pasada y solape real
+              const dayGrp = await loadDay(businessId, p.fecha);
+              const horarioValidoGrp = checkHours(dayGrp, p.hora, durGrp);
               if (!horarioValidoGrp.valid) {
                 resultados.push({ nombre: p.nombre, success: false, error: horarioValidoGrp.reason });
                 continue;
               }
+              if (toInstantMs(p.fecha, p.hora) <= Date.now()) {
+                resultados.push({ nombre: p.nombre, success: false, error: 'Esa hora ya pasó' });
+                continue;
+              }
 
-              // Buscar empleado disponible
-              const empleado = await getAvailableEmployee(businessId, p.fecha, p.hora);
+              // Buscar empleado disponible (loadDay ya incluye las citas del grupo creadas en esta misma vuelta)
+              const empleado = await getAvailableEmployee(businessId, p.fecha, p.hora, durGrp, { day: dayGrp });
               if (!empleado) {
                 resultados.push({ nombre: p.nombre, success: false, error: `Sin empleados disponibles a las ${p.hora}` });
                 continue;
               }
-
               // Obtener cliente principal (el que escribe)
               const { data: clientePrincipal } = await supabaseAdmin
                 .from('clients')
@@ -2421,7 +2258,7 @@ async function processChatbotMessage(businessId, clientPhone, messageText, histo
                 .single();
 
               if (error) {
-                if (error.code === '23505') {
+                if (isBookingConflict(error)) {
                   // Constraint de no-double-booking: horario ya fue tomado
                   resultados.push({ nombre: p.nombre, success: false, error: 'Ese horario ya no está disponible, alguien más lo tomó justo ahora.' });
                 } else {
@@ -2998,4 +2835,4 @@ async function processWhatsAppMessage({ from, phoneNumberId, messageText, messag
   }
 }
 
-module.exports = { processWhatsAppMessage, processChatbotMessage, getBusinessSystemPrompt, getBusinessByPhoneNumberId, transcribeAudio };
+module.exports = { processWhatsAppMessage, processChatbotMessage, getBusinessSystemPrompt, getBusinessByPhoneNumberId, transcribeAudio, __setAnthropicClientForTests };

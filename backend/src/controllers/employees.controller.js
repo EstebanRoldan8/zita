@@ -167,7 +167,7 @@ async function deleteEmployee(req, res) {
   try {
     const { id } = req.params;
     const userClient = createUserClient(req.headers.authorization);
-    const { getAvailableEmployee } = require('../utils/availability');
+    const { getAvailableEmployee, localParts } = require('../utils/availability');
     const { sendMessage } = require('../config/whatsapp');
     const { decrypt } = require('../utils/encrypt');
 
@@ -215,10 +215,11 @@ async function deleteEmployee(req, res) {
       const failedCitas = []; // Citas que no pudieron reasignarse
 
       for (const cita of futureCitas) {
-        const fecha = cita.scheduled_at.split('T')[0];
-        const hora = cita.scheduled_at.split('T')[1].slice(0, 5);
+        // Hora local de Colombia (el timestamptz llega en UTC) y duración real del servicio
+        const { fecha, hora } = localParts(cita.scheduled_at);
 
-        const nuevoEmpleado = await getAvailableEmployee(req.businessId, fecha, hora);
+        // (sin excluir la cita: así el empleado que se elimina sigue ocupado en ese horario y no se reelige)
+        const nuevoEmpleado = await getAvailableEmployee(req.businessId, fecha, hora, cita.services?.duration_minutes || 30);
 
         if (nuevoEmpleado) {
           reassignmentMap.set(cita.id, nuevoEmpleado);

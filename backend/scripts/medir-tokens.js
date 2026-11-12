@@ -85,7 +85,7 @@ function assistantRequests() {
     };
     return Object.entries(casos).map(([label, msg]) => {
       const r = a.buildAssistantRequest({ userMessage: msg, history: [], volatileText: sampleBiz });
-      return { label, system: r.system, tools: r.tools, domains: r.domains };
+      return { label, system: r.system, tools: r.tools, domains: r.domains, volatile: sampleBiz };
     });
   }
   return [{
@@ -215,7 +215,10 @@ function simulate({ prefix, business: biz, volatile, scheme, turns, warm }) {
     const e = estimate(req);
     const r = await real(req);
     const pre = (r && !r.error) ? r.tools + r.static : e.tools + e.static;
-    const dyn = (r && !r.error) ? r.resto_system : e.resto_system;
+    // El contexto del negocio: antes iba en el system (resto_system); ahora va al final del mensaje (volatile)
+    const dyn = req.volatile
+      ? (useApi ? (await countReal({ messages: [{ role: 'user', content: req.volatile }] })) - 3 : Math.round(req.volatile.length / 3.5))
+      : ((r && !r.error) ? r.resto_system : e.resto_system);
     // Mensaje típico del asistente: 2 llamadas (1 tool con resultado de 400 tokens), historial 400, salida 150
     const callsCases = { consulta_1_tool: 2, crear_cita_3_tools: 4 };
     const costos = {};

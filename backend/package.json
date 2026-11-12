@@ -24,7 +24,7 @@
     "test:cash": "node --test tests/cash-categories.test.js",
     "test:store-capabilities": "node --test tests/store-capabilities.test.js",
     "test:store-limits": "node --test tests/store-limits.test.js",
-    "test:bot": "node --test tests/bot-availability.test.js tests/bot-tools.test.js tests/bot-flow.test.js tests/bot-reminders.test.js tests/bot-webhook.test.js tests/whatsapp-window.test.js tests/whatsapp-template-format.test.js tests/anthropic-retry.test.js tests/assistant-appointments.test.js tests/bot-cache.test.js tests/ai-usage.test.js"
+    "test:bot": "node --test tests/bot-availability.test.js tests/bot-tools.test.js tests/bot-flow.test.js tests/bot-reminders.test.js tests/bot-webhook.test.js tests/whatsapp-window.test.js tests/whatsapp-template-format.test.js tests/anthropic-retry.test.js tests/assistant-appointments.test.js tests/bot-cache.test.js tests/ai-usage.test.js tests/assistant-routing.test.js"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.92.0",

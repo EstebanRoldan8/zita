@@ -590,7 +590,7 @@ function createStoreAgent(deps = {}) {
       messages,
     };
     for (let attempt = 0; attempt < 2; attempt += 1) {
-      const res = await callModel(params, caps);
+      const res = await callModel(params, caps, { businessId: ctx.businessId, requestId: ctx.requestId, conversationKey: null, iteration: attempt });
       const u = res.usage || {};
       usage.calls += 1;
       usage.input += u.input_tokens || 0;

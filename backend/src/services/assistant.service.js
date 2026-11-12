@@ -36,6 +36,7 @@ const { isPlanExpired } = require('../utils/planStatus');
 const { deleteCitaIncome } = require('./scheduler.service');
 const { logSystemAlert } = require('../utils/systemAlerts');
 const { callClaudeWithRetry } = require('../utils/anthropicRetry');
+const { convKey, newRequestId } = require('../utils/aiUsage');
 const { isTiendaBusiness } = require('../utils/businessType');
 
 // maxRetries: 0 → los reintentos los hace callClaudeWithRetry (solo errores transitorios)
@@ -4778,12 +4779,12 @@ async function executeTool(toolName, toolInput, businessId) {
       if (modulo === 'todos' || modulo === 'anthropic') {
         try {
           const inicio = Date.now();
-          const testClient = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
-          await testClient.messages.create({
+          const testClient = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY, maxRetries: 0 });
+          await callClaudeWithRetry(testClient, {
             model: 'claude-haiku-4-5-20251001',
             max_tokens: 10,
             messages: [{ role: 'user', content: 'di ok' }]
-          });
+          }, 0, { flow: 'system_test', businessId });
           resultados.anthropic = {
             ok: true,
             latencia_ms: Date.now() - inicio,
@@ -4927,13 +4928,14 @@ function getStoreAgent() {
     const { createStoreAgent } = require('./storeAgent');
     storeAgent = createStoreAgent({
       // Parámetros específicos solo si el modelo los admite (esfuerzo, respaldo ante rechazos)
-      callModel: (params, caps) => {
+      callModel: (params, caps, meta = null) => {
         const p = { ...params };
         if (caps.effort) p.output_config = { effort: 'low' };
+        const usageMeta = meta ? { flow: 'store_agent', ...meta } : null;
         if (caps.fallbacks) {
-          return callClaudeWithRetry({ messages: { create: (x) => client.beta.messages.create(x) } }, { ...p, betas: ['server-side-fallback-2026-07-01'], fallbacks: 'default' });
+          return callClaudeWithRetry({ messages: { create: (x) => client.beta.messages.create(x) } }, { ...p, betas: ['server-side-fallback-2026-07-01'], fallbacks: 'default' }, 2, usageMeta);
         }
-        return callClaudeWithRetry(client, p);
+        return callClaudeWithRetry(client, p, 2, usageMeta);
       },
     });
   }

@@ -9,7 +9,10 @@
 const { supabaseAdmin } = require('../config/supabase');
 const logger = require('../utils/logger');
 
+// Al pasar de 12 mensajes se recorta a los últimos 6 (en bloque, no de a uno): el comienzo del historial no cambia
+// en cada turno y Claude puede leerlo de caché.
 const MAX_STORED_MESSAGES = 12;
+const KEEP_AFTER_TRIM = 6;
 const CONVERSATION_COLUMNS = 'id, messages, bot_paused_until, context, processed_message_ids';
 
 function cleanMessages(messages) {
@@ -28,6 +31,10 @@ function cleanMessages(messages) {
     out.push(entry);
   }
   return out;
+}
+
+function trimHistory(list) {
+  return list.length > MAX_STORED_MESSAGES ? list.slice(-KEEP_AFTER_TRIM) : list;
 }
 
 async function loadConversation(businessId, clientPhone) {
@@ -50,7 +57,7 @@ async function saveMessages(businessId, clientPhone, messages) {
     .upsert({
       business_id: businessId,
       client_phone: clientPhone,
-      messages: cleanMessages(messages).slice(-MAX_STORED_MESSAGES),
+      messages: trimHistory(cleanMessages(messages)),
       updated_at: new Date().toISOString(),
     }, { onConflict: 'business_id,client_phone' });
   if (error) logger.error('[CONVERSATION_SAVE_FAILED]', { businessId, error: error.message });

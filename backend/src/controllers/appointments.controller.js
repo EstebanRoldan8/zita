@@ -150,19 +150,31 @@ async function create(req, res) {
 
     const userClient = createUserClient(req.headers.authorization);
 
-    let finalPrice = price;
-    if (finalPrice == null) {
-      const { data: service, error: serviceError } = await userClient
-        .from('services')
-        .select('price')
-        .eq('id', service_id)
-        .eq('business_id', req.businessId)
-        .single();
-      if (serviceError || !service) {
-        return res.status(400).json({ success: false, error: 'Servicio no encontrado.' });
-      }
-      finalPrice = service.price;
+    // Servicio y cliente deben ser de este negocio (antes solo se validaba el servicio si no venía precio)
+    const { data: service, error: serviceError } = await userClient
+      .from('services')
+      .select('id, price')
+      .eq('id', service_id)
+      .eq('business_id', req.businessId)
+      .maybeSingle();
+    if (serviceError || !service) {
+      return res.status(400).json({ success: false, error: 'Servicio no encontrado.' });
     }
+
+    if (client_id) {
+      const { data: cliente } = await userClient
+        .from('clients')
+        .select('id')
+        .eq('id', client_id)
+        .eq('business_id', req.businessId)
+        .maybeSingle();
+      if (!cliente) {
+        return res.status(400).json({ success: false, error: 'Cliente no encontrado.' });
+      }
+    }
+
+    let finalPrice = price;
+    if (finalPrice == null) finalPrice = service.price;
 
     let finalEmployeeId = employee_id;
     let availableEmployees = null;
@@ -376,6 +388,7 @@ async function update(req, res) {
           .from('appointments')
           .select('id, client_id, scheduled_at, source, services(name), clients(phone)')
           .eq('id', id)
+          .eq('business_id', req.businessId)
           .single();
 
         // Solo enviar si es cita de WhatsApp y tiene cliente
@@ -444,6 +457,7 @@ async function update(req, res) {
           .from('appointments')
           .select('is_reward, price, source, clients(name)')
           .eq('id', id)
+          .eq('business_id', req.businessId)
           .single();
 
         const isReward = appt?.is_reward ?? false;
@@ -606,6 +620,18 @@ async function updateAppointment(req, res) {
       updates.scheduled_at = `${dateStr}T${time}:00-05:00`;
     }
 
+    // Empleado y servicio nuevos deben ser de este negocio
+    if (employee_id !== undefined && employee_id !== null) {
+      const { data: emp } = await userClient
+        .from('employees').select('id').eq('id', employee_id).eq('business_id', req.businessId).maybeSingle();
+      if (!emp) return res.status(400).json({ success: false, error: 'Empleado no pertenece a este negocio.' });
+    }
+    if (service_id !== undefined) {
+      const { data: srv } = await userClient
+        .from('services').select('id').eq('id', service_id).eq('business_id', req.businessId).maybeSingle();
+      if (!srv) return res.status(400).json({ success: false, error: 'Servicio no encontrado.' });
+    }
+
     if (employee_id !== undefined) updates.employee_id = employee_id;
     if (service_id !== undefined) updates.service_id = service_id;
 
@@ -613,6 +639,7 @@ async function updateAppointment(req, res) {
       .from('appointments')
       .update(updates)
       .eq('id', id)
+      .eq('business_id', req.businessId)
       .select()
       .single();
 
@@ -647,6 +674,7 @@ async function remove(req, res) {
       .from('appointments')
       .update({ status: 'cancelled' })
       .eq('id', id)
+      .eq('business_id', req.businessId)
       .select()
       .single();
 

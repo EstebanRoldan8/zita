@@ -84,3 +84,52 @@ test('verificar_disponibilidad con servicio: usa la duración del servicio', asy
 });
 
 module.exports = { seed, fake, env, chatbot, reset, runTool, BIZ, PHONE, OTHER_PHONE, FECHA };
+
+// ── Propiedad de la cita: el cliente que escribe solo puede tocar SUS citas ─────────────────────────────
+const CITA_ANA = 'aaaaaaaa-0000-4000-8000-000000000001';
+const CITA_JUAN = 'bbbbbbbb-0000-4000-8000-000000000002';
+
+test('cancelar_cita con el UUID de la cita de OTRO cliente: no la cancela', async () => {
+  reset();
+  const { result } = await runTool('cancelar_cita', { appointment_id: CITA_ANA });
+  assert.equal(result.success, false);
+  assert.equal(fake.db.appointments.find((a) => a.id === CITA_ANA).status, 'confirmed');
+});
+
+test('confirmar_asistencia con el UUID de la cita de OTRO cliente: no la toca', async () => {
+  reset();
+  fake.db.appointments.find((a) => a.id === CITA_ANA).status = 'pending';
+  const { result } = await runTool('confirmar_asistencia', { appointment_id: CITA_ANA });
+  assert.equal(result.success, false);
+  assert.equal(fake.db.appointments.find((a) => a.id === CITA_ANA).status, 'pending');
+});
+
+test('actualizar_cita con el UUID de la cita de OTRO cliente: no la mueve', async () => {
+  reset();
+  const { result } = await runTool('actualizar_cita', { appointment_id: CITA_ANA, nueva_hora: '16:00' });
+  assert.equal(result.success, false);
+  assert.equal(fake.db.appointments.find((a) => a.id === CITA_ANA).scheduled_at, '2030-03-12T15:30:00+00:00');
+});
+
+test('cancelar_cita con un appointment_id que no es UUID: error sin consultar', async () => {
+  reset();
+  const { result } = await runTool('cancelar_cita', { appointment_id: "x' or 1=1" });
+  assert.equal(result.success, false);
+});
+
+test('cancelar_cita de una cita propia: sí la cancela', async () => {
+  reset();
+  const { result } = await runTool('cancelar_cita', { appointment_id: CITA_JUAN });
+  assert.equal(result.success, true, JSON.stringify(result));
+  assert.equal(fake.db.appointments.find((a) => a.id === CITA_JUAN).status, 'cancelled');
+});
+
+test('agendar_cita de un número nuevo con un nombre parecido a otro cliente: crea su propio cliente', async () => {
+  reset();
+  const NUEVO = '573005550000';
+  const { result } = await runTool('agendar_cita', { service_name: 'Corte', fecha: FECHA, hora: '12:00', client_name: 'Ana' }, { phone: NUEVO });
+  assert.equal(result.success, true, JSON.stringify(result));
+  const cita = fake.db.appointments.at(-1);
+  assert.notEqual(cita.client_id, 'cli-ana', 'no debe quedar a nombre de Ana Gómez (otro teléfono)');
+  assert.equal(fake.db.clients.find((c) => c.id === cita.client_id).phone, NUEVO);
+});

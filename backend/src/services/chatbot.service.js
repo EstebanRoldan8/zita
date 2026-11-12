@@ -30,6 +30,8 @@ function escapeLike(s) {
   return String(s || '').trim().slice(0, 100).replace(/[\\%_]/g, (c) => `\\${c}`);
 }
 
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
 const normName = (s) => String(s || '').toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '').replace(/\s+/g, ' ').trim();
 
 // Busca un servicio activo por nombre: primero coincidencia exacta (sin tildes ni mayúsculas), luego parcial.
@@ -1194,6 +1196,29 @@ async function processChatbotMessage(businessId, clientPhone, messageText, histo
     }
   ];
 
+  // La cita debe ser del negocio Y del cliente que escribe (identificado por su teléfono). Nunca se confía en el
+  // appointment_id que mande el modelo: puede venir de un prompt injection o de otra conversación.
+  async function citaDelCliente(appointmentId, cols = 'id, scheduled_at, status, employee_id, service_id, services(name, price, duration_minutes)') {
+    if (!UUID_RE.test(String(appointmentId || ''))) return null;
+    const { data: cli } = await supabaseAdmin
+      .from('clients')
+      .select('id')
+      .eq('business_id', businessId)
+      .eq('phone', clientPhone)
+      .limit(1);
+    const clientId = cli?.[0]?.id;
+    if (!clientId) return null;
+    const { data } = await supabaseAdmin
+      .from('appointments')
+      .select(cols)
+      .eq('id', appointmentId)
+      .eq('business_id', businessId)
+      .eq('client_id', clientId)
+      .maybeSingle();
+    return data || null;
+  }
+  const CITA_NO_ENCONTRADA = { success: false, error: 'No encontré esa cita entre tus citas. Revisa la lista de citas activas.' };
+
   async function executeChatbotTool(toolName, toolInput) {
     try {
       switch(toolName) {
@@ -1373,15 +1398,8 @@ async function processChatbotMessage(businessId, clientPhone, messageText, histo
               .replace(/(^|\s)(\p{L})/gu, (_, sp, ch) => sp + ch.toUpperCase());
           }
 
-          if (!clienteExistente && toolInput.client_name) {
-            const { data: porNombre } = await supabaseAdmin
-              .from('clients')
-              .select('id, name')
-              .eq('business_id', businessId)
-              .ilike('name', `%${toolInput.client_name}%`)
-              .limit(1);
-            clienteExistente = porNombre?.[0] || null;
-          }
+          // En WhatsApp la identidad del cliente es su teléfono: nunca se busca "por nombre" (eso le ponía la cita
+          // a otra persona con nombre parecido y el recordatorio le llegaba a ella).
 
           if (!clienteExistente) {
             const { data: nuevoCliente, error: nuevoClienteError } = await supabaseAdmin
@@ -1610,7 +1628,9 @@ async function processChatbotMessage(businessId, clientPhone, messageText, histo
         }
 
         case 'cancelar_cita': {
-          return await deleteCitaIncome(toolInput.appointment_id, businessId);
+          const cita = await citaDelCliente(toolInput.appointment_id);
+          if (!cita) return CITA_NO_ENCONTRADA;
+          return await deleteCitaIncome(cita.id, businessId);
         }
 
         case 'ver_productos': {
@@ -1714,11 +1734,14 @@ async function processChatbotMessage(businessId, clientPhone, messageText, histo
         }
 
         case 'confirmar_asistencia': {
+          const cita = await citaDelCliente(toolInput.appointment_id);
+          if (!cita) return CITA_NO_ENCONTRADA;
           const { data, error } = await supabaseAdmin
             .from('appointments')
             .update({ status: 'confirmed' })
-            .eq('id', toolInput.appointment_id)
+            .eq('id', cita.id)
             .eq('business_id', businessId)
+            .in('status', ['pending', 'confirmed'])
             .select('id');
 
           if (error) return { success: false, error: error.message };
@@ -1767,6 +1790,11 @@ async function processChatbotMessage(businessId, clientPhone, messageText, histo
         }
 
         case 'actualizar_cita': {
+          const citaPropia = await citaDelCliente(toolInput.appointment_id);
+          if (!citaPropia) return CITA_NO_ENCONTRADA;
+          if (!['pending', 'confirmed'].includes(citaPropia.status)) {
+            return { success: false, error: 'Esa cita ya no está activa (fue cancelada o completada).' };
+          }
           const updateData = {};
 
           if (toolInput.employee_name) {

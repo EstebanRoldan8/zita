@@ -1,11 +1,13 @@
 import { useState, useEffect } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { UserPlus, UserX, Pencil, Users, BarChart2, TrendingUp, UserCheck, Trash2 } from 'lucide-react';
+import { UserPlus, UserX, Pencil, Users, BarChart2, TrendingUp, UserCheck, Trash2, Smartphone } from 'lucide-react';
 import DatePicker, { registerLocale } from 'react-datepicker';
 import { es } from 'date-fns/locale';
 import 'react-datepicker/dist/react-datepicker.css';
 import api from '../../lib/api';
 import MonthSelector from '../../components/ui/MonthSelector';
+import PanelAccessModal from '../../components/employees/PanelAccessModal';
+import { ACCESS_LABELS } from '../../components/employees/accessLabels';
 
 registerLocale('es', es);
 
@@ -40,6 +42,7 @@ function TeamTab({ showInactive, onShowInactiveChange, showCreateModal, setShowC
   const [formError, setFormError] = useState('');
   const [reactivateError, setReactivateError] = useState(null);
   const [deleteConfirm, setDeleteConfirm] = useState(null);
+  const [accessFor, setAccessFor] = useState(null);
 
   const { data: employees = [], isLoading } = useQuery({
     queryKey: ['employees', showInactive],
@@ -125,7 +128,14 @@ function TeamTab({ showInactive, onShowInactiveChange, showCreateModal, setShowC
                   {initial}
                 </div>
                 <div className="flex-1 min-w-0">
-                  <p className="text-white font-medium text-sm">{emp.name}</p>
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <p className="text-white font-medium text-sm">{emp.name}</p>
+                    {emp.access_status && (
+                      <span className={`text-[10px] px-1.5 py-0.5 rounded-full border ${(ACCESS_LABELS[emp.access_status] || ACCESS_LABELS.none).cls}`}>
+                        {(ACCESS_LABELS[emp.access_status] || ACCESS_LABELS.none).label}
+                      </span>
+                    )}
+                  </div>
                   <p className="text-slate-500 text-xs truncate">{emp.email || emp.phone || 'Sin contacto'}</p>
                 </div>
                 <div className="flex items-center gap-2 flex-shrink-0">
@@ -144,6 +154,14 @@ function TeamTab({ showInactive, onShowInactiveChange, showCreateModal, setShowC
                       {emp.commission_percent}%
                     </span>
                   )}
+                  <button
+                    onClick={() => setAccessFor(emp)}
+                    title={emp.access_status === 'active' ? 'Acceso al panel' : 'Invitar al panel'}
+                    className="flex items-center gap-1 text-xs px-2 py-1 rounded-lg border border-violet-500/25 text-violet-300 hover:bg-violet-500/15 transition whitespace-nowrap"
+                  >
+                    <Smartphone size={13} />
+                    <span className="hidden sm:inline">{emp.access_status === 'none' || !emp.access_status ? 'Invitar al panel' : 'Panel'}</span>
+                  </button>
                 </div>
               </div>
             );
@@ -187,6 +205,10 @@ function TeamTab({ showInactive, onShowInactiveChange, showCreateModal, setShowC
             </div>
           )}
         </div>
+      )}
+
+      {accessFor && (
+        <PanelAccessModal employee={accessFor} onClose={() => setAccessFor(null)} />
       )}
 
       {editing && (

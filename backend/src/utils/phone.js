@@ -15,4 +15,12 @@ function maskPhone(value) {
   return `${s.slice(0, 5)}***${s.slice(-4)}`;
 }
 
-module.exports = { normalizeColombianPhone, maskPhone };
+// Para logs: nunca el correo completo ("ju***@gmail.com")
+function maskEmail(value) {
+  const s = String(value || '');
+  const at = s.lastIndexOf('@');
+  if (at < 1) return '***';
+  return `${s.slice(0, Math.min(2, at))}***${s.slice(at)}`;
+}
+
+module.exports = { normalizeColombianPhone, maskPhone, maskEmail };

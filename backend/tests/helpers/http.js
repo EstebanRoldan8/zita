@@ -8,6 +8,8 @@ function mockRes() {
   const res = {
     statusCode: 200,
     body: undefined,
+    headers: {},
+    set(k, v) { if (typeof k === 'object') Object.assign(res.headers, k); else res.headers[k] = v; return res; },
     status(code) { res.statusCode = code; return res; },
     json(payload) { res.body = payload; return res; },
     send(payload) { res.body = payload; return res; },

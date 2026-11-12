@@ -1,5 +1,6 @@
 const { createUserClient, supabaseAdmin } = require('../config/supabase');
 const logger = require('../utils/logger');
+const { accessStatusFor, removeEmployeeAccess } = require('./invitations.controller');
 
 const capitalizeName = (str) => str.trim().replace(/\b\w/g, c => c.toUpperCase());
 
@@ -20,7 +21,16 @@ async function getAll(req, res) {
     const { data, error } = await query.order('name');
 
     if (error) throw error;
-    return res.json({ success: true, data });
+
+    // Estado del acceso al panel (sin exponer user_id). Si la migración 066 no corrió, todos 'none'.
+    let statuses = {};
+    try {
+      statuses = await accessStatusFor(req.businessId, data || []);
+    } catch (statusErr) {
+      logger.warn(`employees.getAll: access_status no disponible - ${statusErr.message}`);
+    }
+    const withAccess = (data || []).map((e) => ({ ...e, access_status: statuses[e.id] || 'none' }));
+    return res.json({ success: true, data: withAccess });
   } catch (err) {
     logger.error(`employees.getAll: ${err.message}`);
     return res.status(500).json({ success: false, error: 'Error interno del servidor.' });
@@ -304,6 +314,9 @@ async function deleteEmployee(req, res) {
         }
       }
     }
+
+    // Quitar acceso al panel (invitaciones, vínculo y cuenta) antes de borrar la fila
+    await removeEmployeeAccess(req.businessId, id);
 
     // Eliminar empleado
     const { data, error } = await userClient

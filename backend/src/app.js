@@ -42,6 +42,8 @@ const contactRoutes = require('./routes/contact.routes');
 const paymentRoutes = require('./routes/payment.routes');
 const internalRoutes = require('./routes/internal.routes');
 const storeRoutes = require('./routes/store.routes');
+const meRoutes = require('./routes/me.routes');
+const invitationsRoutes = require('./routes/invitations.routes');
 const { verifyToken } = require('./middlewares/auth');
 const { businessContext } = require('./middlewares/businessContext');
 const { checkPlanAccess } = require('./middlewares/planCheck');
@@ -175,6 +177,10 @@ app.get('/api/ping', (req, res) => {
 app.use('/api/store', storeRoutes);
 app.use('/api/internal', internalRoutes);
 app.use('/api/auth', authRoutes);
+// Invitaciones de empleados: públicas (sin JWT), con rate limit propio
+app.use('/api/invitations', invitationsRoutes);
+// Identidad (dueño/empleado) y panel del empleado. businessContext aplica la allowlist del empleado.
+app.use('/api/me', meRoutes);
 app.use('/api/businesses', businessesRoutes);
 app.use('/api/appointments', verifyToken, businessContext, checkPlanAccess, appointmentsRoutes);
 app.use('/api/clients', verifyToken, businessContext, checkPlanAccess, checkFeatureAccess('clientes'), clientsRoutes);

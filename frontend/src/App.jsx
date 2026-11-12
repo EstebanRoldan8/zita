@@ -39,6 +39,12 @@ import CajaAdmin from './pages/admin/CajaAdmin';
 import LeadsAdmin from './pages/admin/LeadsAdmin';
 import AsistenteAdmin from './pages/admin/AsistenteAdmin';
 import Onboarding from './pages/business/Onboarding';
+import Invitation from './pages/Invitation';
+import StaffLayout, { StaffModuleRoute } from './components/ui/StaffLayout';
+import MyAgenda from './pages/staff/MyAgenda';
+import StaffClients from './pages/staff/StaffClients';
+import StaffProducts from './pages/staff/StaffProducts';
+import MyCommissions from './pages/staff/MyCommissions';
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -104,22 +110,24 @@ function PanelApp() {
             <Route path="/privacidad" element={<PrivacyPolicy />} />
             <Route path="/terminos" element={<Terms />} />
             <Route path="/eliminar-datos" element={<DataDeletion />} />
+            {/* Invitación de empleado (pública: abrirla no consume el enlace) */}
+            <Route path="/invitacion/:token" element={<Invitation />} />
 
             {/* Onboarding */}
             <Route
               path="/onboarding"
               element={
-                <ProtectedRoute>
+                <ProtectedRoute role="owner">
                   <Onboarding />
                 </ProtectedRoute>
               }
             />
 
-            {/* Panel de negocio */}
+            {/* Panel de negocio (solo dueño: el empleado se redirige a /mi-panel) */}
             <Route
               path="/dashboard"
               element={
-                <ProtectedRoute>
+                <ProtectedRoute role="owner">
                   <Layout />
                 </ProtectedRoute>
               }
@@ -135,6 +143,22 @@ function PanelApp() {
               <Route path="analiticas"    element={<Analytics />} />
               <Route path="configuracion" element={<Settings />} />
               <Route path="suscripcion"   element={<Subscription />} />
+            </Route>
+
+            {/* Panel del empleado (barbero): solo sus módulos; el dueño se redirige a /dashboard */}
+            <Route
+              path="/mi-panel"
+              element={
+                <ProtectedRoute role="employee">
+                  <StaffLayout />
+                </ProtectedRoute>
+              }
+            >
+              <Route index element={<StaffModuleRoute module="agenda"><MyAgenda /></StaffModuleRoute>} />
+              <Route path="clientes" element={<StaffModuleRoute module="clientes"><StaffClients /></StaffModuleRoute>} />
+              <Route path="productos" element={<StaffModuleRoute module="productos"><StaffProducts /></StaffModuleRoute>} />
+              <Route path="comisiones" element={<StaffModuleRoute module="comisiones"><MyCommissions /></StaffModuleRoute>} />
+              <Route path="*" element={<Navigate to="/mi-panel" replace />} />
             </Route>
 
             {/* Panel superadmin */}

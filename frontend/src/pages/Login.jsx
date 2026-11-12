@@ -44,8 +44,9 @@ export default function Login() {
     setError('');
     setLoading(true);
     try {
-      await login(form.email, form.password);
-      navigate(isSuperadmin ? '/admin' : '/dashboard');
+      const { role } = await login(form.email, form.password);
+      // El empleado (barbero) va a su panel; ProtectedRoute redirige igual si cae en /dashboard
+      navigate(isSuperadmin ? '/admin' : role === 'employee' ? '/mi-panel' : '/dashboard');
     } catch (err) {
       setError('Email o contraseña incorrectos.');
     } finally {

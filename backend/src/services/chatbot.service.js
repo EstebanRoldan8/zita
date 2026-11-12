@@ -5,7 +5,7 @@ const Anthropic = require('@anthropic-ai/sdk');
 const logger = require('../utils/logger');
 const {
   getAvailableEmployee, loadDay, checkHours, freeEmployees, freeSlots, isEmployeeFree,
-  isValidDate, normalizeTime, toInstantMs, localParts, todayLocal, DEFAULT_DURATION,
+  isValidDate, normalizeTime, toInstantMs, localParts, localISO, todayLocal, DEFAULT_DURATION,
 } = require('../utils/availability');
 const { isPlanExpired } = require('../utils/planStatus');
 const { deleteCitaIncome } = require('./scheduler.service');
@@ -1795,244 +1795,121 @@ async function processChatbotMessage(businessId, clientPhone, messageText, histo
           if (!['pending', 'confirmed'].includes(citaPropia.status)) {
             return { success: false, error: 'Esa cita ya no está activa (fue cancelada o completada).' };
           }
-          const updateData = {};
 
+          // Fecha y hora ACTUALES en hora de Colombia (el timestamptz llega en UTC: nunca split('T'))
+          const actual = localParts(citaPropia.scheduled_at);
+
+          let empleadoNuevo = null;
           if (toolInput.employee_name) {
             const { data: empMatches } = await supabaseAdmin
               .from('employees')
               .select('id, name')
               .eq('business_id', businessId)
               .eq('is_active', true)
-              .ilike('name', `%${toolInput.employee_name}%`);
-
-            // Si hay 2+ matches, retorna error antes de tocar updateData
+              .ilike('name', `%${escapeLike(toolInput.employee_name)}%`);
             if (empMatches && empMatches.length > 1) {
-              return {
-                success: false,
-                error: 'empleado_ambiguo',
-                opciones: empMatches.map(e => ({ id: e.id, name: e.name }))
-              };
+              return { success: false, error: 'empleado_ambiguo', opciones: empMatches.map(e => ({ name: e.name })) };
             }
-
-            const empData = empMatches && empMatches.length === 1 ? empMatches[0] : null;
-
-            if (!empData) {
-              return { success: false, error: `No encontré ningún empleado con ese nombre.` };
-            }
-
-            // Verificar disponibilidad del empleado en el horario de la cita
-            const { data: citaActual } = await supabaseAdmin
-              .from('appointments')
-              .select('scheduled_at, services(duration_minutes)')
-              .eq('id', toolInput.appointment_id)
-              .eq('business_id', businessId)
-              .single();
-
-            if (!citaActual) {
-              return { success: false, error: 'Cita no encontrada' };
-            }
-
-            if (citaActual) {
-              const horaReservadaMs = new Date(citaActual.scheduled_at).getTime();
-              const fechaCita = citaActual.scheduled_at.slice(0, 10);
-              const { data: citasEmp } = await supabaseAdmin
-                .from('appointments')
-                .select('scheduled_at, services(duration_minutes)')
-                .eq('business_id', businessId)
-                .eq('employee_id', empData.id)
-                .neq('id', toolInput.appointment_id)
-                .in('status', ['confirmed', 'pending'])
-                .gte('scheduled_at', `${fechaCita}T00:00:00-05:00`)
-                .lte('scheduled_at', `${fechaCita}T23:59:59-05:00`);
-
-              const ocupado = citasEmp?.some(c => {
-                const inicio = new Date(c.scheduled_at).getTime();
-                const duracion = (c.services?.duration_minutes || 30) * 60 * 1000;
-                return horaReservadaMs >= inicio && horaReservadaMs < (inicio + duracion);
-              });
-
-              if (ocupado) {
-                return {
-                  success: false,
-                  error: `${empData.name} no está disponible en ese horario. ¿Quieres con otro empleado?`
-                };
-              }
-            }
-
-            updateData.employee_id = empData.id;
+            if (!empMatches?.length) return { success: false, error: 'No encontré ningún empleado con ese nombre.' };
+            empleadoNuevo = empMatches[0];
           }
 
-          let nuevoPrecioServicio = null;
+          let servicioNuevo = null;
           if (toolInput.nuevo_servicio) {
-            const { data: serviciosNuevo } = await supabaseAdmin
-              .from('services')
-              .select('id, name, price')
-              .eq('business_id', businessId)
-              .ilike('name', `%${toolInput.nuevo_servicio}%`)
-              .eq('active', true)
-              .limit(1);
-
-            const servicioNuevo = serviciosNuevo?.[0];
-            if (!servicioNuevo) {
-              return { success: false, error: 'No encontré ese servicio. ¿Cuál quieres exactamente?' };
-            }
-
-            updateData.service_id = servicioNuevo.id;
-            updateData.price = servicioNuevo.price;
-            nuevoPrecioServicio = servicioNuevo.price;
+            const found = await findService(businessId, toolInput.nuevo_servicio);
+            if (found.ambiguo) return { success: false, error: 'servicio_ambiguo', opciones: found.opciones };
+            if (!found.servicio) return { success: false, error: 'No encontré ese servicio. ¿Cuál quieres exactamente?' };
+            servicioNuevo = found.servicio;
           }
 
-          // Si viene hora pero no fecha, usa la fecha actual de la cita
-          let nuevaFecha = toolInput.nueva_fecha;
-          let nuevaHora = toolInput.nueva_hora;
-
-          if ((toolInput.nueva_fecha || toolInput.nueva_hora) && toolInput.appointment_id) {
-            if (!nuevaFecha || !nuevaHora) {
-              const { data: citaActual } = await supabaseAdmin
-                .from('appointments')
-                .select('scheduled_at')
-                .eq('id', toolInput.appointment_id)
-                .eq('business_id', businessId)
-                .single();
-
-              if (!citaActual) {
-                return { success: false, error: 'Cita no encontrada' };
-              }
-
-              if (citaActual) {
-                const [fechaParte, horaParte] = citaActual.scheduled_at.split('T');
-                const horaActual = horaParte.slice(0, 5); // HH:mm
-
-                if (!nuevaFecha) nuevaFecha = fechaParte;
-                if (!nuevaHora) nuevaHora = horaActual;
-              }
-            }
-
-            if (nuevaFecha && nuevaHora) {
-              // Validar que el nuevo horario sea válido (dentro de business_hours, empleado disponible)
-              const [yearF, monthF, dayF] = nuevaFecha.split('-').map(Number);
-              const tempDate = new Date(yearF, monthF - 1, dayF);
-              const diaSemana = tempDate.getDay();
-
-              const { data: horario } = await supabaseAdmin
-                .from('business_hours')
-                .select('open_time, close_time, is_open')
-                .eq('business_id', businessId)
-                .eq('day_of_week', diaSemana)
-                .maybeSingle();
-
-              if (!horario?.is_open) {
-                return { success: false, error: 'Ese día estamos cerrados.' };
-              }
-
-              // Validar hora dentro de business_hours
-              const [horaH, horaM] = nuevaHora.split(':').map(Number);
-              const [aperturaH, aperturaM] = horario.open_time.split(':').map(Number);
-              const [cierreH, cierreM] = horario.close_time.split(':').map(Number);
-
-              const horaMin = horaH * 60 + horaM;
-              const aperturaMin = aperturaH * 60 + aperturaM;
-              const cierreMin = cierreH * 60 + cierreM;
-
-              if (horaMin < aperturaMin || horaMin >= cierreMin) {
-                return {
-                  success: false,
-                  error: `Fuera de horario. Atendemos de ${horario.open_time} a ${horario.close_time}.`
-                };
-              }
-
-              // Validar que empleado actual no tenga conflicto en el nuevo horario
-              if (updateData.employee_id || toolInput.appointment_id) {
-                const { data: citaActual } = await supabaseAdmin
-                  .from('appointments')
-                  .select('employee_id')
-                  .eq('id', toolInput.appointment_id)
-                  .eq('business_id', businessId)
-                  .single();
-
-                if (!citaActual) {
-                  return { success: false, error: 'Cita no encontrada' };
-                }
-
-                const empId = updateData.employee_id || citaActual?.employee_id;
-
-                if (empId) {
-                  const horaReservadaMs = new Date(`${nuevaFecha}T${nuevaHora}:00-05:00`).getTime();
-                  const { data: citasEmp } = await supabaseAdmin
-                    .from('appointments')
-                    .select('scheduled_at, services(duration_minutes)')
-                    .eq('business_id', businessId)
-                    .eq('employee_id', empId)
-                    .neq('id', toolInput.appointment_id)
-                    .in('status', ['confirmed', 'pending'])
-                    .gte('scheduled_at', `${nuevaFecha}T00:00:00-05:00`)
-                    .lte('scheduled_at', `${nuevaFecha}T23:59:59-05:00`);
-
-                  const ocupado = citasEmp?.some(c => {
-                    const inicio = new Date(c.scheduled_at).getTime();
-                    const duracion = (c.services?.duration_minutes || 30) * 60 * 1000;
-                    return horaReservadaMs >= inicio && horaReservadaMs < (inicio + duracion);
-                  });
-
-                  if (ocupado) {
-                    return {
-                      success: false,
-                      error: `Ese horario está ocupado para el empleado asignado.`
-                    };
-                  }
-                }
-              }
-
-              updateData.scheduled_at = `${nuevaFecha}T${nuevaHora}:00-05:00`;
-            }
+          // Lo que no cambia se conserva en hora local
+          let fecha = actual.fecha;
+          let hora = actual.hora;
+          if (toolInput.nueva_fecha) {
+            if (!isValidDate(String(toolInput.nueva_fecha).trim())) return { success: false, error: 'Fecha inválida. Usa YYYY-MM-DD.' };
+            fecha = String(toolInput.nueva_fecha).trim();
           }
-
-          if (Object.keys(updateData).length === 0) {
+          if (toolInput.nueva_hora) {
+            hora = normalizeTime(toolInput.nueva_hora);
+            if (!hora) return { success: false, error: 'Hora inválida. Usa HH:mm (24 horas).' };
+          }
+          const cambiaHorario = fecha !== actual.fecha || hora !== actual.hora;
+          const cambiaEmpleado = empleadoNuevo && empleadoNuevo.id !== citaPropia.employee_id;
+          if (!cambiaHorario && !cambiaEmpleado && !servicioNuevo) {
             return { success: false, error: 'No hay cambios que aplicar.' };
           }
+
+          // Validación completa del resultado final: horario y festivo con la duración del servicio (nuevo o actual),
+          // hora no pasada y que el empleado esté libre (sin contar esta misma cita)
+          const durMin = (servicioNuevo || citaPropia.services)?.duration_minutes || DEFAULT_DURATION;
+          const day = await loadDay(businessId, fecha);
+          const fit = checkHours(day, hora, durMin);
+          if (!fit.valid) return { success: false, error: fit.reason };
+          if (cambiaHorario && toInstantMs(fecha, hora) <= Date.now()) {
+            return { success: false, error: 'Esa hora ya pasó. Elige una hora futura.' };
+          }
+
+          let empId = empleadoNuevo?.id || citaPropia.employee_id;
+          if (empId && !isEmployeeFree(day, empId, hora, durMin, { excludeAppointmentId: citaPropia.id })) {
+            if (empleadoNuevo) {
+              return { success: false, error: `${empleadoNuevo.name} no está disponible en ese horario. ¿Quieres con otro empleado?` };
+            }
+            // No se cambia de empleado sin preguntar: se ofrecen horas libres y, si lo hay, otro empleado libre
+            const otro = await getAvailableEmployee(businessId, fecha, hora, durMin, { day, excludeAppointmentId: citaPropia.id });
+            const alternativas = freeSlots({ ...day, empleados: day.empleados.filter(e => e.id === empId) }, durMin, { after: hora, limit: 3, excludeAppointmentId: citaPropia.id });
+            return {
+              success: false,
+              error: 'Ese horario está ocupado para el empleado asignado.',
+              slots_alternativos_mismo_empleado: alternativas,
+              otro_empleado_disponible: otro?.name || null
+            };
+          }
+          if (!empId) {
+            const libre = await getAvailableEmployee(businessId, fecha, hora, durMin, { day, excludeAppointmentId: citaPropia.id });
+            if (!libre) return { success: false, error: 'No hay empleados disponibles en ese horario.', slots_alternativos: freeSlots(day, durMin, { after: hora, limit: 3 }) };
+            empId = libre.id;
+          }
+
+          const updateData = {};
+          if (empId !== citaPropia.employee_id) updateData.employee_id = empId;
+          if (servicioNuevo) { updateData.service_id = servicioNuevo.id; updateData.price = servicioNuevo.price; }
+          if (cambiaHorario) updateData.scheduled_at = localISO(fecha, hora);
 
           const { data, error } = await supabaseAdmin
             .from('appointments')
             .update(updateData)
-            .eq('id', toolInput.appointment_id)
+            .eq('id', citaPropia.id)
             .eq('business_id', businessId)
+            .in('status', ['pending', 'confirmed'])
             .select('id');
 
+          if (isBookingConflict(error)) return { success: false, error: 'Ese horario ya no está disponible, alguien más lo tomó justo ahora. Elige otro.' };
           if (error) return { success: false, error: error.message };
-          if (!data || data.length === 0) {
-            return { success: false, error: 'Cita no encontrada' };
-          }
+          if (!data || data.length === 0) return CITA_NO_ENCONTRADA;
 
-          if (toolInput.nueva_fecha || toolInput.nueva_hora || toolInput.nuevo_servicio) {
-            const { data: citaActualizada } = await supabaseAdmin
-              .from('appointments')
-              .select('service_id, services(name, price)')
-              .eq('id', toolInput.appointment_id)
-              .single();
-
-            if (citaActualizada?.services?.price) {
-              const { error: incomeUpdError } = await supabaseAdmin
-                .from('income')
-                .update({
-                  amount: citaActualizada.services.price,
-                  description: `${citaActualizada.services.name} - agendado por WhatsApp (actualizado)`
-                })
-                .eq('appointment_id', toolInput.appointment_id)
-                .eq('business_id', businessId)
-                .select('id');
-
-              if (incomeUpdError) {
-                logger.error('[REAGENDAR_INCOME_UPDATE_FAILED]', { businessId, appointmentId: toolInput.appointment_id, error: incomeUpdError.message });
-                return { success: false, message: 'La cita se actualizó pero no se pudo ajustar el monto del ingreso.' };
-              }
+          if (servicioNuevo) {
+            const { error: incomeUpdError } = await supabaseAdmin
+              .from('income')
+              .update({ amount: servicioNuevo.price, description: `${servicioNuevo.name} - agendado por WhatsApp (actualizado)` })
+              .eq('appointment_id', citaPropia.id)
+              .eq('business_id', businessId)
+              .select('id');
+            if (incomeUpdError) {
+              logger.error('[REAGENDAR_INCOME_UPDATE_FAILED]', { businessId, appointmentId: citaPropia.id, error: incomeUpdError.message });
             }
           }
 
-          const empleadoNombre = toolInput.employee_name || null;
+          const empleadoFinal = day.empleados.find(e => e.id === empId)?.name || empleadoNuevo?.name || null;
+          const horaColombia = new Date(localISO(fecha, hora)).toLocaleString('es-CO', {
+            timeZone: 'America/Bogota', weekday: 'long', day: 'numeric', month: 'long', hour: '2-digit', minute: '2-digit', hour12: true
+          });
           return {
             success: true,
-            message: `Cita actualizada correctamente${empleadoNombre ? ` — ahora con ${empleadoNombre}` : ''}.`,
-            nuevo_precio: nuevoPrecioServicio
+            message: `Cita actualizada correctamente${cambiaEmpleado && empleadoFinal ? ` — ahora con ${empleadoFinal}` : ''}.`,
+            servicio: (servicioNuevo || citaPropia.services)?.name || null,
+            empleado: empleadoFinal,
+            hora_colombia: horaColombia,
+            nuevo_precio: servicioNuevo ? servicioNuevo.price : null
           };
         }
 

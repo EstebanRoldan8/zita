@@ -133,3 +133,45 @@ test('agendar_cita de un número nuevo con un nombre parecido a otro cliente: cr
   assert.notEqual(cita.client_id, 'cli-ana', 'no debe quedar a nombre de Ana Gómez (otro teléfono)');
   assert.equal(fake.db.clients.find((c) => c.id === cita.client_id).phone, NUEVO);
 });
+
+// ── Reagendar: conservar la hora LOCAL al cambiar solo la fecha (y la fecha local al cambiar solo la hora) ──
+test('actualizar_cita solo con nueva_fecha conserva las 3:00 p. m. hora Colombia', async () => {
+  reset();
+  const { result } = await runTool('actualizar_cita', { appointment_id: CITA_JUAN, nueva_fecha: '2030-03-14' });
+  assert.equal(result.success, true, JSON.stringify(result));
+  const cita = fake.db.appointments.find((a) => a.id === CITA_JUAN);
+  assert.equal(new Date(cita.scheduled_at).getTime(), new Date('2030-03-14T15:00:00-05:00').getTime());
+});
+
+test('actualizar_cita solo con nueva_hora de una cita nocturna conserva la fecha local', async () => {
+  reset();
+  // Cita a las 19:30 hora Colombia del 12 = 00:30 UTC del 13
+  const c = fake.db.appointments.find((a) => a.id === CITA_JUAN);
+  c.scheduled_at = '2030-03-13T00:30:00+00:00';
+  const { result } = await runTool('actualizar_cita', { appointment_id: CITA_JUAN, nueva_hora: '18:00' });
+  assert.equal(result.success, true, JSON.stringify(result));
+  assert.equal(new Date(c.scheduled_at).getTime(), new Date('2030-03-12T18:00:00-05:00').getTime());
+});
+
+test('actualizar_cita a una hora que se cruza con otra cita del mismo empleado: no se mueve', async () => {
+  reset();
+  const { result } = await runTool('actualizar_cita', { appointment_id: CITA_JUAN, nueva_hora: '10:15' });
+  assert.equal(result.success, false);
+  assert.equal(fake.db.appointments.find((a) => a.id === CITA_JUAN).scheduled_at, '2030-03-12T20:00:00+00:00');
+});
+
+test('actualizar_cita a un día festivo: rechaza', async () => {
+  reset();
+  fake.db.business_closed_days.push({ business_id: BIZ, date: '2030-03-15', reason: 'Festivo' });
+  const { result } = await runTool('actualizar_cita', { appointment_id: CITA_JUAN, nueva_fecha: '2030-03-15' });
+  assert.equal(result.success, false);
+  assert.match(result.error, /cerrados/);
+});
+
+test('actualizar_cita cambiando a un servicio más largo que ya no cabe antes del cierre: rechaza', async () => {
+  reset();
+  const c = fake.db.appointments.find((a) => a.id === CITA_JUAN);
+  c.scheduled_at = '2030-03-13T00:30:00+00:00'; // 19:30 local, cierre 20:00
+  const { result } = await runTool('actualizar_cita', { appointment_id: CITA_JUAN, nuevo_servicio: 'Tinte' });
+  assert.equal(result.success, false);
+});

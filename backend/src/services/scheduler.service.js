@@ -379,6 +379,17 @@ cron.schedule('*/5 * * * *', async () => {
   }
 });
 
+// Purga diaria de la tabla de idempotencia del webhook (3:30 a. m. Colombia): Meta no reenvía después de días
+cron.schedule('30 8 * * *', async () => {
+  const acquired = await acquireLock('purga_wa_processed', 30);
+  if (!acquired) return;
+  const { error } = await supabaseAdmin
+    .from('wa_processed_messages')
+    .delete()
+    .lt('received_at', new Date(Date.now() - 7 * 86400000).toISOString());
+  if (error && error.code !== '42P01') logger.warn('[PURGA_WA_PROCESSED_FAILED]', { error: error.message });
+});
+
 // Auto-completar citas cada 15 minutos
 cron.schedule('*/15 * * * *', autoCompleteAppointments);
 

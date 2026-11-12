@@ -157,7 +157,7 @@ function createFakeSupabase(seed = {}, opts = {}) {
     return { data: null, error: null };
   }
 
-  return { from, rpc, db, calls };
+  return { from, rpc, db, calls, missingTables };
 }
 
 function stub(rel, exports) {

@@ -11,6 +11,7 @@ const { isPlanExpired } = require('../utils/planStatus');
 const { deleteCitaIncome } = require('./scheduler.service');
 const { logSystemAlert } = require('../utils/systemAlerts');
 const { getPlan } = require('../config/plans');
+const { maskPhone } = require('../utils/phone');
 const { loadConversation, saveMessages, pendingReminder } = require('./conversationStore');
 
 // Respuestas exactas a un recordatorio (solo se usan si lo último que mandó el bot fue el recordatorio)
@@ -2310,114 +2311,48 @@ async function processChatbotMessage(businessId, clientPhone, messageText, histo
   }
 }
 
-// Registra atomicamente que estamos procesando un message_id (dedupe de Meta reintents).
-// Usa INSERT con ON CONFLICT DO NOTHING: si el message_id ya existe, retorna 0 filas
-// (otro proceso lo está procesando), y debe ignorarse. Si INSERT exitoso, retorna 1 fila.
-async function isMessageAlreadyProcessed(businessId, clientPhone, messageId) {
-  if (!messageId) return false;
-
-  const { data: existingConv } = await supabaseAdmin
-    .from('whatsapp_conversations')
-    .select('processed_message_ids')
-    .eq('business_id', businessId)
-    .eq('client_phone', clientPhone)
-    .maybeSingle();
-
-  const processedIds = existingConv?.processed_message_ids || [];
-  return processedIds.includes(messageId);
-}
-
-async function markMessageProcessed(businessId, clientPhone, messageId) {
-  if (!messageId) return;
-
-  const { data: existingConv } = await supabaseAdmin
-    .from('whatsapp_conversations')
-    .select('processed_message_ids')
-    .eq('business_id', businessId)
-    .eq('client_phone', clientPhone)
-    .maybeSingle();
-
-  const processedIds = existingConv?.processed_message_ids || [];
-  if (!processedIds.includes(messageId)) {
-    const { error } = await supabaseAdmin
-      .from('whatsapp_conversations')
-      .upsert({
-        business_id: businessId,
-        client_phone: clientPhone,
-        processed_message_ids: [...processedIds, messageId].slice(-50),
-        updated_at: new Date().toISOString()
-      }, { onConflict: 'business_id,client_phone' });
-
-    if (error) {
-      logger.warn('[MARK_MESSAGE_PROCESSED_FAILED]', {
-        businessId,
-        clientPhone,
-        messageId,
-        error: error.message
-      });
-    }
-  }
-}
-
+// La deduplicación por message_id se hace al recibir el webhook (conversationStore.claimMessageId),
+// antes de encolar: aquí cada mensaje llega una sola vez.
 async function processWhatsAppMessage({ from, phoneNumberId, messageText, messageId }) {
   const receivedAt = new Date().toISOString();
-  logger.info('Mensaje WhatsApp recibido', { from, phoneNumberId, messageId });
+  logger.info('Mensaje WhatsApp recibido', { to: maskPhone(from), messageId });
+  let business = null;
+  let businessToken = null;
 
   try {
-    const business = await getBusinessByPhoneNumberId(phoneNumberId);
+    business = await getBusinessByPhoneNumberId(phoneNumberId);
 
     if (!business) {
-      logger.warn('Negocio no encontrado', { phoneNumberId });
+      logger.warn('Negocio no encontrado para el phone_number_id');
       return;
     }
 
+    businessToken = business.whatsapp_access_token
+      ? decrypt(business.whatsapp_access_token)
+      : null;
+
     if (isPlanExpired(business)) {
       logger.warn('Negocio con plan/trial expirado, bot bloqueado', { businessId: business.id });
-      const businessTokenExp = business.whatsapp_access_token
-        ? decrypt(business.whatsapp_access_token)
-        : null;
-      await sendMessage(from, 'Este negocio no está disponible en este momento, intenta más tarde 🙏', businessTokenExp, business.whatsapp_phone_number_id);
+      await sendMessage(from, 'Este negocio no está disponible en este momento, intenta más tarde 🙏', businessToken, business.whatsapp_phone_number_id);
       await notifyOwnerPlanExpired(business);
       return;
     }
 
-    // Dedupe atómico: registrar inmediatamente que estamos procesando este message_id.
-    // Si ya está procesado (reintento de Meta), ignorar sin reprocesar.
-    if (messageId) {
-      const alreadyProcessed = await isMessageAlreadyProcessed(business.id, from, messageId);
-      if (alreadyProcessed) {
-        logger.info('Mensaje duplicado ignorado:', messageId);
-        return;
-      }
+    // Una sola lectura de la fila de conversación: pausa + historial
+    const conversation = await loadConversation(business.id, from);
+    const history = conversation?.messages || [];
+
+    if (conversation?.bot_paused_until && new Date(conversation.bot_paused_until) > new Date()) {
+      // Pausado (escalado a humano): no responde, pero el mensaje queda en el historial para el dueño
+      // y para que el bot tenga el contexto cuando se reactive. No se reprocesa después.
+      await saveConversationHistory(business.id, from, [...history, { role: 'user', content: messageText, timestamp: receivedAt }]);
+      logger.info('Bot pausado para el cliente; mensaje guardado sin responder', { businessId: business.id, to: maskPhone(from) });
+      return;
     }
 
-    // Verificar si el bot está pausado para este cliente
-    const { data: convPausa } = await supabaseAdmin
-      .from('whatsapp_conversations')
-      .select('bot_paused_until')
-      .eq('business_id', business.id)
-      .eq('client_phone', from)
-      .maybeSingle();
-
-    if (convPausa?.bot_paused_until) {
-      const pausadoHasta = new Date(convPausa.bot_paused_until);
-      if (pausadoHasta > new Date()) {
-        logger.info('Bot pausado para cliente hasta: ' + pausadoHasta.toISOString() + ' cliente: ' + from);
-        return;
-      }
-    }
-
-    const businessToken = business.whatsapp_access_token
-      ? decrypt(business.whatsapp_access_token)
-      : null;
-
-    const [client_info, history] = await Promise.all([
-      getOrCreateClient(business.id, from),
-      getConversationHistory(business.id, from)
-    ]);
+    const client_info = await getOrCreateClient(business.id, from);
 
     logger.info('Cliente e historial cargados', { clientId: client_info?.id, historyLength: history.length });
-
     // Verificar límites diarios: 50 msgs/cliente/día, 300 msgs/negocio/día
     const hoyColombia = new Date().toLocaleDateString('en-CA', { timeZone: 'America/Bogota' });
 
@@ -2598,6 +2533,13 @@ async function processWhatsAppMessage({ from, phoneNumberId, messageText, messag
       return;
     }
 
+    // WhatsApp rechaza mensajes vacíos: si el modelo no dejó texto (p. ej. agotó las iteraciones), respaldo
+    if (!result.response || !String(result.response).trim()) {
+      logger.error('[BOT_RESPUESTA_VACIA]', { businessId: business.id });
+      await logSystemAlert('bot_empty_response', 'El bot terminó sin texto para responder', business.id, { messageType: 'bot_response' });
+      result.response = 'Perdona, no te entendí bien 🙏 ¿Me lo puedes decir de otra forma?';
+    }
+
     try {
       // Solo texto: el mensaje del cliente (con la hora en que llegó) y la respuesta final del bot
       await saveConversationHistory(business.id, from, [
@@ -2606,67 +2548,39 @@ async function processWhatsAppMessage({ from, phoneNumberId, messageText, messag
         { role: 'assistant', content: result.response }
       ]);
       await incrementDailyMessageCount(business.id, from);
-      logger.info('Historial guardado');
     } catch(e) {
       logger.error('Error guardando historial:', e.message);
     }
 
-    let sendSuccess = false;
     try {
       const sendResult = await sendMessage(from, result.response, businessToken, business.whatsapp_phone_number_id);
-      if (!sendResult.success && sendResult.success !== undefined) {
-        logger.error('[WHATSAPP_SEND_FAILED] Envío de respuesta fallido', {
-          to: from,
-          businessId: business.id,
-          error: sendResult.error,
-          status: sendResult.status
-        });
-        await logSystemAlert('whatsapp_send_failed',
-          `Fallo envío de respuesta del bot a ${from}`,
-          business.id,
-          { to: from, error: sendResult.error, messageType: 'bot_response' });
+      if (sendResult && sendResult.success === false) {
+        logger.error('[WHATSAPP_SEND_FAILED] Envío de respuesta fallido', { to: maskPhone(from), businessId: business.id, error: sendResult.error, status: sendResult.status });
+        await logSystemAlert('whatsapp_send_failed', 'Fallo envío de respuesta del bot', business.id,
+          { to: maskPhone(from), error: sendResult.error, messageType: 'bot_response' });
       } else {
-        sendSuccess = true;
         logger.info('Mensaje enviado al cliente');
-        // Actualizar last_bot_response_at para evitar respuestas múltiples
-        try {
-          await supabaseAdmin
-            .from('whatsapp_conversations')
-            .update({ last_bot_response_at: new Date().toISOString() })
-            .eq('business_id', business.id)
-            .eq('client_phone', from);
-        } catch(e) {
-          logger.error('Error actualizando last_bot_response_at:', e.message);
-        }
       }
     } catch(e) {
       logger.error('Error enviando mensaje:', e.message);
-      await logSystemAlert('whatsapp_send_failed',
-        `Excepción en envío de respuesta del bot a ${from}`,
-        business.id,
-        { to: from, error: e.message, messageType: 'bot_response' });
-    }
-
-    // Marcar mensaje como procesado SOLO si el envío fue exitoso
-    if (messageId && sendSuccess) {
-      await markMessageProcessed(business.id, from, messageId);
+      await logSystemAlert('whatsapp_send_failed', 'Excepción en envío de respuesta del bot', business.id,
+        { to: maskPhone(from), error: e.message, messageType: 'bot_response' });
     }
 
   } catch (error) {
     logger.error('Error general en processWhatsAppMessage:', error.message);
+    // El respaldo sale SIEMPRE desde el número del negocio (con su token). Si no se pudo resolver el negocio,
+    // no se manda nada: antes salía desde el número global de ZITA.
+    if (!business?.whatsapp_phone_number_id || !businessToken) return;
     try {
-      const sendResult = await sendMessage(from, 'Tuve un problema técnico 😕 Intenta escribirme de nuevo en un momento.');
-      if (!sendResult.success && sendResult.success !== undefined) {
-        await logSystemAlert('whatsapp_send_failed',
-          `Fallo envío de mensaje de fallback a ${from}`,
-          null,
-          { to: from, error: sendResult.error, messageType: 'fallback' });
+      const sendResult = await sendMessage(from, 'Tuve un problema técnico 😕 Intenta escribirme de nuevo en un momento.', businessToken, business.whatsapp_phone_number_id);
+      if (sendResult && sendResult.success === false) {
+        await logSystemAlert('whatsapp_send_failed', 'Fallo envío de mensaje de respaldo del bot', business.id,
+          { to: maskPhone(from), error: sendResult.error, messageType: 'fallback' });
       }
-    } catch(e) {
-      await logSystemAlert('whatsapp_send_failed',
-        `Excepción en envío de mensaje de fallback a ${from}`,
-        null,
-        { to: from, error: e.message, messageType: 'fallback' });
+    } catch (e) {
+      await logSystemAlert('whatsapp_send_failed', 'Excepción en envío de mensaje de respaldo del bot', business.id,
+        { to: maskPhone(from), error: e.message, messageType: 'fallback' });
     }
   }
 }

@@ -81,4 +81,37 @@ function pendingReminder(messages, now = Date.now()) {
   return { appointmentId: last.appointment_id, sentAt: new Date(sentAt) };
 }
 
-module.exports = { MAX_STORED_MESSAGES, cleanMessages, loadConversation, saveMessages, appendMessage, lastInboundAt, pendingReminder };
+// ── Idempotencia del webhook ─────────────────────────────────────────────────────────────────────────
+// INSERT en wa_processed_messages (message_id es PK, migración 064): el primero gana y el reintento de Meta
+// choca con 23505. Es atómico aunque haya varias réplicas. Si la tabla todavía no existe, respaldo con el
+// array processed_message_ids de la conversación + memoria del proceso (no atómico, como antes).
+const memorySeen = new Map();
+function rememberInMemory(messageId) {
+  if (memorySeen.has(messageId)) return false;
+  memorySeen.set(messageId, Date.now());
+  if (memorySeen.size > 5000) memorySeen.delete(memorySeen.keys().next().value);
+  return true;
+}
+
+async function claimMessageId(businessId, clientPhone, messageId) {
+  if (!messageId) return true;
+  const { error } = await supabaseAdmin
+    .from('wa_processed_messages')
+    .insert({ message_id: String(messageId).slice(0, 200), business_id: businessId });
+  if (!error) return true;
+  if (error.code === '23505') return false;
+
+  logger.warn('[DEDUPE_TABLE_UNAVAILABLE] usando respaldo (¿falta la migración 064?)', { code: error.code });
+  if (!rememberInMemory(messageId)) return false;
+  const conv = await loadConversation(businessId, clientPhone);
+  const ids = conv?.processed_message_ids || [];
+  if (ids.includes(messageId)) return false;
+  const { error: upErr } = await supabaseAdmin
+    .from('whatsapp_conversations')
+    .upsert({ business_id: businessId, client_phone: clientPhone, processed_message_ids: [...ids, messageId].slice(-50) },
+      { onConflict: 'business_id,client_phone' });
+  if (upErr) logger.warn('[DEDUPE_FALLBACK_SAVE_FAILED]', { error: upErr.message });
+  return true;
+}
+
+module.exports = { MAX_STORED_MESSAGES, cleanMessages, loadConversation, saveMessages, appendMessage, lastInboundAt, pendingReminder, claimMessageId };

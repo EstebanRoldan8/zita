@@ -31,6 +31,13 @@ api.interceptors.response.use(
       window.location.href = '/login';
     } else if (error.response?.status === 403 && error.response?.data?.code === 'SUBSCRIPTION_EXPIRED') {
       localStorage.setItem('subscription_expired', 'true');
+    } else if (
+      error.response?.status === 404 &&
+      error.response?.data?.error === 'Negocio no encontrado' &&
+      String(error.config?.url || '').startsWith('/api/me')
+    ) {
+      // El empleado perdió el acceso (revocado o desactivado): AuthContext lo saca del panel
+      window.dispatchEvent(new Event('zita:access-lost'));
     }
     return Promise.reject(error);
   }

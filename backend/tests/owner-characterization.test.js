@@ -171,3 +171,23 @@ test('vender producto de otro negocio → 404', async () => {
   const r = await call(products.sell, owner({ params: { id: PROD }, body: { quantity: 1 } }));
   assert.equal(r.status, 404);
 });
+
+// Cambio intencional al compartir el núcleo de la venta: referencias de otro negocio se rechazan
+test('vender con cliente o cita de otro negocio → 400 y no toca el stock', async () => {
+  seedProduct();
+  fake.db.clients.push({ id: '88888888-8888-4888-8888-888888888888', business_id: '99999999-9999-4999-8999-999999999999', name: 'Ajeno' });
+  const r1 = await call(products.sell, owner({ params: { id: PROD }, body: { quantity: 1, client_id: '88888888-8888-4888-8888-888888888888' } }));
+  assert.equal(r1.status, 400);
+  const r2 = await call(products.sell, owner({ params: { id: PROD }, body: { quantity: 1, appointment_id: '88888888-8888-4888-8888-888888888888' } }));
+  assert.equal(r2.status, 400);
+  const r3 = await call(products.sell, owner({ params: { id: PROD }, body: { quantity: 1, client_id: 'no-es-uuid' } }));
+  assert.equal(r3.status, 400);
+  assert.equal(rpcCalls.length, 0);
+  assert.equal(fake.db.product_sales, undefined);
+});
+
+test('la venta del dueño no escribe sold_by_employee_id (funciona sin la migración 066)', async () => {
+  seedProduct();
+  await call(products.sell, owner({ params: { id: PROD }, body: { quantity: 1 } }));
+  assert.equal('sold_by_employee_id' in fake.db.product_sales[0], false);
+});

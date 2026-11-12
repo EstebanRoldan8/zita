@@ -1,9 +1,9 @@
 const { parseGender } = require('../utils/gender');
-const crypto = require('crypto');
 const { parseFilters, applyFilters, describeSource } = require('../utils/inventoryHistory');
 const { createUserClient, supabaseAdmin } = require('../config/supabase');
 const logger = require('../utils/logger');
 const { getTimezone } = require('../utils/timezone');
+const { sellProduct } = require('../services/productSale');
 const { generarSku } = require('../utils/sku');
 const { findLowStock } = require('../utils/lowStock');
 const { normalizeOptionKey } = require('../utils/optionKey');
@@ -489,129 +489,15 @@ async function deleteProduct(req, res) {
 
 async function sell(req, res) {
   try {
-    const sb = createUserClient(req.headers.authorization);
-    const { id } = req.params;
-    const { quantity, client_id, appointment_id, sold_via = 'presencial', variant_id } = req.body;
-
-    const qty = Number(quantity);
-    if (!qty || qty <= 0 || !Number.isInteger(qty)) {
-      return res.status(400).json({ success: false, error: 'La cantidad debe ser un número entero positivo.' });
-    }
-
-    const { data: product, error: pErr } = await sb
-      .from('products').select('*').eq('id', id).eq('business_id', req.businessId).single();
-    if (pErr || !product) return res.status(404).json({ success: false, error: 'Producto no encontrado.' });
-    if (!product.is_active) return res.status(400).json({ success: false, error: 'El producto no está activo.' });
-    if (product.is_bundle) {
-      return res.status(400).json({ success: false, error: 'Los sets no se venden desde caja: registra la venta como pedido, que descuenta cada producto del set.' });
-    }
-
-    if (product.has_variants && !variant_id) {
-      return res.status(400).json({ success: false, error: 'Este producto tiene variantes, debes especificar cuál (talla/color).' });
-    }
-
-    let availableStock = product.stock;
-    let variantRecord = null;
-
-    if (product.has_variants && variant_id) {
-      const { data: variant, error: varErr } = await sb
-        .from('product_variants')
-        .select('*')
-        .eq('id', variant_id)
-        .eq('product_id', id)
-        .eq('business_id', req.businessId)
-        .single();
-      if (varErr || !variant) {
-        return res.status(404).json({ success: false, error: 'Variante no encontrada.' });
-      }
-      variantRecord = variant;
-      availableStock = variant.stock;
-    }
-
-    const totalAmount = Number(product.price) * qty;
-    let newStock;
-    // El movimiento de inventario queda enlazado al registro de la venta (product_sales.id)
-    const saleId = crypto.randomUUID();
-
-    try {
-      const { data: rpcData, error: rpcError } = await supabaseAdmin.rpc('adjust_stock', {
-        p_business_id: req.businessId,
-        p_product_id: id,
-        p_variant_id: variant_id || null,
-        p_change: -qty,
-        p_type: 'venta',
-        p_reason: null,
-        p_ref_type: 'product_sale',
-        p_ref_id: saleId,
-        p_user: req.user?.id || null,
-      });
-      if (rpcError) throw rpcError;
-      newStock = rpcData;
-    } catch (err) {
-      if (err.message?.includes('STOCK_INSUFICIENTE_O_NO_ENCONTRADO')) {
-        // Se consulta después del fallo (sin pre-chequeo) para no reabrir la condición de carrera
-        const { data: current } = variant_id
-          ? await sb.from('product_variants').select('stock').eq('id', variant_id).eq('business_id', req.businessId).maybeSingle()
-          : await sb.from('products').select('stock').eq('id', id).eq('business_id', req.businessId).maybeSingle();
-        if (current && current.stock != null) {
-          return res.status(400).json({ success: false, error: `Stock insuficiente. Disponible: ${current.stock}.` });
-        }
-        return res.status(400).json({ success: false, error: 'Ya no hay stock suficiente de este producto.' });
-      }
-      throw err;
-    }
-
-    const { error: saleErr } = await sb
-      .from('product_sales')
-      .insert({
-        id:             saleId,
-        business_id:    req.businessId,
-        product_id:     id,
-        variant_id:     variant_id || null,
-        quantity:       qty,
-        total_amount:   totalAmount,
-        client_id:      client_id || null,
-        appointment_id: appointment_id || null,
-        sold_via,
-      });
-    if (saleErr) throw saleErr;
-
-    const saleDate = new Date().toLocaleDateString('en-CA', { timeZone: getTimezone(req.business?.country) });
-
-    const { data: incomeData, error: incomeErr } = await sb
-      .from('income')
-      .insert({
-        business_id: req.businessId,
-        amount:      totalAmount,
-        category:    'productos',
-        description: `Venta: ${product.name}${qty > 1 ? ` ×${qty}` : ''}`,
-        date:        saleDate,
-        client_id:   client_id || null,
-        source:      'product_sale',
-      })
-      .select('id');
-    if (incomeErr || !incomeData || incomeData.length === 0) {
-      logger.warn('products.sell income: ' + (incomeErr?.message || 'no row inserted'));
-    }
-
-    if (product.cost_price != null) {
-      const costoTotal = Number(product.cost_price) * qty;
-      const { data: expData, error: expErr } = await sb
-        .from('expenses')
-        .insert({
-          business_id: req.businessId,
-          amount:      costoTotal,
-          category:    'productos',
-          description: `Costo de venta: ${product.name} (${qty} unidades)`,
-          date:        saleDate,
-        })
-        .select('id');
-      if (expErr || !expData || expData.length === 0) {
-        logger.warn('products.sell expense: ' + (expErr?.message || 'no row inserted'));
-      }
-    }
-
-    return res.json({ success: true, data: { stock: newStock, total_amount: totalAmount } });
+    // Núcleo compartido con el panel del empleado (services/productSale.js)
+    const result = await sellProduct({
+      db: createUserClient(req.headers.authorization),
+      businessId: req.businessId,
+      productId: req.params.id,
+      country: req.business?.country,
+      userId: req.user?.id,
+    }, req.body);
+    return res.status(result.status).json(result.body);
   } catch (err) {
     logger.error('products.sell: ' + err.message);
     return res.status(500).json({ success: false, error: 'Error al registrar la venta.' });

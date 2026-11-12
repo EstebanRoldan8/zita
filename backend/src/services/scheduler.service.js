@@ -1,5 +1,4 @@
 const cron = require('node-cron');
-const { sendMessage } = require('../config/whatsapp');
 const { supabaseAdmin } = require('../config/supabase');
 const { reconcileWompiPaymentsWithAPI } = require('./wompi.service');
 const { checkTrialExpiringWarnings } = require('./notification.service');
@@ -8,6 +7,7 @@ const logger = require('../utils/logger');
 const { logSystemAlert } = require('../utils/systemAlerts');
 const { maskPhone } = require('../utils/phone');
 const { appendMessage } = require('./conversationStore');
+const { notify } = require('./whatsappNotify');
 
 let schedulerInitialized = false;
 
@@ -234,6 +234,13 @@ function reminderText(cita) {
   return `⏰ *Recordatorio de tu cita*\n\nHola${nombre}! Te recordamos que tienes una cita en *${cita.businesses?.name}* a las *${hora}* para *${cita.services?.name || 'tu servicio'}*.\n\nResponde *SÍ* para confirmar o *NO* si necesitas cancelarla.`;
 }
 
+// Parámetros de la plantilla recordatorio_cita: {{1}} nombre, {{2}} negocio, {{3}} hora, {{4}} servicio
+function reminderParams(cita) {
+  const hora = new Date(cita.scheduled_at).toLocaleTimeString('es-CO', { hour: '2-digit', minute: '2-digit', timeZone: 'America/Bogota' });
+  const nombre = cita.clients?.name && cita.clients.name !== 'Cliente WhatsApp' ? cita.clients.name : 'Hola';
+  return [nombre, cita.businesses?.name || '', hora, cita.services?.name || 'tu servicio'];
+}
+
 async function sendAppointmentReminders(now = new Date()) {
   const desde = new Date(now.getTime() + REMINDER_FROM_MIN * 60000).toISOString();
   const hasta = new Date(now.getTime() + REMINDER_TO_MIN * 60000).toISOString();
@@ -283,7 +290,15 @@ async function sendAppointmentReminders(now = new Date()) {
 
       const mensaje = reminderText(cita);
       const token = decrypt(negocio.whatsapp_access_token);
-      const sendResult = await sendMessage(phone, mensaje, token, negocio.whatsapp_phone_number_id);
+      // Casi siempre cae fuera de la ventana de 24 h: plantilla con botones Confirmo / Cancelar (si están activas)
+      const { via, result: sendResult } = await notify({
+        to: phone,
+        text: mensaje,
+        template: { key: 'recordatorio_cita', body: reminderParams(cita), buttons: ['CONFIRMAR_CITA', 'CANCELAR_CITA'] },
+        token,
+        phoneNumberId: negocio.whatsapp_phone_number_id,
+        businessId: cita.business_id,
+      });
       if (sendResult && sendResult.success === false) {
         errors++;
         logger.error('[RECORDATORIO_SEND_FAILED]', { to: maskPhone(phone), citaId: cita.id, error: sendResult.error });
@@ -293,7 +308,7 @@ async function sendAppointmentReminders(now = new Date()) {
       }
       await appendMessage(cita.business_id, phone, { role: 'assistant', content: mensaje, kind: 'reminder', appointment_id: cita.id });
       sent++;
-      logger.info('[RECORDATORIO_ENVIADO]', { citaId: cita.id, to: maskPhone(phone) });
+      logger.info('[RECORDATORIO_ENVIADO]', { citaId: cita.id, to: maskPhone(phone), via });
     } catch (err) {
       errors++;
       logger.error('Error enviando recordatorio:', err.message);
@@ -360,8 +375,19 @@ cron.schedule('0 12 * * *', async () => {
       const mensaje = `🗓️ *Buenos días! Resumen de citas para hoy:*\n\n${lista}\n\n💰 *Total estimado: $${total.toLocaleString('es-CO')}*\n\n¡Que sea un gran día! 💪`;
 
       const token = decrypt(negocio.whatsapp_access_token);
-      await sendMessage(negocio.owner_whatsapp, mensaje, token, negocio.whatsapp_phone_number_id);
-      logger.info(`Resumen enviado a ${negocio.name}`);
+      const listaUnaLinea = citas.map(c => {
+        const h = new Date(c.scheduled_at).toLocaleTimeString('es-CO', { hour: '2-digit', minute: '2-digit', timeZone: 'America/Bogota' });
+        return `${h} ${c.services?.name || 'Servicio'}`;
+      }).join(' · ');
+      const { via } = await notify({
+        to: negocio.owner_whatsapp,
+        text: mensaje,
+        template: { key: 'resumen_diario', body: [String(citas.length), listaUnaLinea, `${total.toLocaleString('es-CO')}`] },
+        token,
+        phoneNumberId: negocio.whatsapp_phone_number_id,
+        businessId: negocio.id,
+      });
+      logger.info('[RESUMEN_DIARIO_ENVIADO]', { business_id: negocio.id, via });
     } catch (error) {
       logger.error(`Error enviando resumen a ${negocio.name}:`, error.message);
     }
@@ -435,4 +461,4 @@ cron.schedule('0 14 * * *', async () => {
   logger.info('Usando database locks para evitar duplicados en múltiples instancias');
 };
 
-module.exports = { initScheduler, autoCompleteAppointments, deleteCitaIncome, sendAppointmentReminders, reminderText };
+module.exports = { initScheduler, autoCompleteAppointments, deleteCitaIncome, sendAppointmentReminders, reminderText, reminderParams };

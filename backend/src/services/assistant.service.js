@@ -4094,7 +4094,7 @@ async function executeTool(toolName, toolInput, businessId) {
         .eq('business_id', businessId)
         .not('phone', 'is', null);
 
-      const { sendMessage } = require('../config/whatsapp');
+      const { notify } = require('./whatsappNotify');
       const { decrypt } = require('../utils/encrypt');
       const businessToken = biz?.whatsapp_access_token ? decrypt(biz.whatsapp_access_token) : null;
       const phoneNumberId = biz?.whatsapp_phone_number_id;
@@ -4106,7 +4106,19 @@ async function executeTool(toolName, toolInput, businessId) {
             .replace('{nombre}', cliente.name)
             .replace('{negocio}', biz?.name || 'el negocio');
 
-          await sendMessage(cliente.phone, mensaje, businessToken, phoneNumberId);
+          // Clientes que no vienen hace 30-90 días: fuera de la ventana de 24 h → plantilla te_extranamos (si están activas)
+          const { result: envio } = await notify({
+            to: cliente.phone,
+            text: mensaje,
+            template: { key: 'te_extranamos', body: [cliente.name, biz?.name || 'el negocio'] },
+            token: businessToken,
+            phoneNumberId,
+            businessId,
+          });
+          if (envio && envio.success === false) {
+            resultados.push({ nombre: cliente.name, success: false, error: 'WhatsApp no aceptó el mensaje' });
+            continue;
+          }
 
           await supabaseAdmin.from('recall_logs').insert({
             business_id: businessId,

@@ -12,6 +12,16 @@ const { deleteCitaIncome } = require('./scheduler.service');
 const { logSystemAlert } = require('../utils/systemAlerts');
 const { getPlan } = require('../config/plans');
 const { maskPhone } = require('../utils/phone');
+const { notify } = require('./whatsappNotify');
+
+// Desde qué número se avisa al dueño: el del negocio con su token; si el negocio no tiene token, el número
+// global de ZITA (token y número globales juntos: mezclar el token global con el número del negocio falla).
+function ownerSender(business) {
+  if (business?.whatsapp_access_token && business?.whatsapp_phone_number_id) {
+    return { token: decrypt(business.whatsapp_access_token), phoneNumberId: business.whatsapp_phone_number_id };
+  }
+  return { token: null, phoneNumberId: null };
+}
 const { loadConversation, saveMessages, pendingReminder } = require('./conversationStore');
 
 // Respuestas exactas a un recordatorio (solo se usan si lo último que mandó el bot fue el recordatorio)
@@ -90,11 +100,18 @@ function setCachedHours(businessId, hours) {
 async function transcribeAudio(audioUrl, accessToken) {
   try {
     const audioResponse = await fetch(audioUrl, {
-      headers: { Authorization: `Bearer ${accessToken}` }
+      headers: { Authorization: `Bearer ${accessToken}` },
+      signal: AbortSignal.timeout(20000)
     });
 
     if (!audioResponse.ok) {
       logger.error('AUDIO_DOWNLOAD_FAIL_' + audioResponse.status);
+      return null;
+    }
+    // Notas de voz de WhatsApp: máx. 16 MB. Más que eso no se descarga ni se transcribe (costo y memoria)
+    const MAX_AUDIO_BYTES = 16 * 1024 * 1024;
+    if (Number(audioResponse.headers.get('content-length') || 0) > MAX_AUDIO_BYTES) {
+      logger.warn('AUDIO_DEMASIADO_GRANDE');
       return null;
     }
 
@@ -122,13 +139,13 @@ async function transcribeAudio(audioUrl, accessToken) {
           ...form.getHeaders()
         },
         timeout: 20000,
-        maxBodyLength: Infinity,
-        maxContentLength: Infinity
+        maxBodyLength: 25 * 1024 * 1024, // límite de Groq
+        maxContentLength: 1024 * 1024
       }
     );
 
     const transcribedText = groqResponse.data;
-    logger.info('TRANSCRIPCION_OK_' + String(transcribedText).slice(0, 100).replace(/\s+/g, '_'));
+    logger.info('TRANSCRIPCION_OK', { length: String(transcribedText).length }); // nunca el texto (PII)
     return typeof transcribedText === 'string' ? transcribedText.trim() : null;
 
   } catch (err) {
@@ -704,10 +721,9 @@ async function notifyOwnerPlanExpired(business) {
     const mensajeDueno = '⚠️ Tu plan ZITA expiró y un cliente te está escribiendo. Renueva para seguir atendiendo por WhatsApp.';
 
     if (business.phone) {
-      const businessTokenNotif = business.whatsapp_access_token
-        ? decrypt(business.whatsapp_access_token)
-        : process.env.WHATSAPP_ACCESS_TOKEN;
-      await sendMessage(business.phone, mensajeDueno, businessTokenNotif, business.whatsapp_phone_number_id);
+      // Aviso al dueño: casi siempre fuera de la ventana de 24 h → plantilla plan_vencido (si están activas)
+      const { token, phoneNumberId } = ownerSender(business);
+      await notify({ to: business.phone, text: mensajeDueno, template: { key: 'plan_vencido', body: [business.name] }, token, phoneNumberId, businessId: business.id });
     }
 
     if (business.owner_email) {
@@ -921,7 +937,7 @@ async function getOrCreateClient(businessId, phone, name = null) {
 
   // Race condition: otro proceso creó el cliente casi simultáneamente (UNIQUE violation)
   if (newClientError.code === '23505') {
-    logger.info('[GET_OR_CREATE_CLIENT_UNIQUE_COLLISION]', { businessId, phone });
+    logger.info('[GET_OR_CREATE_CLIENT_UNIQUE_COLLISION]', { businessId, phone: maskPhone(phone) });
     const { data: recoveredArr } = await supabaseAdmin
       .from('clients')
       .select('id, name')
@@ -957,12 +973,12 @@ async function incrementDailyMessageCount(businessId, clientPhone) {
   });
 
   if (error) {
-    logger.error('Error incrementando contador diario:', { businessId, clientPhone, error: error.message });
+    logger.error('Error incrementando contador diario:', { businessId, phone: maskPhone(clientPhone), error: error.message });
   }
 }
 
 async function processChatbotMessage(businessId, clientPhone, messageText, history, business, clientInfo = null) {
-  logger.info('Procesando mensaje del chatbot', { businessId, clientPhone, messageLength: messageText.length, historyLength: history.length });
+  logger.info('Procesando mensaje del chatbot', { businessId, phone: maskPhone(clientPhone), messageLength: messageText.length, historyLength: history.length });
 
   let businessHours = getCachedHours(businessId);
   if (!businessHours) {
@@ -1386,7 +1402,7 @@ async function processChatbotMessage(businessId, clientPhone, messageText, histo
               .single();
 
             if (nuevoClienteError || !nuevoCliente) {
-              logger.warn('[AGENDAR_CITA_CLIENT_INSERT_FAILED]', { businessId, clientPhone, error: nuevoClienteError?.message });
+              logger.warn('[AGENDAR_CITA_CLIENT_INSERT_FAILED]', { businessId, phone: maskPhone(clientPhone), error: nuevoClienteError?.message });
               return { success: false, error: 'No se pudo registrar el cliente para agendar la cita' };
             }
             clienteExistente = nuevoCliente;
@@ -1502,27 +1518,26 @@ async function processChatbotMessage(businessId, clientPhone, messageText, histo
                   `🕐 *Fecha y hora:* ${horaFormateadaNotif}\n` +
                   `💰 *Precio:* $${servicio.price.toLocaleString('es-CO')}`;
 
-                const businessTokenNotif = business?.whatsapp_access_token
-                  ? require('../utils/encrypt').decrypt(business.whatsapp_access_token)
-                  : process.env.WHATSAPP_ACCESS_TOKEN;
-
-                const sendResultNotif = await sendMessage(
-                  negocioNotif.phone,
-                  mensajeDueno,
-                  businessTokenNotif,
-                  negocioNotif.whatsapp_phone_number_id || business.whatsapp_phone_number_id
-                );
+                const sender = ownerSender(business);
+                const { result: sendResultNotif } = await notify({
+                  to: negocioNotif.phone,
+                  text: mensajeDueno,
+                  template: { key: 'aviso_nueva_cita', body: [clienteNombre, clientPhone, `${servicio.name}${empleadoNombreNotif}`, horaFormateadaNotif, `${Number(servicio.price).toLocaleString('es-CO')}`] },
+                  token: sender.token,
+                  phoneNumberId: sender.phoneNumberId,
+                  businessId,
+                });
 
                 if (!sendResultNotif.success && sendResultNotif.success !== undefined) {
                   logger.error('[NUEVA_CITA_NOTIF_FAILED]', {
-                    to: negocioNotif.phone,
+                    to: maskPhone(negocioNotif.phone),
                     businessId,
                     error: sendResultNotif.error
                   });
                   await logSystemAlert('whatsapp_send_failed',
                     `Fallo notificación de nueva cita al dueño de ${negocioNotif.name}`,
                     businessId,
-                    { to: negocioNotif.phone, error: sendResultNotif.error, messageType: 'nueva_cita_notif' });
+                    { to: maskPhone(negocioNotif.phone), error: sendResultNotif.error, messageType: 'nueva_cita_notif' });
                 } else {
                   logger.info('Notificación enviada al dueño por nueva cita WhatsApp');
                 }
@@ -1896,37 +1911,38 @@ async function processChatbotMessage(businessId, clientPhone, messageText, histo
               return { success: false, message: 'No se pudo notificar al dueño — número no configurado.' };
             }
 
-            const { sendMessage } = require('../config/whatsapp');
             const clientNombre = clientInfo?.name && clientInfo.name !== 'Cliente WhatsApp'
               ? clientInfo.name
               : 'Un cliente';
 
+            // El motivo lo redacta el modelo a partir del texto del cliente: se recorta (riesgo de phishing al dueño)
+            const motivo = String(toolInput.motivo || 'Quiere hablar con una persona').replace(/[\r\n]+/g, ' ').slice(0, 200);
             const mensajeDueño = `⚠️ *Atención requerida en ${negocio.name}*\n\n` +
               `Tu cliente *${clientNombre}* (${clientPhone}) quiere hablar contigo.\n\n` +
-              `*Motivo:* ${toolInput.motivo}\n\n` +
+              `*Motivo:* ${motivo}\n\n` +
               `Contáctalo directamente por WhatsApp.`;
 
-            const businessToken = business?.whatsapp_access_token
-              ? require('../utils/encrypt').decrypt(business.whatsapp_access_token)
-              : process.env.WHATSAPP_ACCESS_TOKEN;
-
-            const sendResult = await sendMessage(
-              negocio.phone,
-              mensajeDueño,
-              businessToken,
-              business.whatsapp_phone_number_id
-            );
+            // Fuera de la ventana de 24 h con el dueño → plantilla aviso_escalamiento (si están activas)
+            const sender = ownerSender(business);
+            const { result: sendResult } = await notify({
+              to: negocio.phone,
+              text: mensajeDueño,
+              template: { key: 'aviso_escalamiento', body: [negocio.name, clientNombre, clientPhone, motivo] },
+              token: sender.token,
+              phoneNumberId: sender.phoneNumberId,
+              businessId,
+            });
 
             if (!sendResult.success && sendResult.success !== undefined) {
               logger.error('[ESCALAMIENTO_SEND_FAILED]', {
-                to: negocio.phone,
+                to: maskPhone(negocio.phone),
                 businessId,
                 error: sendResult.error
               });
               await logSystemAlert('whatsapp_send_failed',
                 `CRÍTICO: Fallo notificación de escalamiento a dueño de ${negocio.name}`,
                 businessId,
-                { to: negocio.phone, error: sendResult.error, messageType: 'escalamiento_humano' });
+                { to: maskPhone(negocio.phone), error: sendResult.error, messageType: 'escalamiento_humano' });
               return {
                 success: false,
                 message: 'No se pudo notificar al dueño del escalamiento. Intenta de nuevo o contacta directamente.'
@@ -1946,7 +1962,7 @@ async function processChatbotMessage(businessId, clientPhone, messageText, histo
             if (updateError || !pauseData || pauseData.length === 0) {
               logger.error('[ESCALAR_PAUSE_FAILED]', {
                 businessId,
-                clientPhone,
+                phone: maskPhone(clientPhone),
                 error: updateError?.message
               });
               return {
@@ -1955,7 +1971,7 @@ async function processChatbotMessage(businessId, clientPhone, messageText, histo
               };
             }
 
-            logger.info('Bot pausado por 3 horas para cliente:', { clientPhone, hasta: pausadoHasta.toISOString() });
+            logger.info('Bot pausado por 3 horas para cliente:', { phone: maskPhone(clientPhone), hasta: pausadoHasta.toISOString() });
 
             return {
               success: true,
@@ -2018,7 +2034,7 @@ async function processChatbotMessage(businessId, clientPhone, messageText, histo
               .select('id');
 
             if (grupoError || !grupoData || grupoData.length === 0) {
-              logger.warn('[GESTIONAR_GRUPO_UPSERT_FAILED]', { businessId, clientPhone, error: grupoError?.message });
+              logger.warn('[GESTIONAR_GRUPO_UPSERT_FAILED]', { businessId, phone: maskPhone(clientPhone), error: grupoError?.message });
             }
 
             return {

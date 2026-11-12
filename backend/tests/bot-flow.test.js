@@ -64,4 +64,66 @@ test('plan Lite con 40 mensajes hoy: responde con el aviso de límite', async ()
   assert.match(env.sent[0].text, /límite de mensajes/);
 });
 
-module.exports = { fake, env, chatbot, reset, msg, BIZ, PNID, PHONE, EN_3H, EN_2D, seed };
+// ── Atajo de sí/no: SOLO cuando el último mensaje del bot fue el recordatorio de una cita ─────────────────
+const CITA_HOY = 'cccccccc-0000-4000-8000-000000000001';
+const CITA_2D = 'cccccccc-0000-4000-8000-000000000002';
+const conv = (messages) => fake.db.whatsapp_conversations.push({ id: 'conv-1', business_id: BIZ, client_phone: PHONE, messages, context: {}, processed_message_ids: [] });
+const ago = (min) => new Date(Date.now() - min * 60000).toISOString();
+
+test('"no" a una pregunta cualquiera del bot NO cancela ninguna cita (lo atiende Claude con contexto)', async () => {
+  reset('pro');
+  conv([
+    { role: 'user', content: 'quiero un corte para el viernes', timestamp: ago(3) },
+    { role: 'assistant', content: '¿Sigues queriendo para el viernes?', timestamp: ago(2) },
+  ]);
+  const ai = scriptedAnthropic([text('Listo, ¿para qué día entonces?')]);
+  chatbot.__setAnthropicClientForTests(ai);
+  await chatbot.processWhatsAppMessage(msg('no'));
+  assert.ok(fake.db.appointments.every((a) => a.status === 'confirmed'), 'ninguna cita cancelada');
+  assert.equal(ai.requests.length, 1, 'el mensaje fue a Claude');
+  assert.equal(env.sent[0].text, 'Listo, ¿para qué día entonces?');
+});
+
+test('"sí" a una pregunta cualquiera tampoco responde "tu cita está confirmada"', async () => {
+  reset('pro');
+  conv([{ role: 'assistant', content: '¿La cita de Corte a las 3?', timestamp: ago(1) }]);
+  chatbot.__setAnthropicClientForTests(scriptedAnthropic([text('Perfecto, la cancelo entonces?')]));
+  await chatbot.processWhatsAppMessage(msg('sí'));
+  assert.doesNotMatch(env.sent[0].text, /está confirmada/);
+});
+
+test('"no" justo después del recordatorio cancela ESA cita (no la más próxima)', async () => {
+  reset('pro');
+  conv([{ role: 'assistant', content: '⏰ Recordatorio...', timestamp: ago(5), kind: 'reminder', appointment_id: CITA_2D }]);
+  const ai = scriptedAnthropic([]);
+  chatbot.__setAnthropicClientForTests(ai);
+  await chatbot.processWhatsAppMessage(msg('no'));
+  assert.equal(fake.db.appointments.find((a) => a.id === CITA_2D).status, 'cancelled');
+  assert.equal(fake.db.appointments.find((a) => a.id === CITA_HOY).status, 'confirmed');
+  assert.equal(ai.requests.length, 0, 'sin llamar a Claude');
+  assert.match(env.sent[0].text, /cancelé/);
+});
+
+test('"sí" después del recordatorio confirma esa cita', async () => {
+  reset('pro');
+  fake.db.appointments.find((a) => a.id === CITA_HOY).status = 'pending';
+  conv([{ role: 'assistant', content: '⏰ Recordatorio...', timestamp: ago(5), kind: 'reminder', appointment_id: CITA_HOY }]);
+  chatbot.__setAnthropicClientForTests(scriptedAnthropic([]));
+  await chatbot.processWhatsAppMessage(msg('si'));
+  assert.equal(fake.db.appointments.find((a) => a.id === CITA_HOY).status, 'confirmed');
+  assert.match(env.sent[0].text, /confirmada/);
+});
+
+test('recordatorio seguido de otra conversación: el "no" ya no es respuesta al recordatorio', async () => {
+  reset('pro');
+  conv([
+    { role: 'assistant', content: '⏰ Recordatorio...', timestamp: ago(30), kind: 'reminder', appointment_id: CITA_HOY },
+    { role: 'user', content: '¿tienen cera?', timestamp: ago(10) },
+    { role: 'assistant', content: 'Sí, ¿quieres apartar una?', timestamp: ago(9) },
+  ]);
+  chatbot.__setAnthropicClientForTests(scriptedAnthropic([text('Listo 👍')]));
+  await chatbot.processWhatsAppMessage(msg('no'));
+  assert.ok(fake.db.appointments.every((a) => a.status === 'confirmed'));
+});
+
+module.exports = { fake, env, chatbot, reset, msg, conv, ago, BIZ, PNID, PHONE, EN_3H, EN_2D, CITA_HOY, CITA_2D, seed };

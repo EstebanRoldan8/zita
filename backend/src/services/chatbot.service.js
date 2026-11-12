@@ -11,6 +11,11 @@ const { isPlanExpired } = require('../utils/planStatus');
 const { deleteCitaIncome } = require('./scheduler.service');
 const { logSystemAlert } = require('../utils/systemAlerts');
 const { getPlan } = require('../config/plans');
+const { loadConversation, saveMessages, pendingReminder } = require('./conversationStore');
+
+// Respuestas exactas a un recordatorio (solo se usan si lo último que mandó el bot fue el recordatorio)
+const CONFIRM_WORDS = new Set(['si', 'sí', 'confirmo', 'confirmado', 'ahí estaré', 'ahi estare', 'voy', 'allá voy', 'alla voy', 'por supuesto', 'si voy', 'sí voy', 'confirmar']);
+const CANCEL_WORDS = new Set(['no', 'no puedo', 'cancela', 'cancelar', 'no voy', 'no puedo ir', 'no iré', 'no ire', 'cancela mi cita', 'no asisto']);
 const { callClaudeWithRetry } = require('../utils/anthropicRetry');
 const Groq = require('groq-sdk');
 
@@ -931,47 +936,13 @@ async function getOrCreateClient(businessId, phone, name = null) {
 }
 
 async function getConversationHistory(businessId, clientPhone) {
-  const { data, error } = await supabaseAdmin
-    .from('whatsapp_conversations')
-    .select('messages')
-    .eq('business_id', businessId)
-    .eq('client_phone', clientPhone)
-    .maybeSingle();
-
-  if (error) {
-    logger.error('Error recuperando historial:', error.message);
-    return [];
-  }
-
-  return data?.messages || [];
+  const conv = await loadConversation(businessId, clientPhone);
+  return conv?.messages || [];
 }
 
+// Guarda solo texto (sin bloques de tools ni delimitadores), conservando timestamps y la marca de recordatorio
 async function saveConversationHistory(businessId, clientPhone, messages) {
-  const mensajesLimpios = [];
-
-  for (const m of messages) {
-    if (typeof m.content === 'string' && m.content.trim()) {
-      mensajesLimpios.push({ role: m.role, content: m.content, timestamp: m.timestamp || new Date().toISOString() });
-    } else if (Array.isArray(m.content)) {
-      const textos = m.content
-        .filter(c => c.type === 'text' && c.text?.trim())
-        .map(c => c.text)
-        .join(' ');
-      if (textos) {
-        mensajesLimpios.push({ role: m.role, content: textos, timestamp: m.timestamp || new Date().toISOString() });
-      }
-    }
-  }
-
-  const { error } = await supabaseAdmin
-    .from('whatsapp_conversations')
-    .upsert({
-      business_id: businessId,
-      client_phone: clientPhone,
-      messages: mensajesLimpios.slice(-8)
-    }, { onConflict: 'business_id,client_phone' });
-
-  if (error) logger.error('Error guardando historial:', error.message);
+  await saveMessages(businessId, clientPhone, messages);
 }
 
 async function incrementDailyMessageCount(businessId, clientPhone) {
@@ -2389,6 +2360,7 @@ async function markMessageProcessed(businessId, clientPhone, messageId) {
 }
 
 async function processWhatsAppMessage({ from, phoneNumberId, messageText, messageId }) {
+  const receivedAt = new Date().toISOString();
   logger.info('Mensaje WhatsApp recibido', { from, phoneNumberId, messageId });
 
   try {
@@ -2457,7 +2429,8 @@ async function processWhatsAppMessage({ from, phoneNumberId, messageText, messag
       .eq('date', hoyColombia)
       .maybeSingle();
 
-    const msgLower = messageText.toLowerCase().trim();
+    // Normalizado para los atajos: sin signos ('¡Sí!' → 'sí', 'no.' → 'no')
+    const msgLower = messageText.toLowerCase().replace(/[¡!¿?.,;]+/g, ' ').replace(/\s+/g, ' ').trim();
 
     // Fast-path: saludos/despedidas sin llamar a Claude (si historial vacío o >2h desde último mensaje)
     const esSaludo = ['hola', 'buenas', 'buenos dias', 'buenos días', 'buenas tardes', 'buenas noches', 'hey', 'que tal', 'qué tal'].includes(msgLower);
@@ -2486,7 +2459,7 @@ async function processWhatsAppMessage({ from, phoneNumberId, messageText, messag
           await sendMessage(from, respuesta, businessToken, business.whatsapp_phone_number_id);
           await saveConversationHistory(business.id, from, [
             ...history,
-            { role: 'user', content: messageText },
+            { role: 'user', content: messageText, timestamp: receivedAt },
             { role: 'assistant', content: respuesta }
           ]);
           await incrementDailyMessageCount(business.id, from);
@@ -2496,7 +2469,7 @@ async function processWhatsAppMessage({ from, phoneNumberId, messageText, messag
           await sendMessage(from, respuesta, businessToken, business.whatsapp_phone_number_id);
           await saveConversationHistory(business.id, from, [
             ...history,
-            { role: 'user', content: messageText },
+            { role: 'user', content: messageText, timestamp: receivedAt },
             { role: 'assistant', content: respuesta }
           ]);
           await incrementDailyMessageCount(business.id, from);
@@ -2550,114 +2523,69 @@ async function processWhatsAppMessage({ from, phoneNumberId, messageText, messag
       return;
     }
 
-    // Detección rápida de confirmación/cancelación de cita (respuesta a recordatorio)
+    // Atajo de confirmación/cancelación: SOLO si lo último en la conversación fue el recordatorio de una cita
+    // (guardado por el scheduler con kind:'reminder' y su appointment_id). Un "sí"/"no" a cualquier otra pregunta
+    // del bot va a Claude, que tiene el contexto. Y se actúa sobre ESA cita, no sobre "la más próxima".
+    const recordatorio = pendingReminder(history);
+    const esConfirmacion = CONFIRM_WORDS.has(msgLower);
+    const esCancelacion = CANCEL_WORDS.has(msgLower);
 
-    // SOLO activa si el mensaje es EXACTAMENTE una de estas frases, nada más (sin texto adicional)
-    const esConfirmacion = ['si', 'sí', 'confirmo', 'confirmado', 'ahí estaré', 'ahi estare', 'voy', 'allá voy', 'alla voy', 'por supuesto', 'si voy', 'sí voy'].includes(msgLower);
-    const esCancelacion = ['no', 'no puedo', 'cancela', 'cancelar', 'no voy', 'no puedo ir', 'no iré', 'no ire', 'cancela mi cita', 'no asisto'].includes(msgLower);
-
-    if (esConfirmacion || esCancelacion) {
+    if (recordatorio && (esConfirmacion || esCancelacion)) {
       const { data: clienteCheck } = await supabaseAdmin
         .from('clients')
         .select('id')
         .eq('business_id', business.id)
         .eq('phone', from)
         .limit(1);
-
       const clienteId = clienteCheck?.[0]?.id;
 
-      if (clienteId) {
-        const hoyCheck = new Date().toLocaleDateString('en-CA', { timeZone: 'America/Bogota' });
-        const { data: citasProximas } = await supabaseAdmin
-          .from('appointments')
-          .select('id, scheduled_at, services(name), status')
-          .eq('business_id', business.id)
-          .eq('client_id', clienteId)
-          .in('status', ['pending', 'confirmed'])
-          .gte('scheduled_at', `${hoyCheck}T00:00:00-05:00`)
-          .order('scheduled_at')
-          .limit(1);
+      const { data: citaRecordada } = clienteId ? await supabaseAdmin
+        .from('appointments')
+        .select('id, scheduled_at, status, services(name)')
+        .eq('id', recordatorio.appointmentId)
+        .eq('business_id', business.id)
+        .eq('client_id', clienteId)
+        .in('status', ['pending', 'confirmed'])
+        .maybeSingle() : { data: null };
 
-        const citaProxima = citasProximas?.[0];
-
-        if (citaProxima) {
-          const horaFormateada = new Date(citaProxima.scheduled_at).toLocaleString('es-CO', {
-            timeZone: 'America/Bogota',
-            weekday: 'long',
-            day: 'numeric',
-            month: 'long',
-            hour: '2-digit',
-            minute: '2-digit',
-            hour12: true
-          });
-
-          if (esConfirmacion) {
-            const { data: confirmedRows, error: confirmError } = await supabaseAdmin
-              .from('appointments')
-              .update({ status: 'confirmed' })
-              .eq('id', citaProxima.id)
-              .eq('business_id', business.id)
-              .select('id');
-
-            if (confirmError || !confirmedRows || confirmedRows.length === 0) {
-              logger.error('[FASTPATH_CONFIRMAR_CITA_FAILED]', {
-                appointmentId: citaProxima.id,
-                businessId: business.id,
-                error: confirmError?.message
-              });
-              const respuestaError = 'Uy, no pude confirmar tu cita en este momento. Por favor intenta de nuevo en unos minutos o escríbenos.';
-              await sendMessage(from, respuestaError, businessToken, business.whatsapp_phone_number_id);
-              await saveConversationHistory(business.id, from, [
-                ...history,
-                { role: 'user', content: messageText },
-                { role: 'assistant', content: respuestaError }
-              ]);
-              return;
-            }
-
-            const respuestaConfirm = `✅ ¡Perfecto! Tu cita de ${citaProxima.services?.name} el ${horaFormateada} está confirmada. ¡Te esperamos! 😊`;
-            await sendMessage(from, respuestaConfirm, businessToken, business.whatsapp_phone_number_id);
-
-            await saveConversationHistory(business.id, from, [
-              ...history,
-              { role: 'user', content: messageText },
-              { role: 'assistant', content: respuestaConfirm }
-            ]);
-            await incrementDailyMessageCount(business.id, from);
-            return;
-
-          } else if (esCancelacion) {
-            const cancelResult = await deleteCitaIncome(citaProxima.id, business.id);
-
-            if (!cancelResult.success) {
-              logger.error('[FASTPATH_CANCELAR_CITA_FAILED]', {
-                appointmentId: citaProxima.id,
-                businessId: business.id,
-                error: cancelResult.error
-              });
-              const respuestaError = 'Uy, no pude cancelar tu cita en este momento. Por favor intenta de nuevo en unos minutos o escríbenos.';
-              await sendMessage(from, respuestaError, businessToken, business.whatsapp_phone_number_id);
-              await saveConversationHistory(business.id, from, [
-                ...history,
-                { role: 'user', content: messageText },
-                { role: 'assistant', content: respuestaError }
-              ]);
-              return;
-            }
-
-            const respuestaCancel = `Entendido, cancelé tu cita de ${citaProxima.services?.name} del ${horaFormateada} 😊 Cuando quieras reagendar aquí estoy.`;
-            await sendMessage(from, respuestaCancel, businessToken, business.whatsapp_phone_number_id);
-
-            await saveConversationHistory(business.id, from, [
-              ...history,
-              { role: 'user', content: messageText },
-              { role: 'assistant', content: respuestaCancel }
-            ]);
-            await incrementDailyMessageCount(business.id, from);
-            return;
+      if (citaRecordada && new Date(citaRecordada.scheduled_at).getTime() > Date.now()) {
+        const horaFormateada = new Date(citaRecordada.scheduled_at).toLocaleString('es-CO', {
+          timeZone: 'America/Bogota', weekday: 'long', day: 'numeric', month: 'long', hour: '2-digit', minute: '2-digit', hour12: true
+        });
+        let respuesta;
+        if (esConfirmacion) {
+          const { data: confirmedRows, error: confirmError } = await supabaseAdmin
+            .from('appointments')
+            .update({ status: 'confirmed' })
+            .eq('id', citaRecordada.id)
+            .eq('business_id', business.id)
+            .in('status', ['pending', 'confirmed'])
+            .select('id');
+          if (confirmError || !confirmedRows?.length) {
+            logger.error('[FASTPATH_CONFIRMAR_CITA_FAILED]', { appointmentId: citaRecordada.id, businessId: business.id, error: confirmError?.message });
+            respuesta = 'Uy, no pude confirmar tu cita en este momento. Por favor intenta de nuevo en unos minutos o escríbenos.';
+          } else {
+            respuesta = `✅ ¡Perfecto! Tu cita de ${citaRecordada.services?.name || 'tu servicio'} el ${horaFormateada} está confirmada. ¡Te esperamos! 😊`;
+          }
+        } else {
+          const cancelResult = await deleteCitaIncome(citaRecordada.id, business.id);
+          if (!cancelResult.success) {
+            logger.error('[FASTPATH_CANCELAR_CITA_FAILED]', { appointmentId: citaRecordada.id, businessId: business.id, error: cancelResult.error });
+            respuesta = 'Uy, no pude cancelar tu cita en este momento. Por favor intenta de nuevo en unos minutos o escríbenos.';
+          } else {
+            respuesta = `Entendido, cancelé tu cita de ${citaRecordada.services?.name || 'tu servicio'} del ${horaFormateada} 😊 Cuando quieras reagendar aquí estoy.`;
           }
         }
+        await sendMessage(from, respuesta, businessToken, business.whatsapp_phone_number_id);
+        await saveConversationHistory(business.id, from, [
+          ...history,
+          { role: 'user', content: messageText, timestamp: receivedAt },
+          { role: 'assistant', content: respuesta }
+        ]);
+        await incrementDailyMessageCount(business.id, from);
+        return;
       }
+      // La cita del recordatorio ya no está activa: sigue el flujo normal con Claude
     }
 
     let result;
@@ -2671,7 +2599,12 @@ async function processWhatsAppMessage({ from, phoneNumberId, messageText, messag
     }
 
     try {
-      await saveConversationHistory(business.id, from, result.history);
+      // Solo texto: el mensaje del cliente (con la hora en que llegó) y la respuesta final del bot
+      await saveConversationHistory(business.id, from, [
+        ...history,
+        { role: 'user', content: messageText, timestamp: receivedAt },
+        { role: 'assistant', content: result.response }
+      ]);
       await incrementDailyMessageCount(business.id, from);
       logger.info('Historial guardado');
     } catch(e) {

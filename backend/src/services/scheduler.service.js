@@ -6,6 +6,8 @@ const { checkTrialExpiringWarnings } = require('./notification.service');
 const { decrypt } = require('../utils/encrypt');
 const logger = require('../utils/logger');
 const { logSystemAlert } = require('../utils/systemAlerts');
+const { maskPhone } = require('../utils/phone');
+const { appendMessage } = require('./conversationStore');
 
 let schedulerInitialized = false;
 
@@ -205,6 +207,103 @@ async function autoCompleteAppointments() {
   }
 }
 
+// ── Recordatorios de cita (2 h antes) ──────────────────────────────────────────────────────────────
+// - Ventana amplia [now+110, now+125] min + marca reminder_sent_at (migración 063): si el cron se salta una
+//   corrida no se pierde el recordatorio, y nunca se manda dos veces (la marca se "reclama" con un UPDATE
+//   condicionado antes de enviar).
+// - El mensaje pide responder SÍ/NO y queda guardado en el historial de la conversación con
+//   kind:'reminder' y el appointment_id: así el atajo de sí/no del bot sabe a qué cita responde el cliente.
+// - Nunca se loguea el teléfono completo ni el nombre del cliente.
+const REMINDER_FROM_MIN = 110;
+const REMINDER_TO_MIN = 125;
+
+async function claimReminder(citaId) {
+  const { data, error } = await supabaseAdmin
+    .from('appointments')
+    .update({ reminder_sent_at: new Date().toISOString() })
+    .eq('id', citaId)
+    .is('reminder_sent_at', null)
+    .select('id');
+  if (error) return { ok: false, error };
+  return { ok: (data || []).length === 1 };
+}
+
+function reminderText(cita) {
+  const hora = new Date(cita.scheduled_at).toLocaleTimeString('es-CO', { hour: '2-digit', minute: '2-digit', timeZone: 'America/Bogota' });
+  const nombre = cita.clients?.name && cita.clients.name !== 'Cliente WhatsApp' ? ` ${cita.clients.name}` : '';
+  return `⏰ *Recordatorio de tu cita*\n\nHola${nombre}! Te recordamos que tienes una cita en *${cita.businesses?.name}* a las *${hora}* para *${cita.services?.name || 'tu servicio'}*.\n\nResponde *SÍ* para confirmar o *NO* si necesitas cancelarla.`;
+}
+
+async function sendAppointmentReminders(now = new Date()) {
+  const desde = new Date(now.getTime() + REMINDER_FROM_MIN * 60000).toISOString();
+  const hasta = new Date(now.getTime() + REMINDER_TO_MIN * 60000).toISOString();
+  const cols = 'id, business_id, scheduled_at, client_id, clients(name, phone), services(name), businesses(name, whatsapp_phone_number_id, whatsapp_access_token)';
+
+  let usaMarca = true;
+  let { data: citas, error } = await supabaseAdmin
+    .from('appointments')
+    .select(cols)
+    .in('status', ['pending', 'confirmed'])
+    .is('reminder_sent_at', null)
+    .gte('scheduled_at', desde)
+    .lte('scheduled_at', hasta)
+    .limit(500);
+
+  if (error?.code === '42703') {
+    // Falta la migración 063 (columna reminder_sent_at): comportamiento anterior, ventana de 5 minutos sin marca
+    usaMarca = false;
+    logger.warn('[RECORDATORIO] Falta la columna reminder_sent_at (migración 063); se usa la ventana de 5 min');
+    ({ data: citas, error } = await supabaseAdmin
+      .from('appointments')
+      .select(cols)
+      .in('status', ['pending', 'confirmed'])
+      .gt('scheduled_at', new Date(now.getTime() + 120 * 60000).toISOString())
+      .lte('scheduled_at', hasta)
+      .limit(500));
+  }
+  if (error) {
+    logger.error('[RECORDATORIO] Error consultando citas:', error.message);
+    return { sent: 0, errors: 1 };
+  }
+
+  let sent = 0; let errors = 0;
+  for (const cita of citas || []) {
+    try {
+      const negocio = cita.businesses;
+      const phone = cita.clients?.phone;
+      if (!phone) continue;
+      if (!negocio?.whatsapp_phone_number_id || !negocio?.whatsapp_access_token) {
+        logger.warn('[SCHEDULER] Recordatorio omitido: negocio sin WhatsApp', { business_id: cita.business_id });
+        continue;
+      }
+      if (usaMarca) {
+        const claim = await claimReminder(cita.id);
+        if (!claim.ok) continue; // otra instancia ya lo envió (o falló la marca: mejor no duplicar)
+      }
+
+      const mensaje = reminderText(cita);
+      const token = decrypt(negocio.whatsapp_access_token);
+      const sendResult = await sendMessage(phone, mensaje, token, negocio.whatsapp_phone_number_id);
+      if (sendResult && sendResult.success === false) {
+        errors++;
+        logger.error('[RECORDATORIO_SEND_FAILED]', { to: maskPhone(phone), citaId: cita.id, error: sendResult.error });
+        await logSystemAlert('whatsapp_send_failed', 'Fallo envío de recordatorio de cita', cita.business_id,
+          { to: maskPhone(phone), citaId: cita.id, error: sendResult.error, messageType: 'recordatorio' });
+        continue;
+      }
+      await appendMessage(cita.business_id, phone, { role: 'assistant', content: mensaje, kind: 'reminder', appointment_id: cita.id });
+      sent++;
+      logger.info('[RECORDATORIO_ENVIADO]', { citaId: cita.id, to: maskPhone(phone) });
+    } catch (err) {
+      errors++;
+      logger.error('Error enviando recordatorio:', err.message);
+      await logSystemAlert('whatsapp_send_failed', 'Excepción en envío de recordatorio de cita', cita.business_id || null,
+        { error: err.message, messageType: 'recordatorio' });
+    }
+  }
+  return { sent, errors };
+}
+
 const initScheduler = () => {
 if (schedulerInitialized) {
   logger.warn('initScheduler ya fue inicializado, ignorando llamada duplicada');
@@ -273,67 +372,8 @@ cron.schedule('0 12 * * *', async () => {
 cron.schedule('*/5 * * * *', async () => {
   const acquired = await acquireLock('recordatorios', 4);
   if (!acquired) return;
-
-  logger.info('CRON RECORDATORIO CORRIENDO', new Date().toISOString());
   try {
-    const ahora = new Date();
-    const en2h = new Date(ahora.getTime() + 120 * 60 * 1000);
-    const en2h5m = new Date(ahora.getTime() + 125 * 60 * 1000);
-
-    const { data: citas } = await supabaseAdmin
-      .from('appointments')
-      .select('id, business_id, scheduled_at, clients(name, phone), services(name), businesses(name, whatsapp_phone_number_id, whatsapp_access_token)')
-      .eq('status', 'confirmed')
-      .gte('scheduled_at', en2h.toISOString())
-      .lte('scheduled_at', en2h5m.toISOString())
-      .not('clients.phone', 'is', null)
-      .limit(500);
-
-    logger.info('Citas a recordar encontradas:', citas?.length);
-
-    if (!citas || citas.length === 0) {
-      logger.info('No hay citas próximas para recordar');
-    }
-
-    for (const cita of citas || []) {
-      try {
-        const negocio = cita.businesses;
-
-        if (!negocio?.whatsapp_phone_number_id || !negocio?.whatsapp_access_token) {
-          logger.warn('[SCHEDULER] Skipping reminder for business without WhatsApp', { business_id: cita.business_id });
-          continue;
-        }
-
-        const hora = new Date(cita.scheduled_at).toLocaleTimeString('es-CO', {
-          hour: '2-digit', minute: '2-digit',
-          timeZone: 'America/Bogota'
-        });
-
-        const mensaje = `⏰ *Recordatorio de tu cita*\n\nHola ${cita.clients?.name}! Te recordamos que tienes una cita en *${negocio?.name}* a las *${hora}* para un *${cita.services?.name}*.\n\n¡Te esperamos! 💈`;
-
-        const token = decrypt(negocio.whatsapp_access_token);
-        const sendResult = await sendMessage(cita.clients.phone, mensaje, token, negocio.whatsapp_phone_number_id);
-        if (!sendResult.success && sendResult.success !== undefined) {
-          logger.error('[RECORDATORIO_SEND_FAILED]', {
-            to: cita.clients.phone,
-            citaId: cita.id,
-            error: sendResult.error
-          });
-          await logSystemAlert('whatsapp_send_failed',
-            `Fallo envío de recordatorio de cita a ${cita.clients?.name}`,
-            negocio.business_id,
-            { to: cita.clients.phone, citaId: cita.id, error: sendResult.error, messageType: 'recordatorio' });
-        } else {
-          logger.info(`Recordatorio enviado a ${cita.clients.name}`);
-        }
-      } catch (error) {
-        logger.error('Error enviando recordatorio:', error.message);
-        await logSystemAlert('whatsapp_send_failed',
-          `Excepción en envío de recordatorio de cita`,
-          null,
-          { error: error.message, messageType: 'recordatorio' });
-      }
-    }
+    await sendAppointmentReminders();
   } catch (error) {
     logger.error('Error en scheduler de recordatorios:', error.message);
   }
@@ -384,4 +424,4 @@ cron.schedule('0 14 * * *', async () => {
   logger.info('Usando database locks para evitar duplicados en múltiples instancias');
 };
 
-module.exports = { initScheduler, autoCompleteAppointments, deleteCitaIncome };
+module.exports = { initScheduler, autoCompleteAppointments, deleteCitaIncome, sendAppointmentReminders, reminderText };

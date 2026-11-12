@@ -33,4 +33,9 @@ const PLANS = {
 
 const GRACE_DAYS = 3;
 
-module.exports = { PLANS, GRACE_DAYS };
+// Config del plan de un negocio. Sin plan o con un valor desconocido → Estándar (el default de la columna en la BD).
+function getPlan(plan) {
+  return PLANS[String(plan || '').toLowerCase()] || PLANS.estandar;
+}
+
+module.exports = { PLANS, GRACE_DAYS, getPlan };

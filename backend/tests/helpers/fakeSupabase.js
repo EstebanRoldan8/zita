@@ -34,8 +34,22 @@ function createFakeSupabase(seed = {}, opts = {}) {
   const missingTables = new Set(opts.missingTables || []);
   const calls = [];
 
+  // Columnas de primer nivel del SELECT ("id, name, services(name)") → ['id', 'name'] (null si es '*')
+  function plainCols(cols) {
+    if (!cols || cols.includes('*')) return null;
+    let depth = 0; let cur = ''; const out = [];
+    for (const ch of cols) {
+      if (ch === '(') depth++;
+      if (ch === ')') depth--;
+      if (ch === ',' && depth === 0) { out.push(cur.trim()); cur = ''; } else cur += ch;
+    }
+    if (cur.trim()) out.push(cur.trim());
+    return out.filter((c) => !c.includes('(')).map((c) => c.split(':').pop().trim());
+  }
+
   function withEmbeds(row, cols) {
-    const out = { ...row };
+    const keep = plainCols(cols);
+    const out = keep ? Object.fromEntries(keep.map((k) => [k, row[k]])) : { ...row };
     for (const [rel, fk] of Object.entries(EMBEDS)) {
       if (cols && !cols.includes(`${rel}(`) && !cols.includes(`${rel}!`)) continue;
       if (row[fk] !== undefined) out[rel] = (db[rel] || []).find((r) => r.id === row[fk]) || null;

@@ -10,6 +10,7 @@ const {
 const { isPlanExpired } = require('../utils/planStatus');
 const { deleteCitaIncome } = require('./scheduler.service');
 const { logSystemAlert } = require('../utils/systemAlerts');
+const { getPlan } = require('../config/plans');
 const { callClaudeWithRetry } = require('../utils/anthropicRetry');
 const Groq = require('groq-sdk');
 
@@ -660,7 +661,7 @@ Ejemplo: "Claro, [respuesta]. ¿Necesitas algo del negocio? 😊"
 async function getBusinessByPhoneNumberId(phoneNumberId) {
   const { data, error } = await supabaseAdmin
     .from('businesses')
-    .select('id, name, business_type, whatsapp_phone_number_id, whatsapp_access_token, status, trial_ends_at, plan_expires_at, phone, owner_email')
+    .select('id, name, business_type, plan, whatsapp_phone_number_id, whatsapp_access_token, status, trial_ends_at, plan_expires_at, phone, owner_email')
     .eq('whatsapp_phone_number_id', phoneNumberId)
     .single();
   if (error) {
@@ -1431,15 +1432,13 @@ async function processChatbotMessage(businessId, clientPhone, messageText, histo
           const scheduled_at = `${toolInput.fecha}T${toolInput.hora}:00-05:00`;
 
           // Validar límite de citas del mes
-          const { PLANS } = require('../config/plans');
           const { data: bizPlan } = await supabaseAdmin
             .from('businesses')
             .select('plan')
             .eq('id', businessId)
             .single();
 
-          const planbot = bizPlan.plan || 'estandar';
-          const limitebot = PLANS[planbot].max_appointments_month;
+          const limitebot = getPlan(bizPlan?.plan).max_appointments_month;
 
           if (limitebot !== -1) {
             const _tzbot = require('../utils/timezone').getTimezone();
@@ -2062,15 +2061,13 @@ async function processChatbotMessage(businessId, clientPhone, messageText, histo
             const pendientes = grupo.personas.filter(p => !p.agendada);
 
             // Validar límite de citas del mes para el grupo
-            const { PLANS: PLANSgrp } = require('../config/plans');
             const { data: bizGrp } = await supabaseAdmin
               .from('businesses')
               .select('plan')
               .eq('id', businessId)
               .single();
 
-            const plangrp = bizGrp.plan || 'estandar';
-            const limitegrp = PLANSgrp[plangrp].max_appointments_month;
+            const limitegrp = getPlan(bizGrp?.plan).max_appointments_month;
             let contadorCitasGrp = 0;
 
             if (limitegrp !== -1) {
@@ -2525,9 +2522,9 @@ async function processWhatsAppMessage({ from, phoneNumberId, messageText, messag
 
     const totalBusinessMsgToday = businessDayStats?.reduce((sum, s) => sum + (s.message_count || 0), 0) || 0;
 
-    const { PLANS } = require('../config/plans');
-    const planConfig = PLANS[business.plan?.toLowerCase()] || PLANS.lite;
-    const botMessagesLimit = planConfig.bot_messages_day || 40;
+    // El límite sale del plan real del negocio (antes el SELECT no traía 'plan' y todos quedaban en Lite = 40)
+    const planConfig = getPlan(business.plan);
+    const botMessagesLimit = planConfig.bot_messages_day;
 
     // Dedupe de alerta: solo una por negocio por día
     const { data: existingAlert } = await supabaseAdmin
@@ -2535,7 +2532,8 @@ async function processWhatsAppMessage({ from, phoneNumberId, messageText, messag
       .select('id')
       .eq('tipo', 'bot_daily_limit_reached')
       .eq('business_id', business.id)
-      .gte('created_at', hoyColombia + 'T00:00:00')
+      .gte('created_at', hoyColombia + 'T00:00:00-05:00')
+      .limit(1)
       .maybeSingle();
 
     if (totalBusinessMsgToday >= botMessagesLimit) {

@@ -1,6 +1,7 @@
 const { createUserClient } = require('../config/supabase');
 const logger = require('../utils/logger');
 const { getTimezone, getOffsetForTz } = require('../utils/timezone');
+const { computeEmployeeCommissions } = require('../utils/commissions');
 
 function monthRange(tz = 'America/Bogota') {
   const offset   = getOffsetForTz(tz);
@@ -256,31 +257,8 @@ async function employeeMetrics(req, res) {
     // totalIncome: excluye citas de recompensa (el negocio no cobró)
     const totalIncome = (appts || []).reduce((sum, a) => sum + (a.is_reward ? 0 : (Number(a.price) || 0)), 0);
 
-    const empMap = Object.fromEntries(
-      (employees || []).map((e) => [e.id, { id: e.id, name: e.name, commission_percent: e.commission_percent || 10, count: 0, income: 0, commission_period: 0, commission_today: 0 }])
-    );
-
-    // Ingresos y comisiones del período
-    for (const a of appts || []) {
-      if (a.employee_id && empMap[a.employee_id]) {
-        const emp = empMap[a.employee_id];
-        emp.count += 1;
-        const appointmentPrice = Number(a.price) || 0;
-        emp.income += appointmentPrice;
-        const commissionForAppointment = appointmentPrice * (emp.commission_percent / 100);
-        emp.commission_period += commissionForAppointment;
-      }
-    }
-
-    // Comisiones del día
-    for (const a of todayAppts || []) {
-      if (a.employee_id && empMap[a.employee_id]) {
-        const emp = empMap[a.employee_id];
-        const appointmentPrice = Number(a.price) || 0;
-        const commissionForAppointment = appointmentPrice * (emp.commission_percent / 100);
-        emp.commission_today += commissionForAppointment;
-      }
-    }
+    // Ingresos y comisiones del período y del día (0 % se respeta: ver utils/commissions)
+    const empMap = computeEmployeeCommissions(employees, appts, todayAppts);
 
     let resultData = Object.values(empMap).map((e) => ({
       ...e,

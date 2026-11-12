@@ -38,6 +38,7 @@ const { logSystemAlert } = require('../utils/systemAlerts');
 const { callClaudeWithRetry } = require('../utils/anthropicRetry');
 const { convKey, newRequestId } = require('../utils/aiUsage');
 const { isTiendaBusiness } = require('../utils/businessType');
+const { commissionPercent } = require('../utils/commissions');
 
 // maxRetries: 0 → los reintentos los hace callClaudeWithRetry (solo errores transitorios)
 let client = new Anthropic({
@@ -2155,7 +2156,7 @@ async function executeTool(toolName, toolInput, businessId) {
         if (!resumen[nombre]) resumen[nombre] = { citas: 0, ingresos: 0 };
         resumen[nombre].citas++;
         resumen[nombre].ingresos += a.services?.price || 0;
-        resumen[nombre].commission_percent = a.employees?.commission_percent || 10;
+        resumen[nombre].commission_percent = commissionPercent(a.employees);
         resumen[nombre].comision = resumen[nombre].ingresos * (resumen[nombre].commission_percent / 100);
       });
 

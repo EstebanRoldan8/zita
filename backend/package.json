@@ -4,6 +4,7 @@
   "description": "ZITA - Backend API para gestión de citas con WhatsApp e IA",
   "main": "src/app.js",
   "scripts": {
+    "test": "node scripts/run-tests.js",
     "start": "node src/app.js",
     "dev": "nodemon src/app.js",
     "test:api": "node tests/api.test.js",

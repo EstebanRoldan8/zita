@@ -22,10 +22,13 @@ const { getAll: getSupportConversations, replyAsAdmin } = require('../controller
 const { adminGeneratePaymentLink } = require('../controllers/payment.controller');
 const { verifyToken } = require('../middlewares/auth');
 const { superadminOnly } = require('../middlewares/superadmin');
+const { getAiUsage } = require('../controllers/aiUsage.controller');
 
 router.use(verifyToken, superadminOnly);
 
 router.get('/metrics', getMetrics);
+// Costo de IA por flujo, día y conversación (ai_usage)
+router.get('/ai-usage', getAiUsage);
 
 router.get('/businesses', getBusinesses);
 router.get('/businesses/:id', getBusinessDetail);

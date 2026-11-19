@@ -225,6 +225,8 @@ const server = app.listen(PORT, () => {
   logger.info('Rutas registradas: /api/auth, /api/businesses, /api/appointments, /api/clients, /api/services, /api/metrics, /api/support, /api/admin, /api/employees, /api/webhook');
   initScheduler();
   logger.info('✓ Scheduler verificado y activo');
+  // Estado de las plantillas de WhatsApp (aviso claro si están apagadas en producción)
+  require('./services/whatsappNotify').logTemplatesStatus();
 });
 
 server.setTimeout(30000);

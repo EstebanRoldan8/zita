@@ -62,7 +62,23 @@ function resolveTemplate(key) {
   return name ? { name, lang: cfg.lang } : null;
 }
 
-const templatesEnabled = () => String(process.env.WA_TEMPLATES_ENABLED || '').toLowerCase() === 'true';
+// WA_TEMPLATES_ENABLED normalizado: un espacio o una mayúscula ("True ", "TRUE") no lo apaga en silencio.
+// Acepta true / 1 / yes (y si / sí / on); cualquier otra cosa = apagado.
+const TRUTHY = new Set(['true', '1', 'yes', 'si', 'sí', 'on']);
+const templatesEnabled = () => TRUTHY.has(String(process.env.WA_TEMPLATES_ENABLED ?? '').trim().toLowerCase());
+
+// Al arrancar: deja en el log si las plantillas están activas. Apagadas en producción, los avisos fuera de la
+// ventana de 24 h (al dueño: nueva cita, escalamiento; al cliente: recordatorios…) salen como texto libre y
+// Meta los descarta (131047). No imprime secretos: solo el estado y si la variable existe.
+function logTemplatesStatus(log = logger) {
+  const enabled = templatesEnabled();
+  const raw = process.env.WA_TEMPLATES_ENABLED;
+  log.info(`[WA_PLANTILLAS_ESTADO] enabled=${enabled}`, { variableDefinida: raw !== undefined && raw !== '' });
+  if (!enabled && process.env.NODE_ENV === 'production') {
+    log.warn('[WA_PLANTILLAS_ESTADO] WA_TEMPLATES_ENABLED está apagado en producción: los avisos fuera de la ventana de 24 h (nueva cita y escalamiento al dueño, recordatorios, etc.) NO llegarán (Meta los descarta con 131047). Actívalo en Railway con WA_TEMPLATES_ENABLED=true cuando las plantillas estén aprobadas.');
+  }
+  return enabled;
+}
 
 function insideWindow(lastInbound, now = Date.now()) {
   if (!lastInbound) return false;
@@ -86,18 +102,18 @@ async function lastInboundFor(businessId, phone) {
  * @param {string} [p.businessId]       para calcular la ventana con el historial
  * @param {Date|string|null} [p.lastInbound]  si ya se conoce, evita la consulta
  * @param {string} [p.kind]             tipo de aviso (solo para logs), p. ej. 'cita_cancelada'
- * @returns {Promise<{ via: 'text'|'template'|'none', result: object }>}
+ * @returns {Promise<{ via: 'text'|'template'|'none', inWindow: boolean, result: object }>}
  */
 async function notify({ to, text, template, token = null, phoneNumberId = null, businessId = null, lastInbound, kind = null }) {
   const inbound = lastInbound !== undefined ? lastInbound : await lastInboundFor(businessId, to);
   if (insideWindow(inbound)) {
-    return { via: 'text', result: await wa.sendMessage(to, text, token, phoneNumberId) };
+    return { via: 'text', inWindow: true, result: await wa.sendMessage(to, text, token, phoneNumberId) };
   }
   if (!template) {
     // Aviso sin plantilla aprobada en Meta: fuera de la ventana no hay alternativa. Se manda texto (como antes)
     // y queda marcado para saber qué plantilla falta crear (ver docs/PLANTILLAS_WHATSAPP.md).
     logger.warn('[WA_FUERA_DE_VENTANA_SIN_PLANTILLA_APROBADA] aviso sin plantilla en Meta; texto libre, puede no llegar (131047)', { kind, to: maskPhone(to) });
-    return { via: 'text', result: await wa.sendMessage(to, text, token, phoneNumberId) };
+    return { via: 'text', inWindow: false, result: await wa.sendMessage(to, text, token, phoneNumberId) };
   }
   if (templatesEnabled()) {
     const tpl = resolveTemplate(template.key);
@@ -106,7 +122,7 @@ async function notify({ to, text, template, token = null, phoneNumberId = null, 
       logger.error('[WA_PLANTILLA_SIN_NOMBRE] falta la variable con el nombre aprobado; se manda texto libre (probablemente no llegue)', {
         template: template.key, variable: TEMPLATE_CONFIG[template.key].env, to: maskPhone(to),
       });
-      return { via: 'text', result: await wa.sendMessage(to, text, token, phoneNumberId) };
+      return { via: 'text', inWindow: false, result: await wa.sendMessage(to, text, token, phoneNumberId) };
     }
     const expected = TEMPLATE_CONFIG[template.key]?.vars;
     if (expected !== undefined && (template.body || []).length !== expected) {
@@ -114,7 +130,7 @@ async function notify({ to, text, template, token = null, phoneNumberId = null, 
       logger.error('[WA_PLANTILLA_VARIABLES] el envío no trae el número de variables de la plantilla; no se envía', {
         template: template.key, esperadas: expected, recibidas: (template.body || []).length, kind, to: maskPhone(to),
       });
-      return { via: 'none', result: { success: false, error: 'variables_de_plantilla', status: null } };
+      return { via: 'none', inWindow: false, result: { success: false, error: 'variables_de_plantilla', status: null } };
     }
     const body = expected !== undefined ? templateBody(template.key, template.body) : template.body;
     const result = await wa.sendTemplate(to, tpl.name, { body, buttons: template.buttons }, token, phoneNumberId, tpl.lang);
@@ -124,10 +140,10 @@ async function notify({ to, text, template, token = null, phoneNumberId = null, 
         template: template.key, nombre: tpl.name, idioma: tpl.lang, status: result.status, metaCode: result.metaCode, kind, to: maskPhone(to),
       });
     }
-    return { via: 'template', result };
+    return { via: 'template', inWindow: false, result };
   }
   logger.warn('[WA_FUERA_DE_VENTANA_SIN_PLANTILLA] se manda texto libre; Meta probablemente lo descarte (131047)', { template: template.key, kind, to: maskPhone(to) });
-  return { via: 'text', result: await wa.sendMessage(to, text, token, phoneNumberId) };
+  return { via: 'text', inWindow: false, result: await wa.sendMessage(to, text, token, phoneNumberId) };
 }
 
-module.exports = { notify, insideWindow, lastInboundFor, TEMPLATE_CONFIG, resolveTemplate, templatesEnabled, templateBody };
+module.exports = { notify, insideWindow, lastInboundFor, TEMPLATE_CONFIG, resolveTemplate, templatesEnabled, templateBody, logTemplatesStatus };

@@ -84,7 +84,8 @@ Las citas activas del cliente están en <contexto>.
 - 0 citas: dile que no tiene citas activas.
 - 2 o más y no dijo cuál (hora o servicio): enuméralas ("• Corte el martes a las 3:00 p. m.") y pregunta cuál.
 - 1 cita y no fue específico: confirma antes de actuar ("¿La de Corte el martes a las 3:00 p. m.?"). Cuando diga que sí, ejecuta.
-- Si fue específico (dijo la hora o el servicio de la cita): ejecuta directo.
+- Si fue específico (dijo la hora o el servicio EXACTO de UNA de sus citas): ejecuta directo. Un nombre genérico que podría ser más de una de sus citas ("el corte" teniendo Degradado y Corte clásico, "la cita", "la de la tarde" con dos en la tarde) NO es específico: pregunta cuál antes de cambiar o cancelar.
+- Nunca digas que agendaste, cambiaste o cancelaste algo si la herramienta no devolvió success: true en este turno. Si falló, di que no se pudo y por qué.
 - Cancelar → cancelar_cita. Cambiar fecha/hora/servicio/empleado → actualizar_cita con solo lo que cambia (lo demás se conserva).
 - "Sí voy", "confirmo" sobre una cita → confirmar_asistencia.
 - Si actualizar_cita dice que el horario está ocupado: ofrece slots_alternativos_mismo_empleado o, si viene, el otro_empleado_disponible; no cambies de empleado sin que el cliente lo acepte.
@@ -301,7 +302,7 @@ function buildVolatileBlock(clientInfo, citasActivas = [], now = new Date()) {
   return `<contexto>
 Hoy ${fmtFecha(now)}, hora actual en Colombia: ${horaActual}
 Cliente: ${conocido ? clientInfo.name : 'NUEVO, no sabemos su nombre (pídelo antes de agendar)'}
-Citas activas del cliente: ${citas.length ? `\n${citas.join('\n')}` : 'ninguna'}
+Citas activas del cliente: ${citas.length ? `\n${citas.join('\n')}` : 'ninguna'}${citas.length > 1 ? '\n(Tiene varias: si no dice cuál con hora o servicio exacto, pregunta antes de cambiar o cancelar.)' : ''}
 </contexto>`;
 }
 

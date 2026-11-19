@@ -19,6 +19,12 @@ La ventana se calcula con el último mensaje del destinatario guardado en `whats
 2. Esperar la aprobación.
 3. Poner `WA_TEMPLATES_ENABLED=true` en Railway, y `WA_TPL_FIN_PRUEBA` / `WA_TPL_PAGO_RECHAZADO` con los nombres aprobados (ver tabla).
 
+**Cómo saber si están activas (y qué pasa si no):**
+- El valor se normaliza: `true`, `1` o `yes` (sin importar mayúsculas ni espacios) las activan; cualquier otra cosa las apaga.
+- Al arrancar, el backend deja `[WA_PLANTILLAS_ESTADO] enabled=true|false` en el log; apagadas en `NODE_ENV=production`, además un warning: los avisos fuera de la ventana no llegarán.
+- Cada estado `failed` que Meta manda al webhook (131047 = fuera de la ventana, u otro código) queda en `system_alerts` como `whatsapp_entrega_fallida` con el negocio (resuelto por `phone_number_id`) y los códigos.
+- Cada escalamiento a humano queda en `system_alerts` como `escalamiento_humano`; si el aviso al dueño salió como texto libre fuera de la ventana, además `[ESCALAMIENTO_POSIBLE_NO_ENTREGADO]` en el log y `posible_no_entregado: true` en la alerta. Hoy esas alertas se ven en el panel de superadmin (Alertas del sistema), no en el panel del negocio.
+
 Si un negocio no tiene las plantillas aprobadas y se activa la variable, el envío falla con un error de Meta (código 132001, plantilla no existe). Queda en el log y en `system_alerts` para los recordatorios.
 
 ## Nombre e idioma de cada plantilla (como quedaron aprobadas en Meta)

@@ -394,7 +394,8 @@ cron.schedule('0 12 * * *', async () => {
   }
 });
 
-// Recordatorio 2 horas antes - cada 5 minutos
+// Recordatorio ~2 horas antes - cada 5 minutos (cadencia definitiva: la ventana [110, 125] min dura 15 min, así cada
+// cita cae en ≥3 corridas y aguanta que se salte una; reminder_sent_at evita duplicados)
 cron.schedule('*/5 * * * *', async () => {
   const acquired = await acquireLock('recordatorios', 4);
   if (!acquired) return;
@@ -454,10 +455,11 @@ cron.schedule('0 14 * * *', async () => {
   logger.info('=== SCHEDULER CARGADO ===');
   logger.info('Tareas activas:');
   logger.info('  • Resumen diario a las 12:00 UTC (7am Colombia)');
-  logger.info('  • Recordatorio 2 horas antes cada 5 minutos (testing)');
+  logger.info('  • Recordatorio ~2 horas antes: cada 5 minutos, citas entre 110 y 125 min, una vez por cita (reminder_sent_at)');
   logger.info('  • Auto-completar citas cada 15 minutos (1 hora después de scheduled_at)');
   logger.info('  • Reconciliación de pagos Wompi cada 2 horas');
-  logger.info('  • Aviso de trial por vencer a las 09:00 UTC (4am Colombia)');
+  logger.info('  • Aviso de trial por vencer a las 14:00 UTC (9am Colombia)');
+  logger.info('  • Purga de wa_processed_messages a las 08:30 UTC (3:30am Colombia)');
   logger.info('Usando database locks para evitar duplicados en múltiples instancias');
 };
 

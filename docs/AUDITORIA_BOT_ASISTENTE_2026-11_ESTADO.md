@@ -42,6 +42,14 @@ Referencia: `docs/AUDITORIA_BOT_ASISTENTE_2026-11.md`. Cada hallazgo se verific�
 | 2.5 | `executeTool` del asistente (~3.280 líneas) | ⏸️ **No se toca (revisado 2026-11-18)**: de 75 `case` solo 5 tienen test directo (`crear_cita`, `actualizar_cita`, `cancelar_cita`, `registrar_venta`, `vender_producto`). Partirlo sin red es riesgo alto. Plan: tests de caracterización por dominio (agenda → clientes → caja → productos → equipo), y mover un dominio por PR a `assistant/tools/<dominio>.js` con un `switch` que delegue | |
 | — | Serialización por cliente en memoria (varias réplicas) / mensajes perdidos al reiniciar | ⏸️ **En pausa: requiere tabla nueva** (ver "Propuesta: bandeja de entrada durable" abajo). Hoy: orden en memoria; el `message_id` se marca al recibir, así que si Railway reinicia a mitad de camino ese mensaje no se responde | `webhook.controller.js` |
 
+## Historial del bot y citas en el contexto (revisado 2026-11-19)
+
+**Por qué `historyLength` pasa de 12 a 6 entre dos mensajes seguidos:** es intencional. `conversationStore.trimHistory` guarda como máximo 12 mensajes; al pasarse, se queda con los **últimos 6 en bloque** (no de a uno). Con 12 guardados, el turno siguiente agrega 2 (cliente + bot) = 14 > 12 → se guardan 6. Recortar en bloque mantiene igual el comienzo del historial durante varios turnos, así Claude lo lee de caché (89 % de acierto). `processChatbotMessage` aplica el mismo criterio (`HISTORY_MAX` 12 / `HISTORY_KEEP` 6) a lo que manda.
+
+**Las citas del cliente no dependen del historial:** en cada turno se consultan en la base y van en `<contexto>` (bloque volátil al final del mensaje del cliente) con su ID, que es lo que usan `actualizar_cita` y `cancelar_cita` (que además validan el ID contra el teléfono del cliente). Desde este cambio solo van las **activas y futuras** (`pending`/`confirmed`, `scheduled_at >= ahora`, máx. 10); antes entraban también las pasadas sin cerrar. Con más de una cita, el contexto agrega una línea que pide preguntar cuál.
+
+**Costo medido** (`count_tokens` real, datos ficticios): bloque de contexto con 0 citas = 55 tokens; 1 = 109; 3 = 252; 10 (tope) = 644 → **≈ 54 tokens por cita** (el UUID es casi la mitad y no se puede quitar: las tools lo necesitan). Con Haiku 4.5 son ≈ USD 0,000054 por cita y por turno; dentro del loop de tools se lee de caché.
+
 ## Propuesta: bandeja de entrada durable para el webhook (4b, pendiente de aprobación)
 
 **Problema.** El webhook responde 200 a Meta, marca el `message_id` en `wa_processed_messages` y procesa en una cola **en memoria**. Si Railway reinicia (deploy, caída) entre marcar y responder, el mensaje queda marcado y nunca se contesta (Meta no reintenta porque recibió 200). Con más de una réplica, dos mensajes del mismo cliente pueden procesarse en paralelo y fuera de orden.

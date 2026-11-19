@@ -3,6 +3,7 @@ const { maskPhone } = require('../utils/phone');
 const { processWhatsAppMessage, getBusinessByPhoneNumberId, transcribeAudio } = require('../services/chatbot.service');
 const { claimMessageId } = require('../services/conversationStore');
 const { logSystemAlert } = require('../utils/systemAlerts');
+const { supabaseAdmin } = require('../config/supabase');
 
 // Serialización por cliente (en memoria). Si llegan varios mensajes mientras se procesa uno, se juntan en un lote.
 // Nota: vive en memoria del proceso; con más de una réplica en Railway dos mensajes del mismo cliente podrían
@@ -58,6 +59,65 @@ function messageTextOf(message) {
   }
 }
 
+// Estados de entrega fallidos de todo el POST: [{ phoneNumberId, recipient, codes, titles }]
+function extractFailedStatuses(body) {
+  const out = [];
+  for (const entry of Array.isArray(body?.entry) ? body.entry : []) {
+    for (const change of Array.isArray(entry?.changes) ? entry.changes : []) {
+      const value = change?.value || {};
+      for (const st of Array.isArray(value.statuses) ? value.statuses : []) {
+        if (st?.status !== 'failed') continue;
+        const errors = Array.isArray(st.errors) ? st.errors : [];
+        out.push({
+          phoneNumberId: value.metadata?.phone_number_id || null,
+          recipient: st.recipient_id || null,
+          codes: errors.map((e) => e?.code).filter((c) => c !== undefined && c !== null),
+          titles: errors.map((e) => String(e?.title || '').slice(0, 100)).filter(Boolean),
+        });
+      }
+    }
+  }
+  return out;
+}
+
+// Alerta 'whatsapp_entrega_fallida' por cada estado fallido (p. ej. 131047 = fuera de la ventana de 24 h, que es lo
+// que pasa si las plantillas están apagadas). El negocio se resuelve por el phone_number_id del número que envió.
+// Sin teléfonos completos. Nunca lanza: corre después de responder 200 a Meta.
+async function recordDeliveryFailures(body) {
+  const fails = extractFailedStatuses(body);
+  if (!fails.length) return 0;
+  const businessByNumber = new Map();
+  let recorded = 0;
+  for (const f of fails) {
+    try {
+      let businessId = businessByNumber.get(f.phoneNumberId);
+      if (businessId === undefined) {
+        businessId = null;
+        if (f.phoneNumberId) {
+          const { data } = await supabaseAdmin
+            .from('businesses')
+            .select('id')
+            .eq('whatsapp_phone_number_id', String(f.phoneNumberId))
+            .maybeSingle();
+          businessId = data?.id || null;
+        }
+        businessByNumber.set(f.phoneNumberId, businessId);
+      }
+      const fueraDeVentana = f.codes.includes(131047);
+      await logSystemAlert(
+        'whatsapp_entrega_fallida',
+        `WhatsApp no entregó un mensaje (código${f.codes.length === 1 ? '' : 's'}: ${f.codes.join(', ') || 'sin código'})${fueraDeVentana ? ' — fuera de la ventana de 24 h: hace falta plantilla aprobada (WA_TEMPLATES_ENABLED)' : ''}`,
+        businessId,
+        { codes: f.codes, titles: f.titles, to: maskPhone(f.recipient), fuera_de_ventana: fueraDeVentana },
+      );
+      recorded++;
+    } catch (err) {
+      logger.warn('[WHATSAPP_ENTREGA_FALLIDA_NO_REGISTRADA]', { error: err.message });
+    }
+  }
+  return recorded;
+}
+
 // Payloads de los botones de la plantilla de recordatorio → la palabra que entiende el atajo de sí/no
 const BUTTON_PAYLOADS = { CONFIRMAR_CITA: 'sí', CANCELAR_CITA: 'no' };
 
@@ -76,6 +136,13 @@ async function handleWebhook(req, res) {
     }
   } catch (error) {
     logger.error('webhook error:', error.message);
+  }
+
+  // Fallos de entrega → system_alerts (independiente de los mensajes; nunca rompe el webhook)
+  try {
+    await recordDeliveryFailures(body);
+  } catch (error) {
+    logger.warn('webhook estados fallidos:', error.message);
   }
 }
 
@@ -252,4 +319,4 @@ async function getConversacionesPausadas(req, res) {
   }
 }
 
-module.exports = { verifyWebhook, handleWebhook, reactivarBot, getConversacionesPausadas, extractMessages, messageTextOf };
+module.exports = { verifyWebhook, handleWebhook, reactivarBot, getConversacionesPausadas, extractMessages, messageTextOf, extractFailedStatuses, recordDeliveryFailures };

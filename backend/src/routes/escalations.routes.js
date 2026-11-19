@@ -9,5 +9,7 @@ const escalations = require('../controllers/escalations.controller');
 router.use(verifyToken, businessContext, requireOwner);
 
 router.get('/', escalations.list);
+router.post('/:id/attend', escalations.attend);
+router.post('/:id/resume-bot', escalations.resumeBot);
 
 module.exports = router;

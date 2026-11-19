@@ -32,6 +32,31 @@ function waLink(phone) {
   return intl ? `https://wa.me/${intl}` : null;
 }
 
+// Escalación del negocio (o null). Siempre con business_id + tipo explícitos.
+async function loadEscalation(businessId, id) {
+  const { data, error } = await supabaseAdmin
+    .from('system_alerts')
+    .select('id, created_at, metadata, business_id, tipo')
+    .eq('id', id)
+    .eq('business_id', businessId)
+    .eq('tipo', TIPO)
+    .maybeSingle();
+  if (error) throw error;
+  return data || null;
+}
+
+// Cliente de la escalación, del mismo negocio (o null)
+async function loadClient(businessId, clientId) {
+  if (!isUuid(clientId)) return null;
+  const { data } = await supabaseAdmin
+    .from('clients')
+    .select('id, name, phone')
+    .eq('id', clientId)
+    .eq('business_id', businessId)
+    .maybeSingle();
+  return data || null;
+}
+
 // GET /api/escalations — las últimas 50 del negocio, más recientes primero, y cuántas siguen sin atender
 async function list(req, res) {
   try {
@@ -98,4 +123,60 @@ async function list(req, res) {
   }
 }
 
-module.exports = { list, waLink, plainText };
+// POST /api/escalations/:id/attend — marca atendida (idempotente)
+async function attend(req, res) {
+  try {
+    const { id } = req.params;
+    if (!isUuid(id)) return res.status(400).json({ success: false, error: 'Identificador inválido.' });
+    const esc = await loadEscalation(req.businessId, id);
+    if (!esc) return res.status(404).json({ success: false, error: 'Escalación no encontrada.' });
+
+    const metadata = esc.metadata || {};
+    if (metadata.attended_at) return res.json({ success: true, data: { id, attended_at: metadata.attended_at } });
+
+    const attendedAt = new Date().toISOString();
+    const { error } = await supabaseAdmin
+      .from('system_alerts')
+      .update({ metadata: { ...metadata, attended_at: attendedAt } })
+      .eq('id', id)
+      .eq('business_id', req.businessId)
+      .eq('tipo', TIPO);
+    if (error) throw error;
+
+    logger.info('[ESCALACION_ATENDIDA]', { businessId: req.businessId, escalationId: id });
+    return res.json({ success: true, data: { id, attended_at: attendedAt } });
+  } catch (err) {
+    logger.error(`escalations.attend: ${err.message}`);
+    return serverError(res);
+  }
+}
+
+// POST /api/escalations/:id/resume-bot — reactiva el bot para el cliente de esa escalación
+async function resumeBot(req, res) {
+  try {
+    const { id } = req.params;
+    if (!isUuid(id)) return res.status(400).json({ success: false, error: 'Identificador inválido.' });
+    const esc = await loadEscalation(req.businessId, id);
+    if (!esc) return res.status(404).json({ success: false, error: 'Escalación no encontrada.' });
+
+    const client = await loadClient(req.businessId, esc.metadata?.client_id);
+    if (!client?.phone) {
+      return res.status(409).json({ success: false, error: 'No se pudo identificar al cliente de esta escalación (es anterior a esta versión). El bot se reactiva solo a las 3 horas de la escalación.' });
+    }
+
+    const { error } = await supabaseAdmin
+      .from('whatsapp_conversations')
+      .update({ bot_paused_until: null })
+      .eq('business_id', req.businessId)
+      .eq('client_phone', client.phone);
+    if (error) throw error;
+
+    logger.info('[ESCALACION_BOT_REACTIVADO]', { businessId: req.businessId, escalationId: id });
+    return res.json({ success: true, data: { id, bot_paused: false } });
+  } catch (err) {
+    logger.error(`escalations.resumeBot: ${err.message}`);
+    return serverError(res);
+  }
+}
+
+module.exports = { list, attend, resumeBot, waLink, plainText };

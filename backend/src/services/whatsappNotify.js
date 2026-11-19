@@ -43,6 +43,8 @@ const TEMPLATE_CONFIG = {
   aviso_cita_cancelada: { env: 'WA_TPL_CITA_CANCELADA', name: 'aviso_cita_cancelada', lang: 'es_CO', vars: 4, max: [60, 80, 60, 80] },
   // {{1}} cliente · {{2}} servicio · {{3}} fecha y hora · {{4}} negocio · {{5}} nuevo empleado
   aviso_cita_reasignada: { env: 'WA_TPL_CITA_REASIGNADA', name: 'aviso_cita_reasignada', lang: 'es_CO', vars: 5, max: [60, 80, 60, 80, 60] },
+  // {{1}} cliente · {{2}} número de pedido · {{3}} negocio · {{4}} estado legible
+  aviso_pedido_web: { env: 'WA_TPL_PEDIDO_WEB', name: 'aviso_pedido_web', lang: 'es_CO', vars: 4, max: [60, 20, 80, 40] },
 };
 
 // Variables del cuerpo listas para Meta: sin saltos/tabs/espacios repetidos, cortadas al máximo de cada una y '-' si vacías
@@ -84,7 +86,7 @@ async function lastInboundFor(businessId, phone) {
  * @param {string} [p.businessId]       para calcular la ventana con el historial
  * @param {Date|string|null} [p.lastInbound]  si ya se conoce, evita la consulta
  * @param {string} [p.kind]             tipo de aviso (solo para logs), p. ej. 'cita_cancelada'
- * @returns {Promise<{ via: 'text'|'template', result: object }>}
+ * @returns {Promise<{ via: 'text'|'template'|'none', result: object }>}
  */
 async function notify({ to, text, template, token = null, phoneNumberId = null, businessId = null, lastInbound, kind = null }) {
   const inbound = lastInbound !== undefined ? lastInbound : await lastInboundFor(businessId, to);
@@ -108,13 +110,21 @@ async function notify({ to, text, template, token = null, phoneNumberId = null, 
     }
     const expected = TEMPLATE_CONFIG[template.key]?.vars;
     if (expected !== undefined && (template.body || []).length !== expected) {
-      logger.error('[WA_PLANTILLA_VARIABLES] el envío no trae el número de variables de la plantilla; se manda texto libre', {
+      // Fuera de la ventana NO se cae a texto libre: Meta también lo rechazaría (131047). Se registra y no se envía.
+      logger.error('[WA_PLANTILLA_VARIABLES] el envío no trae el número de variables de la plantilla; no se envía', {
         template: template.key, esperadas: expected, recibidas: (template.body || []).length, kind, to: maskPhone(to),
       });
-      return { via: 'text', result: await wa.sendMessage(to, text, token, phoneNumberId) };
+      return { via: 'none', result: { success: false, error: 'variables_de_plantilla', status: null } };
     }
     const body = expected !== undefined ? templateBody(template.key, template.body) : template.body;
-    return { via: 'template', result: await wa.sendTemplate(to, tpl.name, { body, buttons: template.buttons }, token, phoneNumberId, tpl.lang) };
+    const result = await wa.sendTemplate(to, tpl.name, { body, buttons: template.buttons }, token, phoneNumberId, tpl.lang);
+    if (result?.success === false) {
+      // Meta rechazó la plantilla (nombre, idioma, variables…): se registra con la etiqueta; sin respaldo a texto
+      logger.error('[WA_PLANTILLA_RECHAZADA]', {
+        template: template.key, nombre: tpl.name, idioma: tpl.lang, status: result.status, metaCode: result.metaCode, kind, to: maskPhone(to),
+      });
+    }
+    return { via: 'template', result };
   }
   logger.warn('[WA_FUERA_DE_VENTANA_SIN_PLANTILLA] se manda texto libre; Meta probablemente lo descarte (131047)', { template: template.key, kind, to: maskPhone(to) });
   return { via: 'text', result: await wa.sendMessage(to, text, token, phoneNumberId) };

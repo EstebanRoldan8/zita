@@ -37,6 +37,7 @@ Se configuran en **un solo lugar**: `TEMPLATE_CONFIG` en `backend/src/services/w
 | `te_extranamos` | `te_extranamos` | `WA_TPL_TE_EXTRANAMOS` (opcional) | Spanish (COL) — `es_CO` |
 | `aviso_cita_cancelada` | `aviso_cita_cancelada` | `WA_TPL_CITA_CANCELADA` (opcional) | Spanish (COL) — `es_CO` |
 | `aviso_cita_reasignada` | `aviso_cita_reasignada` | `WA_TPL_CITA_REASIGNADA` (opcional) | Spanish (COL) — `es_CO` |
+| `aviso_pedido_web` | `aviso_pedido_web` | `WA_TPL_PEDIDO_WEB` (opcional) | Spanish (COL) — `es_CO` |
 
 - `WA_TEMPLATE_LANG` ya **no** cambia el idioma de estas 8 (el idioma va por plantilla en el mapa). Solo aplica a una plantilla que no esté en el mapa.
 - **Falla segura:** con `WA_TEMPLATES_ENABLED=true` y sin `WA_TPL_FIN_PRUEBA` o `WA_TPL_PAGO_RECHAZADO`, no se intenta la plantilla: queda `[WA_PLANTILLA_SIN_NOMBRE]` en el log (con el nombre de la variable que falta) y se manda texto libre, sin cortar el flujo. Fuera de la ventana ese texto probablemente no llegue: hay que poner la variable.
@@ -105,9 +106,16 @@ Desde el número del negocio.
 
 Variables (exactamente 5): `{{1}}` cliente (60), `{{2}}` servicio (80), `{{3}}` fecha y hora es-CO, Colombia (60), `{{4}}` negocio (80), `{{5}}` nombre del nuevo empleado (60).
 
+### 11. `aviso_pedido_web` (Utilidad, es_CO) — al cliente de la tienda, cuando el negocio cambia el estado de su pedido web
+Desde el número del negocio. Lo dispara `orders.updateStatus` (panel de Pedidos y asistente de tienda) después de un cambio de estado exitoso, solo para pedidos con `source = 'web'` y teléfono, y **solo con `WA_TEMPLATES_ENABLED=true`** (apagado no se envía nada, como antes de existir este aviso). No avisa el estado inicial `recibido` ni un cambio al mismo estado. Es transaccional: no depende del consentimiento de marketing del checkout.
+
+> Hola {{1}}, tu pedido #{{2}} en {{3}} cambió de estado: {{4}}. Cualquier duda, responde este mensaje.
+
+Variables (exactamente 4): `{{1}}` nombre del cliente del checkout (60), `{{2}}` código del pedido, p. ej. `P-1A2B3C4D` (20), `{{3}}` negocio (80), `{{4}}` estado legible: en proceso, listo, enviado, entregado, cancelado (40).
+
 ## Variables de plantilla: saneo
 
-Antes de enviar, cada variable pasa por `templateParam` (`utils/templateParam.js`): cualquier salto de línea, tabulación o secuencia de espacios se vuelve un solo espacio, se quitan caracteres de control, se corta al largo máximo de esa variable (con "…") y un valor vacío se manda como `-` (Meta rechaza variables vacías). Las plantillas con `vars` en `TEMPLATE_CONFIG` exigen exactamente ese número de variables: si un envío trae otro número, no se intenta la plantilla (Meta respondería 132000), sale texto libre y queda `[WA_PLANTILLA_VARIABLES]` en el log.
+Antes de enviar, cada variable pasa por `templateParam` (`utils/templateParam.js`): cualquier salto de línea, tabulación o secuencia de espacios se vuelve un solo espacio, se quitan caracteres de control, se corta al largo máximo de esa variable (con "…") y un valor vacío se manda como `-` (Meta rechaza variables vacías). Las plantillas con `vars` en `TEMPLATE_CONFIG` exigen exactamente ese número de variables: si un envío trae otro número, no se envía nada y queda `[WA_PLANTILLA_VARIABLES]` en el log. Si Meta rechaza un envío de plantilla (nombre, idioma, variables), queda `[WA_PLANTILLA_RECHAZADA]` con la plantilla, el idioma y el código de Meta. En ningún caso se cae a texto libre fuera de la ventana: Meta lo rechazaría igual (131047). Ninguno de estos fallos corta el flujo (cancelar, reasignar o cambiar el pedido).
 
 ## Envíos que NO pasan por plantilla (y está bien)
 - Las respuestas del bot al cliente: siempre son respuesta a un mensaje que acaba de llegar (dentro de la ventana).
@@ -122,6 +130,7 @@ Todos pasan por `notify()` y salen del **número del negocio con su token** (`se
 | Recordatorio manual a un cliente (Clientes → Recordar) | `clients.controller.js` | Mensaje personalizado del negocio | Plantilla `te_extranamos` |
 | Cita cancelada por el negocio (panel, barbero, asistente) | `services/cancellationNotice.js` | Texto | Plantilla `aviso_cita_cancelada` |
 | Cita reasignada al eliminar un empleado | `employees.controller.js` (`notifyReassignment`) | Texto | Plantilla `aviso_cita_reasignada` |
-| Pedido web, al dueño | `store.controller.js` (`notifyOwnerNow`) | Texto | **Sin plantilla aprobada**: texto + aviso (kind `pedido_web`) |
+| Pedido web: cambio de estado, al cliente (solo con plantillas activas) | `services/orderStatusNotice.js` | Texto | Plantilla `aviso_pedido_web` |
+| Pedido web nuevo, al dueño | `store.controller.js` (`notifyOwnerNow`) | Texto | Sin plantilla: texto + `[WA_FUERA_DE_VENTANA_SIN_PLANTILLA_APROBADA]` (kind `pedido_web`) |
 
-**Para cerrar el hueco** hay que crear en Meta (Utilidad, es_CO) plantillas para estos tres avisos —por ejemplo `cita_cancelada` ({{1}} servicio, {{2}} fecha y hora), `cita_reasignada` ({{1}} servicio, {{2}} fecha y hora, {{3}} empleado) y `nuevo_pedido_web` ({{1}} código, {{2}} cliente, {{3}} total)— y agregarlas a `TEMPLATE_CONFIG`. Mientras tanto se mandan como texto (no se omiten: la ventana se calcula con el historial, y cancelar borra el historial; omitirlos podría silenciar avisos que sí llegarían). La etiqueta del log dice cuántos quedaron fuera de la ventana.
+Con plantillas activas y fuera de la ventana, ningún aviso cae a texto libre si su plantilla falla (ver "Variables de plantilla: saneo").

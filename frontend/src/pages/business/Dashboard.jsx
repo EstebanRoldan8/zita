@@ -12,6 +12,7 @@ import { timeFromISO } from '../../lib/timezone';
 import { useAuth } from '../../context/AuthContext';
 import { isTiendaBusiness } from '../../lib/businessType';
 import TiendaDashboard from '../../components/dashboard/TiendaDashboard';
+import EscalationsPanel from '../../components/escalations/EscalationsPanel';
 
 registerLocale('es', es);
 
@@ -637,6 +638,9 @@ function ServiceDashboard() {
           </div>
         </div>
       </div>
+
+      {/* Clientes que pidieron hablar con una persona (escalaciones del bot) */}
+      <EscalationsPanel />
 
       {isError && (
         <div className="bg-red-500/10 border border-red-500/30 text-red-400 text-sm rounded-lg px-4 py-3 mb-6">

@@ -64,6 +64,8 @@ module.exports = async function escalar_a_humano(toolInput, ctx) {
 
     // La escalación queda guardada en la base (system_alerts) aunque el WhatsApp al dueño no llegue
     await logSystemAlert('escalamiento_humano', `Un cliente pidió hablar con una persona en ${negocio.name}`, businessId, {
+      // client_id: el panel del dueño (GET /api/escalations) resuelve con él nombre, teléfono y pausa del bot
+      client_id: clientInfo?.id || null,
       cliente: maskPhone(clientPhone),
       motivo,
       aviso_al_dueno: via,

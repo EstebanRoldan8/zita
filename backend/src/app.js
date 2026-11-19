@@ -44,6 +44,7 @@ const internalRoutes = require('./routes/internal.routes');
 const storeRoutes = require('./routes/store.routes');
 const meRoutes = require('./routes/me.routes');
 const invitationsRoutes = require('./routes/invitations.routes');
+const escalationsRoutes = require('./routes/escalations.routes');
 const { verifyToken } = require('./middlewares/auth');
 const { businessContext } = require('./middlewares/businessContext');
 const { checkPlanAccess } = require('./middlewares/planCheck');
@@ -181,6 +182,8 @@ app.use('/api/auth', authRoutes);
 app.use('/api/invitations', invitationsRoutes);
 // Identidad (dueño/empleado) y panel del empleado. businessContext aplica la allowlist del empleado.
 app.use('/api/me', meRoutes);
+// Escalaciones del bot ("quiero hablar con una persona") para el panel del dueño
+app.use('/api/escalations', escalationsRoutes);
 app.use('/api/businesses', businessesRoutes);
 app.use('/api/appointments', verifyToken, businessContext, checkPlanAccess, appointmentsRoutes);
 app.use('/api/clients', verifyToken, businessContext, checkPlanAccess, checkFeatureAccess('clientes'), clientsRoutes);

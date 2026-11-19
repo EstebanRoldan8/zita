@@ -134,7 +134,7 @@ const MOUNTS = {
   'admin.routes.js': '/api/admin', 'alerts.routes.js': '/api/alerts', 'appointments.routes.js': '/api/appointments',
   'assistant.routes.js': '/api/assistant', 'auth.routes.js': '/api/auth', 'businesses.routes.js': '/api/businesses',
   'cash.routes.js': '/api/cash', 'clients.routes.js': '/api/clients', 'contact.routes.js': '/api/contact',
-  'dashboard.routes.js': '/api/dashboard', 'employees.routes.js': '/api/employees', 'expenses.routes.js': '/api/expenses',
+  'dashboard.routes.js': '/api/dashboard', 'employees.routes.js': '/api/employees', 'escalations.routes.js': '/api/escalations', 'expenses.routes.js': '/api/expenses',
   'internal.routes.js': '/api/internal', 'invitations.routes.js': '/api/invitations', 'loyalty.routes.js': '/api/loyalty',
   'me.routes.js': '/api/me', 'metrics.routes.js': '/api/metrics', 'orders.routes.js': '/api/orders',
   'payment.routes.js': '/api/payments', 'productVariants.routes.js': '/api/products', 'products.routes.js': '/api/products',

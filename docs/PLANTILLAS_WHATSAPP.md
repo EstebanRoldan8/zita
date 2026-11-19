@@ -75,6 +75,9 @@ Nota: Meta solo deja definir el payload de los botones al enviar; el backend lo 
 ### 5. `plan_vencido` (Utilidad) — al dueño, cuando un cliente escribe con el plan vencido (máx. 1 cada 24 h)
 > ⚠️ El plan ZITA de {{1}} expiró y un cliente te está escribiendo por WhatsApp. Renueva para seguir atendiendo.
 
+### Número desde el que salen las plantillas 6 y 7 (de ZITA a sus clientes)
+Con `WA_PLATFORM_PHONE_NUMBER_ID` **y** `WA_PLATFORM_ACCESS_TOKEN` definidas (solo en `.env` / Railway), `aviso_fin_prueba` y `pago_rechazado` salen de ese número (`platformSender()` en `services/businessSender.js`). Si no están las dos, salen como antes, con `WHATSAPP_PHONE_NUMBER_ID` / `WHATSAPP_ACCESS_TOKEN` (el número del bot); si solo hay una, queda `[WA_PLATAFORMA_INCOMPLETA]` en el log y tampoco se mezclan. Las plantillas tienen que estar aprobadas en la WABA de ese número.
+
 ### 6. `aviso_fin_prueba` (Utilidad) — al dueño, desde el número de ZITA, 3 días antes de terminar la prueba
 > Hola {{1}}, tu período de prueba en ZITA termina en 3 días. Renueva tu plan para seguir atendiendo clientes sin interrupciones: https://app.zita.co/dashboard/suscripcion
 

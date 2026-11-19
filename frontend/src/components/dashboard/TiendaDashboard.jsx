@@ -5,6 +5,7 @@ import {
   Plus, PackagePlus, Package, ChevronRight,
 } from 'lucide-react';
 import api from '../../lib/api';
+import EscalationsPanel from '../escalations/EscalationsPanel';
 
 function formatCOP(v) {
   return new Intl.NumberFormat('es-CO', { style: 'currency', currency: 'COP', maximumFractionDigits: 0 }).format(v ?? 0);
@@ -127,6 +128,9 @@ export default function TiendaDashboard() {
           {new Date().toLocaleDateString('es-CO', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}
         </p>
       </div>
+
+      {/* Clientes que pidieron hablar con una persona (escalaciones del bot) */}
+      <EscalationsPanel />
 
       {/* Acciones rápidas */}
       {!isLite && (

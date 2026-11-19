@@ -9,11 +9,13 @@ const { createToolExecutor } = require('./chatbot/tools');
 const { convKey, newRequestId } = require('../utils/aiUsage');
 const { loadConversation, saveMessages, pendingReminder } = require('./conversationStore');
 const { callClaudeWithRetry } = require('../utils/anthropicRetry');
+const { WRITE_TOOLS, SAFE_TEXT, detectClaim, isBacked, retryInstruction } = require('./chatbot/confirmationGuard');
 
 // Modelo y límites del bot. max_tokens es solo un tope (no cambia el costo): 600 alcanza para una lista de servicios.
 const BOT_MODEL = 'claude-haiku-4-5-20251001';
 const BOT_MAX_TOKENS = 600;
 const BOT_MAX_TOOL_ITERATIONS = 5;  // hasta 6 llamadas por mensaje; lo normal es 1-2
+const BOT_RETRY_TOOL_ITERATIONS = 2; // vueltas de tools en el único reintento de la guarda de confirmaciones
 const HISTORY_MAX = 12;             // mensajes de historial que se mandan como máximo…
 const HISTORY_KEEP = 6;             // …y al pasarse se recorta a estos (en bloque, para no romper el caché)
 
@@ -383,11 +385,13 @@ async function processChatbotMessage(businessId, clientPhone, messageText, histo
     throw claudeError;
   }
 
-  try {
-    const allMessages = [...messages];
-    let iterations = 0;
+  // Herramientas de escritura ejecutadas en ESTE turno (para la guarda de confirmaciones inventadas)
+  const writes = [];
+  const ESCALATED = { response: 'Listo, le avisé al dueño. Te contactarán pronto 😊', userText: processedMessage };
 
-    while (response.stop_reason === 'tool_use' && iterations < BOT_MAX_TOOL_ITERATIONS) {
+  // Loop de tools: devuelve { response, iterations } o { escalated: true }
+  async function runToolLoop(allMessages, response, iterations, maxIterations) {
+    while (response.stop_reason === 'tool_use' && iterations < maxIterations) {
       iterations++;
       const assistantContent = response.content;
       allMessages.push({ role: 'assistant', content: assistantContent });
@@ -397,6 +401,9 @@ async function processChatbotMessage(businessId, clientPhone, messageText, histo
       for (const block of assistantContent) {
         if (block.type === 'tool_use') {
           const result = await executeChatbotTool(block.name, block.input);
+          if (Object.prototype.hasOwnProperty.call(WRITE_TOOLS, block.name)) {
+            writes.push({ name: block.name, success: result?.success === true });
+          }
           toolResults.push({
             type: 'tool_result',
             tool_use_id: block.id,
@@ -410,25 +417,54 @@ async function processChatbotMessage(businessId, clientPhone, messageText, histo
       }
 
       // Si se escaló a humano, retornar el mensaje de confirmación sin seguir procesando
-      if (shouldBreak) {
-        return { response: 'Listo, le avisé al dueño. Te contactarán pronto 😊', userText: processedMessage };
-      }
+      if (shouldBreak) return { escalated: true };
 
       allMessages.push({ role: 'user', content: toolResults });
       response = await callClaude(allMessages, iterations);
     }
-
     if (response.stop_reason === 'tool_use') {
       logger.warn('[BOT_MAX_ITERACIONES]', { businessId, iterations });
     }
+    return { response, iterations };
+  }
 
-    const finalText = response.content
-      .filter(b => b.type === 'text')
-      .map(b => b.text)
-      .join('');
-
+  const textOf = (r) => r.content
+    .filter(b => b.type === 'text')
+    .map(b => b.text)
+    .join('')
     // Limpiar tags internos espurios (ej: </final_message>, </fin>, etc) que el modelo puede generar ocasionalmente
-    const cleanText = finalText.replace(/<\/?[a-z_]+>/gi, '').trim();
+    .replace(/<\/?[a-z_]+>/gi, '').trim();
+
+  try {
+    const allMessages = [...messages];
+    const first = await runToolLoop(allMessages, response, 0, BOT_MAX_TOOL_ITERATIONS);
+    if (first.escalated) return ESCALATED;
+
+    let cleanText = textOf(first.response);
+
+    // Guarda: el texto afirma haber agendado/cambiado/cancelado y no hay una escritura con éxito que lo respalde.
+    // Solo aquí se hace una llamada extra: el flujo normal cuesta lo mismo que antes.
+    const claim = detectClaim(cleanText);
+    if (claim && !isBacked(claim, writes) && first.response.stop_reason !== 'tool_use') {
+      const herramientaFallida = writes.some((w) => w.success !== true);
+      logger.warn('[BOT_CONFIRMACION_REINTENTO]', { businessId, tipo: claim, herramientaFallida });
+      allMessages.push({ role: 'assistant', content: first.response.content });
+      allMessages.push({ role: 'user', content: [{ type: 'text', text: retryInstruction(claim, writes) }] });
+      const retryResponse = await callClaude(allMessages, first.iterations + 1);
+      const second = await runToolLoop(allMessages, retryResponse, first.iterations + 1, first.iterations + 1 + BOT_RETRY_TOOL_ITERATIONS);
+      if (second.escalated) return ESCALATED;
+
+      const retryText = textOf(second.response);
+      const claim2 = detectClaim(retryText);
+      if ((claim2 && !isBacked(claim2, writes)) || !retryText) {
+        const tipo = claim2 || claim;
+        logger.warn('[BOT_CONFIRMACION_SIN_HERRAMIENTA]', { businessId, tipo, herramientaFallida: writes.some((w) => w.success !== true) });
+        cleanText = SAFE_TEXT[tipo] || SAFE_TEXT.generica;
+      } else {
+        logger.info('[BOT_CONFIRMACION_CORREGIDA]', { businessId, tipo: claim, escrituras: writes.length });
+        cleanText = retryText;
+      }
+    }
 
     return { response: cleanText, userText: processedMessage };
   } catch (error) {

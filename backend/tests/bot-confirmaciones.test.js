@@ -179,3 +179,12 @@ test('citas activas futuras con su ID en cada turno aunque el historial esté va
   assert.ok(ctx.includes(DEGRADADO));
   assert.equal(ctx.includes(PASADA), false, 'la cita pasada sin cerrar no se inyecta');
 });
+
+test('respuestas informativas sobre una cita ya existente NO son afirmación (no se reintentan ni se reemplazan)', () => {
+  assert.equal(detectClaim('Tu cita está agendada para mañana a las 5:00 p. m. 😊'), null);
+  assert.equal(detectClaim('Sí, tienes una cita agendada el viernes con Andrés. ¿Necesitas algo más?'), null);
+  assert.equal(detectClaim('Tienes tu corte agendado para el viernes a las 3:00 p. m. ✅'), null);
+  // ...y las afirmaciones reales siguen detectándose
+  assert.equal(detectClaim('Tu cita quedó agendada para mañana a las 5 😊'), 'agendar');
+  assert.equal(detectClaim('Cita cancelada ✅'), 'cancelar');
+});

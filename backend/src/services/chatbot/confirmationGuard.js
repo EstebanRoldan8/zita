@@ -33,19 +33,17 @@ const norm = (t) => String(t || '').toLowerCase().normalize('NFD').replace(/[̀-
 const CLAIMS = {
   cancelar: [
     /\b(cancele|he cancelado|ya cancele|te (la |lo )?cancelo|cancelo (tu|la|el)\b)/,
-    /\b(quedo|queda|esta|fue) cancelad[ao]\b/,
-    /\bcita cancelada\b/,
+    /\b(quedo|queda|fue) cancelad[ao]\b/,
   ],
   cambiar: [
     /\b(cambie|he cambiado|ya cambie|movi|he movido|reagende|actualice|he actualizado|modifique)\b/,
     /\b(cambio|muevo|paso|reagendo|actualizo) (tu|la|el|tus|las|los|su)\b[^.!?\n]*\b(a las|para el|para las|al)\b/,
-    /\b(quedo|queda|esta|fue) (cambiad|movid|reagendad|actualizad|modificad)[ao]\b/,
+    /\b(quedo|queda|fue) (cambiad|movid|reagendad|actualizad|modificad)[ao]\b/,
     /\bahora (es|queda|sera) (a las|el)\b/,
   ],
   agendar: [
     /\b(agende|he agendado|ya agende|reserve|te (deje|dejo) agendad[ao]|te agendo (el|la|para|a las))\b/,
-    /\b(quedo|queda|esta|fue) (agendad|reservad|programad)[ao]\b/,
-    /\bcita (agendada|reservada|creada)\b/,
+    /\b(quedo|queda|fue) (agendad|reservad|programad)[ao]\b/,
   ],
 };
 

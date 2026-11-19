@@ -7,7 +7,7 @@ const { getColorOptions, colorOnlyImages, uniqueUrls } = require('../utils/varia
 const { findColorAttribute, normalizeOptionKey, normalizeAttributeName } = require('../utils/optionKey');
 const { normalizeColombianPhone, maskPhone } = require('../utils/phone');
 const { decrypt } = require('../utils/encrypt');
-const { sendMessage } = require('../config/whatsapp');
+const { notify } = require('../services/whatsappNotify');
 const { calculateShipping } = require('../config/shipping');
 const { enabledPaymentMethods } = require('../config/paymentMethods');
 const { TERMS_VERSION } = require('../config/checkoutLegal');
@@ -367,10 +367,17 @@ async function respondExisting(req, res, orderId) {
 
 // Notificación al dueño: best-effort y fuera del ciclo de la respuesta. Nunca lanza.
 function notifyOwner(contact, order, items, customer, city) {
-  setImmediate(async () => {
+  setImmediate(() => { notifyOwnerNow(contact, order, items, customer, city); });
+}
+
+// Aviso de pedido web al dueño desde el número del negocio, por notify() (ventana de 24 h; sin plantilla
+// aprobada en Meta: texto libre, marcado en el log si está fuera de la ventana). Nunca lanza.
+async function notifyOwnerNow(contact, order, items, customer, city) {
+  {
     try {
       if (!contact?.owner_whatsapp || !contact?.whatsapp_phone_number_id || !contact?.whatsapp_access_token) return;
       const token = decrypt(contact.whatsapp_access_token);
+      if (!token) return;
       const text = [
         `🛒 *Nuevo pedido web ${orderCode(order.id)}*`,
         `Cliente: ${customer.name}`,
@@ -382,11 +389,14 @@ function notifyOwner(contact, order, items, customer, city) {
         ...discountLines(order),
         `Total: ${formatCOP(order.total_amount)}`,
       ].join('\n');
-      await sendMessage(contact.owner_whatsapp, text, token, contact.whatsapp_phone_number_id);
+      await notify({
+        to: contact.owner_whatsapp, text, token, phoneNumberId: contact.whatsapp_phone_number_id,
+        businessId: contact.business_id || null, kind: 'pedido_web',
+      });
     } catch (err) {
       logger.warn(`store.notifyOwner order=${order.id}: ${err.message}`);
     }
-  });
+  }
 }
 
 // Honeypot: el campo oculto "website" lleno indica un bot. Se responde 200 sin crear nada.
@@ -698,4 +708,4 @@ async function getOrderStatus(req, res) {
   }
 }
 
-module.exports = { getStore, listProducts, getProduct, listCategories, honeypot, createOrder, getOrderStatus, orderCode };
+module.exports = { getStore, listProducts, getProduct, listCategories, honeypot, createOrder, getOrderStatus, orderCode, notifyOwnerNow };

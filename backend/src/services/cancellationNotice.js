@@ -12,19 +12,10 @@
 // Nunca se loguea el token ni el teléfono completo.
 const { supabaseAdmin } = require('../config/supabase');
 const logger = require('../utils/logger');
-const { decrypt } = require('../utils/encrypt');
 const { maskPhone } = require('../utils/phone');
 const { getTimezone } = require('../utils/timezone');
 const { notify } = require('./whatsappNotify');
-
-function safeDecrypt(cipher) {
-  try {
-    const plain = decrypt(cipher);
-    return typeof plain === 'string' && plain.trim() ? plain : null;
-  } catch {
-    return null;
-  }
-}
+const { businessSender } = require('./businessSender');
 
 function cancellationText(serviceName, scheduledAt, country) {
   const tz = getTimezone(country);
@@ -54,22 +45,13 @@ async function notifyClientOfCancellation({ businessId, appointmentId }) {
       .maybeSingle();
     if (!business?.whatsapp_access_token) return { sent: false, reason: 'sin_token' };
 
-    let token = null;
-    let phoneNumberId = null;
-    if (business.whatsapp_phone_number_id) {
-      token = safeDecrypt(business.whatsapp_access_token);
-      if (!token) {
-        logger.error('[CANCEL_NOTICE_TOKEN_ILEGIBLE] no se pudo descifrar el token del negocio; no se envía', { businessId });
-        return { sent: false, reason: 'token_ilegible' };
-      }
-      phoneNumberId = business.whatsapp_phone_number_id;
-    } else {
-      logger.warn('[CANCEL_NOTICE_NUMERO_POR_DEFECTO] el negocio no tiene número configurado; se usa el número por defecto', { businessId });
-    }
+    const sender = businessSender(business, { businessId, context: 'cita_cancelada' });
+    if (!sender) return { sent: false, reason: 'token_ilegible' };
+    const { token, phoneNumberId } = sender;
 
     const text = cancellationText(appt.services?.name || 'tu servicio', appt.scheduled_at, business.country);
-    // Sin plantilla aprobada para este aviso: siempre texto libre (lastInbound null evita la consulta de la ventana)
-    const { result } = await notify({ to: clientPhone, text, token, phoneNumberId, businessId, lastInbound: null });
+    // Sin plantilla aprobada en Meta para este aviso: texto libre; fuera de la ventana queda marcado en el log
+    const { result } = await notify({ to: clientPhone, text, token, phoneNumberId, businessId, kind: 'cita_cancelada' });
     if (result?.success === false) {
       logger.error('[CANCEL_NOTICE_ENVIO_FALLIDO]', { businessId, to: maskPhone(clientPhone), status: result.status, metaCode: result.metaCode });
       return { sent: false, reason: 'envio_fallido' };

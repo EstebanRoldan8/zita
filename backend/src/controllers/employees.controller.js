@@ -1,6 +1,33 @@
 const { createUserClient, supabaseAdmin } = require('../config/supabase');
 const logger = require('../utils/logger');
 const { accessStatusFor, removeEmployeeAccess } = require('./invitations.controller');
+const { notify } = require('../services/whatsappNotify');
+const { businessSender } = require('../services/businessSender');
+const { maskPhone } = require('../utils/phone');
+
+// Aviso al cliente de que su cita pasó a otro empleado. Sale del número del negocio con su token
+// (antes podía mezclar el token global con el número del negocio). Sin plantilla aprobada: texto libre
+// por notify(), que marca en el log si está fuera de la ventana de 24 h. Nunca lanza.
+async function notifyReassignment({ business, businessId, cita, newEmployeeName }) {
+  try {
+    const phone = cita?.clients?.phone;
+    if (!phone) return;
+    const sender = businessSender(business, { businessId, context: 'cita_reasignada' });
+    if (!sender) return;
+    const fechaFormato = new Date(cita.scheduled_at).toLocaleString('es-CO', {
+      timeZone: 'America/Bogota', weekday: 'long', day: 'numeric', month: 'long', hour: '2-digit', minute: '2-digit',
+    });
+    const mensaje = `Tu cita de ${cita.services?.name || 'servicio'} el ${fechaFormato} ahora será atendida por ${newEmployeeName} 😊`;
+    const { result } = await notify({
+      to: phone, text: mensaje, token: sender.token, phoneNumberId: sender.phoneNumberId, businessId, kind: 'cita_reasignada',
+    });
+    if (result?.success === false) {
+      logger.warn('[REASIGNACION_AVISO_FALLIDO]', { appointmentId: cita.id, to: maskPhone(phone), status: result.status });
+    }
+  } catch (err) {
+    logger.warn(`WhatsApp notification failed for appointment ${cita?.id}: ${err.message}`);
+  }
+}
 
 const capitalizeName = (str) => str.trim().replace(/\b\w/g, c => c.toUpperCase());
 
@@ -178,8 +205,6 @@ async function deleteEmployee(req, res) {
     const { id } = req.params;
     const userClient = createUserClient(req.headers.authorization);
     const { getAvailableEmployee, localParts } = require('../utils/availability');
-    const { sendMessage } = require('../config/whatsapp');
-    const { decrypt } = require('../utils/encrypt');
 
     // Verificar que el empleado existe
     const { data: existing, error: getErr } = await userClient
@@ -283,33 +308,8 @@ async function deleteEmployee(req, res) {
           if (updateError || !updateResult || updateResult.length === 0) {
             logger.error('[REASSIGNMENT_UPDATE_FAILED]', { appointment_id: cita.id, error: updateError?.message });
           } else {
-            // Notificar al cliente por WhatsApp solo si actualización fue exitosa
-            if (cita.clients?.phone) {
-              const fechaFormato = new Date(cita.scheduled_at).toLocaleString('es-CO', {
-                timeZone: 'America/Bogota',
-                weekday: 'long',
-                day: 'numeric',
-                month: 'long',
-                hour: '2-digit',
-                minute: '2-digit'
-              });
-              const mensaje = `Tu cita de ${cita.services?.name || 'servicio'} el ${fechaFormato} ahora será atendida por ${nuevoEmpleado.name} 😊`;
-
-              try {
-                const token = bizData?.whatsapp_access_token
-                  ? decrypt(bizData.whatsapp_access_token)
-                  : process.env.WHATSAPP_ACCESS_TOKEN;
-
-                await sendMessage(
-                  cita.clients.phone,
-                  mensaje,
-                  token,
-                  bizData?.whatsapp_phone_number_id || process.env.WHATSAPP_PHONE_NUMBER_ID
-                );
-              } catch (whatsappErr) {
-                logger.warn(`WhatsApp notification failed for appointment ${cita.id}: ${whatsappErr.message}`);
-              }
-            }
+            // Aviso al cliente desde el número del negocio (notify: ventana de 24 h)
+            await notifyReassignment({ business: bizData, businessId: req.businessId, cita, newEmployeeName: nuevoEmpleado.name });
           }
         }
       }
@@ -336,4 +336,4 @@ async function deleteEmployee(req, res) {
   }
 }
 
-module.exports = { getAll, create, update, deleteEmployee };
+module.exports = { getAll, create, update, deleteEmployee, notifyReassignment };

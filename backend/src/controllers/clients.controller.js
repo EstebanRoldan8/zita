@@ -1,7 +1,8 @@
 const { createUserClient } = require('../config/supabase');
 const logger = require('../utils/logger');
-const { decrypt } = require('../utils/encrypt');
-const { sendMessage } = require('../config/whatsapp');
+const { notify } = require('../services/whatsappNotify');
+const { businessSender } = require('../services/businessSender');
+const { maskPhone } = require('../utils/phone');
 
 const capitalizeName = (str) => str.trim().replace(/\b\w/g, c => c.toUpperCase());
 
@@ -266,9 +267,11 @@ async function destroy(req, res) {
   }
 }
 
+// Recordatorio manual a un cliente (Clientes → Recordar). Pasa por notify(): dentro de la ventana de 24 h sale
+// el mensaje personalizado del negocio; fuera de ella, la plantilla aprobada te_extranamos (si están activas).
+// Sale del número del negocio con su token. Sin PII en logs (ni teléfono completo ni el texto).
 async function recallClient(req, res) {
   try {
-    logger.info('Recall iniciado: ' + req.params.id);
     const { id } = req.params;
     const userClient = createUserClient(req.headers.authorization);
     const { supabaseAdmin } = require('../config/supabase');
@@ -290,7 +293,7 @@ async function recallClient(req, res) {
 
     const { data: business, error: businessError } = await supabaseAdmin
       .from('businesses')
-      .select('name, recall_message, recall_image_url, whatsapp_access_token, whatsapp_phone_number_id')
+      .select('name, recall_message, whatsapp_access_token, whatsapp_phone_number_id')
       .eq('id', req.businessId)
       .single();
 
@@ -298,56 +301,41 @@ async function recallClient(req, res) {
       return res.status(500).json({ success: false, error: 'Error al obtener datos del negocio.' });
     }
 
-    logger.info('Negocio recall: ' + JSON.stringify({
-      name: business?.name,
-      hasToken: !!business?.whatsapp_access_token,
-      phoneNumberId: business?.whatsapp_phone_number_id
-    }));
+    const sender = businessSender(business, { businessId: req.businessId, context: 'recordatorio_manual' });
+    if (!sender) {
+      return res.status(400).json({ success: false, error: 'Conecta el WhatsApp del negocio para enviar recordatorios.' });
+    }
 
-    let phone = client.phone.replace(/\D/g, '');
+    let phone = client.phone.replace(/D/g, '');
     if (phone.startsWith('0')) phone = '57' + phone.slice(1);
     if (!phone.startsWith('57') && phone.length === 10) {
       phone = '57' + phone;
     }
 
     const DEFAULT_MESSAGE = 'Hola {nombre} 👋 Hace un tiempo no te vemos en {negocio}. ¡Te esperamos para tu próxima visita! Escríbenos para agendar fácilmente 😊';
-    const recallMessage = business.recall_message || DEFAULT_MESSAGE;
-
-    const mensajeFinal = recallMessage
+    const mensajeFinal = (business.recall_message || DEFAULT_MESSAGE)
       .replace('{nombre}', client.name)
       .replace('{negocio}', business.name);
 
-    logger.info('Mensaje completo: ' + mensajeFinal);
-
-    const token = decrypt(business.whatsapp_access_token);
-    logger.info('Token OK: ' + !!token);
-    logger.info('Recall params: ' + JSON.stringify({
+    const { via, result } = await notify({
       to: phone,
-      message: mensajeFinal,
-      phoneNumberId: business.whatsapp_phone_number_id
-    }));
+      text: mensajeFinal,
+      template: { key: 'te_extranamos', body: [client.name, business.name] },
+      token: sender.token,
+      phoneNumberId: sender.phoneNumberId,
+      businessId: req.businessId,
+      kind: 'recordatorio_manual',
+    });
 
-    try {
-      if (business.recall_image_url) {
-        logger.info('Enviando imagen: ' + business.recall_image_url);
-      }
-
-      await sendMessage(
-        phone,
-        mensajeFinal,
-        token,
-        business.whatsapp_phone_number_id
-      );
-
-      return res.json({ success: true, message: 'Recordatorio enviado.' });
-    } catch (waError) {
-      logger.error('Recall ERROR: ' + waError.message);
-      logger.error('Stack: ' + waError.stack);
-      return res.status(500).json({ success: false, error: waError.message || 'Error al enviar recordatorio por WhatsApp.' });
+    if (result?.success === false) {
+      logger.error('[RECALL_ENVIO_FALLIDO]', { businessId: req.businessId, to: maskPhone(phone), via, status: result.status, metaCode: result.metaCode });
+      return res.status(502).json({ success: false, error: 'WhatsApp no aceptó el mensaje. Intenta de nuevo más tarde.' });
     }
+
+    logger.info('[RECALL_ENVIADO]', { businessId: req.businessId, to: maskPhone(phone), via });
+    return res.json({ success: true, message: 'Recordatorio enviado.' });
   } catch (err) {
     logger.error(`clients.recallClient: ${err.message}`);
-    logger.error('Stack: ' + err.stack);
     return res.status(500).json({ success: false, error: 'Error interno del servidor.' });
   }
 }

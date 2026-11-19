@@ -108,7 +108,7 @@ test('negocio sin número configurado (sin phone_number_id): respaldo al comport
   assert.equal(sent.length, 1);
   assert.equal(sent[0].token, null, 'token por defecto (variables de entorno)');
   assert.equal(sent[0].pnid, null, 'número por defecto');
-  assert.ok(logs.some((l) => String(l[1]).includes('CANCEL_NOTICE_NUMERO_POR_DEFECTO')));
+  assert.ok(logs.some((l) => String(l[1]).includes('WA_NUMERO_POR_DEFECTO')));
   assertNoSecretsInLogs();
 });
 

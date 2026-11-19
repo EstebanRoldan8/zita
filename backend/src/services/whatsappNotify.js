@@ -11,7 +11,8 @@
 //
 // La ventana se calcula con el último mensaje del destinatario guardado en whatsapp_conversations (historial).
 
-const { sendMessage, sendTemplate } = require('../config/whatsapp');
+// Se llama a wa.sendMessage / wa.sendTemplate en cada envío (no desestructurado) para que los dobles de prueba apliquen
+const wa = require('../config/whatsapp');
 const { loadConversation, lastInboundAt } = require('./conversationStore');
 const logger = require('../utils/logger');
 const { maskPhone } = require('../utils/phone');
@@ -68,12 +69,19 @@ async function lastInboundFor(businessId, phone) {
  * @param {string} [p.phoneNumberId]
  * @param {string} [p.businessId]       para calcular la ventana con el historial
  * @param {Date|string|null} [p.lastInbound]  si ya se conoce, evita la consulta
+ * @param {string} [p.kind]             tipo de aviso (solo para logs), p. ej. 'cita_cancelada'
  * @returns {Promise<{ via: 'text'|'template', result: object }>}
  */
-async function notify({ to, text, template, token = null, phoneNumberId = null, businessId = null, lastInbound }) {
+async function notify({ to, text, template, token = null, phoneNumberId = null, businessId = null, lastInbound, kind = null }) {
   const inbound = lastInbound !== undefined ? lastInbound : await lastInboundFor(businessId, to);
-  if (insideWindow(inbound) || !template) {
-    return { via: 'text', result: await sendMessage(to, text, token, phoneNumberId) };
+  if (insideWindow(inbound)) {
+    return { via: 'text', result: await wa.sendMessage(to, text, token, phoneNumberId) };
+  }
+  if (!template) {
+    // Aviso sin plantilla aprobada en Meta: fuera de la ventana no hay alternativa. Se manda texto (como antes)
+    // y queda marcado para saber qué plantilla falta crear (ver docs/PLANTILLAS_WHATSAPP.md).
+    logger.warn('[WA_FUERA_DE_VENTANA_SIN_PLANTILLA_APROBADA] aviso sin plantilla en Meta; texto libre, puede no llegar (131047)', { kind, to: maskPhone(to) });
+    return { via: 'text', result: await wa.sendMessage(to, text, token, phoneNumberId) };
   }
   if (templatesEnabled()) {
     const tpl = resolveTemplate(template.key);
@@ -82,12 +90,12 @@ async function notify({ to, text, template, token = null, phoneNumberId = null, 
       logger.error('[WA_PLANTILLA_SIN_NOMBRE] falta la variable con el nombre aprobado; se manda texto libre (probablemente no llegue)', {
         template: template.key, variable: TEMPLATE_CONFIG[template.key].env, to: maskPhone(to),
       });
-      return { via: 'text', result: await sendMessage(to, text, token, phoneNumberId) };
+      return { via: 'text', result: await wa.sendMessage(to, text, token, phoneNumberId) };
     }
-    return { via: 'template', result: await sendTemplate(to, tpl.name, { body: template.body, buttons: template.buttons }, token, phoneNumberId, tpl.lang) };
+    return { via: 'template', result: await wa.sendTemplate(to, tpl.name, { body: template.body, buttons: template.buttons }, token, phoneNumberId, tpl.lang) };
   }
-  logger.warn('[WA_FUERA_DE_VENTANA_SIN_PLANTILLA] se manda texto libre; Meta probablemente lo descarte (131047)', { template: template.key, to: maskPhone(to) });
-  return { via: 'text', result: await sendMessage(to, text, token, phoneNumberId) };
+  logger.warn('[WA_FUERA_DE_VENTANA_SIN_PLANTILLA] se manda texto libre; Meta probablemente lo descarte (131047)', { template: template.key, kind, to: maskPhone(to) });
+  return { via: 'text', result: await wa.sendMessage(to, text, token, phoneNumberId) };
 }
 
 module.exports = { notify, insideWindow, lastInboundFor, TEMPLATE_CONFIG, resolveTemplate, templatesEnabled };

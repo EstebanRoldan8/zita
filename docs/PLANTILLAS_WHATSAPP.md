@@ -90,8 +90,15 @@ Es **Marketing** (Meta lo clasifica así y cobra la tarifa de marketing). El men
 - Las respuestas del bot al cliente: siempre son respuesta a un mensaje que acaba de llegar (dentro de la ventana).
 - Los mensajes de error/límite del bot: idem.
 
-## Pendiente (fuera del alcance de este cambio)
-Estos envíos del **panel** siguen como texto libre y pueden no llegar fuera de la ventana:
-- `controllers/appointments.controller.js` (aviso al cliente desde el panel; además usa el número global, sin token del negocio).
-- `controllers/clients.controller.js`, `controllers/employees.controller.js` (aviso de reasignación), `controllers/store.controller.js` (aviso de pedido al dueño).
-Se pueden migrar con el mismo `notify()` cuando se definan sus plantillas.
+## Avisos que inicia el panel
+
+Todos pasan por `notify()` y salen del **número del negocio con su token** (`services/businessSender.js`; si el negocio no tiene `whatsapp_phone_number_id`, número por defecto como antes; sin token no salen).
+
+| Aviso | Dónde | Dentro de la ventana | Fuera de la ventana |
+|---|---|---|---|
+| Recordatorio manual a un cliente (Clientes → Recordar) | `clients.controller.js` | Mensaje personalizado del negocio | Plantilla `te_extranamos` |
+| Cita cancelada por el negocio (panel, barbero, asistente) | `services/cancellationNotice.js` | Texto | **Sin plantilla aprobada**: texto + `[WA_FUERA_DE_VENTANA_SIN_PLANTILLA_APROBADA]` (kind `cita_cancelada`) |
+| Cita reasignada al eliminar un empleado | `employees.controller.js` (`notifyReassignment`) | Texto | **Sin plantilla aprobada**: texto + aviso (kind `cita_reasignada`) |
+| Pedido web, al dueño | `store.controller.js` (`notifyOwnerNow`) | Texto | **Sin plantilla aprobada**: texto + aviso (kind `pedido_web`) |
+
+**Para cerrar el hueco** hay que crear en Meta (Utilidad, es_CO) plantillas para estos tres avisos —por ejemplo `cita_cancelada` ({{1}} servicio, {{2}} fecha y hora), `cita_reasignada` ({{1}} servicio, {{2}} fecha y hora, {{3}} empleado) y `nuevo_pedido_web` ({{1}} código, {{2}} cliente, {{3}} total)— y agregarlas a `TEMPLATE_CONFIG`. Mientras tanto se mandan como texto (no se omiten: la ventana se calcula con el historial, y cancelar borra el historial; omitirlos podría silenciar avisos que sí llegarían). La etiqueta del log dice cuántos quedaron fuera de la ventana.

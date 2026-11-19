@@ -65,3 +65,55 @@ test('recordatorio a un cliente que no escribe hace días → sale como plantill
   assert.deepEqual(env.sent[0].components.body, ['Juan Pérez', 'Barbería Test', env.sent[0].components.body[2], 'Corte']);
   assert.equal(fake.db.whatsapp_conversations[0].messages.at(-1).kind, 'reminder');
 });
+
+// ── Nombre e idioma por plantilla (deben coincidir EXACTO con Meta) ─────────────
+const { resolveTemplate, TEMPLATE_CONFIG } = require('../src/services/whatsappNotify');
+const OLD = new Date(Date.now() - 3 * 86400000);
+
+test('idioma por plantilla: aviso_nueva_cita → es; las otras 7 → es_CO', () => {
+  process.env.WA_TPL_FIN_PRUEBA = 'aviso_fin_prueba_v2';
+  process.env.WA_TPL_PAGO_RECHAZADO = 'pago_rechazado_v2';
+  const langs = Object.fromEntries(Object.keys(TEMPLATE_CONFIG).map((k) => [k, resolveTemplate(k).lang]));
+  assert.deepEqual(langs, {
+    recordatorio_cita: 'es_CO', aviso_nueva_cita: 'es', aviso_escalamiento: 'es_CO', resumen_diario: 'es_CO',
+    plan_vencido: 'es_CO', aviso_fin_prueba: 'es_CO', pago_rechazado: 'es_CO', te_extranamos: 'es_CO',
+  });
+});
+
+test('el idioma del mapa viaja en el envío (WA_TEMPLATE_LANG ya no lo pisa)', async () => {
+  process.env.WA_TEMPLATES_ENABLED = 'true';
+  process.env.WA_TEMPLATE_LANG = 'en_US';
+  try {
+    env.sent.length = 0;
+    await notify({ to: PHONE, text: 't', template: { key: 'aviso_nueva_cita', body: ['a', 'b', 'c', 'd', 'e'] }, lastInbound: OLD });
+    await notify({ to: PHONE, text: 't', template: TPL, lastInbound: OLD });
+    assert.deepEqual(env.sent.map((s) => [s.name, s.lang]), [['aviso_nueva_cita', 'es'], ['recordatorio_cita', 'es_CO']]);
+  } finally {
+    delete process.env.WA_TEMPLATE_LANG;
+  }
+});
+
+test('nombres _v2 de ZITA se leen de WA_TPL_FIN_PRUEBA y WA_TPL_PAGO_RECHAZADO', async () => {
+  process.env.WA_TEMPLATES_ENABLED = 'true';
+  process.env.WA_TPL_FIN_PRUEBA = 'aviso_fin_prueba_v2';
+  process.env.WA_TPL_PAGO_RECHAZADO = 'pago_rechazado_v2';
+  env.sent.length = 0;
+  await notify({ to: PHONE, text: 't', template: { key: 'aviso_fin_prueba', body: ['X'] }, lastInbound: null });
+  await notify({ to: PHONE, text: 't', template: { key: 'pago_rechazado', body: ['$1', 'r'] }, lastInbound: null });
+  assert.deepEqual(env.sent.map((s) => [s.type, s.name, s.lang]), [['template', 'aviso_fin_prueba_v2', 'es_CO'], ['template', 'pago_rechazado_v2', 'es_CO']]);
+});
+
+test('plantillas activas SIN la variable de nombre: falla segura (log claro + texto libre, sin excepción)', async () => {
+  process.env.WA_TEMPLATES_ENABLED = 'true';
+  delete process.env.WA_TPL_FIN_PRUEBA;
+  delete process.env.WA_TPL_PAGO_RECHAZADO;
+  env.sent.length = 0; env.logs.length = 0;
+  const r1 = await notify({ to: PHONE, text: 'fin prueba', template: { key: 'aviso_fin_prueba', body: ['X'] }, lastInbound: null });
+  const r2 = await notify({ to: PHONE, text: 'pago', template: { key: 'pago_rechazado', body: ['$1', 'r'] }, lastInbound: null });
+  assert.equal(r1.via, 'text');
+  assert.equal(r2.via, 'text');
+  assert.ok(env.sent.every((s) => s.type === 'text'));
+  const lines = env.logs.filter((l) => String(l[1]).includes('WA_PLANTILLA_SIN_NOMBRE'));
+  assert.deepEqual(lines.map((l) => l[2].variable), ['WA_TPL_FIN_PRUEBA', 'WA_TPL_PAGO_RECHAZADO']);
+  assert.equal(JSON.stringify(env.logs).includes(PHONE), false, 'sin teléfono completo en logs');
+});

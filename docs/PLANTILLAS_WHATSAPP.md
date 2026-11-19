@@ -17,13 +17,32 @@ La ventana se calcula con el último mensaje del destinatario guardado en `whats
 **Para activarlo:**
 1. Crear las plantillas en Meta (WhatsApp Manager → Plantillas de mensajes) **en la cuenta de WhatsApp Business de cada negocio** que tenga número propio. Las plantillas viven en la WABA: si varios números comparten WABA, basta una vez. Las de ZITA (`aviso_fin_prueba`, `pago_rechazado`) van en la WABA del número global de ZITA.
 2. Esperar la aprobación.
-3. Poner `WA_TEMPLATES_ENABLED=true` en Railway (y `WA_TEMPLATE_LANG` si el idioma aprobado no es `es`, por ejemplo `es_CO`).
+3. Poner `WA_TEMPLATES_ENABLED=true` en Railway, y `WA_TPL_FIN_PRUEBA` / `WA_TPL_PAGO_RECHAZADO` con los nombres aprobados (ver tabla).
 
 Si un negocio no tiene las plantillas aprobadas y se activa la variable, el envío falla con un error de Meta (código 132001, plantilla no existe). Queda en el log y en `system_alerts` para los recordatorios.
 
+## Nombre e idioma de cada plantilla (como quedaron aprobadas en Meta)
+
+Se configuran en **un solo lugar**: `TEMPLATE_CONFIG` en `backend/src/services/whatsappNotify.js`. El código de idioma tiene que ser **exactamente** el de Meta; si no, Meta responde 132001 y el mensaje no sale.
+
+| Clave | Nombre en Meta | Variable para el nombre | Idioma (código) |
+|---|---|---|---|
+| `recordatorio_cita` | `recordatorio_cita` | `WA_TPL_RECORDATORIO` (opcional) | Spanish (COL) — `es_CO` |
+| `aviso_nueva_cita` | `aviso_nueva_cita` | `WA_TPL_NUEVA_CITA` (opcional) | Spanish — **`es`** |
+| `aviso_escalamiento` | `aviso_escalamiento` | `WA_TPL_ESCALAMIENTO` (opcional) | Spanish (COL) — `es_CO` |
+| `resumen_diario` | `resumen_diario` | `WA_TPL_RESUMEN` (opcional) | Spanish (COL) — `es_CO` |
+| `plan_vencido` | `plan_vencido` | `WA_TPL_PLAN_VENCIDO` (opcional) | Spanish (COL) — `es_CO` |
+| `aviso_fin_prueba` | el de la variable (p. ej. `aviso_fin_prueba_v2`) | **`WA_TPL_FIN_PRUEBA` (obligatoria)** | Spanish (COL) — `es_CO` |
+| `pago_rechazado` | el de la variable (p. ej. `pago_rechazado_v2`) | **`WA_TPL_PAGO_RECHAZADO` (obligatoria)** | Spanish (COL) — `es_CO` |
+| `te_extranamos` | `te_extranamos` | `WA_TPL_TE_EXTRANAMOS` (opcional) | Spanish (COL) — `es_CO` |
+
+- `WA_TEMPLATE_LANG` ya **no** cambia el idioma de estas 8 (el idioma va por plantilla en el mapa). Solo aplica a una plantilla que no esté en el mapa.
+- **Falla segura:** con `WA_TEMPLATES_ENABLED=true` y sin `WA_TPL_FIN_PRUEBA` o `WA_TPL_PAGO_RECHAZADO`, no se intenta la plantilla: queda `[WA_PLANTILLA_SIN_NOMBRE]` en el log (con el nombre de la variable que falta) y se manda texto libre, sin cortar el flujo. Fuera de la ventana ese texto probablemente no llegue: hay que poner la variable.
+- Si se aprueba una plantilla en otro idioma, se cambia solo su `lang` en el mapa.
+
 ## Plantillas a crear
 
-Idioma: **Español (es)**. Los `{{n}}` son variables; el backend las llena en ese orden. Los textos son una propuesta: se pueden ajustar mientras se respeten el número y el orden de las variables.
+Idioma: el de la tabla de arriba. Los `{{n}}` son variables; el backend las llena en ese orden. Los textos son una propuesta: se pueden ajustar mientras se respeten el número y el orden de las variables.
 
 ### 1. `recordatorio_cita` (Utilidad) — al cliente, 2 h antes de la cita
 Desde el número del negocio.

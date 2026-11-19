@@ -174,7 +174,7 @@ function installFakes(fake) {
   stub('utils/logger', { info: log('info'), warn: log('warn'), error: log('error'), debug: log('debug') });
   stub('config/whatsapp', {
     sendMessage: async (to, text, token, pnid) => { sent.push({ type: 'text', to, text, token, pnid }); return { messages: [{ id: 'wamid.out' }] }; },
-    sendTemplate: async (to, name, components, token, pnid) => { sent.push({ type: 'template', to, name, components, token, pnid }); return { messages: [{ id: 'wamid.tpl' }] }; },
+    sendTemplate: async (to, name, components, token, pnid, lang) => { sent.push({ type: 'template', to, name, components, token, pnid, lang }); return { messages: [{ id: 'wamid.tpl' }] }; },
   });
   return { logs, sent };
 }

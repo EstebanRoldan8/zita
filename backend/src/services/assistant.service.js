@@ -4306,6 +4306,30 @@ function getStoreAgent() {
   return storeAgent;
 }
 
+// Gasta un mensaje del cupo diario del asistente. Devuelve { allowed, count } (count = contador después de sumar).
+// Atómico con la función consume_ai_message (migración 067). Si la función aún no existe en la base,
+// respaldo al leer-y-escribir anterior (puede contar de menos con mensajes simultáneos).
+let consumeRpcMissingLogged = false;
+async function consumeAiMessage(businessId, hoy, limite, biz) {
+  const { data, error } = await supabaseAdmin.rpc('consume_ai_message', { p_business_id: businessId, p_date: hoy, p_limit: limite });
+  if (!error) {
+    return data === null || data === undefined ? { allowed: false, count: limite } : { allowed: true, count: Number(data) };
+  }
+  const missing = error.code === 'PGRST202' || error.code === '42883';
+  if (!missing) throw new Error(`consume_ai_message: ${error.message}`);
+  if (!consumeRpcMissingLogged) {
+    consumeRpcMissingLogged = true;
+    logger.warn('[AI_QUOTA_SIN_MIGRACION_067] consume_ai_message no existe; contador con leer-y-escribir (no atómico)');
+  }
+  const mensajesHoy = biz.ai_messages_date === hoy ? (biz.ai_messages_today || 0) : 0;
+  if (mensajesHoy >= limite) return { allowed: false, count: mensajesHoy };
+  await supabaseAdmin
+    .from('businesses')
+    .update({ ai_messages_today: mensajesHoy + 1, ai_messages_date: hoy })
+    .eq('id', businessId);
+  return { allowed: true, count: mensajesHoy + 1 };
+}
+
 async function processMessage(businessId, userMessage, conversationHistory = [], session = {}) {
   logger.info('[processMessage] businessId recibido:', businessId);
   logger.info('[processMessage] userMessageLength:', userMessage?.length || 0);
@@ -4332,10 +4356,10 @@ async function processMessage(businessId, userMessage, conversationHistory = [],
 
   if (limite !== -1) {
     const hoy = new Date().toLocaleDateString('en-CA', { timeZone: 'America/Bogota' });
-    const esHoy = biz.ai_messages_date === hoy;
-    const mensajesHoy = esHoy ? (biz.ai_messages_today || 0) : 0;
+    // Consumo atómico en la base (migración 067): dos mensajes simultáneos no pueden pasarse del límite
+    const consumo = await consumeAiMessage(businessId, hoy, limite, biz);
 
-    if (mensajesHoy >= limite) {
+    if (!consumo.allowed) {
       const planActual = plan;
       const mensajeUpgrade = planActual === 'estandar'
         ? '🚀 ¿Quieres más capacidad? Mejora al **Plan Pro** (60 mensajes/día) desde Mi Suscripción en el panel.'
@@ -4349,16 +4373,7 @@ async function processMessage(businessId, userMessage, conversationHistory = [],
       };
     }
 
-    // Sumar 1 al contador
-    await supabaseAdmin
-      .from('businesses')
-      .update({
-        ai_messages_today: mensajesHoy + 1,
-        ai_messages_date: hoy
-      })
-      .eq('id', businessId);
-
-    const mensajesRestantes = limite - (mensajesHoy + 1);
+    const mensajesRestantes = limite - consumo.count;
     avisoLimite = (mensajesRestantes <= 5 && mensajesRestantes > 0)
       ? `\n\n_(${mensajesRestantes} mensaje${mensajesRestantes !== 1 ? 's' : ''} disponible${mensajesRestantes !== 1 ? 's' : ''} hoy en tu plan)_`
       : '';

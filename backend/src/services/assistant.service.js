@@ -1742,7 +1742,13 @@ async function executeTool(toolName, toolInput, businessId) {
       if (!toolInput.appointment_id || !uuidRegex.test(toolInput.appointment_id)) {
         return { success: false, error: `appointment_id inválido: "${toolInput.appointment_id}". Usa el UUID retornado por buscar_cita.` };
       }
-      return await deleteCitaIncome(toolInput.appointment_id, businessId);
+      const cancelacion = await deleteCitaIncome(toolInput.appointment_id, businessId);
+      // El dueño cancela por el asistente: mismo aviso al cliente que desde el panel (número del negocio)
+      if (cancelacion.success) {
+        const { notifyClientOfCancellation } = require('./cancellationNotice');
+        await notifyClientOfCancellation({ businessId, appointmentId: toolInput.appointment_id });
+      }
+      return cancelacion;
     }
 
     case 'buscar_cita': {

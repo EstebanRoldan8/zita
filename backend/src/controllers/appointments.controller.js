@@ -5,6 +5,7 @@ const { getAvailableEmployee, getNextAvailableSlots, loadDay, freeEmployees, loc
 // 23505 = mismo inicio (índice único); 23P01 = solape (restricción de exclusión de la migración 064)
 const isConflict = (e) => !!e && (e.code === '23505' || e.code === '23P01');
 const { VALID_STATUSES, changeAppointmentStatus } = require('../services/appointmentStatus');
+const { notifyClientOfCancellation } = require('../services/cancellationNotice');
 
 async function getAll(req, res) {
   try {
@@ -415,6 +416,10 @@ async function remove(req, res) {
       .single();
 
     if (error) throw error;
+    // Mismo aviso al cliente que el resto de cancelaciones (si ya estaba cancelada, no se repite)
+    if (existing.status !== 'cancelled') {
+      await notifyClientOfCancellation({ businessId: req.businessId, appointmentId: id });
+    }
     return res.json({ success: true, data });
   } catch (err) {
     logger.error(`appointments.remove: ${err.message}`);

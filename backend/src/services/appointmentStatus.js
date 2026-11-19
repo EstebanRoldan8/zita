@@ -1,14 +1,12 @@
 // Cambio de estado de una cita y sus efectos (compartido por el dueño y el panel del empleado):
-//   - cancelar: aviso por WhatsApp al cliente si la cita vino por WhatsApp y limpieza de la conversación
+//   - cancelar: aviso por WhatsApp al cliente (services/cancellationNotice.js)
 //   - completar: visitas (client_loyalty), egreso si es recompensa, puntos de fidelización e ingreso
 // `db` es el cliente con el que se lee/escribe: el del JWT del dueño (RLS) o el admin para el empleado.
 // Todas las consultas filtran por business_id (y por employee_id cuando se pasa).
 const { supabaseAdmin } = require('../config/supabase');
 const logger = require('../utils/logger');
 const { getTimezone } = require('../utils/timezone');
-const { sendMessage } = require('../config/whatsapp');
-const { decrypt } = require('../utils/encrypt');
-const { maskPhone } = require('../utils/phone');
+const { notifyClientOfCancellation } = require('./cancellationNotice');
 
 const VALID_STATUSES = ['pending', 'confirmed', 'completed', 'cancelled'];
 
@@ -44,57 +42,6 @@ async function awardLoyaltyPoints(businessId, clientId, appointmentId) {
     }
   } catch (err) {
     logger.error('awardLoyaltyPoints: ' + err.message);
-  }
-}
-
-async function notifyCancellation({ db, businessId, appointmentId, country }) {
-  try {
-    const { data: fullAppt } = await db
-      .from('appointments')
-      .select('id, client_id, scheduled_at, source, services(name), clients(phone)')
-      .eq('id', appointmentId)
-      .eq('business_id', businessId)
-      .single();
-
-    // Solo enviar si es cita de WhatsApp y tiene cliente
-    if (fullAppt?.source !== 'whatsapp' || !fullAppt?.client_id) return;
-    try {
-      const clientPhone = fullAppt?.clients?.phone;
-      const serviceName = fullAppt?.services?.name || 'tu servicio';
-      if (!clientPhone) return;
-
-      const { data: business } = await supabaseAdmin
-        .from('businesses')
-        .select('whatsapp_access_token')
-        .eq('id', businessId)
-        .single();
-      if (!business?.whatsapp_access_token) return;
-
-      // Se conserva el comportamiento previo: el token del negocio solo se valida (decrypt) y el envío
-      // usa el número por defecto de config/whatsapp. Pendiente aparte: enviar con el número del negocio.
-      decrypt(business.whatsapp_access_token);
-
-      const tz = getTimezone(country);
-      const fecha = new Date(fullAppt.scheduled_at)
-        .toLocaleDateString('es-CO', { timeZone: tz, weekday: 'long', day: 'numeric', month: 'long' });
-      const hora = new Date(fullAppt.scheduled_at)
-        .toLocaleTimeString('es-CO', { timeZone: tz, hour: '2-digit', minute: '2-digit' });
-
-      const mensaje = `Hola! 😔 Lamentamos informarte que tu cita de ${serviceName} el ${fecha} a las ${hora} tuvo que ser cancelada.\n¿Te gustaría reagendarla? Con gusto te buscamos otro horario 🗓️`;
-
-      await sendMessage(clientPhone, mensaje);
-      logger.info(`Mensaje de cancelación enviado a cliente ${maskPhone(clientPhone)}`);
-
-      // Limpiar historial de conversación para que el bot empiece fresco
-      await supabaseAdmin
-        .from('whatsapp_conversations')
-        .upsert({ business_id: businessId, client_phone: clientPhone, messages: [] }, { onConflict: 'business_id,client_phone' });
-      logger.info(`Historial de conversación limpiado para ${maskPhone(clientPhone)}`);
-    } catch (waErr) {
-      logger.error(`appointments.update: error sending WA cancellation - ${waErr.message}`);
-    }
-  } catch (cancelErr) {
-    logger.error(`appointments.update: error fetching appointment for WA notification - ${cancelErr.message}`);
   }
 }
 
@@ -262,7 +209,8 @@ async function changeAppointmentStatus({ db, businessId, appointmentId, status, 
   }
 
   if (status === 'cancelled') {
-    await notifyCancellation({ db, businessId, appointmentId, country });
+    // Aviso al cliente desde el número del negocio (función única: services/cancellationNotice.js)
+    await notifyClientOfCancellation({ businessId, appointmentId });
   }
 
   if (status === 'completed' && existing.status !== 'completed') {

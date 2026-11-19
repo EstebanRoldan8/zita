@@ -5,6 +5,7 @@
 // TODO futuro: notifySuperadmin(type, payload), sendEmail(to, subject, body)
 
 const { notify } = require('./whatsappNotify');
+const { platformSender } = require('./businessSender');
 const { maskPhone } = require('../utils/phone');
 const { supabaseAdmin } = require('../config/supabase');
 const logger = require('../utils/logger');
@@ -55,8 +56,8 @@ async function checkTrialExpiringWarnings() {
           `Renueva tu plan para seguir atendiendo clientes sin interrupciones. \n` +
           `https://app.zita.co/dashboard/suscripcion`;
 
-        // Desde el número de ZITA al dueño: fuera de ventana → plantilla aviso_fin_prueba (si están activas)
-        const { result: envio } = await notify({ to: negocio.phone, text: mensaje, template: { key: 'aviso_fin_prueba', body: [negocio.name] }, lastInbound: null });
+        // Desde el número de ZITA al dueño (WA_PLATFORM_* si está configurado; si no, el número por defecto): fuera de ventana → plantilla aviso_fin_prueba (si están activas)
+        const { result: envio } = await notify({ to: negocio.phone, text: mensaje, template: { key: 'aviso_fin_prueba', body: [negocio.name] }, lastInbound: null, ...platformSender(), kind: 'aviso_fin_prueba' });
         if (envio && envio.success === false) {
           errors.push(`business ${negocio.id}: WhatsApp no aceptó el aviso`);
           continue; // no se marca como enviado: se reintenta en la próxima corrida
@@ -110,7 +111,7 @@ async function notifyPaymentDeclined(business, payment) {
   const mensaje = `Tu pago de $${formatearCOP(amount)} en ZITA no pudo procesarse. ${reason} \n` +
     `Intenta de nuevo desde tu panel de Suscripción: https://app.zita.co/dashboard/suscripcion`;
 
-  await notify({ to: business.phone, text: mensaje, template: { key: 'pago_rechazado', body: [`${formatearCOP(amount)}`, reason] }, lastInbound: null });
+  await notify({ to: business.phone, text: mensaje, template: { key: 'pago_rechazado', body: [`${formatearCOP(amount)}`, reason] }, lastInbound: null, ...platformSender(), kind: 'pago_rechazado' });
 }
 
 module.exports = { checkTrialExpiringWarnings, notifyPaymentDeclined };

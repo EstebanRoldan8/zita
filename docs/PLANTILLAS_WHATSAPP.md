@@ -17,13 +17,32 @@ La ventana se calcula con el último mensaje del destinatario guardado en `whats
 **Para activarlo:**
 1. Crear las plantillas en Meta (WhatsApp Manager → Plantillas de mensajes) **en la cuenta de WhatsApp Business de cada negocio** que tenga número propio. Las plantillas viven en la WABA: si varios números comparten WABA, basta una vez. Las de ZITA (`aviso_fin_prueba`, `pago_rechazado`) van en la WABA del número global de ZITA.
 2. Esperar la aprobación.
-3. Poner `WA_TEMPLATES_ENABLED=true` en Railway (y `WA_TEMPLATE_LANG` si el idioma aprobado no es `es`, por ejemplo `es_CO`).
+3. Poner `WA_TEMPLATES_ENABLED=true` en Railway, y `WA_TPL_FIN_PRUEBA` / `WA_TPL_PAGO_RECHAZADO` con los nombres aprobados (ver tabla).
 
 Si un negocio no tiene las plantillas aprobadas y se activa la variable, el envío falla con un error de Meta (código 132001, plantilla no existe). Queda en el log y en `system_alerts` para los recordatorios.
 
+## Nombre e idioma de cada plantilla (como quedaron aprobadas en Meta)
+
+Se configuran en **un solo lugar**: `TEMPLATE_CONFIG` en `backend/src/services/whatsappNotify.js`. El código de idioma tiene que ser **exactamente** el de Meta; si no, Meta responde 132001 y el mensaje no sale.
+
+| Clave | Nombre en Meta | Variable para el nombre | Idioma (código) |
+|---|---|---|---|
+| `recordatorio_cita` | `recordatorio_cita` | `WA_TPL_RECORDATORIO` (opcional) | Spanish (COL) — `es_CO` |
+| `aviso_nueva_cita` | `aviso_nueva_cita` | `WA_TPL_NUEVA_CITA` (opcional) | Spanish — **`es`** |
+| `aviso_escalamiento` | `aviso_escalamiento` | `WA_TPL_ESCALAMIENTO` (opcional) | Spanish (COL) — `es_CO` |
+| `resumen_diario` | `resumen_diario` | `WA_TPL_RESUMEN` (opcional) | Spanish (COL) — `es_CO` |
+| `plan_vencido` | `plan_vencido` | `WA_TPL_PLAN_VENCIDO` (opcional) | Spanish (COL) — `es_CO` |
+| `aviso_fin_prueba` | el de la variable (p. ej. `aviso_fin_prueba_v2`) | **`WA_TPL_FIN_PRUEBA` (obligatoria)** | Spanish (COL) — `es_CO` |
+| `pago_rechazado` | el de la variable (p. ej. `pago_rechazado_v2`) | **`WA_TPL_PAGO_RECHAZADO` (obligatoria)** | Spanish (COL) — `es_CO` |
+| `te_extranamos` | `te_extranamos` | `WA_TPL_TE_EXTRANAMOS` (opcional) | Spanish (COL) — `es_CO` |
+
+- `WA_TEMPLATE_LANG` ya **no** cambia el idioma de estas 8 (el idioma va por plantilla en el mapa). Solo aplica a una plantilla que no esté en el mapa.
+- **Falla segura:** con `WA_TEMPLATES_ENABLED=true` y sin `WA_TPL_FIN_PRUEBA` o `WA_TPL_PAGO_RECHAZADO`, no se intenta la plantilla: queda `[WA_PLANTILLA_SIN_NOMBRE]` en el log (con el nombre de la variable que falta) y se manda texto libre, sin cortar el flujo. Fuera de la ventana ese texto probablemente no llegue: hay que poner la variable.
+- Si se aprueba una plantilla en otro idioma, se cambia solo su `lang` en el mapa.
+
 ## Plantillas a crear
 
-Idioma: **Español (es)**. Los `{{n}}` son variables; el backend las llena en ese orden. Los textos son una propuesta: se pueden ajustar mientras se respeten el número y el orden de las variables.
+Idioma: el de la tabla de arriba. Los `{{n}}` son variables; el backend las llena en ese orden. Los textos son una propuesta: se pueden ajustar mientras se respeten el número y el orden de las variables.
 
 ### 1. `recordatorio_cita` (Utilidad) — al cliente, 2 h antes de la cita
 Desde el número del negocio.
@@ -56,6 +75,9 @@ Nota: Meta solo deja definir el payload de los botones al enviar; el backend lo 
 ### 5. `plan_vencido` (Utilidad) — al dueño, cuando un cliente escribe con el plan vencido (máx. 1 cada 24 h)
 > ⚠️ El plan ZITA de {{1}} expiró y un cliente te está escribiendo por WhatsApp. Renueva para seguir atendiendo.
 
+### Número desde el que salen las plantillas 6 y 7 (de ZITA a sus clientes)
+Con `WA_PLATFORM_PHONE_NUMBER_ID` **y** `WA_PLATFORM_ACCESS_TOKEN` definidas (solo en `.env` / Railway), `aviso_fin_prueba` y `pago_rechazado` salen de ese número (`platformSender()` en `services/businessSender.js`). Si no están las dos, salen como antes, con `WHATSAPP_PHONE_NUMBER_ID` / `WHATSAPP_ACCESS_TOKEN` (el número del bot); si solo hay una, queda `[WA_PLATAFORMA_INCOMPLETA]` en el log y tampoco se mezclan. Las plantillas tienen que estar aprobadas en la WABA de ese número.
+
 ### 6. `aviso_fin_prueba` (Utilidad) — al dueño, desde el número de ZITA, 3 días antes de terminar la prueba
 > Hola {{1}}, tu período de prueba en ZITA termina en 3 días. Renueva tu plan para seguir atendiendo clientes sin interrupciones: https://app.zita.co/dashboard/suscripcion
 
@@ -71,8 +93,15 @@ Es **Marketing** (Meta lo clasifica así y cobra la tarifa de marketing). El men
 - Las respuestas del bot al cliente: siempre son respuesta a un mensaje que acaba de llegar (dentro de la ventana).
 - Los mensajes de error/límite del bot: idem.
 
-## Pendiente (fuera del alcance de este cambio)
-Estos envíos del **panel** siguen como texto libre y pueden no llegar fuera de la ventana:
-- `controllers/appointments.controller.js` (aviso al cliente desde el panel; además usa el número global, sin token del negocio).
-- `controllers/clients.controller.js`, `controllers/employees.controller.js` (aviso de reasignación), `controllers/store.controller.js` (aviso de pedido al dueño).
-Se pueden migrar con el mismo `notify()` cuando se definan sus plantillas.
+## Avisos que inicia el panel
+
+Todos pasan por `notify()` y salen del **número del negocio con su token** (`services/businessSender.js`; si el negocio no tiene `whatsapp_phone_number_id` o no tiene token, no sale nada y queda el log `WA_SIN_NUMERO`; nunca se usa otro número, regla S3).
+
+| Aviso | Dónde | Dentro de la ventana | Fuera de la ventana |
+|---|---|---|---|
+| Recordatorio manual a un cliente (Clientes → Recordar) | `clients.controller.js` | Mensaje personalizado del negocio | Plantilla `te_extranamos` |
+| Cita cancelada por el negocio (panel, barbero, asistente) | `services/cancellationNotice.js` | Texto | **Sin plantilla aprobada**: texto + `[WA_FUERA_DE_VENTANA_SIN_PLANTILLA_APROBADA]` (kind `cita_cancelada`) |
+| Cita reasignada al eliminar un empleado | `employees.controller.js` (`notifyReassignment`) | Texto | **Sin plantilla aprobada**: texto + aviso (kind `cita_reasignada`) |
+| Pedido web, al dueño | `store.controller.js` (`notifyOwnerNow`) | Texto | **Sin plantilla aprobada**: texto + aviso (kind `pedido_web`) |
+
+**Para cerrar el hueco** hay que crear en Meta (Utilidad, es_CO) plantillas para estos tres avisos —por ejemplo `cita_cancelada` ({{1}} servicio, {{2}} fecha y hora), `cita_reasignada` ({{1}} servicio, {{2}} fecha y hora, {{3}} empleado) y `nuevo_pedido_web` ({{1}} código, {{2}} cliente, {{3}} total)— y agregarlas a `TEMPLATE_CONFIG`. Mientras tanto se mandan como texto (no se omiten: la ventana se calcula con el historial, y cancelar borra el historial; omitirlos podría silenciar avisos que sí llegarían). La etiqueta del log dice cuántos quedaron fuera de la ventana.

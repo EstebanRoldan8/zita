@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { UserPlus, UserX, Pencil, Users, BarChart2, TrendingUp, UserCheck, Trash2, Smartphone } from 'lucide-react';
 import DatePicker, { registerLocale } from 'react-datepicker';
@@ -8,6 +8,7 @@ import api from '../../lib/api';
 import MonthSelector from '../../components/ui/MonthSelector';
 import PanelAccessModal from '../../components/employees/PanelAccessModal';
 import { ACCESS_LABELS } from '../../components/employees/accessLabels';
+import { emptyEmployeeForm, validateEmployeeForm, buildEmployeePayload, createEmployee } from '../../lib/employees';
 
 registerLocale('es', es);
 
@@ -17,7 +18,7 @@ function formatCOP(v) {
 
 function Modal({ title, onClose, children }) {
   return (
-    <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50 px-4">
+    <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50 px-4" onMouseDown={(e) => { if (e.target === e.currentTarget) onClose?.(); }}>
       <div className="bg-[#131929] border border-slate-800 rounded-2xl w-full max-w-md p-6 shadow-xl border border-violet-500/25 shadow-2xl shadow-black/50">
         <h3 className="text-white font-semibold text-lg mb-5">{title}</h3>
         {children}
@@ -26,7 +27,7 @@ function Modal({ title, onClose, children }) {
   );
 }
 
-const emptyForm = { name: '', email: '', phone: '', commission_percent: 0 };
+const emptyForm = emptyEmployeeForm;
 
 const PLAN_LIMITS = {
   lite: 2,
@@ -35,7 +36,7 @@ const PLAN_LIMITS = {
 };
 
 // ─── PESTAÑA EQUIPO ───────────────────────────────────────────────────────────
-function TeamTab({ showInactive, onShowInactiveChange, showCreateModal, setShowCreateModal }) {
+function TeamTab({ showInactive, onShowInactiveChange }) {
   const qc = useQueryClient();
   const [editing, setEditing] = useState(null);
   const [form, setForm] = useState(emptyForm);
@@ -78,11 +79,13 @@ function TeamTab({ showInactive, onShowInactiveChange, showCreateModal, setShowC
   };
   const closeModal = () => { setEditing(null); };
 
+  // Solo edición: el alta va por handleCreateEmployee (componente Employees) con createEmployee()
   const handleSubmit = (e) => {
     e.preventDefault();
-    if (!form.name.trim()) return setFormError('El nombre es obligatorio.');
-    if (!editing) createMutation.mutate(form);
-    else updateMutation.mutate({ id: editing.id, body: form });
+    if (!editing) return;
+    const invalid = validateEmployeeForm(form);
+    if (invalid) return setFormError(invalid);
+    updateMutation.mutate({ id: editing.id, body: buildEmployeePayload(form) });
   };
 
   const active   = employees.filter((e) => e.is_active);
@@ -513,20 +516,18 @@ export default function Employees() {
 
   const handleCreateEmployee = async () => {
     setFormError('');
-    if (!form.name.trim()) return setFormError('El nombre es obligatorio.');
     setLoadingCreate(true);
     try {
-      await api.post('/api/employees', form);
-      qc.invalidateQueries({ queryKey: ['employees'] });
-      setShowCreateModal(false);
-      setForm(emptyForm);
-      setFormError('');
-    } catch (err) {
-      if (err.response?.data?.code === 'EMPLOYEES_LIMIT_REACHED') {
-        setLimitError(err.response.data.error);
+      const r = await createEmployee(api, form);
+      if (r.ok) {
+        qc.invalidateQueries({ queryKey: ['employees'] });
+        setShowCreateModal(false);
+        setForm(emptyForm);
+      } else if (r.limitError) {
+        setLimitError(r.limitError);
         setShowCreateModal(false);
       } else {
-        setFormError(err.response?.data?.error || 'Error al guardar.');
+        setFormError(r.error);
       }
     } finally {
       setLoadingCreate(false);
@@ -584,7 +585,7 @@ export default function Employees() {
         </button>
       </div>
 
-      {tab === 'team'        && <TeamTab showInactive={showInactive} onShowInactiveChange={setShowInactive} showCreateModal={showCreateModal} setShowCreateModal={setShowCreateModal} />}
+      {tab === 'team'        && <TeamTab showInactive={showInactive} onShowInactiveChange={setShowInactive} />}
       {tab === 'performance' && <PerformanceTab />}
 
       {showCreateModal && (

@@ -25,6 +25,7 @@ async function storeContext(req, res, next) {
     req.storeBusiness = { id: data.id, name: data.name, slug: data.slug, settings: data.store_settings || {} };
     // Solo para notificar al dueño; nunca se devuelve en una respuesta
     req.storeOwnerContact = {
+      business_id: data.id,
       owner_whatsapp: data.owner_whatsapp,
       whatsapp_phone_number_id: data.whatsapp_phone_number_id,
       whatsapp_access_token: data.whatsapp_access_token,

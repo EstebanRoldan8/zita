@@ -12,7 +12,8 @@
     "test:middleware": "node --test tests/middleware.test.js",
     "test:sections": "node --test tests/sections.test.js",
     "test:archive": "node --test tests/archive-order.test.js",
-    "test:colors": "node --test tests/color-hex.test.js"
+    "test:colors": "node --test tests/color-hex.test.js",
+    "test": "node --test \"tests/*.test.js\""
   },
   "dependencies": {
     "@sentry/react": "^10.56.0",

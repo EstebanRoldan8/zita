@@ -147,6 +147,16 @@ function createFakeSupabase(seed = {}, opts = {}) {
 
   async function rpc(name, params) {
     calls.push({ rpc: name, params });
+    if (name === 'consume_ai_message') {
+      // Igual que la migración 067: UPDATE condicional atómico; null si se llegó al límite
+      const b = (db.businesses || []).find((x) => x.id === params.p_business_id);
+      if (!b) return { data: null, error: null };
+      const usado = b.ai_messages_date === params.p_date ? (b.ai_messages_today || 0) : 0;
+      if (usado >= params.p_limit) return { data: null, error: null };
+      b.ai_messages_today = usado + 1;
+      b.ai_messages_date = params.p_date;
+      return { data: b.ai_messages_today, error: null };
+    }
     if (name === 'increment_message_count') {
       db.bot_daily_message_counts = db.bot_daily_message_counts || [];
       const row = db.bot_daily_message_counts.find((r) => r.business_id === params.p_business_id && r.client_phone === params.p_client_phone && r.date === params.p_date);
@@ -174,7 +184,7 @@ function installFakes(fake) {
   stub('utils/logger', { info: log('info'), warn: log('warn'), error: log('error'), debug: log('debug') });
   stub('config/whatsapp', {
     sendMessage: async (to, text, token, pnid) => { sent.push({ type: 'text', to, text, token, pnid }); return { messages: [{ id: 'wamid.out' }] }; },
-    sendTemplate: async (to, name, components, token, pnid) => { sent.push({ type: 'template', to, name, components, token, pnid }); return { messages: [{ id: 'wamid.tpl' }] }; },
+    sendTemplate: async (to, name, components, token, pnid, lang) => { sent.push({ type: 'template', to, name, components, token, pnid, lang }); return { messages: [{ id: 'wamid.tpl' }] }; },
   });
   return { logs, sent };
 }

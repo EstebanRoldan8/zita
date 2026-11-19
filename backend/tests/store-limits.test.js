@@ -22,7 +22,19 @@ function q(table) {
   };
   return b;
 }
-const fake = { from: q, rpc: async () => ({ data: null, error: null }) };
+// consume_ai_message: igual que la migración 067 (UPDATE condicional atómico; null = límite alcanzado)
+const fake = {
+  from: q,
+  rpc: async (name, p) => {
+    if (name !== 'consume_ai_message') return { data: null, error: null };
+    const b = db.businesses.find((x) => x.id === p.p_business_id);
+    const usado = b && b.ai_messages_date === p.p_date ? (b.ai_messages_today || 0) : 0;
+    if (!b || usado >= p.p_limit) return { data: null, error: null };
+    b.ai_messages_today = usado + 1;
+    b.ai_messages_date = p.p_date;
+    return { data: b.ai_messages_today, error: null };
+  },
+};
 const supaPath = require.resolve('../src/config/supabase');
 require.cache[supaPath] = { id: supaPath, filename: supaPath, loaded: true, exports: { supabaseAdmin: fake, createUserClient: () => fake } };
 const loggerPath = require.resolve('../src/utils/logger');

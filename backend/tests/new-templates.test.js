@@ -163,3 +163,82 @@ test('si un envío no trae el número exacto de variables, no se intenta la plan
   assert.deepEqual([line[2].esperadas, line[2].recibidas], [4, 3]);
   noSecrets();
 });
+
+// ── aviso_cita_reasignada ───────────────────────────────────────────────────────
+const { notifyReassignment } = require('../src/controllers/employees.controller');
+const cita = (over = {}) => ({ id: APPT, scheduled_at: '2030-11-12T15:00:00-05:00', services: { name: 'Corte clásico' }, clients: { name: 'Carlos Ruiz', phone: PHONE }, ...over });
+const reasignar = (over = {}, name = 'Pedro Gómez') => notifyReassignment({ business: fake.db.businesses[0], businessId: BIZ, cita: cita(over), newEmployeeName: name });
+
+test('reasignada: config en el mapa (es_CO, 5 variables, WA_TPL_CITA_REASIGNADA)', () => {
+  const c = TEMPLATE_CONFIG.aviso_cita_reasignada;
+  assert.deepEqual([c.env, c.name, c.lang, c.vars], ['WA_TPL_CITA_REASIGNADA', 'aviso_cita_reasignada', 'es_CO', 5]);
+});
+
+test('reasignada dentro de la ventana: texto libre desde el número del negocio', async () => {
+  templatesOn(true);
+  seed({ inboundHoursAgo: 2 });
+  await reasignar();
+  assert.equal(posts.length, 1);
+  assert.equal(posts[0].body.type, 'text');
+  assert.match(posts[0].body.text.body, /Pedro Gómez/);
+  assert.match(posts[0].url, /\/pnid-negocio\/messages$/);
+  noSecrets();
+});
+
+test('reasignada fuera de la ventana: plantilla es_CO con EXACTAMENTE 5 variables en orden', async () => {
+  templatesOn(true);
+  seed({ inboundHoursAgo: 72 });
+  await reasignar();
+  const t = posts[0].body.template;
+  assert.deepEqual([posts[0].body.type, t.name, t.language.code], ['template', 'aviso_cita_reasignada', 'es_CO']);
+  const p = params(posts[0]);
+  assert.equal(p.length, 5);
+  assert.equal(p[0], 'Carlos Ruiz');
+  assert.equal(p[1], 'Corte clásico');
+  assert.match(p[2], /12 de noviembre a las 03:00/);
+  assert.equal(p[3], 'Barbería Test');
+  assert.equal(p[4], 'Pedro Gómez');
+  assert.equal(posts[0].auth, `Bearer ${TOKEN}`);
+  noSecrets();
+});
+
+test('reasignada: nombre sobrescrito por WA_TPL_CITA_REASIGNADA', async () => {
+  templatesOn(true);
+  process.env.WA_TPL_CITA_REASIGNADA = 'aviso_cita_reasignada_v2';
+  try {
+    seed();
+    await reasignar();
+    assert.equal(posts[0].body.template.name, 'aviso_cita_reasignada_v2');
+  } finally {
+    delete process.env.WA_TPL_CITA_REASIGNADA;
+  }
+});
+
+test('reasignada con plantillas apagadas: texto libre como hoy', async () => {
+  templatesOn(false);
+  seed({ inboundHoursAgo: 72 });
+  await reasignar();
+  assert.equal(posts[0].body.type, 'text');
+});
+
+test('reasignada sin número o sin token: no se envía y queda en el log', async () => {
+  templatesOn(true);
+  seed({ pnid: null });
+  await reasignar();
+  assert.ok(logs.some((l) => String(l[1]).includes('WA_SIN_NUMERO')));
+  seed({ token: null });
+  await reasignar();
+  assert.ok(logs.some((l) => String(l[1]).includes('WA_SIN_TOKEN')));
+  assert.equal(posts.length, 0);
+});
+
+test('reasignada: saneo de saltos/tabs/espacios, vacíos → "-", largo limitado', async () => {
+  templatesOn(true);
+  seed({ businessName: 'Barbería\n\nTest' });
+  await reasignar({ clients: { name: '', phone: PHONE }, services: { name: 'Corte\t\tclásico        premium' } }, 'P'.repeat(300));
+  const p = params(posts[0]);
+  assert.equal(p.length, 5);
+  assert.ok(p.every(metaValid), JSON.stringify(p));
+  assert.deepEqual([p[0], p[1], p[3]], ['-', 'Corte clásico premium', 'Barbería Test']);
+  assert.ok(p[4].length <= 60 && p[4].endsWith('…'));
+});

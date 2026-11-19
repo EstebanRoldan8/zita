@@ -36,6 +36,7 @@ Se configuran en **un solo lugar**: `TEMPLATE_CONFIG` en `backend/src/services/w
 | `pago_rechazado` | el de la variable (p. ej. `pago_rechazado_v2`) | **`WA_TPL_PAGO_RECHAZADO` (obligatoria)** | Spanish (COL) — `es_CO` |
 | `te_extranamos` | `te_extranamos` | `WA_TPL_TE_EXTRANAMOS` (opcional) | Spanish (COL) — `es_CO` |
 | `aviso_cita_cancelada` | `aviso_cita_cancelada` | `WA_TPL_CITA_CANCELADA` (opcional) | Spanish (COL) — `es_CO` |
+| `aviso_cita_reasignada` | `aviso_cita_reasignada` | `WA_TPL_CITA_REASIGNADA` (opcional) | Spanish (COL) — `es_CO` |
 
 - `WA_TEMPLATE_LANG` ya **no** cambia el idioma de estas 8 (el idioma va por plantilla en el mapa). Solo aplica a una plantilla que no esté en el mapa.
 - **Falla segura:** con `WA_TEMPLATES_ENABLED=true` y sin `WA_TPL_FIN_PRUEBA` o `WA_TPL_PAGO_RECHAZADO`, no se intenta la plantilla: queda `[WA_PLANTILLA_SIN_NOMBRE]` en el log (con el nombre de la variable que falta) y se manda texto libre, sin cortar el flujo. Fuera de la ventana ese texto probablemente no llegue: hay que poner la variable.
@@ -97,6 +98,13 @@ Desde el número del negocio.
 
 Variables (exactamente 4): `{{1}}` nombre del cliente (máx. 60), `{{2}}` servicio (80), `{{3}}` fecha y hora como en el mensaje de texto, es-CO, hora de Colombia: "miércoles, 12 de noviembre a las 03:00 p. m." (60), `{{4}}` nombre del negocio (80).
 
+### 10. `aviso_cita_reasignada` (Utilidad, es_CO) — al cliente, cuando su cita pasa a otro empleado (al eliminar un empleado)
+Desde el número del negocio.
+
+> Hola {{1}}, tu cita de {{2}} del {{3}} en {{4}} ahora será atendida por {{5}}. Te esperamos.
+
+Variables (exactamente 5): `{{1}}` cliente (60), `{{2}}` servicio (80), `{{3}}` fecha y hora es-CO, Colombia (60), `{{4}}` negocio (80), `{{5}}` nombre del nuevo empleado (60).
+
 ## Variables de plantilla: saneo
 
 Antes de enviar, cada variable pasa por `templateParam` (`utils/templateParam.js`): cualquier salto de línea, tabulación o secuencia de espacios se vuelve un solo espacio, se quitan caracteres de control, se corta al largo máximo de esa variable (con "…") y un valor vacío se manda como `-` (Meta rechaza variables vacías). Las plantillas con `vars` en `TEMPLATE_CONFIG` exigen exactamente ese número de variables: si un envío trae otro número, no se intenta la plantilla (Meta respondería 132000), sale texto libre y queda `[WA_PLANTILLA_VARIABLES]` en el log.
@@ -113,7 +121,7 @@ Todos pasan por `notify()` y salen del **número del negocio con su token** (`se
 |---|---|---|---|
 | Recordatorio manual a un cliente (Clientes → Recordar) | `clients.controller.js` | Mensaje personalizado del negocio | Plantilla `te_extranamos` |
 | Cita cancelada por el negocio (panel, barbero, asistente) | `services/cancellationNotice.js` | Texto | Plantilla `aviso_cita_cancelada` |
-| Cita reasignada al eliminar un empleado | `employees.controller.js` (`notifyReassignment`) | Texto | **Sin plantilla aprobada**: texto + aviso (kind `cita_reasignada`) |
+| Cita reasignada al eliminar un empleado | `employees.controller.js` (`notifyReassignment`) | Texto | Plantilla `aviso_cita_reasignada` |
 | Pedido web, al dueño | `store.controller.js` (`notifyOwnerNow`) | Texto | **Sin plantilla aprobada**: texto + aviso (kind `pedido_web`) |
 
 **Para cerrar el hueco** hay que crear en Meta (Utilidad, es_CO) plantillas para estos tres avisos —por ejemplo `cita_cancelada` ({{1}} servicio, {{2}} fecha y hora), `cita_reasignada` ({{1}} servicio, {{2}} fecha y hora, {{3}} empleado) y `nuevo_pedido_web` ({{1}} código, {{2}} cliente, {{3}} total)— y agregarlas a `TEMPLATE_CONFIG`. Mientras tanto se mandan como texto (no se omiten: la ventana se calcula con el historial, y cancelar borra el historial; omitirlos podría silenciar avisos que sí llegarían). La etiqueta del log dice cuántos quedaron fuera de la ventana.

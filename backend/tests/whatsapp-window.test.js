@@ -77,7 +77,7 @@ test('idioma por plantilla: aviso_nueva_cita → es; todas las demás → es_CO'
   assert.deepEqual(langs, {
     recordatorio_cita: 'es_CO', aviso_nueva_cita: 'es', aviso_escalamiento: 'es_CO', resumen_diario: 'es_CO',
     plan_vencido: 'es_CO', aviso_fin_prueba: 'es_CO', pago_rechazado: 'es_CO', te_extranamos: 'es_CO',
-    aviso_cita_cancelada: 'es_CO',
+    aviso_cita_cancelada: 'es_CO', aviso_cita_reasignada: 'es_CO',
   });
 });
 

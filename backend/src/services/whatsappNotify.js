@@ -41,6 +41,8 @@ const TEMPLATE_CONFIG = {
   te_extranamos:      { env: 'WA_TPL_TE_EXTRANAMOS',  name: 'te_extranamos',      lang: 'es_CO' },
   // {{1}} cliente · {{2}} servicio · {{3}} fecha y hora · {{4}} negocio
   aviso_cita_cancelada: { env: 'WA_TPL_CITA_CANCELADA', name: 'aviso_cita_cancelada', lang: 'es_CO', vars: 4, max: [60, 80, 60, 80] },
+  // {{1}} cliente · {{2}} servicio · {{3}} fecha y hora · {{4}} negocio · {{5}} nuevo empleado
+  aviso_cita_reasignada: { env: 'WA_TPL_CITA_REASIGNADA', name: 'aviso_cita_reasignada', lang: 'es_CO', vars: 5, max: [60, 80, 60, 80, 60] },
 };
 
 // Variables del cuerpo listas para Meta: sin saltos/tabs/espacios repetidos, cortadas al máximo de cada una y '-' si vacías

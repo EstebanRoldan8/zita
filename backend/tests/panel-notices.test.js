@@ -112,14 +112,16 @@ test('reasignación sin token del negocio: no sale (ni con el token global)', as
   assert.equal(sent.length, 0);
 });
 
-test('aviso sin plantilla aprobada fuera de la ventana: sale como texto pero queda marcado en el log', async () => {
+test('reasignación fuera de la ventana con plantillas apagadas: texto como hoy y queda marcado en el log', async () => {
+  process.env.WA_TEMPLATES_ENABLED = 'false';
   seed({ lastInboundHoursAgo: 72 });
   const cita = { id: 'cita-1', scheduled_at: '2030-11-12T15:00:00-05:00', services: { name: 'Corte' }, clients: { phone: PHONE } };
   await notifyReassignment({ business: fake.db.businesses[0], businessId: BIZ, cita, newEmployeeName: 'Pedro' });
   assert.equal(sent[0].type, 'text');
-  const line = logs.find((l) => String(l[1]).includes('WA_FUERA_DE_VENTANA_SIN_PLANTILLA_APROBADA'));
+  const line = logs.find((l) => String(l[1]).includes('WA_FUERA_DE_VENTANA_SIN_PLANTILLA'));
   assert.ok(line);
   assert.equal(line[2].kind, 'cita_reasignada');
+  assert.equal(line[2].template, 'aviso_cita_reasignada');
   noPii();
 });
 

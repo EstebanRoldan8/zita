@@ -305,6 +305,8 @@ async function processChatbotMessage(businessId, clientPhone, messageText, histo
         .eq('business_id', businessId)
         .eq('client_id', clienteParaCitas.id)
         .in('status', ['pending', 'confirmed'])
+        // Solo FUTURAS: las pasadas sin cerrar no se pueden cambiar ni cancelar y gastan tokens en cada turno
+        .gte('scheduled_at', new Date().toISOString())
         .order('scheduled_at', { ascending: true })
         .limit(10);
 

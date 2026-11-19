@@ -169,3 +169,13 @@ test('con dos citas el contexto trae ambas con su ID y la pista de preguntar; un
   assert.equal(ai.requests.length, 1);
   assert.match(ai.requests[0].system[0].text, /"el corte" teniendo Degradado y Corte clásico/);
 });
+
+// ── Contexto: citas activas FUTURAS desde la base, sin depender del historial ────
+test('citas activas futuras con su ID en cada turno aunque el historial esté vacío; las pasadas no van', async () => {
+  seed();
+  const ai = scriptedAnthropic([text('ok')]);
+  await run('hola', ai);
+  const ctx = ai.requests[0].messages.at(-1).content[1].text;
+  assert.ok(ctx.includes(DEGRADADO));
+  assert.equal(ctx.includes(PASADA), false, 'la cita pasada sin cerrar no se inyecta');
+});

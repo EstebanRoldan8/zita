@@ -1,6 +1,7 @@
 const axios = require('axios');
 const logger = require('../utils/logger');
 const { maskPhone } = require('../utils/phone');
+const { templateParam } = require('../utils/templateParam');
 
 const WHATSAPP_API_URL = `https://graph.facebook.com/${process.env.WHATSAPP_API_VERSION || 'v18.0'}`;
 const WHATSAPP_TIMEOUT = 15000; // 15 segundos
@@ -51,11 +52,6 @@ async function sendMessage(to, message, accessToken = null, phoneNumberId = null
 }
 
 // Parámetros de plantilla: Meta no acepta saltos de línea, tabs ni más de 4 espacios seguidos, ni texto vacío
-function templateParam(value) {
-  const t = String(value ?? '').replace(/[\r\n\t]+/g, ' ').replace(/ {2,}/g, ' ').trim().slice(0, 1000);
-  return t || '-';
-}
-
 // components puede venir armado (formato de la API) o como { body: [...], buttons: ['PAYLOAD', ...] }
 function buildComponents(components) {
   if (Array.isArray(components)) return components;

@@ -70,13 +70,14 @@ test('recordatorio a un cliente que no escribe hace días → sale como plantill
 const { resolveTemplate, TEMPLATE_CONFIG } = require('../src/services/whatsappNotify');
 const OLD = new Date(Date.now() - 3 * 86400000);
 
-test('idioma por plantilla: aviso_nueva_cita → es; las otras 7 → es_CO', () => {
+test('idioma por plantilla: aviso_nueva_cita → es; todas las demás → es_CO', () => {
   process.env.WA_TPL_FIN_PRUEBA = 'aviso_fin_prueba_v2';
   process.env.WA_TPL_PAGO_RECHAZADO = 'pago_rechazado_v2';
   const langs = Object.fromEntries(Object.keys(TEMPLATE_CONFIG).map((k) => [k, resolveTemplate(k).lang]));
   assert.deepEqual(langs, {
     recordatorio_cita: 'es_CO', aviso_nueva_cita: 'es', aviso_escalamiento: 'es_CO', resumen_diario: 'es_CO',
     plan_vencido: 'es_CO', aviso_fin_prueba: 'es_CO', pago_rechazado: 'es_CO', te_extranamos: 'es_CO',
+    aviso_cita_cancelada: 'es_CO', aviso_cita_reasignada: 'es_CO', aviso_pedido_web: 'es_CO',
   });
 });
 

@@ -4,22 +4,31 @@ const { accessStatusFor, removeEmployeeAccess } = require('./invitations.control
 const { notify } = require('../services/whatsappNotify');
 const { businessSender } = require('../services/businessSender');
 const { maskPhone } = require('../utils/phone');
+const { fechaHoraCita } = require('../services/cancellationNotice');
 
 // Aviso al cliente de que su cita pasó a otro empleado. Sale del número del negocio con su token
-// (antes podía mezclar el token global con el número del negocio). Sin plantilla aprobada: texto libre
-// por notify(), que marca en el log si está fuera de la ventana de 24 h. Nunca lanza.
+// (nunca otro número; sin número o sin token no sale y queda en el log). Dentro de la ventana de 24 h:
+// texto libre; fuera, plantilla aviso_cita_reasignada (si WA_TEMPLATES_ENABLED). Nunca lanza.
 async function notifyReassignment({ business, businessId, cita, newEmployeeName }) {
   try {
     const phone = cita?.clients?.phone;
     if (!phone) return;
-    const sender = businessSender(business, { businessId, context: 'cita_reasignada' });
+    if (!business?.whatsapp_access_token) {
+      logger.warn('[WA_SIN_TOKEN] el negocio no tiene WhatsApp conectado; no se envía', { businessId, context: 'cita_reasignada' });
+      return;
+    }
+    const sender = businessSender(business, { businessId, context: 'cita_reasignada' }); // sin número: log WA_SIN_NUMERO
     if (!sender) return;
+    const servicio = cita.services?.name || 'servicio';
     const fechaFormato = new Date(cita.scheduled_at).toLocaleString('es-CO', {
       timeZone: 'America/Bogota', weekday: 'long', day: 'numeric', month: 'long', hour: '2-digit', minute: '2-digit',
     });
-    const mensaje = `Tu cita de ${cita.services?.name || 'servicio'} el ${fechaFormato} ahora será atendida por ${newEmployeeName} 😊`;
+    const mensaje = `Tu cita de ${servicio} el ${fechaFormato} ahora será atendida por ${newEmployeeName} 😊`;
+    const { fecha, hora } = fechaHoraCita(cita.scheduled_at, business.country);
     const { result } = await notify({
       to: phone, text: mensaje, token: sender.token, phoneNumberId: sender.phoneNumberId, businessId, kind: 'cita_reasignada',
+      // Fuera de la ventana: {{1}} cliente · {{2}} servicio · {{3}} fecha y hora · {{4}} negocio · {{5}} nuevo empleado
+      template: { key: 'aviso_cita_reasignada', body: [cita.clients?.name, servicio, `${fecha} a las ${hora}`, business.name, newEmployeeName] },
     });
     if (result?.success === false) {
       logger.warn('[REASIGNACION_AVISO_FALLIDO]', { appointmentId: cita.id, to: maskPhone(phone), status: result.status });
@@ -290,7 +299,7 @@ async function deleteEmployee(req, res) {
       const business = require('../config/supabase').supabaseAdmin;
       const { data: bizData } = await business
         .from('businesses')
-        .select('whatsapp_phone_number_id, whatsapp_access_token')
+        .select('name, country, whatsapp_phone_number_id, whatsapp_access_token')
         .eq('id', req.businessId)
         .single();
 

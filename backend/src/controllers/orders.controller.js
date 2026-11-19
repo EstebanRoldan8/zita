@@ -1,5 +1,6 @@
 const { createUserClient } = require('../config/supabase');
 const logger = require('../utils/logger');
+const { notifyOrderStatusChange } = require('../services/orderStatusNotice');
 const { parseCustomer, parseDiscount, computeTotals } = require('../utils/orderTotals');
 const { restoreOrderStock, undoRestoredItems } = require('../utils/orderStock');
 const { recordOrderAccounting, removeOrderAccounting } = require('../utils/orderAccounting');
@@ -481,6 +482,15 @@ async function create(req, res) {
   }
 }
 
+// Aviso al cliente del pedido web (services/orderStatusNotice.js): fuera del ciclo de la respuesta, nunca lanza.
+function scheduleOrderStatusNotice(businessId, orderId, previousStatus, newStatus) {
+  if (previousStatus === newStatus) return;
+  setImmediate(() => {
+    notifyOrderStatusChange({ businessId, orderId, previousStatus, newStatus })
+      .catch((err) => logger.error(`orders.updateStatus aviso: ${err.message}`));
+  });
+}
+
 async function updateStatus(req, res) {
   try {
     const sb = createUserClient(req.headers.authorization);
@@ -568,6 +578,7 @@ async function updateStatus(req, res) {
         }
       }
 
+      scheduleOrderStatusNotice(req.businessId, id, order.status, 'cancelado');
       return res.json({ success: true, data: claimed[0] });
     }
 
@@ -586,6 +597,7 @@ async function updateStatus(req, res) {
       return res.status(400).json({ success: false, error: 'El pedido está cancelado y ya no se puede cambiar de estado.' });
     }
 
+    scheduleOrderStatusNotice(req.businessId, id, order.status, status);
     return res.json({ success: true, data: data[0] });
   } catch (err) {
     logger.error('orders.updateStatus: ' + err.message);

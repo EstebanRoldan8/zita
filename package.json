@@ -1,5 +1,8 @@
 {
   "dependencies": {
     "sharp": "^0.34.5"
+  },
+  "engines": {
+    "node": ">=20"
   }
 }

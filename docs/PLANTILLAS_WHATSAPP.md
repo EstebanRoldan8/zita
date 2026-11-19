@@ -35,6 +35,7 @@ Se configuran en **un solo lugar**: `TEMPLATE_CONFIG` en `backend/src/services/w
 | `aviso_fin_prueba` | el de la variable (p. ej. `aviso_fin_prueba_v2`) | **`WA_TPL_FIN_PRUEBA` (obligatoria)** | Spanish (COL) — `es_CO` |
 | `pago_rechazado` | el de la variable (p. ej. `pago_rechazado_v2`) | **`WA_TPL_PAGO_RECHAZADO` (obligatoria)** | Spanish (COL) — `es_CO` |
 | `te_extranamos` | `te_extranamos` | `WA_TPL_TE_EXTRANAMOS` (opcional) | Spanish (COL) — `es_CO` |
+| `aviso_cita_cancelada` | `aviso_cita_cancelada` | `WA_TPL_CITA_CANCELADA` (opcional) | Spanish (COL) — `es_CO` |
 
 - `WA_TEMPLATE_LANG` ya **no** cambia el idioma de estas 8 (el idioma va por plantilla en el mapa). Solo aplica a una plantilla que no esté en el mapa.
 - **Falla segura:** con `WA_TEMPLATES_ENABLED=true` y sin `WA_TPL_FIN_PRUEBA` o `WA_TPL_PAGO_RECHAZADO`, no se intenta la plantilla: queda `[WA_PLANTILLA_SIN_NOMBRE]` en el log (con el nombre de la variable que falta) y se manda texto libre, sin cortar el flujo. Fuera de la ventana ese texto probablemente no llegue: hay que poner la variable.
@@ -89,6 +90,17 @@ Con `WA_PLATFORM_PHONE_NUMBER_ID` **y** `WA_PLATFORM_ACCESS_TOKEN` definidas (so
 
 Es **Marketing** (Meta lo clasifica así y cobra la tarifa de marketing). El mensaje personalizado del negocio (`recall_message`) solo se usa dentro de la ventana de 24 h.
 
+### 9. `aviso_cita_cancelada` (Utilidad, es_CO) — al cliente, cuando el negocio cancela su cita
+Desde el número del negocio.
+
+> Hola {{1}}, tu cita de {{2}} del {{3}} fue cancelada por {{4}}. Si quieres reagendar, escríbenos por aquí.
+
+Variables (exactamente 4): `{{1}}` nombre del cliente (máx. 60), `{{2}}` servicio (80), `{{3}}` fecha y hora como en el mensaje de texto, es-CO, hora de Colombia: "miércoles, 12 de noviembre a las 03:00 p. m." (60), `{{4}}` nombre del negocio (80).
+
+## Variables de plantilla: saneo
+
+Antes de enviar, cada variable pasa por `templateParam` (`utils/templateParam.js`): cualquier salto de línea, tabulación o secuencia de espacios se vuelve un solo espacio, se quitan caracteres de control, se corta al largo máximo de esa variable (con "…") y un valor vacío se manda como `-` (Meta rechaza variables vacías). Las plantillas con `vars` en `TEMPLATE_CONFIG` exigen exactamente ese número de variables: si un envío trae otro número, no se intenta la plantilla (Meta respondería 132000), sale texto libre y queda `[WA_PLANTILLA_VARIABLES]` en el log.
+
 ## Envíos que NO pasan por plantilla (y está bien)
 - Las respuestas del bot al cliente: siempre son respuesta a un mensaje que acaba de llegar (dentro de la ventana).
 - Los mensajes de error/límite del bot: idem.
@@ -100,7 +112,7 @@ Todos pasan por `notify()` y salen del **número del negocio con su token** (`se
 | Aviso | Dónde | Dentro de la ventana | Fuera de la ventana |
 |---|---|---|---|
 | Recordatorio manual a un cliente (Clientes → Recordar) | `clients.controller.js` | Mensaje personalizado del negocio | Plantilla `te_extranamos` |
-| Cita cancelada por el negocio (panel, barbero, asistente) | `services/cancellationNotice.js` | Texto | **Sin plantilla aprobada**: texto + `[WA_FUERA_DE_VENTANA_SIN_PLANTILLA_APROBADA]` (kind `cita_cancelada`) |
+| Cita cancelada por el negocio (panel, barbero, asistente) | `services/cancellationNotice.js` | Texto | Plantilla `aviso_cita_cancelada` |
 | Cita reasignada al eliminar un empleado | `employees.controller.js` (`notifyReassignment`) | Texto | **Sin plantilla aprobada**: texto + aviso (kind `cita_reasignada`) |
 | Pedido web, al dueño | `store.controller.js` (`notifyOwnerNow`) | Texto | **Sin plantilla aprobada**: texto + aviso (kind `pedido_web`) |
 

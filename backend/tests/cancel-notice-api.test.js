@@ -51,11 +51,10 @@ test('POST a Meta con el número y el token del negocio (no los globales)', asyn
   assert.equal(all.includes('573001112233'), false);
 });
 
-test('sin número configurado: respaldo al número y token globales de antes', async () => {
+test('sin número configurado: no se envía nada (regla S3, ya no hay respaldo al número global)', async () => {
   posts.length = 0;
   fake.db.businesses[0].whatsapp_phone_number_id = null;
   await notifyClientOfCancellation({ businessId: BIZ, appointmentId: APPT });
-  assert.match(posts[0].url, /\/pnid-global\/messages$/);
-  assert.equal(posts[0].auth, 'Bearer token-global-de-zita');
+  assert.equal(posts.length, 0);
   assert.equal(JSON.stringify(logs).includes('token-global-de-zita'), false);
 });

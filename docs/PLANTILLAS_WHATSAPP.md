@@ -95,7 +95,7 @@ Es **Marketing** (Meta lo clasifica así y cobra la tarifa de marketing). El men
 
 ## Avisos que inicia el panel
 
-Todos pasan por `notify()` y salen del **número del negocio con su token** (`services/businessSender.js`; si el negocio no tiene `whatsapp_phone_number_id`, número por defecto como antes; sin token no salen).
+Todos pasan por `notify()` y salen del **número del negocio con su token** (`services/businessSender.js`; si el negocio no tiene `whatsapp_phone_number_id` o no tiene token, no sale nada y queda el log `WA_SIN_NUMERO`; nunca se usa otro número, regla S3).
 
 | Aviso | Dónde | Dentro de la ventana | Fuera de la ventana |
 |---|---|---|---|

@@ -44,6 +44,10 @@ async function notifyClientOfCancellation({ businessId, appointmentId }) {
       .eq('id', businessId)
       .maybeSingle();
     if (!business?.whatsapp_access_token) return { sent: false, reason: 'sin_token' };
+    if (!business.whatsapp_phone_number_id) {
+      businessSender(business, { businessId, context: 'cita_cancelada' }); // deja el log WA_SIN_NUMERO
+      return { sent: false, reason: 'sin_numero' };
+    }
 
     const sender = businessSender(business, { businessId, context: 'cita_cancelada' });
     if (!sender) return { sent: false, reason: 'token_ilegible' };

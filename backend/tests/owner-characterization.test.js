@@ -33,7 +33,7 @@ function seed(extra = {}) {
   rpcCalls.length = 0;
   sent.length = 0;
   Object.assign(fake.db, {
-    businesses: [{ id: BIZ, user_id: 'user-owner', name: 'Barbería Test', country: 'colombia', plan: 'pro', whatsapp_access_token: encrypt('tok') }],
+    businesses: [{ id: BIZ, user_id: 'user-owner', name: 'Barbería Test', country: 'colombia', plan: 'pro', whatsapp_access_token: encrypt('tok'), whatsapp_phone_number_id: 'pnid-negocio' }],
     clients: [{ id: CLIENT, business_id: BIZ, name: 'Carlos Ruiz', phone: '573001112233', loyalty_points: 5 }],
     services: [{ id: SERVICE, business_id: BIZ, name: 'Corte clásico', price: 30000, duration_minutes: 30 }],
     employees: [{ id: EMP, business_id: BIZ, name: 'Juan', commission_percent: 10, is_active: true }],

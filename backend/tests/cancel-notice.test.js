@@ -101,14 +101,12 @@ test('cita que no vino por WhatsApp: no se avisa (igual que antes)', async () =>
   assert.equal(sent.length, 0);
 });
 
-test('negocio sin número configurado (sin phone_number_id): respaldo al comportamiento anterior (número por defecto)', async () => {
+test('negocio sin número configurado (sin phone_number_id): no se envía desde otro número (regla S3)', async () => {
   seed({ pnid: null });
   const r = await notifyClientOfCancellation({ businessId: BIZ, appointmentId: APPT });
-  assert.equal(r.sent, true);
-  assert.equal(sent.length, 1);
-  assert.equal(sent[0].token, null, 'token por defecto (variables de entorno)');
-  assert.equal(sent[0].pnid, null, 'número por defecto');
-  assert.ok(logs.some((l) => String(l[1]).includes('WA_NUMERO_POR_DEFECTO')));
+  assert.deepEqual(r, { sent: false, reason: 'sin_numero' });
+  assert.equal(sent.length, 0, 'no sale ningún mensaje, ni por el número por defecto');
+  assert.ok(logs.some((l) => String(l[1]).includes('WA_SIN_NUMERO')));
   assertNoSecretsInLogs();
 });
 

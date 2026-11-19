@@ -1,6 +1,6 @@
 // Tool 'escalar_a_humano' del bot de WhatsApp (descripción y parámetros en ../prompt.js → BOT_TOOLS).
 // ctx: { businessId, clientPhone, business, clientInfo, citaDelCliente, CITA_NO_ENCONTRADA }
-const { supabaseAdmin, logger, logSystemAlert, maskPhone, notify, ownerSender } = require('../shared');
+const { supabaseAdmin, logger, logSystemAlert, maskPhone, notify, templatesEnabled, ownerSender } = require('../shared');
 
 module.exports = async function escalar_a_humano(toolInput, ctx) {
   const { businessId, clientPhone, business, clientInfo } = ctx;
@@ -28,7 +28,7 @@ module.exports = async function escalar_a_humano(toolInput, ctx) {
 
     // Fuera de la ventana de 24 h con el dueño → plantilla aviso_escalamiento (si están activas)
     const sender = ownerSender(business);
-    const { result: sendResult } = await notify({
+    const { via, inWindow, result: sendResult } = await notify({
       to: negocio.phone,
       text: mensajeDueño,
       template: { key: 'aviso_escalamiento', body: [negocio.name, clientNombre, clientPhone, motivo] },
@@ -52,6 +52,23 @@ module.exports = async function escalar_a_humano(toolInput, ctx) {
         message: 'No se pudo notificar al dueño del escalamiento. Intenta de nuevo o contacta directamente.'
       };
     }
+
+    // Texto libre fuera de la ventana de 24 h con el dueño (plantillas apagadas): Meta lo acepta pero lo descarta
+    // (131047). Al cliente se le responde igual; queda registrado para que no pase en silencio.
+    const posibleNoEntregado = via === 'text' && !inWindow;
+    if (posibleNoEntregado) {
+      logger.warn('[ESCALAMIENTO_POSIBLE_NO_ENTREGADO] aviso al dueño como texto libre fuera de la ventana de 24 h', {
+        businessId, plantillasActivas: templatesEnabled(), to: maskPhone(negocio.phone),
+      });
+    }
+
+    // La escalación queda guardada en la base (system_alerts) aunque el WhatsApp al dueño no llegue
+    await logSystemAlert('escalamiento_humano', `Un cliente pidió hablar con una persona en ${negocio.name}`, businessId, {
+      cliente: maskPhone(clientPhone),
+      motivo,
+      aviso_al_dueno: via,
+      posible_no_entregado: posibleNoEntregado,
+    });
 
     const pausadoHasta = new Date();
     pausadoHasta.setHours(pausadoHasta.getHours() + 3);

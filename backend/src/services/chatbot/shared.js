@@ -6,7 +6,7 @@ const { deleteCitaIncome } = require('../scheduler.service');
 const { logSystemAlert } = require('../../utils/systemAlerts');
 const { getPlan } = require('../../config/plans');
 const { maskPhone } = require('../../utils/phone');
-const { notify } = require('../whatsappNotify');
+const { notify, templatesEnabled } = require('../whatsappNotify');
 const availability = require('../../utils/availability');
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
@@ -51,7 +51,7 @@ function ownerSender(business) {
 }
 
 module.exports = {
-  supabaseAdmin, logger, decrypt, deleteCitaIncome, logSystemAlert, getPlan, maskPhone, notify,
+  supabaseAdmin, logger, decrypt, deleteCitaIncome, logSystemAlert, getPlan, maskPhone, notify, templatesEnabled,
   ...availability,
   UUID_RE, escapeLike, normName, findService, isBookingConflict, ownerSender,
 };

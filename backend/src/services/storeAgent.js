@@ -621,9 +621,9 @@ function createStoreAgent(deps = {}) {
     return null;
   }
 
-  async function handle({ businessId, business, userMessage, history, authorization, model }) {
+  async function handle({ businessId, business, userMessage, history, authorization, user = null, model }) {
     const usage = { model, calls: 0, input: 0, output: 0, cache_read: 0, cache_write: 0 };
-    const ctx = { businessId, business: { ...business, id: businessId }, authorization, requestId: crypto.randomUUID(), userMessage: String(userMessage || ''), model };
+    const ctx = { businessId, business: { ...business, id: businessId }, authorization, user, requestId: crypto.randomUUID(), userMessage: String(userMessage || ''), model };
     const hour = Number(new Intl.DateTimeFormat('en-US', { timeZone: 'America/Bogota', hour: '2-digit', hourCycle: 'h23' }).format(now()));
     const q = await openQuestion(businessId);
     const pending = (await store.lib.pendingActions(businessId)).filter((a) => store.lib.live(a));

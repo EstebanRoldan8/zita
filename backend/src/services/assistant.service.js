@@ -4383,7 +4383,7 @@ async function processMessage(businessId, userMessage, conversationHistory = [],
   if (isTiendaBusiness(biz)) {
     const history = sanitizeHistory(conversationHistory).slice(-6);
     const r = await getStoreAgent().handle({
-      businessId, business: biz, userMessage, history, authorization: session.authorization, model: STORE_MODEL,
+      businessId, business: biz, userMessage, history, authorization: session.authorization, user: session.user || null, model: STORE_MODEL,
     });
     return {
       response: r.response + (avisoLimite || ''),

@@ -918,6 +918,79 @@ async function syncPaidIncome(sb, order, country) {
   if (upErr) throw upErr;
 }
 
+// ── Edición completa (services/orderEdit.js; migración 068) ──────────────────
+// business_id SIEMPRE del JWT (req.businessId); el body solo trae los cambios y la confirmación.
+const orderEdit = require('../services/orderEdit');
+
+const editCtx = (req) => ({ businessId: req.businessId, business: req.business, userId: req.user?.id || null, source: 'panel' });
+
+function sendEditError(res, err, where) {
+  if (err instanceof orderEdit.EditError) {
+    return res.status(err.status).json({ success: false, error: err.message, ...err.extra });
+  }
+  logger.error(`orders.${where}: ${err.message}`);
+  return res.status(500).json({ success: false, error: 'No se pudo procesar la edición del pedido. No se cambió nada.' });
+}
+
+// POST /:id/edit/preview — mismo plan que el guardado, sin escribir nada
+async function editPreview(req, res) {
+  try {
+    const data = await orderEdit.previewEdit(editCtx(req), req.params.id, req.body?.changes || {});
+    return res.json({ success: true, data });
+  } catch (err) {
+    return sendEditError(res, err, 'editPreview');
+  }
+}
+
+// POST /:id/edit — { changes, confirm: true, confirm_strong?: true, expected? }. Todo o nada (edit_order).
+async function editOrder(req, res) {
+  try {
+    const body = req.body || {};
+    const r = await orderEdit.applyEdit(editCtx(req), req.params.id, body.changes || {}, {
+      confirm: body.confirm, confirm_strong: body.confirm_strong, expected: body.expected,
+    });
+    if (r.statusChange) scheduleOrderStatusNotice(req.businessId, req.params.id, r.statusChange.from, r.statusChange.to);
+    return res.json({ success: true, data: r.order, preview: r.preview, ...(r.noop ? { noop: true } : {}) });
+  } catch (err) {
+    return sendEditError(res, err, 'editOrder');
+  }
+}
+
+// POST /:id/reopen — { status, confirm: true, confirm_strong? }. Solo pedidos cancelados.
+async function reopen(req, res) {
+  try {
+    const body = req.body || {};
+    const r = await orderEdit.reopenOrder(editCtx(req), req.params.id, {
+      status: body.status, confirm: body.confirm, confirm_strong: body.confirm_strong,
+    });
+    if (r.statusChange) scheduleOrderStatusNotice(req.businessId, req.params.id, r.statusChange.from, r.statusChange.to);
+    return res.json({ success: true, data: r.order, preview: r.preview });
+  } catch (err) {
+    return sendEditError(res, err, 'reopen');
+  }
+}
+
+// POST /:id/reopen/preview — qué stock y Caja se volverían a tomar
+async function reopenPreview(req, res) {
+  try {
+    const plan = await orderEdit.buildEditPlan(editCtx(req), req.params.id, {}, { reopen: { status: req.body?.status } });
+    return res.json({ success: true, data: plan.preview });
+  } catch (err) {
+    return sendEditError(res, err, 'reopenPreview');
+  }
+}
+
+// GET /:id/edits — historial de cambios
+async function getEdits(req, res) {
+  try {
+    const data = await orderEdit.listEdits(editCtx(req), req.params.id);
+    return res.json({ success: true, data });
+  } catch (err) {
+    return sendEditError(res, err, 'getEdits');
+  }
+}
+
 module.exports = {
   getAll, getById, create, updateStatus, deleteOrder, updatePayment, updateShipping, updateDiscount,
+  editPreview, editOrder, reopen, reopenPreview, getEdits,
 };

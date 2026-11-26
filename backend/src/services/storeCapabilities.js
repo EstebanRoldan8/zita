@@ -7,7 +7,9 @@
 
 const { PLANS } = require('../config/plans');
 const { INCOME_CATEGORIES, EXPENSE_CATEGORIES } = require('../utils/cashCategories');
-const { snapshotCost } = require('../utils/bundles');
+const { snapshotCost, loadBundles, deriveBundle } = require('../utils/bundles');
+// Se carga al usarlo: orderEdit trae la config de Supabase y este módulo se importa en tests sin base
+const orderEditService = () => require('./orderEdit');
 
 const MONTHS = ['enero', 'febrero', 'marzo', 'abril', 'mayo', 'junio', 'julio', 'agosto', 'septiembre', 'octubre', 'noviembre', 'diciembre'];
 const PAYMENT_STATUSES = ['pendiente', 'pagado', 'fallido', 'reembolsado'];
@@ -414,6 +416,8 @@ function createCapabilities(lib) {
   async function prepareOrderDiscount(a, ctx) {
     const o = await orderByCode(ctx, a.codigo);
     if (!o) return { success: false, error: `No encontré el pedido ${text(a.codigo, 12) || '(falta el código)'}.` };
+    // Un pedido entregado (p. ej. viejo) pasa a la edición completa: mismo servicio que el panel
+    if (o.status === 'entregado') return prepareEditOrder({ codigo: a.codigo, descuento: a.descuento }, ctx);
     if (LOCKED_DISCOUNT.includes(o.status)) return { success: false, error: `El pedido ${orderCode(o.id)} está ${o.status}: su descuento ya no cambia.` };
     const d = int(a.descuento);
     if (!Number.isInteger(d) || d < 0) return { success: false, error: 'El descuento debe ser un número entero de pesos (0 para quitarlo).' };
@@ -433,6 +437,128 @@ function createCapabilities(lib) {
     const p = action.plan;
     return { summary: `Deshacer: descuento del pedido ${p.label} ${cop(p.after)} → ${cop(p.before)}.`, plan: { kind: 'descuento_pedido', order_id: p.order_id, before: p.after, after: p.before, label: p.label } };
   };
+
+  // ── Editar un pedido ya creado (services/orderEdit.js: el MISMO servicio que el panel) ──────────────────
+  // agregar / quitar productos, descuento, costo de envío y datos del cliente. Reforzada (🔐 + "confirmo") si el
+  // pedido está pagado o tiene más de 30 días. El estado se cambia con estado_pedido y el pago con pago_pedido.
+  const editCtx = (ctx) => ({ businessId: ctx.businessId, business: ctx.business, userId: ctx.user?.id || null, source: 'asistente' });
+  const lineMatches = (line, it) => {
+    const d = ` ${norm(line.description || '').replace(/[()/,]/g, ' ')} `;
+    const talla = norm(text(it.talla, 10)).replace(/^talla /, '');
+    return !!it.producto && d.includes(norm(text(it.producto, 80)))
+      && (!it.color || d.includes(norm(text(it.color, 40)))) && (!talla || d.includes(` ${talla} `));
+  };
+
+  async function prepareEditOrder(a, ctx) {
+    const o = await orderByCode(ctx, a.codigo);
+    if (!o) return { success: false, error: `No encontré el pedido ${text(a.codigo, 12) || '(falta el código, por ejemplo P-1A2B3C4D)'}.` };
+    const code = orderCode(o.id);
+    const { data: full, error } = await db.from('orders').select('id, status, order_items(id, product_id, variant_id, description, quantity, unit_price, bundle_snapshot)')
+      .eq('business_id', ctx.businessId).eq('id', o.id).maybeSingle();
+    if (error || !full) return { success: false, error: `No pude leer el pedido ${code}.` };
+
+    const changes = {};
+    const ops = [];
+    let items = (full.order_items || []).map((i) => ({ id: i.id, product_id: i.product_id, variant_id: i.variant_id, description: i.description, quantity: Number(i.quantity), unit_price: Number(i.unit_price), set: !!i.bundle_snapshot }));
+    let touched = false;
+
+    for (const it of (Array.isArray(a.quitar) ? a.quitar : []).slice(0, 20)) {
+      const hits = items.filter((l) => l.quantity > 0 && lineMatches(l, it || {}));
+      if (!hits.length) return { success: false, error: `No encontré «${text(it?.producto, 60)}» en el pedido ${code}. Tiene: ${items.map((l) => `${l.quantity}× ${l.description}`).join(', ') || 'nada'}.` };
+      if (hits.length > 1) return { success: false, error: `En el pedido ${code} hay ${hits.length} líneas que coinciden con «${text(it.producto, 60)}»: ${hits.map((l) => l.description).join(', ')}. Dime color y talla.` };
+      const line = hits[0];
+      const qty = it.cantidad === undefined || it.cantidad === null ? line.quantity : Number(it.cantidad);
+      if (!Number.isInteger(qty) || qty < 1) return { success: false, error: 'La cantidad a quitar debe ser un entero mayor que 0.' };
+      if (qty > line.quantity) return { success: false, error: `El pedido ${code} solo tiene ${line.quantity}× ${line.description}.` };
+      line.quantity -= qty;
+      ops.push(`−${qty}× ${line.description}`);
+      touched = true;
+    }
+    items = items.filter((l) => l.quantity > 0);
+
+    for (const [itemIndex, it] of (Array.isArray(a.agregar) ? a.agregar : []).slice(0, 20).entries()) {
+      const qty = Number(it?.cantidad ?? 1);
+      if (!Number.isInteger(qty) || qty < 1 || qty > 100) return { success: false, error: 'Cada cantidad debe ser un entero entre 1 y 100.' };
+      const r = await lib.resolveProduct(ctx.businessId, it.producto);
+      if (!r.product) return { ...r, item_index: itemIndex };
+      const p = r.product;
+      let variantId = null;
+      let label = p.name;
+      if (p.is_bundle) {
+        const { componentsByBundle, variantsByProduct } = await loadBundles(db, ctx.businessId, [p.id]);
+        const d = deriveBundle(p, componentsByBundle[p.id] || [], variantsByProduct);
+        if (d.error) return { success: false, error: `${p.name}: ${d.error}` };
+        if (d.hasVariants) {
+          const hits = lib.matchVariants(d.variants, it.color, it.talla);
+          if (hits.length !== 1 || !it.color || !it.talla) return { needs: 'variante', item_index: itemIndex, pregunta: `${p.name}: ¿qué color y talla?`, opciones: d.variants.map((v) => ({ variante: lib.variantLabel(v), stock: v.stock })) };
+          variantId = hits[0].id;
+          label = `${p.name} (${lib.variantLabel(hits[0])})`;
+        }
+      } else {
+        const v = await lib.resolveVariant(ctx.businessId, p, it.color, it.talla);
+        if (!v.variant && (v.needs || v.success === false)) return { ...v, item_index: itemIndex };
+        if (v.variant) { variantId = v.variant.id; label = `${p.name} (${lib.variantLabel(v.variant)})`; }
+      }
+      const same = !p.is_bundle && items.find((l) => !l.set && l.product_id === p.id && (l.variant_id || null) === variantId);
+      if (same) same.quantity += qty;
+      else items.push({ product_id: p.id, variant_id: variantId, quantity: qty, set: !!p.is_bundle });
+      ops.push(`+${qty}× ${label}`);
+      touched = true;
+    }
+    if (touched) {
+      changes.items = items.map((l) => (l.id
+        ? { id: l.id, quantity: l.quantity, unit_price: l.unit_price }
+        : { product_id: l.product_id, variant_id: l.variant_id, quantity: l.quantity }));
+    }
+
+    if (a.descuento !== undefined && a.descuento !== null) changes.discount_amount = a.descuento;
+    if (a.envio !== undefined && a.envio !== null) changes.shipping_cost = a.envio;
+    if (a.cliente) changes.client_name = text(a.cliente, 120);
+    if (a.telefono) changes.client_phone = text(a.telefono, 30);
+    if (a.email) changes.customer_email = text(a.email, 254);
+    if (a.direccion) changes.delivery_address = text(a.direccion, 300);
+    if (a.ciudad) changes.shipping_city = text(a.ciudad, 80);
+    if (a.notas) changes.notes = text(a.notas, 1000);
+    if (!Object.keys(changes).length) return { success: false, error: `Dime qué cambiar del pedido ${code}: agregar o quitar un producto, el descuento, el envío o los datos del cliente.` };
+
+    let pv;
+    try {
+      pv = await orderEditService().previewEdit(editCtx(ctx), o.id, changes);
+    } catch (err) {
+      if (err instanceof orderEditService().EditError) return { success: false, error: err.message };
+      throw err;
+    }
+    if (pv.noop) return { success: false, error: `El pedido ${code} ya está así: no hay nada que cambiar.` };
+    if (pv.short.length) return { success: false, error: `No alcanza el stock: ${pv.short.join('; ')}.` };
+
+    const parts = [...ops];
+    for (const c of pv.changes) {
+      if (['items', 'total_amount'].includes(c.field)) continue;
+      const fmt = (v) => (['discount_amount', 'shipping_cost'].includes(c.field) ? cop(v || 0) : (v ?? '—'));
+      parts.push(`${c.label.toLowerCase()} ${fmt(c.before)} → ${fmt(c.after)}`);
+    }
+    const stockTxt = pv.stock.length ? ` Stock: ${pv.stock.map((m) => `${m.label} ${m.available ?? '?'} → ${m.after ?? '?'}`).join(', ')}.` : '';
+    const cashMoves = pv.cash.applies && (pv.cash.income.before !== pv.cash.income.after || pv.cash.expense.before !== pv.cash.expense.after);
+    const cashTxt = cashMoves
+      ? ` Caja (en su fecha original): ingreso ${cop(pv.cash.income.before)} → ${cop(pv.cash.income.after)}${pv.cash.expense.before !== pv.cash.expense.after ? `, costo ${cop(pv.cash.expense.before)} → ${cop(pv.cash.expense.after)}` : ''}.`
+      : '';
+    const why = [pv.is_paid ? 'está pagado' : null, pv.is_old ? `es de hace ${pv.age_days} días` : null].filter(Boolean).join(' y ');
+    const summary = `Editar el pedido ${orderLabel(o)}${why ? ` (${why})` : ''}: ${parts.join('; ')}. Total ${cop(pv.before.total)} → ${cop(pv.after.total)}.${stockTxt}${cashTxt} ¿Confirmas?`;
+    return savePending(ctx, 'editar_pedido', pv.strong_confirm ? R(summary) : summary, {
+      ...(pv.strong_confirm ? { risk: 'R' } : {}), order_id: o.id, changes, expected: pv.expected, label: code,
+      total_before: pv.before.total, total_after: pv.after.total,
+    });
+  }
+  async function executeEditOrder(p, action, ctx) {
+    try {
+      // La confirmación (reforzada si hacía falta) ya la dio el usuario en el chat
+      await orderEditService().applyEdit(editCtx(ctx), p.order_id, p.changes, { confirm: true, confirm_strong: true, expected: p.expected });
+    } catch (err) {
+      return { ok: false, error: err instanceof orderEditService().EditError ? err.message : 'no se pudo editar el pedido.' };
+    }
+    const { data } = await db.from('orders').select('total_amount, discount_amount').eq('business_id', ctx.businessId).eq('id', p.order_id).maybeSingle();
+    return { ok: Number(data?.total_amount) === Number(p.total_after), result: { total_antes: p.total_before, total_leido: Number(data?.total_amount) }, message: `pedido ${p.label}: editado, total ${cop(p.total_before)} → ${cop(data?.total_amount)}`, error: 'el pedido no quedó como se esperaba.' };
+  }
 
   async function prepareDeleteOrder(a, ctx) {
     const o = await orderByCode(ctx, a.codigo);
@@ -1116,6 +1242,7 @@ function createCapabilities(lib) {
     A('pago_pedido', 'pedidos', 'N', null, 'marcar pagado/pendiente un pedido', preparePayment, executePayment, inversePayment),
     A('envio_pedido', 'pedidos', 'N', null, 'transportadora / guía de un pedido', prepareShipping, executeShipping, inverseShipping),
     A('descuento_pedido', 'pedidos', 'N', null, 'cambiar el descuento de un pedido ya creado', prepareOrderDiscount, executeOrderDiscount, inverseOrderDiscount),
+    A('editar_pedido', 'pedidos', 'N', null, 'editar un pedido ya creado (agregar/quitar productos, descuento, envío, datos del cliente)', prepareEditOrder, executeEditOrder, null),
     A('eliminar_pedido', 'pedidos', 'R', null, 'borrar del todo un pedido', prepareDeleteOrder, executeDeleteOrder, null),
     A('crear_producto', 'productos', 'N', 'productos', 'crear un producto nuevo (con variantes y stock)', prepareCreateProduct, executeCreateProduct, inverseCreateProduct),
     A('editar_producto', 'productos', 'N', 'productos', 'cambiar costo, nombre, categoría, género, descripción o stock mínimo', prepareEditProduct, executeEditProduct, inverseEditProduct),

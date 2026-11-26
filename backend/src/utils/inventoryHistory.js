@@ -44,10 +44,12 @@ function applyFilters(query, f) {
   return q;
 }
 
+const ORDER_REFS = ['order', 'order_cancel', 'order_delete', 'order_edit', 'order_reopen'];
+
 // Quién o qué hizo el movimiento y a qué pedido pertenece
 function describeSource(m, ordersById = {}) {
   const o = m.reference_id ? ordersById[m.reference_id] : null;
-  const pedido = (m.reference_type === 'order' || m.reference_type === 'order_cancel' || m.reference_type === 'order_delete') && m.reference_id
+  const pedido = ORDER_REFS.includes(m.reference_type) && m.reference_id
     ? orderCode(m.reference_id) : null;
   const canal = o ? (o.source === 'web' ? 'tienda web' : 'pedido manual') : null;
   let origen;
@@ -56,6 +58,8 @@ function describeSource(m, ordersById = {}) {
   else if (m.reference_type === 'order') origen = canal ? `Venta (${canal})` : 'Venta por pedido';
   else if (m.reference_type === 'order_cancel') origen = 'Devolución por cancelación';
   else if (m.reference_type === 'order_delete') origen = 'Devolución por pedido eliminado';
+  else if (m.reference_type === 'order_edit') origen = m.type === 'venta' ? 'Edición de pedido (sale)' : 'Edición de pedido (vuelve)';
+  else if (m.reference_type === 'order_reopen') origen = 'Pedido reabierto';
   else if (m.reference_type === 'product_sale') origen = 'Venta rápida';
   else if (m.reference_type === 'restock') origen = 'Entrada de mercancía';
   else if (m.reference_type === 'product_create' || m.reference_type === 'variant_create') origen = 'Stock inicial';

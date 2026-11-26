@@ -1,10 +1,11 @@
 import { useState, useEffect } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useSearchParams } from 'react-router-dom';
-import { ShoppingBag, Plus, X, AlertTriangle, CheckCircle2 } from 'lucide-react';
+import { ShoppingBag, Plus, X, AlertTriangle, CheckCircle2, Pencil } from 'lucide-react';
 import api from '../../lib/api';
 import { useAuth } from '../../context/AuthContext';
 import { isTiendaBusiness } from '../../lib/businessType';
+import EditOrderModal from '../../components/orders/EditOrderModal';
 
 function formatCOP(v) {
   return new Intl.NumberFormat('es-CO', { style: 'currency', currency: 'COP', maximumFractionDigits: 0 }).format(v ?? 0);
@@ -339,8 +340,9 @@ function NewOrderModal({ onClose, onSuccess, clients, isTienda, products }) {
   );
 }
 
-function OrderDetailModal({ order: initialOrder, onClose, isTienda, onNotice }) {
+function OrderDetailModal({ order: initialOrder, onClose, isTienda, onNotice, products }) {
   const [order, setOrder] = useState(initialOrder);
+  const [editing, setEditing] = useState(false);
   const [newStatus, setNewStatus] = useState(initialOrder.status);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
@@ -504,6 +506,11 @@ function OrderDetailModal({ order: initialOrder, onClose, isTienda, onNotice }) 
 
         <div className="flex-1 overflow-y-auto px-4 md:px-6 py-4 space-y-3">
           {error && <p className="text-red-400 text-sm bg-red-500/10 border border-red-500/20 px-3 py-2 rounded-lg">{error}</p>}
+
+          <button onClick={() => setEditing(true)}
+            className="w-full flex items-center justify-center gap-2 bg-violet-600/20 hover:bg-violet-600/30 border border-violet-500/30 text-violet-300 text-sm font-medium py-2.5 rounded-lg transition">
+            <Pencil size={14} /> {isCancelled ? 'Editar datos o reabrir' : 'Editar pedido (artículos, descuento, cliente…)'}
+          </button>
 
           <div>
             <p className="text-slate-500 text-xs">Cliente</p>
@@ -727,6 +734,28 @@ function OrderDetailModal({ order: initialOrder, onClose, isTienda, onNotice }) 
           )}
         </div>
       </div>
+      {editing && (
+        <EditOrderModal
+          order={order}
+          products={products || []}
+          isTienda={isTienda}
+          onClose={() => setEditing(false)}
+          onSaved={(updated, text) => {
+            if (updated) {
+              setOrder(updated);
+              setNewStatus(updated.status);
+              setPayStatusSel(paymentOf(updated));
+              setPayMethod(updated.payment_method || '');
+              setCarrier(updated.shipping_carrier || '');
+              setTracking(updated.tracking_code || '');
+              setDiscountInput(String(Number(updated.discount_amount) || ''));
+            }
+            invalidateAfterStock();
+            onNotice?.({ type: 'ok', text });
+            setEditing(false);
+          }}
+        />
+      )}
     </div>
   );
 }
@@ -941,6 +970,7 @@ export default function Orders() {
           onClose={() => setSelectedOrder(null)}
           isTienda={isTienda}
           onNotice={setNotice}
+          products={products}
         />
       )}
     </div>

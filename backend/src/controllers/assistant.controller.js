@@ -20,6 +20,8 @@ async function message(req, res) {
     // businessId y token SIEMPRE de la sesión (JWT); un business_id en el body o en el mensaje se ignora
     const result = await processMessage(businessId, userMessage, history || [], {
       authorization: req.headers.authorization,
+      // Quién escribe (historial de ediciones de pedidos, movimientos): siempre del JWT
+      user: req.user?.id ? { id: req.user.id } : null,
     });
 
     if (result.success === false) {

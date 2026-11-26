@@ -191,7 +191,12 @@ const int = { type: 'integer' };
 const strOrInt = { type: ['string', 'integer'] };
 const DOMAIN_FIELDS = {
   caja: { monto: int, categoria: str, descripcion: str, fecha: { type: 'string', description: 'hoy, ayer o YYYY-MM-DD' }, metodo: str, tipo_mov: { type: 'string', enum: ['ingreso', 'egreso'] }, buscar: str, nuevo_monto: int, nueva_categoria: str, nueva_descripcion: str, nueva_fecha: str },
-  pedidos: { pago: { type: 'string', enum: ['pagado', 'pendiente', 'fallido', 'reembolsado'] }, metodo: str, transportadora: str, guia: str },
+  pedidos: {
+    pago: { type: 'string', enum: ['pagado', 'pendiente', 'fallido', 'reembolsado'] }, metodo: str, transportadora: str, guia: str,
+    agregar: { type: 'array', items: { type: 'object', properties: { producto: str, color: str, talla: str, cantidad: int }, required: ['producto'] } },
+    quitar: { type: 'array', items: { type: 'object', properties: { producto: str, color: str, talla: str, cantidad: int }, required: ['producto'] } },
+    envio: int, email: str, direccion: str, ciudad: str, notas: str,
+  },
   productos: { nombre: str, costo: int, categoria: str, genero: { type: 'string', enum: ['mujer', 'hombre', 'unisex'] }, descripcion: str, variantes: { type: 'array', items: { type: 'object', properties: { color: str, talla: str, cantidad: int } } }, campo: str, valor: strOrInt, nuevo_color: str, nueva_talla: str, sku: str, stock_minimo: int },
   sets: { nombre: str, set: str, piezas: { type: 'array', items: { type: 'object', properties: { producto: str, cantidad: int } } } },
   clientes: { email: str, campo: str, valor: strOrInt, nombre: str },
@@ -212,7 +217,9 @@ Ej: "gaste 50mil en bolsas" → {"tipo":"acciones","acciones":[{"accion":"regist
 "cuanto gaste este mes en bolsas" → {"tipo":"consulta","consulta":{"tipo":"caja_movimientos","tipo_mov":"egreso","texto":"bolsas","periodo":"mes"}}
 "borra el gasto de 50 mil de bolsas" → {"tipo":"acciones","acciones":[{"accion":"anular_movimiento","tipo_mov":"egreso","monto":50000,"buscar":"bolsas"}]}`,
   pedidos: `PEDIDOS (además de pedido y estado_pedido): pago_pedido (codigo, pago, metodo), envio_pedido (codigo, transportadora, guia), descuento_pedido (pedido YA creado: codigo, descuento), eliminar_pedido (borrar del todo; cancelar = estado_pedido cancelado).
-Ej: "el p-1a2b3c4d ya pago por nequi" → {"tipo":"acciones","acciones":[{"accion":"pago_pedido","codigo":"P-1A2B3C4D","pago":"pagado","metodo":"nequi"}]}`,
+editar_pedido (pedido YA creado, también viejo o entregado: codigo + agregar [{producto,color,talla,cantidad}] / quitar [{producto,color,talla,cantidad}] / descuento / envio (costo en pesos) / cliente / telefono / email / direccion / ciudad / notas).
+Ej: "el p-1a2b3c4d ya pago por nequi" → {"tipo":"acciones","acciones":[{"accion":"pago_pedido","codigo":"P-1A2B3C4D","pago":"pagado","metodo":"nequi"}]}
+"al pedido p-1a2b3c4d agrégale un top jana negro S y ponle 10 mil de descuento" → {"tipo":"acciones","acciones":[{"accion":"editar_pedido","codigo":"P-1A2B3C4D","agregar":[{"producto":"top jana","color":"negro","talla":"S","cantidad":1}],"descuento":10000}]}`,
   productos: `PRODUCTOS: crear_producto (nombre, precio, costo, categoria, genero, descripcion, variantes [{color,talla,cantidad}] o cantidad), editar_producto (producto + campo costo|nombre|categoria|genero|descripcion|stock_minimo|precio + valor; plural "las licras" → todos true), eliminar_producto (borrar del todo; ocultar = desactivar), editar_variante (producto, color, talla actuales + nuevo_color/nueva_talla/sku/stock_minimo), eliminar_variante. Consulta: historial_producto.
 Ej: "cambia el costo de la licra aria a 70000" → {"tipo":"acciones","acciones":[{"accion":"editar_producto","producto":"licra aria","campo":"costo","valor":70000}]}
 "crea un producto short prueba negro talla S 3 unidades a 80000" → {"tipo":"acciones","acciones":[{"accion":"crear_producto","nombre":"short prueba","precio":80000,"variantes":[{"color":"negro","talla":"S","cantidad":3}]}]}`,
@@ -266,6 +273,11 @@ function validateIntent(x, allowed = { acciones: ACCIONES, consultas: CONSULTAS 
       if (![a.descripcion, a.nueva_descripcion].every((v) => s(v, 1000)) || !sn(a.valor, 1000)) return 'texto inválido';
       if (![a.cantidad, a.stock_final, a.precio, a.descuento, a.monto, a.nuevo_monto, a.costo, a.comision, a.stock_minimo].every(n)) return 'número inválido';
       for (const list of [a.variantes, a.piezas]) if (list !== undefined && (!Array.isArray(list) || list.length > 30)) return 'lista inválida';
+      if (![a.direccion, a.ciudad].every((v) => s(v, 300)) || !s(a.notas, 1000) || !n(a.envio)) return 'texto inválido';
+      for (const list of [a.agregar, a.quitar]) {
+        if (list === undefined) continue;
+        if (!Array.isArray(list) || list.length > 20 || !list.every((i) => i && i.producto && s(i.producto) && s(i.color) && s(i.talla) && n(i.cantidad))) return 'lista inválida';
+      }
       if (a.accion === 'pedido' && (!Array.isArray(a.items) || !a.items.length || a.items.length > 20 || !a.items.every((i) => i && s(i.producto) && i.producto && n(i.cantidad)))) return 'pedido sin ítems válidos';
       if (ACCIONES.includes(a.accion) && a.accion !== 'pedido' && a.accion !== 'estado_pedido' && !a.producto) return 'falta el producto';
     }
@@ -609,9 +621,9 @@ function createStoreAgent(deps = {}) {
     return null;
   }
 
-  async function handle({ businessId, business, userMessage, history, authorization, model }) {
+  async function handle({ businessId, business, userMessage, history, authorization, user = null, model }) {
     const usage = { model, calls: 0, input: 0, output: 0, cache_read: 0, cache_write: 0 };
-    const ctx = { businessId, business: { ...business, id: businessId }, authorization, requestId: crypto.randomUUID(), userMessage: String(userMessage || ''), model };
+    const ctx = { businessId, business: { ...business, id: businessId }, authorization, user, requestId: crypto.randomUUID(), userMessage: String(userMessage || ''), model };
     const hour = Number(new Intl.DateTimeFormat('en-US', { timeZone: 'America/Bogota', hour: '2-digit', hourCycle: 'h23' }).format(now()));
     const q = await openQuestion(businessId);
     const pending = (await store.lib.pendingActions(businessId)).filter((a) => store.lib.live(a));

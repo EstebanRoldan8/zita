@@ -854,7 +854,7 @@ function createStoreAssistant(deps) {
     if (!capsInstance) {
       capsInstance = createCapabilities({
         db, now, ctl: controllers, call, cop, text, norm, dayISO, orderCode, savePending, resolveProduct, resolveVariant,
-        loadProducts, loadVariants, loadOrders, matchProducts, variantLabel, periodRange, prepararPrecio,
+        loadProducts, loadVariants, loadOrders, matchProducts, matchVariants, variantLabel, periodRange, prepararPrecio,
       });
     }
     return capsInstance;

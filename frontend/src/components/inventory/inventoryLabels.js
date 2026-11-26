@@ -14,6 +14,8 @@ export const REFERENCE_LABELS = {
   order: 'Pedido',
   order_cancel: 'Pedido cancelado',
   order_delete: 'Pedido eliminado',
+  order_edit: 'Pedido editado',
+  order_reopen: 'Pedido reabierto',
   product_sale: 'Venta en el panel',
   product_create: 'Creación del producto',
   product_update: 'Edición del producto',
